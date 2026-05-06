@@ -84,6 +84,9 @@ El schema de PostgreSQL y las políticas de RLS. Diseñar antes de escribir fron
 | Skill | Ubicación | Cuándo usarla |
 |---|---|---|
 | `arquitecto-general` | [.claude/skills/arquitecto-general/SKILL.md](.claude/skills/arquitecto-general/SKILL.md) | Toda decisión técnica de arquitectura: qué stack usar, qué base de datos elegir, cómo deployar, monorepo vs. repos separados, comparar tecnologías (Flutter vs React Native, SQL vs NoSQL, REST vs GraphQL, etc.), definir el stack de un proyecto nuevo o revisar una decisión ya tomada. |
+| `senior-expo` | [.claude/skills/senior-expo/SKILL.md](.claude/skills/senior-expo/SKILL.md) | Todo lo que sea código del frontend mobile: componentes, pantallas, navegación (Expo Router), manejo de estado, lógica offline, formularios, NativeWind, configuración de EAS, estructura de carpetas de Expo. Si hay código React Native / Expo en juego, esta skill aplica. |
+| `senior-supabase` | [.claude/skills/senior-supabase/SKILL.md](.claude/skills/senior-supabase/SKILL.md) | Todo lo que sea backend Supabase: diseño de schema PostgreSQL, migraciones SQL, políticas de RLS, Edge Functions, Supabase Auth, Storage, Realtime, permisos por rol y seguridad de datos. Si hay Supabase en juego, esta skill aplica. |
+| `senior-expo-supabase` | [.claude/skills/senior-expo-supabase/SKILL.md](.claude/skills/senior-expo-supabase/SKILL.md) | Integración entre Expo y Supabase: configuración del cliente, auth flow completo, suscripciones realtime desde React Native, subida de archivos a Storage, llamadas a Edge Functions, manejo de tokens y sesión. Cuando el código cruza los dos mundos al mismo tiempo. |
 
 ## Fuentes
 
