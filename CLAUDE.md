@@ -50,6 +50,12 @@ Los specs viven en `openspec/specs/` organizados por dominio:
 ## Stack Tecnológico
 A definir por el arquitecto técnico. Sin restricciones desde el lado del negocio.
 
+## Skills
+
+| Skill | Ubicación | Cuándo usarla |
+|---|---|---|
+| `arquitecto-general` | [.claude/skills/arquitecto-general/SKILL.md](.claude/skills/arquitecto-general/SKILL.md) | Toda decisión técnica de arquitectura: qué stack usar, qué base de datos elegir, cómo deployar, monorepo vs. repos separados, comparar tecnologías (Flutter vs React Native, SQL vs NoSQL, REST vs GraphQL, etc.), definir el stack de un proyecto nuevo o revisar una decisión ya tomada. |
+
 ## Fuentes
 
 - PRD completo: [`prd.md`](prd.md) — v1.0, Mayo 2026
