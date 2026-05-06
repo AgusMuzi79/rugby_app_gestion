@@ -48,7 +48,36 @@ Los specs viven en `openspec/specs/` organizados por dominio:
 - **Escalabilidad:** ~60 usuarios iniciales, sin límite fijo de crecimiento. Arquitectura que permita sumar divisiones o roles sin rediseño mayor.
 
 ## Stack Tecnológico
-A definir por el arquitecto técnico. Sin restricciones desde el lado del negocio.
+
+| Capa | Tecnología | Decisión |
+|---|---|---|
+| Mobile + Web | React Native + Expo (TypeScript) | Un solo codebase para iOS, Android y web (Expo Web) |
+| Auth | Supabase Auth | Email + password; TOTP 2FA para Subcomisión; RLS por rol |
+| Base de datos | PostgreSQL via Supabase | Relacional, transaccional; modelo de datos con FK entre jugadores, eventos, asistencia, cobranzas |
+| Real-time | Supabase Realtime | Suscripciones a tablas para dashboard de Subcomisión |
+| Storage | Supabase Storage | Documentos de fichajes (DNI, fichas médicas) y protocolos de lesión; acceso controlado por RLS |
+| Lógica server-side | Supabase Edge Functions (TypeScript/Deno) | Cálculo de ausencias consecutivas, disparo de notificaciones push, alertas automáticas |
+| Push Notifications | Expo Push API (llamada desde Edge Functions) | Triggers de Postgres → Edge Function → Expo Push API → dispositivo |
+| Offline | AsyncStorage + cola de sync (NetInfo) | Cola de writes pendientes (asistencia, lesiones); sync automático al recuperar conexión |
+| Deploy mobile | Expo EAS — internal distribution (MVP) | Sin pasar por App Store / Google Play en MVP; link de instalación directa para los ~60 usuarios |
+| Deploy web | Expo Web → Vercel | Para acceso desde navegador desktop (Subcomisión, Coordinador) |
+
+### Estructura del repositorio
+
+```
+rugby_app_gestion/
+├── app/                  # Expo app (mobile + web)
+├── supabase/
+│   ├── migrations/       # SQL migrations versionadas
+│   └── functions/        # Edge Functions (TypeScript)
+├── openspec/             # Specs por dominio
+└── CLAUDE.md
+```
+
+Sin Turborepo ni workspaces: no hay código compartido real entre proyectos separados porque todo vive en el mismo proyecto Expo.
+
+### Decisión más irreversible
+El schema de PostgreSQL y las políticas de RLS. Diseñar antes de escribir frontend.
 
 ## Skills
 
