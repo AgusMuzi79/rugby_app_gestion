@@ -88,7 +88,40 @@ El schema de PostgreSQL y las políticas de RLS. Diseñar antes de escribir fron
 | `senior-supabase` | [.claude/skills/senior-supabase/SKILL.md](.claude/skills/senior-supabase/SKILL.md) | Todo lo que sea backend Supabase: diseño de schema PostgreSQL, migraciones SQL, políticas de RLS, Edge Functions, Supabase Auth, Storage, Realtime, permisos por rol y seguridad de datos. Si hay Supabase en juego, esta skill aplica. |
 | `senior-expo-supabase` | [.claude/skills/senior-expo-supabase/SKILL.md](.claude/skills/senior-expo-supabase/SKILL.md) | Integración entre Expo y Supabase: configuración del cliente, auth flow completo, suscripciones realtime desde React Native, subida de archivos a Storage, llamadas a Edge Functions, manejo de tokens y sesión. Cuando el código cruza los dos mundos al mismo tiempo. |
 
+## Estado del Proyecto
+
+### Completado
+- PRD v1.0 capturado en `prd.md`
+- 7 specs de dominio en `openspec/specs/` (37 user stories)
+- Stack tecnológico definido (ver sección arriba)
+- Schema PostgreSQL completo: 18 tablas, helper functions RLS, índices → `supabase/migrations/20260506000000_init_schema.sql`
+- Columna `plataforma` en `push_tokens` → `supabase/migrations/20260506000001_add_platform_to_push_tokens.sql`
+- Políticas RLS completas para las 18 tablas (44 políticas) → `supabase/migrations/20260506000002_rls_policies.sql`
+
+### Próximo paso al volver
+Docker Desktop instalado pero pendiente reinicio para activar WSL 2. Una vez reiniciado:
+
+```bash
+# 1. Instalar Supabase CLI (si no está)
+winget install Supabase.CLI
+
+# 2. Inicializar proyecto Supabase local (si no hay supabase/config.toml)
+supabase init
+
+# 3. Levantar entorno local (requiere Docker corriendo)
+supabase start
+
+# 4. Aplicar las 3 migraciones desde cero
+supabase db reset
+
+# 5. Si no hay errores, generar tipos TypeScript
+supabase gen types typescript --local > lib/database.types.ts
+```
+
+Después de validar el schema en local, el siguiente bloque de trabajo es inicializar el proyecto Expo (`app/`) y configurar el cliente Supabase.
+
 ## Fuentes
 
 - PRD completo: [`prd.md`](prd.md) — v1.0, Mayo 2026
 - Specs por dominio: [`openspec/specs/`](openspec/specs/)
+- Migraciones DB: [`supabase/migrations/`](supabase/migrations/)
