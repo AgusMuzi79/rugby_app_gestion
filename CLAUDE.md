@@ -97,40 +97,65 @@ El schema de PostgreSQL y las políticas de RLS. Diseñar antes de escribir fron
 - Schema PostgreSQL completo: 18 tablas, helper functions RLS, índices → `supabase/migrations/20260506000000_init_schema.sql`
 - Columna `plataforma` en `push_tokens` → `supabase/migrations/20260506000001_add_platform_to_push_tokens.sql`
 - Políticas RLS completas para las 18 tablas (44 políticas) → `supabase/migrations/20260506000002_rls_policies.sql`
+- Rol `admin` con CRUD en las 18 tablas → `supabase/migrations/20260506000003_add_admin_role.sql`
+- Política INSERT en `eventos` para entrenador (tipo entrenamiento) → `supabase/migrations/20260507000000_eventos_insert_entrenador.sql`
 
 ### Entorno local Supabase
 - Supabase CLI v2.98.2 instalada en `%USERPROFILE%\AppData\Local\supabase\supabase.exe` (en PATH de usuario)
 - `supabase start` corriendo: Studio en http://127.0.0.1:54323, DB en postgresql://postgres:postgres@127.0.0.1:54322/postgres
-- Las 3 migraciones aplicadas y validadas con `supabase db reset`
-- Tipos TypeScript generados en `lib/database.types.ts` (989 líneas, 18 tablas del schema `public`)
+- Las 4 migraciones aplicadas
+- Tipos TypeScript generados en `app/lib/database.types.ts`
 
 Para levantar el entorno al volver (requiere Docker Desktop corriendo):
 ```bash
 supabase start
 ```
 
-### Boilerplate Expo creado (app/)
-- `app/app/_layout.tsx` — root layout con auth guard por rol y listener de sesión Supabase
-- `app/lib/supabase.ts` — cliente Supabase con AsyncStorage, AppState listener, tipos generados
-- `app/lib/database.types.ts` — tipos TypeScript generados desde el schema (copia de `lib/database.types.ts`)
-- `app/lib/offlineQueue.ts` — cola offline para asistencia y lesiones (AsyncStorage)
-- `app/stores/authStore.ts` — Zustand store de autenticación
-- `app/constants/roles.ts` — tipos y constantes de roles + rutas iniciales por rol
-- `app/babel.config.js` + `app/metro.config.js` — NativeWind v4 configurado
-- `app/global.css` — entrada Tailwind v4 (`@import "tailwindcss"`)
-- `app/nativewind-env.d.ts` — tipos NativeWind para TypeScript
-- `app/.env.local` — variables placeholder (ya en .gitignore via `.env*.local`)
-- `app/package.json` `main` → `expo-router/entry`
-- `app/tsconfig.json` — alias `@/*` configurado
-- `app/app.json` — `scheme: rugby-app` agregado para deep linking
+### Usuarios de prueba (local)
+| Email | Contraseña | Rol | División |
+|---|---|---|---|
+| admin@uncas.club | Admin1234! | admin | — |
+| subco@uncas.club | Admin1234! | subcomision | — |
+| coordinador@uncas.club | Admin1234! | coordinador | — |
+| entrenador@uncas.club | Admin1234! | entrenador | M15 Prueba |
+| manager@uncas.club | Admin1234! | manager | M15 Prueba |
 
-**Nota**: `lib/database.types.ts` en la raíz ya no es la fuente de verdad. Regenerar siempre en `app/lib/`:
+- 10 jugadores de prueba en división M15 Prueba (`00000000-0000-0000-0000-000000000001`)
+- 1 partido de prueba: vs Pampas RC, 2026-05-10, Cancha principal
+
+### Expo app (app/)
+- `app/app/_layout.tsx` — root layout, auth guard sin `useSegments` (devuelve `[]` en root layout de Expo Router — usar session/rol directo)
+- `app/app/(auth)/login.tsx` + `forgot-password.tsx` — diseño "La Bitácora" (cream/gold/serif)
+- `app/app/(auth)/_layout.tsx` — stack sin header
+- `app/app/(subcomision|coordinador|entrenador|manager)/_layout.tsx` — tab navigation oscura, tab "Salir" con `tabBarButton` + `salir.tsx` por grupo
+- `app/lib/supabase.ts` — cliente con AsyncStorage + AppState
+- `app/lib/offlineQueue.ts` — `encolar/obtenerCola/eliminarDeCola/tamañoCola` (nombres en español, tipo `OperacionOffline`)
+- `app/stores/authStore.ts` — Zustand: session, rol, loading, setSession, setRol, clearAuth
+- `app/constants/roles.ts` — incluye `admin` mapeado a `/(subcomision)/dashboard`
+- `app/hooks/useLogin.ts` — signIn + fetch profile.rol
+- `app/hooks/useForgotPassword.ts` — resetPasswordForEmail
+- `app/hooks/useSignOut.ts` — signOut + clearAuth
+
+**Nota**: Tailwind v3 (no v4). NativeWind v4 no soporta Tailwind v4. `global.css` usa `@tailwind base/components/utilities`.
+
+**Nota**: Regenerar tipos siempre en `app/lib/`:
 ```bash
 supabase gen types typescript --local > app/lib/database.types.ts
 ```
 
+### Pantallas implementadas — Entrenador
+| Pantalla | Hook | Estado |
+|---|---|---|
+| `(entrenador)/asistencia.tsx` | `useAsistencia.ts` | ✅ US-EP-01 completo (online + offline) |
+| `(entrenador)/partido.tsx` | `usePartido.ts` | ✅ US-EP-02 + US-EP-03 completo |
+| `(entrenador)/lesiones.tsx` | — | placeholder |
+
+**`useAsistencia`**: fetch jugadores por división → pre-carga asistencias del día → guardar crea evento de entrenamiento automáticamente → verifica 4 ausencias consecutivas con Promise.all.
+
+**`usePartido`**: lista partidos próximos (hoy + 14 días) → selección → Paso 1 asistencia (presente/ausente) → Paso 2 mesa (C/T/S/CT por jugador presente) → validación (1 cap, ≤15 cancha, ≤8 suplentes).
+
 ### Próximo paso al volver
-Crear las pantallas de auth (`app/app/(auth)/login.tsx`) y el primer flujo funcional (entrenador → asistencia offline).
+Pantallas del rol Coordinador: calendario con lista de eventos (US-EP-05) y vista de asistencia por división. O pantallas del Manager: cobranzas (spec financiero) y fichajes.
 
 ## Fuentes
 
