@@ -216,6 +216,45 @@ export type Database = {
           },
         ]
       }
+      equipos: {
+        Row: {
+          created_at: string
+          created_by: string
+          division_id: string
+          id: string
+          nombre: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          division_id: string
+          id?: string
+          nombre: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          division_id?: string
+          id?: string
+          nombre?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipos_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "divisiones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos: {
         Row: {
           cancelado: boolean
@@ -417,6 +456,7 @@ export type Database = {
           fecha_nacimiento: string
           id: string
           nombre_completo: string
+          posicion: string | null
           updated_at: string
         }
         Insert: {
@@ -427,6 +467,7 @@ export type Database = {
           fecha_nacimiento: string
           id?: string
           nombre_completo: string
+          posicion?: string | null
           updated_at?: string
         }
         Update: {
@@ -437,6 +478,7 @@ export type Database = {
           fecha_nacimiento?: string
           id?: string
           nombre_completo?: string
+          posicion?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -546,27 +588,37 @@ export type Database = {
       mesas_de_partido: {
         Row: {
           created_at: string
+          equipo_id: string | null
           evento_id: string
           id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          equipo_id?: string | null
           evento_id: string
           id?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          equipo_id?: string | null
           evento_id?: string
           id?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "mesas_de_partido_equipo_id_fkey"
+            columns: ["equipo_id"]
+            isOneToOne: false
+            referencedRelation: "equipos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mesas_de_partido_evento_id_fkey"
             columns: ["evento_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "eventos"
             referencedColumns: ["id"]
           },
@@ -809,36 +861,49 @@ export type Database = {
       resultados: {
         Row: {
           created_at: string
+          equipo_id: string | null
           evento_id: string
           id: string
           puntos_propios: number
           puntos_rival: number
           registrado_por: string
+          rival: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
+          equipo_id?: string | null
           evento_id: string
           id?: string
           puntos_propios: number
           puntos_rival: number
           registrado_por: string
+          rival?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
+          equipo_id?: string | null
           evento_id?: string
           id?: string
           puntos_propios?: number
           puntos_rival?: number
           registrado_por?: string
+          rival?: string | null
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "resultados_equipo_id_fkey"
+            columns: ["equipo_id"]
+            isOneToOne: false
+            referencedRelation: "equipos"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "resultados_evento_id_fkey"
             columns: ["evento_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "eventos"
             referencedColumns: ["id"]
           },

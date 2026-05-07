@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Rol } from '@/constants/roles'
+import { registerPushToken } from '@/lib/notifications'
 
 export function useLogin() {
   const [loading, setLoading] = useState(false)
@@ -31,6 +32,7 @@ export function useLogin() {
 
       setSession(data.session)
       setRol((profile?.rol as Rol) ?? null)
+      void registerPushToken()
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')
     } finally {

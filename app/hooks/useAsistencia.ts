@@ -220,6 +220,17 @@ export function useAsistencia(): UseAsistenciaReturn {
       const ultimas = res.data ?? []
       if (ultimas.length === 4 && ultimas.every(a => a.estado === 'ausente')) {
         conAlertas.push(jugadores[i].nombre_completo)
+        void supabase.functions.invoke('notifications', {
+          body: {
+            type: 'ausencias_consecutivas',
+            payload: {
+              jugadorNombre:  jugadores[i].nombre_completo,
+              jugadorId:      jugadores[i].id,
+              divisionNombre,
+              divisionId:     divId,
+            },
+          },
+        })
       }
     })
 

@@ -143,19 +143,56 @@ supabase start
 supabase gen types typescript --local > app/lib/database.types.ts
 ```
 
+### Edge Functions
+| Función | Estado | Descripción |
+|---|---|---|
+| `supabase/functions/admin-usuarios/` | ✅ completo | create (inviteUserByEmail) / deactivate (ban 876000h) / reactivate |
+| `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API |
+| `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
+
+**Nota Edge Functions local**: `supabase start` NO levanta el Edge Runtime. Para probar funciones localmente, correr `supabase functions serve` en paralelo.
+
+### Pantallas implementadas — Subcomisión
+| Pantalla | Hook | Estado |
+|---|---|---|
+| `(subcomision)/dashboard.tsx` | `useDashboard.ts` | ✅ completo — selector división + 4 secciones + Realtime |
+| `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | ✅ completo — lista/detalle/crear/desactivar/reactivar |
+
+**`useDashboard`**: suscripción Realtime canal único `dashboard-subcomision` (asistencias, fichajes, resultados, cobranzas). Secciones: Asistencia (% + badge 4+ ausencias consecutivas), Resultados (últimos 5 no-infantil), Fichajes (count por división), Financiero (cobrado vs pendiente).
+
+**`useUsuarios`**: lista todos los profiles, paso lista/detalle, modal nuevo usuario (invoke `admin-usuarios` action=create), desactivar/reactivar (invoke action=deactivate/reactivate). Actualización optimista del estado local.
+
 ### Pantallas implementadas — Entrenador
 | Pantalla | Hook | Estado |
 |---|---|---|
 | `(entrenador)/asistencia.tsx` | `useAsistencia.ts` | ✅ US-EP-01 completo (online + offline) |
 | `(entrenador)/partido.tsx` | `usePartido.ts` | ✅ US-EP-02 + US-EP-03 completo |
-| `(entrenador)/lesiones.tsx` | — | placeholder |
+| `(entrenador)/lesiones.tsx` | `useLesiones.ts` | ✅ completo (online + offline) |
 
-**`useAsistencia`**: fetch jugadores por división → pre-carga asistencias del día → guardar crea evento de entrenamiento automáticamente → verifica 4 ausencias consecutivas con Promise.all.
+**`useAsistencia`**: fetch jugadores por división → pre-carga asistencias del día → guardar crea evento de entrenamiento automáticamente → verifica 4 ausencias consecutivas con Promise.all → invoca `notifications` si hay 4 ausencias.
 
 **`usePartido`**: lista partidos próximos (hoy + 14 días) → selección → Paso 1 asistencia (presente/ausente) → Paso 2 mesa (C/T/S/CT por jugador presente) → validación (1 cap, ≤15 cancha, ≤8 suplentes).
 
+**`useLesiones`**: lista lesiones de la división, modal nuevo registro, online (insert DB + invoke `notifications`) / offline (`encolar`).
+
+### Pantallas implementadas — Manager
+| Pantalla | Hook | Estado |
+|---|---|---|
+| `(manager)/fichajes.tsx` | `useFichajes.ts` | ✅ completo — lista/detalle/nuevo/documentos |
+
+**`useFichajes`**: lista jugadores fichados, modal nuevo fichaje (jugador + fichaje en 2 inserts), upload documentos a Storage bucket `fichajes` (base64 via expo-file-system), invoca `notifications` al crear fichaje.
+
+### Push Notifications
+- `app/lib/notifications.ts` — `registerPushToken()`: permisos → canal Android → `getExpoPushTokenAsync()` → upsert en `push_tokens` (onConflict: 'token')
+- Llamado en `useLogin.ts` después de autenticar (fire-and-forget con `void`)
+- `useLesiones`, `useFichajes`, `useAsistencia` invocan `notifications` Edge Function en los eventos correspondientes
+
+**Nota expo-file-system v19**: `EncodingType` NO es un named export. Usar string literal `'base64'` en `readAsStringAsync`.
+
+**Nota expo-notifications v0.32**: `NotificationBehavior` requiere `shouldShowBanner` y `shouldShowList` además de los 3 campos estándar.
+
 ### Próximo paso al volver
-Pantallas del rol Coordinador: calendario con lista de eventos (US-EP-05) y vista de asistencia por división. O pantallas del Manager: cobranzas (spec financiero) y fichajes.
+Pantallas del rol Coordinador: calendario con lista de eventos (US-EP-05) y vista de asistencia por división. O pantallas del Manager: cobranzas (spec financiero).
 
 ## Fuentes
 
