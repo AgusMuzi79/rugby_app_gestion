@@ -98,27 +98,39 @@ El schema de PostgreSQL y las políticas de RLS. Diseñar antes de escribir fron
 - Columna `plataforma` en `push_tokens` → `supabase/migrations/20260506000001_add_platform_to_push_tokens.sql`
 - Políticas RLS completas para las 18 tablas (44 políticas) → `supabase/migrations/20260506000002_rls_policies.sql`
 
-### Próximo paso al volver
-Docker Desktop instalado pero pendiente reinicio para activar WSL 2. Una vez reiniciado:
+### Entorno local Supabase
+- Supabase CLI v2.98.2 instalada en `%USERPROFILE%\AppData\Local\supabase\supabase.exe` (en PATH de usuario)
+- `supabase start` corriendo: Studio en http://127.0.0.1:54323, DB en postgresql://postgres:postgres@127.0.0.1:54322/postgres
+- Las 3 migraciones aplicadas y validadas con `supabase db reset`
+- Tipos TypeScript generados en `lib/database.types.ts` (989 líneas, 18 tablas del schema `public`)
 
+Para levantar el entorno al volver (requiere Docker Desktop corriendo):
 ```bash
-# 1. Instalar Supabase CLI (si no está)
-winget install Supabase.CLI
-
-# 2. Inicializar proyecto Supabase local (si no hay supabase/config.toml)
-supabase init
-
-# 3. Levantar entorno local (requiere Docker corriendo)
 supabase start
-
-# 4. Aplicar las 3 migraciones desde cero
-supabase db reset
-
-# 5. Si no hay errores, generar tipos TypeScript
-supabase gen types typescript --local > lib/database.types.ts
 ```
 
-Después de validar el schema en local, el siguiente bloque de trabajo es inicializar el proyecto Expo (`app/`) y configurar el cliente Supabase.
+### Boilerplate Expo creado (app/)
+- `app/app/_layout.tsx` — root layout con auth guard por rol y listener de sesión Supabase
+- `app/lib/supabase.ts` — cliente Supabase con AsyncStorage, AppState listener, tipos generados
+- `app/lib/database.types.ts` — tipos TypeScript generados desde el schema (copia de `lib/database.types.ts`)
+- `app/lib/offlineQueue.ts` — cola offline para asistencia y lesiones (AsyncStorage)
+- `app/stores/authStore.ts` — Zustand store de autenticación
+- `app/constants/roles.ts` — tipos y constantes de roles + rutas iniciales por rol
+- `app/babel.config.js` + `app/metro.config.js` — NativeWind v4 configurado
+- `app/global.css` — entrada Tailwind v4 (`@import "tailwindcss"`)
+- `app/nativewind-env.d.ts` — tipos NativeWind para TypeScript
+- `app/.env.local` — variables placeholder (ya en .gitignore via `.env*.local`)
+- `app/package.json` `main` → `expo-router/entry`
+- `app/tsconfig.json` — alias `@/*` configurado
+- `app/app.json` — `scheme: rugby-app` agregado para deep linking
+
+**Nota**: `lib/database.types.ts` en la raíz ya no es la fuente de verdad. Regenerar siempre en `app/lib/`:
+```bash
+supabase gen types typescript --local > app/lib/database.types.ts
+```
+
+### Próximo paso al volver
+Crear las pantallas de auth (`app/app/(auth)/login.tsx`) y el primer flujo funcional (entrenador → asistencia offline).
 
 ## Fuentes
 
