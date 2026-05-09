@@ -191,6 +191,8 @@ supabase gen types typescript --local > app/lib/database.types.ts
 
 **Nota expo-notifications v0.32**: `NotificationBehavior` requiere `shouldShowBanner` y `shouldShowList` además de los 3 campos estándar.
 
+**Nota Expo Go SDK 53**: push remotas eliminadas de Expo Go. `notifications.ts` usa `Constants.appOwnership === 'expo'` para detectar Expo Go y saltear todo lo relacionado a push (incluyendo imports dinámicos de `expo-notifications`). Para probar push se necesita un development build (`eas build --profile development`).
+
 ### Próximo paso al volver
 Pantallas del rol Coordinador: calendario con lista de eventos (US-EP-05) y vista de asistencia por división. O pantallas del Manager: cobranzas (spec financiero).
 

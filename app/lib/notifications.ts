@@ -1,23 +1,33 @@
-import * as Notifications from 'expo-notifications'
+import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import { supabase } from './supabase'
 
-// Mostrar alertas aunque la app esté en primer plano
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert:  true,
-    shouldPlaySound:  true,
-    shouldSetBadge:   true,
-    shouldShowBanner: true,
-    shouldShowList:   true,
-  }),
-})
+// expo-notifications no soporta push remoto en Expo Go desde SDK 53.
+// Solo importamos y configuramos si corremos en un dev build o producción.
+const isExpoGo = Constants.appOwnership === 'expo'
+
+if (!isExpoGo) {
+  // Importación dinámica para evitar que el módulo registre listeners en Expo Go
+  import('expo-notifications').then((Notifications) => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert:  true,
+        shouldPlaySound:  true,
+        shouldSetBadge:   true,
+        shouldShowBanner: true,
+        shouldShowList:   true,
+      }),
+    })
+  })
+}
 
 export async function registerPushToken(): Promise<void> {
-  // Push no funciona en web
   if (Platform.OS === 'web') return
+  if (isExpoGo) return
 
   try {
+    const Notifications = await import('expo-notifications')
+
     const { status: existing } = await Notifications.getPermissionsAsync()
     const { status } = existing !== 'granted'
       ? await Notifications.requestPermissionsAsync()
@@ -25,7 +35,6 @@ export async function registerPushToken(): Promise<void> {
 
     if (status !== 'granted') return
 
-    // Android requiere canal de notificaciones
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name:              'Notificaciones del Club',
@@ -36,7 +45,7 @@ export async function registerPushToken(): Promise<void> {
     }
 
     const tokenResult = await Notifications.getExpoPushTokenAsync()
-    const pushToken   = tokenResult.data  // "ExponentPushToken[...]"
+    const pushToken   = tokenResult.data
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
