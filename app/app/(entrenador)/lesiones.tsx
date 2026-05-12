@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -11,7 +12,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import { useLesiones, LesionItem, JugadorOpcion } from '@/hooks/useLesiones'
+import { Ionicons } from '@expo/vector-icons'
+import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial } from '@/hooks/useLesiones'
+import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
+import { DatePickerField } from '@/components/ui/DatePickerField'
 
 const CREAM   = '#F5F0E8'
 const GOLD    = '#C9A84C'
@@ -46,16 +50,183 @@ function GradoBadge({ grado }: { grado: number }) {
   )
 }
 
-function FilaLesion({ lesion }: { lesion: LesionItem }) {
+function FilaLesion({ lesion, onPress }: { lesion: LesionItem; onPress?: () => void }) {
   return (
-    <View style={styles.lesionCard}>
+    <TouchableOpacity
+      style={styles.lesionCard}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.75 : 1}
+      disabled={!onPress}
+    >
       <View style={styles.lesionCabeza}>
         <Text style={styles.lesionNombre} numberOfLines={1}>{lesion.jugadorNombre}</Text>
-        <GradoBadge grado={lesion.grado} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <GradoBadge grado={lesion.grado} />
+          {onPress && <Ionicons name="chevron-forward" size={14} color={MUTED} />}
+        </View>
       </View>
       <Text style={styles.lesionFecha}>{formatFecha(lesion.fecha)}</Text>
       <Text style={styles.lesionDesc} numberOfLines={2}>{lesion.descripcion}</Text>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Vista historial por jugador ──────────────────────────────────────────────
+
+function HistorialView({
+  jugador,
+  lesiones,
+  cargando,
+  onVolver,
+}: {
+  jugador: JugadorHistorial
+  lesiones: LesionItem[]
+  cargando: boolean
+  onVolver: () => void
+}) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.detalleHeader}>
+        <TouchableOpacity onPress={onVolver} style={styles.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={22} color={GOLD} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detalleSub}>HISTORIAL DE LESIONES</Text>
+          <Text style={styles.detalleTitulo} numberOfLines={1}>{jugador.nombre_completo}</Text>
+        </View>
+      </View>
+      <View style={styles.separador} />
+
+      {cargando ? (
+        <View style={styles.centrado}>
+          <ActivityIndicator color={GOLD} size="large" />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.lista}>
+          <View style={styles.seccionHeader}>
+            <Text style={styles.seccionLabel}>REGISTRADAS</Text>
+            <Text style={styles.seccionConteo}>{lesiones.length}</Text>
+          </View>
+          {lesiones.length === 0 ? (
+            <Text style={styles.emptyTexto}>Sin lesiones registradas para este jugador.</Text>
+          ) : (
+            lesiones.map(l => <FilaLesion key={l.id} lesion={l} />)
+          )}
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  )
+}
+
+// ─── Tab switcher ─────────────────────────────────────────────────────────────
+
+type Tab = 'lesiones' | 'protocolos'
+
+function TabSwitcher({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
+  return (
+    <View style={styles.tabSwitcher}>
+      {(['lesiones', 'protocolos'] as Tab[]).map(t => (
+        <TouchableOpacity
+          key={t}
+          style={[styles.tabBtn, tab === t && styles.tabBtnActivo]}
+          onPress={() => onChange(t)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.tabBtnTexto, tab === t && styles.tabBtnTextoActivo]}>
+            {t === 'lesiones' ? 'LESIONES' : 'PROTOCOLOS'}
+          </Text>
+        </TouchableOpacity>
+      ))}
     </View>
+  )
+}
+
+// ─── Vista protocolos (entrenador, solo lectura) ──────────────────────────────
+
+const GRADO_COLOR_P: Record<number, string> = {
+  1: '#22C55E', 2: '#EAB308', 3: '#F97316', 4: '#EF4444', 5: '#7F1D1D',
+}
+
+function agruparPorGrado(list: Protocolo[]): Array<{ grado: number | null; items: Protocolo[] }> {
+  const map = new Map<number | null, Protocolo[]>()
+  for (const p of list) {
+    const key = p.grado_asociado
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(p)
+  }
+  const keys = Array.from(map.keys()).sort((a, b) => {
+    if (a === null) return -1
+    if (b === null) return 1
+    return a - b
+  })
+  return keys.map(k => ({ grado: k, items: map.get(k)! }))
+}
+
+function ProtocolosEntrenador({
+  protocolos,
+  loadingP,
+  abriendo,
+  onAbrir,
+}: {
+  protocolos: Protocolo[]
+  loadingP:   boolean
+  abriendo:   string | null
+  onAbrir:    (p: Protocolo) => void
+}) {
+  if (loadingP) {
+    return (
+      <View style={styles.centrado}>
+        <ActivityIndicator color={GOLD} size="large" />
+      </View>
+    )
+  }
+  if (protocolos.length === 0) {
+    return (
+      <View style={styles.centrado}>
+        <Text style={styles.emptyTexto}>Sin protocolos cargados.</Text>
+        <Text style={[styles.mutedTexto, { marginTop: 4 }]}>La Subcomisión los publica aquí.</Text>
+      </View>
+    )
+  }
+  const grupos = agruparPorGrado(protocolos)
+  return (
+    <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: 40 }]}>
+      {grupos.map(({ grado, items }) => {
+        const color = grado === null ? GOLD : (GRADO_COLOR_P[grado] ?? MUTED)
+        const label = grado === null ? 'GENERAL' : `GRADO ${grado}`
+        return (
+          <View key={String(grado)}>
+            <View style={[styles.seccionHeader, { marginTop: 8 }]}>
+              <Text style={[styles.seccionLabel, { color }]}>{label}</Text>
+              <Text style={styles.seccionConteo}>{items.length}</Text>
+            </View>
+            {items.map(p => {
+              const esAbriendo = abriendo === p.id
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.lesionCard}
+                  onPress={() => onAbrir(p)}
+                  activeOpacity={0.75}
+                  disabled={esAbriendo}
+                >
+                  <View style={styles.lesionCabeza}>
+                    <Text style={styles.lesionNombre} numberOfLines={1}>{p.titulo}</Text>
+                    {esAbriendo
+                      ? <ActivityIndicator size="small" color={GOLD} />
+                      : <Ionicons name="open-outline" size={16} color={GOLD} />
+                    }
+                  </View>
+                  {p.nombre_archivo && (
+                    <Text style={styles.lesionFecha} numberOfLines={1}>{p.nombre_archivo}</Text>
+                  )}
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        )
+      })}
+    </ScrollView>
   )
 }
 
@@ -123,6 +294,8 @@ export default function LesionesScreen() {
   const {
     loading, divisionNombre, sinDivision,
     lesiones, jugadores,
+    paso, jugadorHistorial, historialLesiones, cargandoHistorial,
+    verHistorial, cerrarHistorial,
     modalVisible, guardando, guardadoOk, error,
     jugadorSeleccionado, setJugadorSeleccionado,
     grado, setGrado,
@@ -130,6 +303,15 @@ export default function LesionesScreen() {
     fecha, setFecha,
     abrirModal, cerrarModal, guardarLesion,
   } = useLesiones()
+
+  const {
+    loading: loadingP,
+    protocolos,
+    abriendo,
+    abrirProtocolo,
+  } = useProtocolos()
+
+  const [tabActivo, setTabActivo] = useState<Tab>('lesiones')
 
   if (loading) {
     return (
@@ -148,6 +330,17 @@ export default function LesionesScreen() {
     )
   }
 
+  if (paso === 'historial' && jugadorHistorial) {
+    return (
+      <HistorialView
+        jugador={jugadorHistorial}
+        lesiones={historialLesiones}
+        cargando={cargandoHistorial}
+        onVolver={cerrarHistorial}
+      />
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -155,28 +348,51 @@ export default function LesionesScreen() {
         <Text style={styles.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
         <Text style={styles.titulo}>Lesiones</Text>
       </View>
+
+      {/* Tab switcher */}
+      <TabSwitcher tab={tabActivo} onChange={setTabActivo} />
       <View style={styles.separador} />
 
-      {/* Lista */}
-      <ScrollView contentContainerStyle={styles.lista}>
-        <View style={styles.seccionHeader}>
-          <Text style={styles.seccionLabel}>REGISTRADAS</Text>
-          <Text style={styles.seccionConteo}>{lesiones.length}</Text>
-        </View>
+      {/* Protocolos (solo lectura) */}
+      {tabActivo === 'protocolos' && (
+        <ProtocolosEntrenador
+          protocolos={protocolos}
+          loadingP={loadingP}
+          abriendo={abriendo}
+          onAbrir={abrirProtocolo}
+        />
+      )}
 
-        {lesiones.length === 0 ? (
-          <Text style={styles.emptyTexto}>Sin lesiones registradas.</Text>
-        ) : (
-          lesiones.map(l => <FilaLesion key={l.id} lesion={l} />)
-        )}
-      </ScrollView>
+      {/* Lesiones */}
+      {tabActivo === 'lesiones' && (
+        <>
+          <ScrollView contentContainerStyle={styles.lista}>
+            <View style={styles.seccionHeader}>
+              <Text style={styles.seccionLabel}>REGISTRADAS</Text>
+              <Text style={styles.seccionConteo}>{lesiones.length}</Text>
+            </View>
 
-      {/* FAB */}
-      <View style={styles.fabWrap}>
-        <TouchableOpacity style={styles.fab} onPress={abrirModal} activeOpacity={0.85}>
-          <Text style={styles.fabTexto}>+ REGISTRAR LESIÓN</Text>
-        </TouchableOpacity>
-      </View>
+            {lesiones.length === 0 ? (
+              <Text style={styles.emptyTexto}>Sin lesiones registradas.</Text>
+            ) : (
+              lesiones.map(l => (
+                <FilaLesion
+                  key={l.id}
+                  lesion={l}
+                  onPress={() => verHistorial({ id: l.jugador_id, nombre_completo: l.jugadorNombre })}
+                />
+              ))
+            )}
+          </ScrollView>
+
+          {/* FAB */}
+          <View style={styles.fabWrap}>
+            <TouchableOpacity style={styles.fab} onPress={abrirModal} activeOpacity={0.85}>
+              <Text style={styles.fabTexto}>+ REGISTRAR LESIÓN</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       {/* Modal */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
@@ -231,15 +447,11 @@ export default function LesionesScreen() {
 
               {/* Fecha */}
               <View style={styles.campo}>
-                <Text style={styles.campoLabel}>FECHA (AAAA-MM-DD)</Text>
-                <TextInput
-                  style={styles.inputTexto}
+                <DatePickerField
+                  label="FECHA"
                   value={fecha}
-                  onChangeText={setFecha}
-                  placeholder="2026-05-07"
-                  placeholderTextColor={MUTED}
-                  keyboardType="numbers-and-punctuation"
-                  maxLength={10}
+                  onChange={setFecha}
+                  maximumDate={new Date()}
                 />
               </View>
 
@@ -314,6 +526,19 @@ const styles = StyleSheet.create({
   // Badge de grado
   gradoBadge:     { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
   gradoBadgeTexto:{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+
+  // Tab switcher
+  tabSwitcher:        { flexDirection: 'row', backgroundColor: DARK, paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  tabBtn:             { flex: 1, paddingVertical: 9, borderRadius: 4, borderWidth: 1.5, borderColor: '#333', alignItems: 'center' },
+  tabBtnActivo:       { backgroundColor: GOLD, borderColor: GOLD },
+  tabBtnTexto:        { fontSize: 10, letterSpacing: 1.5, color: '#666', fontWeight: '700' },
+  tabBtnTextoActivo:  { color: DARK },
+
+  // Historial header
+  detalleHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
+  backBtn:       { padding: 4 },
+  detalleSub:    { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 2 },
+  detalleTitulo: { fontSize: 20, fontStyle: 'italic', fontFamily: 'serif', color: DARK },
 
   // FAB
   fabWrap:  { position: 'absolute', bottom: 24, left: 16, right: 16 },

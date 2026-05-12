@@ -3,7 +3,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/expo-push-notification-service/push/send'
 
-type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas'
+type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual'
 type TipoReferencia   = 'lesion' | 'fichaje' | 'asistencia'
 
 interface NotifPayload {
@@ -12,6 +12,12 @@ interface NotifPayload {
   divisionId:     string
   jugadorId?:     string
   grado?:         number
+}
+
+interface ManualPayload {
+  titulo:          string
+  mensaje:         string
+  rolDestinatario: 'coordinador' | 'entrenador' | 'manager' | 'todos'
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -29,7 +35,7 @@ Deno.serve(async (req: Request) => {
   )
   if (authErr) return jsonError(401, 'Token inválido')
 
-  let body: { type: NotificationType; payload: NotifPayload }
+  let body: { type: NotificationType; payload: NotifPayload | ManualPayload }
   try {
     body = await req.json()
   } catch {
@@ -37,19 +43,28 @@ Deno.serve(async (req: Request) => {
   }
 
   const { type, payload } = body
-  if (!payload?.jugadorNombre || !payload?.divisionNombre || !payload?.divisionId) {
-    return jsonError(400, 'Payload incompleto')
-  }
 
   try {
-    if (type === 'lesion') {
-      await notificarLesion(payload)
-    } else if (type === 'fichaje') {
-      await notificarFichaje(payload)
-    } else if (type === 'ausencias_consecutivas') {
-      await notificarAusencias(payload)
+    if (type === 'manual') {
+      const mp = payload as ManualPayload
+      if (!mp?.titulo || !mp?.mensaje || !mp?.rolDestinatario) {
+        return jsonError(400, 'Payload manual incompleto')
+      }
+      await notificarManual(mp)
     } else {
-      return jsonError(400, `Tipo desconocido: ${type}`)
+      const np = payload as NotifPayload
+      if (!np?.jugadorNombre || !np?.divisionNombre || !np?.divisionId) {
+        return jsonError(400, 'Payload incompleto')
+      }
+      if (type === 'lesion') {
+        await notificarLesion(np)
+      } else if (type === 'fichaje') {
+        await notificarFichaje(np)
+      } else if (type === 'ausencias_consecutivas') {
+        await notificarAusencias(np)
+      } else {
+        return jsonError(400, `Tipo desconocido: ${type}`)
+      }
     }
     return jsonOk({ ok: true })
   } catch (e) {
@@ -77,6 +92,20 @@ async function notificarFichaje(p: NotifPayload): Promise<void> {
     enviarExpoPush(tokens, titulo, mensaje, { type: 'fichaje', jugadorId: p.jugadorId }),
     guardarNotificacion(titulo, mensaje, ids, 'fichaje', p.jugadorId),
   ])
+}
+
+async function notificarManual(p: ManualPayload): Promise<void> {
+  const roles = p.rolDestinatario === 'todos'
+    ? ['coordinador', 'entrenador', 'manager']
+    : [p.rolDestinatario]
+
+  const allTokens: string[] = []
+  for (const rol of roles) {
+    const { tokens } = await getDestinatariosRol(rol)
+    allTokens.push(...tokens)
+  }
+
+  await enviarExpoPush(allTokens, p.titulo, p.mensaje, { type: 'manual' })
 }
 
 async function notificarAusencias(p: NotifPayload): Promise<void> {

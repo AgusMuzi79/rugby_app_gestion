@@ -195,9 +195,9 @@ export function useFichajes() {
     const nombreTrim = nombre.trim()
     const dniTrim    = dni.trim()
 
-    if (!nombreTrim)                                  { setErrorForm('Ingresá el nombre completo.'); return }
-    if (!dniTrim)                                     { setErrorForm('Ingresá el DNI.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaNacimiento)) { setErrorForm('Fecha inválida (AAAA-MM-DD).'); return }
+    if (!nombreTrim)       { setErrorForm('Ingresá el nombre completo.'); return }
+    if (!dniTrim)          { setErrorForm('Ingresá el DNI.'); return }
+    if (!fechaNacimiento)  { setErrorForm('Seleccioná la fecha de nacimiento.'); return }
 
     setGuardandoFichaje(true)
     setErrorForm(null)

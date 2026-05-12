@@ -18,6 +18,7 @@ import {
   DocumentoFichaje,
   TipoDocumento,
 } from '@/hooks/useFichajes'
+import { DatePickerField } from '@/components/ui/DatePickerField'
 
 const CREAM   = '#F5F0E8'
 const GOLD    = '#C9A84C'
@@ -329,15 +330,11 @@ export default function FichajesScreen() {
               </View>
 
               <View style={styles.campo}>
-                <Text style={styles.campoLabel}>FECHA DE NACIMIENTO (AAAA-MM-DD)</Text>
-                <TextInput
-                  style={styles.inputTexto}
+                <DatePickerField
+                  label="FECHA DE NACIMIENTO"
                   value={fechaNacimiento}
-                  onChangeText={setFechaNacimiento}
-                  placeholder="2010-03-15"
-                  placeholderTextColor={MUTED}
-                  keyboardType="numbers-and-punctuation"
-                  maxLength={10}
+                  onChange={setFechaNacimiento}
+                  maximumDate={new Date()}
                 />
               </View>
 

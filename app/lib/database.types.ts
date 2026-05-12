@@ -415,6 +415,33 @@ export type Database = {
           },
         ]
       }
+      grtp_etapas: {
+        Row: {
+          descripcion: string
+          duracion_minima_horas_adultos: number
+          duracion_minima_horas_menores: number
+          id: string
+          numero: number
+          titulo: string
+        }
+        Insert: {
+          descripcion: string
+          duracion_minima_horas_adultos: number
+          duracion_minima_horas_menores: number
+          id?: string
+          numero: number
+          titulo: string
+        }
+        Update: {
+          descripcion?: string
+          duracion_minima_horas_adultos?: number
+          duracion_minima_horas_menores?: number
+          id?: string
+          numero?: number
+          titulo?: string
+        }
+        Relationships: []
+      }
       items_pedido: {
         Row: {
           cantidad: number
@@ -782,6 +809,70 @@ export type Database = {
         }
         Relationships: []
       }
+      protocolo_alertas: {
+        Row: {
+          descripcion: string
+          es_criterio1: boolean
+          id: string
+          protocolo_id: string
+        }
+        Insert: {
+          descripcion: string
+          es_criterio1?: boolean
+          id?: string
+          protocolo_id: string
+        }
+        Update: {
+          descripcion?: string
+          es_criterio1?: boolean
+          id?: string
+          protocolo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocolo_alertas_protocolo_id_fkey"
+            columns: ["protocolo_id"]
+            isOneToOne: false
+            referencedRelation: "protocolos_lesion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      protocolo_pasos: {
+        Row: {
+          descripcion: string
+          es_critico: boolean
+          id: string
+          orden: number
+          protocolo_id: string
+          titulo: string
+        }
+        Insert: {
+          descripcion: string
+          es_critico?: boolean
+          id?: string
+          orden: number
+          protocolo_id: string
+          titulo: string
+        }
+        Update: {
+          descripcion?: string
+          es_critico?: boolean
+          id?: string
+          orden?: number
+          protocolo_id?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "protocolo_pasos_protocolo_id_fkey"
+            columns: ["protocolo_id"]
+            isOneToOne: false
+            referencedRelation: "protocolos_lesion"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       protocolos: {
         Row: {
           created_at: string
@@ -822,6 +913,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      protocolos_lesion: {
+        Row: {
+          created_at: string
+          descripcion: string
+          disponible_offline: boolean
+          grado: number
+          id: string
+          notas_uar: string | null
+          retiro_inmediato: boolean
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion: string
+          disponible_offline?: boolean
+          grado: number
+          id?: string
+          notas_uar?: string | null
+          retiro_inmediato?: boolean
+          tipo: string
+          titulo: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          disponible_offline?: boolean
+          grado?: number
+          id?: string
+          notas_uar?: string | null
+          retiro_inmediato?: boolean
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: []
       }
       push_tokens: {
         Row: {

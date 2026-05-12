@@ -19,6 +19,11 @@ export interface LesionItem {
   grado: number
 }
 
+export interface JugadorHistorial {
+  id: string
+  nombre_completo: string
+}
+
 function fechaHoy(): string {
   return new Date().toISOString().split('T')[0]
 }
@@ -33,6 +38,11 @@ export function useLesiones() {
 
   const [lesiones, setLesiones] = useState<LesionItem[]>([])
   const [jugadores, setJugadores] = useState<JugadorOpcion[]>([])
+
+  const [paso, setPaso] = useState<'lista' | 'historial'>('lista')
+  const [jugadorHistorial, setJugadorHistorial] = useState<JugadorHistorial | null>(null)
+  const [historialLesiones, setHistorialLesiones] = useState<LesionItem[]>([])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
 
   const [modalVisible, setModalVisible] = useState(false)
   const [guardando, setGuardando] = useState(false)
@@ -100,6 +110,27 @@ export function useLesiones() {
     setLesiones(toLesionItems(data ?? []))
   }
 
+  // ─── Historial por jugador ─────────────────────────────────────────────────
+
+  async function verHistorial(jugador: JugadorHistorial) {
+    setPaso('historial')
+    setJugadorHistorial(jugador)
+    setCargandoHistorial(true)
+    const { data } = await supabase
+      .from('lesiones')
+      .select('id, jugador_id, fecha, descripcion, grado, jugadores(nombre_completo)')
+      .eq('jugador_id', jugador.id)
+      .order('fecha', { ascending: false })
+    setHistorialLesiones(toLesionItems(data ?? []))
+    setCargandoHistorial(false)
+  }
+
+  function cerrarHistorial() {
+    setPaso('lista')
+    setJugadorHistorial(null)
+    setHistorialLesiones([])
+  }
+
   // ─── Modal ─────────────────────────────────────────────────────────────────
 
   function abrirModal() {
@@ -123,10 +154,10 @@ export function useLesiones() {
   async function guardarLesion() {
     if (!session || !divisionId) return
 
-    if (!jugadorSeleccionado)                   { setError('Seleccioná un jugador.'); return }
-    if (!grado)                                 { setError('Seleccioná el grado.'); return }
-    if (!descripcion.trim())                    { setError('Ingresá una descripción.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha))   { setError('Fecha inválida. Formato: AAAA-MM-DD'); return }
+    if (!jugadorSeleccionado)  { setError('Seleccioná un jugador.'); return }
+    if (!grado)               { setError('Seleccioná el grado.'); return }
+    if (!descripcion.trim())  { setError('Ingresá una descripción.'); return }
+    if (!fecha)               { setError('Seleccioná la fecha.'); return }
 
     setGuardando(true)
     setError(null)
@@ -184,6 +215,12 @@ export function useLesiones() {
     sinDivision,
     lesiones,
     jugadores,
+    paso,
+    jugadorHistorial,
+    historialLesiones,
+    cargandoHistorial,
+    verHistorial,
+    cerrarHistorial,
     modalVisible,
     guardando,
     guardadoOk,

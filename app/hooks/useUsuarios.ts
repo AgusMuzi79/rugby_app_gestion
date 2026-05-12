@@ -77,6 +77,7 @@ export function useUsuarios() {
     const { data } = await supabase
       .from('profiles')
       .select('id, nombre, rol, activo, divisiones')
+      .neq('rol', 'admin')
       .order('nombre')
     setUsuarios(data ?? [])
   }

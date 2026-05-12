@@ -1,51 +1,52 @@
-import '../global.css'
 import { useEffect } from 'react'
-import { Slot, useRouter, useRootNavigationState } from 'expo-router'
+import { Slot, useRouter } from 'expo-router'
+import { useRootNavigationState } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { Rol, ROL_RUTA_INICIAL } from '@/constants/roles'
+import type { Rol } from '@/constants/roles'
+
+const ROL_RUTAS: Record<string, string> = {
+  subcomision: '/(subcomision)/diario',
+  coordinador: '/(coordinador)/diario',
+  entrenador: '/(entrenador)/diario',
+  manager: '/(manager)/diario',
+  admin: '/(subcomision)/diario',
+}
 
 export default function RootLayout() {
-  const { session, rol, loading, setSession, setRol } = useAuthStore()
   const router = useRouter()
-  const navigationState = useRootNavigationState()
+  const navState = useRootNavigationState()
+  const { session, rol, loading, setSession, setRol, clearAuth } = useAuthStore()
 
+  // Escuchar cambios de sesión
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session)
-
-      if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('rol')
-          .eq('id', session.user.id)
-          .single()
-
-        setRol((profile?.rol as Rol) ?? null)
-      } else {
-        setRol(null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        if (newSession) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('rol')
+            .eq('id', newSession.user.id)
+            .single()
+          setSession(newSession)
+          setRol((profile?.rol as Rol) ?? null)
+        } else {
+          clearAuth()
+        }
       }
-    })
-
+    )
     return () => subscription.unsubscribe()
   }, [])
 
+  // Guard de navegación — separado del listener de sesión
   useEffect(() => {
-    if (!navigationState?.key) return
-    if (loading) return
-
+    if (!navState?.key || loading) return
     if (!session) {
       router.replace('/(auth)/login')
-    } else if (session && rol) {
-      router.replace(ROL_RUTA_INICIAL[rol] as never)
+    } else if (rol) {
+      router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
-  }, [session, rol, loading, navigationState?.key])
+  }, [navState?.key, session?.access_token, rol, loading])
 
   return <Slot />
 }

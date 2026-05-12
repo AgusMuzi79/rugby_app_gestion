@@ -12,18 +12,28 @@ import {
   StyleSheet,
 } from 'react-native'
 import { Link } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { useLogin } from '@/hooks/useLogin'
 
-const GOLD = '#C9A84C'
-const CREAM = '#F5F0E8'
-const DARK = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
+const GOLD        = '#C9A84C'
+const CREAM       = '#F5F0E8'
+const DARK        = '#1A1A1A'
+const DIVIDER     = '#D1C9B8'
 const PLACEHOLDER = '#9B9183'
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const { login, loading, error } = useLogin()
+  const [email, setEmail]                   = useState('')
+  const [password, setPassword]             = useState('')
+  const [mostrarPassword, setMostrarPassword] = useState(false)
+
+  const {
+    login,
+    loginConBiometria,
+    loading,
+    error,
+    biometriaDisponible,
+    credencialesGuardadas,
+  } = useLogin()
 
   return (
     <KeyboardAvoidingView
@@ -82,15 +92,28 @@ export default function LoginScreen() {
           {/* Campo CONTRASEÑA */}
           <View className="mb-8">
             <Text style={[styles.label, { color: DARK }]}>CONTRASEÑA</Text>
-            <TextInput
-              style={[styles.input, { color: DARK, borderBottomColor: GOLD }]}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              placeholder="••••••••"
-              placeholderTextColor={PLACEHOLDER}
-              editable={!loading}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.passwordInput, { color: DARK, borderBottomColor: GOLD }]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!mostrarPassword}
+                placeholder="••••••••"
+                placeholderTextColor={PLACEHOLDER}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setMostrarPassword(v => !v)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons
+                  name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={PLACEHOLDER}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Error banner */}
@@ -120,6 +143,20 @@ export default function LoginScreen() {
               </Text>
             )}
           </TouchableOpacity>
+
+          {/* Botón biométrico */}
+          {biometriaDisponible && credencialesGuardadas && !loading && (
+            <TouchableOpacity
+              style={[styles.biometriaButton, { borderColor: GOLD }]}
+              onPress={loginConBiometria}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="finger-print-outline" size={20} color={GOLD} style={{ marginRight: 8 }} />
+              <Text style={[styles.biometriaText, { color: GOLD }]}>
+                INGRESAR CON HUELLA / FACE ID
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Olvidé contraseña */}
           <Link href="/(auth)/forgot-password" asChild>
@@ -187,6 +224,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     backgroundColor: 'transparent',
   },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    backgroundColor: 'transparent',
+  },
+  eyeButton: {
+    paddingBottom: 4,
+    paddingLeft: 8,
+  },
   button: {
     paddingVertical: 16,
     alignItems: 'center',
@@ -195,6 +247,21 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 12,
     letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  biometriaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 4,
+  },
+  biometriaText: {
+    fontSize: 11,
+    letterSpacing: 2,
     textTransform: 'uppercase',
     fontWeight: '600',
   },

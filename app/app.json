@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "rugby-app-gestion",
+    "name": "Uncas Rugby App",
+    "slug": "uncas-rugby-app",
     "scheme": "rugby-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -30,7 +30,8 @@
     "plugins": [
       "expo-router",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ]
   }
 }

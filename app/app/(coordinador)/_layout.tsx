@@ -1,11 +1,7 @@
 import { TouchableOpacity } from 'react-native'
 import { Tabs } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { Feather } from '@expo/vector-icons'
 import { useSignOut } from '@/hooks/useSignOut'
-
-const GOLD = '#C9A84C'
-const DARK = '#1A1A1A'
-const INACTIVE = '#666666'
 
 export default function CoordinadorLayout() {
   const { signOut } = useSignOut()
@@ -13,38 +9,30 @@ export default function CoordinadorLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: DARK, borderTopColor: '#2A2A2A' },
-        tabBarActiveTintColor: GOLD,
-        tabBarInactiveTintColor: INACTIVE,
-        tabBarLabelStyle: { fontSize: 11, letterSpacing: 0.5 },
+        tabBarStyle: { backgroundColor: '#0E0E0E', borderTopColor: '#1A1A1A' },
+        tabBarActiveTintColor: '#E8B53C',
+        tabBarInactiveTintColor: '#666666',
+        tabBarShowLabel: false,
         headerShown: false,
       }}
     >
       <Tabs.Screen
-        name="calendario"
-        options={{
-          title: 'Calendario',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
+        name="diario"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} /> }}
       />
       <Tabs.Screen
-        name="asistencia"
-        options={{
-          title: 'Asistencia',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-circle-outline" size={size} color={color} />
-          ),
-        }}
+        name="calendario"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size} color={color} /> }}
       />
+      <Tabs.Screen
+        name="cronica"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={color} /> }}
+      />
+      <Tabs.Screen name="asistencia" options={{ href: null }} />
       <Tabs.Screen
         name="salir"
         options={{
-          title: 'Salir',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="log-out-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} />,
           tabBarButton: ({ children, style }) => (
             <TouchableOpacity style={style} onPress={signOut} activeOpacity={0.7}>{children}</TouchableOpacity>
           ),

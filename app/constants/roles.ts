@@ -17,9 +17,9 @@ export const ROL_LABELS: Record<Rol, string> = {
 }
 
 export const ROL_RUTA_INICIAL: Record<Rol, string> = {
-  subcomision: '/(subcomision)/dashboard',
-  coordinador: '/(coordinador)/calendario',
-  entrenador: '/(entrenador)/asistencia',
-  manager: '/(manager)/cobranzas',
-  admin: '/(subcomision)/dashboard',
+  subcomision: '/(subcomision)/diario',
+  coordinador: '/(coordinador)/diario',
+  entrenador: '/(entrenador)/diario',
+  manager: '/(manager)/diario',
+  admin: '/(subcomision)/diario',
 }
