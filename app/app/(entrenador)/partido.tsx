@@ -16,15 +16,14 @@ import {
   ConteoMesa,
   Equipo,
 } from '@/hooks/usePartido'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM   = '#F5F0E8'
-const GOLD    = '#C9A84C'
-const DARK    = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
-const MUTED   = '#7C7267'
-const VERDE   = '#22C55E'
-const ROJO    = '#EF4444'
-const AZUL    = '#3B82F6'
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+
+const VERDE = '#4A7C59'
+const ROJO  = colors.rojoUrgente
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatFecha(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
@@ -33,31 +32,68 @@ function formatFecha(iso: string) {
   })
 }
 
-// ─── Fila asistencia ─────────────────────────────────────────────────────────
+// ─── Conteo bar (Mesa) ────────────────────────────────────────────────────────
 
-function FilaAsistencia({
-  jugador,
-  onToggle,
-}: {
-  jugador: JugadorPartido
-  onToggle: (id: string) => void
-}) {
+function ConteoBar({ conteo }: { conteo: ConteoMesa }) {
   return (
-    <TouchableOpacity style={styles.fila} onPress={() => onToggle(jugador.id)} activeOpacity={0.7}>
-      <View style={[styles.checkbox, jugador.presente && styles.checkboxActivo]}>
-        {jugador.presente && <Text style={styles.checkmark}>✓</Text>}
+    <View style={s.conteoRow}>
+      <View style={[s.conteoBox, { borderColor: colors.oro }]}>
+        <Text style={[s.conteoNum, { color: conteo.titular > 15 ? ROJO : colors.oro }]}>
+          {conteo.titular}/15
+        </Text>
+        <Text style={s.conteoLabel}>TITULARES</Text>
       </View>
-      <Text style={[styles.nombreJugador, !jugador.presente && styles.nombreAusente]}>
-        {jugador.nombre_completo}
-      </Text>
-      <Text style={[styles.estadoTexto, { color: jugador.presente ? VERDE : ROJO }]}>
-        {jugador.presente ? 'Presente' : 'Ausente'}
-      </Text>
-    </TouchableOpacity>
+      <View style={[s.conteoBox, { borderColor: colors.oro }]}>
+        <Text style={[s.conteoNum, { color: conteo.suplente > 8 ? ROJO : colors.oro }]}>
+          {conteo.suplente}/8
+        </Text>
+        <Text style={s.conteoLabel}>SUPLENTES</Text>
+      </View>
+    </View>
   )
 }
 
-// ─── Fila mesa ───────────────────────────────────────────────────────────────
+// ─── Fila asistencia (partido) ────────────────────────────────────────────────
+
+function FilaAsistencia({
+  jugador,
+  index,
+  onToggle,
+}: {
+  jugador: JugadorPartido
+  index: number
+  onToggle: (id: string) => void
+}) {
+  const numero = String(index + 1).padStart(2, '0')
+  return (
+    <View style={s.fila}>
+      <Text style={s.numero}>{numero}</Text>
+      <Text style={s.nombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
+      <View style={s.badgesRow}>
+        <TouchableOpacity
+          style={[s.badge, jugador.presente ? s.badgePres : s.badgeInactivo]}
+          onPress={() => { if (!jugador.presente) onToggle(jugador.id) }}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.badgeTexto, { color: jugador.presente ? '#fff' : '#A09880' }]}>
+            PRES
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.badge, !jugador.presente ? s.badgeAus : s.badgeInactivo]}
+          onPress={() => { if (jugador.presente) onToggle(jugador.id) }}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.badgeTexto, { color: !jugador.presente ? '#fff' : '#A09880' }]}>
+            AUS
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  )
+}
+
+// ─── Fila mesa ────────────────────────────────────────────────────────────────
 
 function FilaMesa({
   jugador,
@@ -70,64 +106,45 @@ function FilaMesa({
   titularLleno: boolean
   suplenteLleno: boolean
 }) {
-  const roles: Array<{ rol: RolEnMesa; label: string; color: string; lleno: boolean }> = [
-    { rol: 'titular',  label: 'T', color: AZUL,  lleno: titularLleno  && jugador.rolEnMesa !== 'titular'  },
-    { rol: 'suplente', label: 'S', color: VERDE, lleno: suplenteLleno && jugador.rolEnMesa !== 'suplente' },
-  ]
+  if (jugador.rolEnMesa !== null) {
+    return (
+      <TouchableOpacity
+        style={s.mesaCardDark}
+        onPress={() => onAsignar(jugador.id, jugador.rolEnMesa!)}
+        activeOpacity={0.75}
+      >
+        <Text style={s.mesaNombreDark} numberOfLines={1}>{jugador.nombre_completo}</Text>
+        <Text style={s.mesaQuitarTexto}>✕</Text>
+      </TouchableOpacity>
+    )
+  }
+
   return (
-    <View style={styles.fila}>
-      <Text style={styles.nombreJugador} numberOfLines={1}>{jugador.nombre_completo}</Text>
-      <View style={styles.rolesBotones}>
-        {roles.map(({ rol, label, color, lleno }) => {
-          const activo = jugador.rolEnMesa === rol
-          return (
-            <TouchableOpacity
-              key={rol}
-              disabled={lleno}
-              style={[
-                styles.rolBoton,
-                activo
-                  ? { backgroundColor: color, borderColor: color }
-                  : lleno
-                  ? { backgroundColor: 'transparent', borderColor: DIVIDER, opacity: 0.3 }
-                  : { backgroundColor: 'transparent', borderColor: DIVIDER },
-              ]}
-              onPress={() => onAsignar(jugador.id, rol)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.rolBotonTexto, { color: activo ? '#fff' : lleno ? DIVIDER : MUTED }]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          )
-        })}
+    <View style={s.mesaCardLight}>
+      <Text style={s.mesaNombreLight} numberOfLines={1}>{jugador.nombre_completo}</Text>
+      <View style={s.mesaBotones}>
+        <TouchableOpacity
+          style={[s.mesaRolBtn, titularLleno && s.mesaRolBtnOff]}
+          onPress={() => onAsignar(jugador.id, 'titular')}
+          disabled={titularLleno}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.mesaRolBtnTxt, titularLleno && { color: '#C5BEA8' }]}>T</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.mesaRolBtn, suplenteLleno && s.mesaRolBtnOff]}
+          onPress={() => onAsignar(jugador.id, 'suplente')}
+          disabled={suplenteLleno}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.mesaRolBtnTxt, suplenteLleno && { color: '#C5BEA8' }]}>S</Text>
+        </TouchableOpacity>
       </View>
     </View>
   )
 }
 
-// ─── Conteo bar ──────────────────────────────────────────────────────────────
-
-function ConteoBar({ conteo }: { conteo: ConteoMesa }) {
-  return (
-    <View style={styles.conteoRow}>
-      <View style={[styles.conteoChip, { borderColor: AZUL }]}>
-        <Text style={[styles.conteoLabel, { color: AZUL }]}>Titulares</Text>
-        <Text style={[styles.conteoNum, { color: conteo.titular > 15 ? ROJO : AZUL }]}>
-          {conteo.titular}/15
-        </Text>
-      </View>
-      <View style={[styles.conteoChip, { borderColor: VERDE }]}>
-        <Text style={[styles.conteoLabel, { color: VERDE }]}>Suplentes</Text>
-        <Text style={[styles.conteoNum, { color: conteo.suplente > 8 ? ROJO : VERDE }]}>
-          {conteo.suplente}/8
-        </Text>
-      </View>
-    </View>
-  )
-}
-
-// ─── Selector de partidos ────────────────────────────────────────────────────
+// ─── Selector de partidos ─────────────────────────────────────────────────────
 
 function SelectorPartidos({
   partidos,
@@ -141,8 +158,8 @@ function SelectorPartidos({
   if (partidos.length === 0) {
     return (
       <View style={{ gap: 4 }}>
-        <Text style={styles.emptyTexto}>Sin partidos programados (próximos 14 días).</Text>
-        <Text style={styles.emptySubtexto}>El Coordinador debe cargarlos en el calendario.</Text>
+        <Text style={s.emptyTexto}>Sin partidos programados en los próximos 14 días.</Text>
+        <Text style={s.emptySubtexto}>El Coordinador debe cargarlos en el calendario.</Text>
       </View>
     )
   }
@@ -153,21 +170,20 @@ function SelectorPartidos({
         return (
           <TouchableOpacity
             key={p.id}
-            style={[styles.card, activo && styles.cardActivo]}
+            style={[s.card, activo && s.cardActivo]}
             onPress={() => onSelect(p)}
             activeOpacity={0.8}
           >
-            <View style={styles.cardRow}>
-              <View style={[styles.dot, { backgroundColor: activo ? GOLD : DIVIDER }]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cardTitle, activo && { color: GOLD }]}>
+            <View style={s.cardRow}>
+              <View style={s.cardInfo}>
+                <Text style={[s.cardTitle, activo && { color: colors.oro }]}>
                   vs {p.rival ?? 'Rival por confirmar'}
                 </Text>
-                <Text style={styles.cardSub}>
+                <Text style={s.cardSub}>
                   {formatFecha(p.fecha)}{p.lugar ? ` · ${p.lugar}` : ''}
                 </Text>
               </View>
-              {activo && <Text style={styles.checkVerde}>✓</Text>}
+              {activo && <Text style={s.checkOro}>✓</Text>}
             </View>
           </TouchableOpacity>
         )
@@ -176,7 +192,7 @@ function SelectorPartidos({
   )
 }
 
-// ─── Selector de equipos ─────────────────────────────────────────────────────
+// ─── Selector de equipos ──────────────────────────────────────────────────────
 
 function SelectorEquipos({
   equipos,
@@ -190,29 +206,30 @@ function SelectorEquipos({
   onSelect: (e: Equipo) => void
 }) {
   if (equipos.length === 0) {
-    return <Text style={styles.emptyTexto}>Preparando equipos...</Text>
+    return <Text style={s.emptyTexto}>Preparando equipos...</Text>
   }
   return (
     <View style={{ gap: 8 }}>
       {equipos.map(e => {
-        const activo = seleccionado?.id === e.id
+        const activo       = seleccionado?.id === e.id
         const esObligatorio = e.id === equipoObligatorio?.id
         return (
           <TouchableOpacity
             key={e.id}
-            style={[styles.card, activo && styles.cardActivo]}
+            style={[s.card, activo && s.cardActivo]}
             onPress={() => onSelect(e)}
             activeOpacity={0.8}
           >
-            <View style={styles.cardRow}>
-              <View style={[styles.dot, { backgroundColor: activo ? GOLD : DIVIDER }]} />
-              <Text style={[styles.cardTitle, activo && { color: GOLD }]}>{e.nombre}</Text>
-              <View style={[styles.badge, esObligatorio ? styles.badgeObligatorio : styles.badgeOpcional]}>
-                <Text style={[styles.badgeTexto, { color: esObligatorio ? DARK : MUTED }]}>
-                  {esObligatorio ? 'Obligatorio' : 'Opcional'}
+            <View style={s.cardRow}>
+              <Text style={[s.cardTitle, { flex: 1 }, activo && { color: colors.oro }]}>
+                {e.nombre}
+              </Text>
+              <View style={[s.equipoBadge, esObligatorio ? s.equipoBadgeOblig : s.equipoBadgeOpc]}>
+                <Text style={[s.equipoBadgeTexto, { color: esObligatorio ? colors.blanco : colors.oroHondo }]}>
+                  {esObligatorio ? 'OBLIGATORIO' : 'OPCIONAL'}
                 </Text>
               </View>
-              {activo && <Text style={styles.checkVerde}>✓</Text>}
+              {activo && <Text style={[s.checkOro, { marginLeft: 8 }]}>✓</Text>}
             </View>
           </TouchableOpacity>
         )
@@ -221,7 +238,7 @@ function SelectorEquipos({
   )
 }
 
-// ─── Paso 1 — Equipo y partido ───────────────────────────────────────────────
+// ─── Paso 1 — Equipo y partido ────────────────────────────────────────────────
 
 function PasoEquipo({
   partidos,
@@ -247,9 +264,9 @@ function PasoEquipo({
   const puedeAvanzar = equipoSeleccionado !== null && partidoSeleccionado !== null
 
   return (
-    <View style={{ paddingBottom: 8 }}>
-      <View style={styles.seccion}>
-        <Text style={styles.seccionLabel}>SELECCIONAR PARTIDO</Text>
+    <View style={{ paddingBottom: 16 }}>
+      <View style={s.bloque}>
+        <Text style={s.seccionLabel}>SELECCIONAR PARTIDO</Text>
         <SelectorPartidos
           partidos={partidos}
           seleccionado={partidoSeleccionado}
@@ -257,8 +274,10 @@ function PasoEquipo({
         />
       </View>
 
-      <View style={styles.seccion}>
-        <Text style={styles.seccionLabel}>SELECCIONAR EQUIPO</Text>
+      <View style={s.seccionDivider} />
+
+      <View style={s.bloque}>
+        <Text style={s.seccionLabel}>SELECCIONAR EQUIPO</Text>
         <SelectorEquipos
           equipos={equipos}
           equipoObligatorio={equipoObligatorio}
@@ -267,23 +286,23 @@ function PasoEquipo({
         />
       </View>
 
-      <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
+      <View style={[s.bloque, { marginTop: 8 }]}>
         <TouchableOpacity
-          style={[styles.boton, (!puedeAvanzar || cargandoTransicion) && { opacity: 0.4 }]}
+          style={[s.botonPrimario, (!puedeAvanzar || cargandoTransicion) && { opacity: 0.4 }]}
           onPress={onContinuar}
           disabled={!puedeAvanzar || cargandoTransicion}
           activeOpacity={0.85}
         >
           {cargandoTransicion
-            ? <ActivityIndicator color={GOLD} size="small" />
-            : <Text style={styles.botonTexto}>CONTINUAR A ASISTENCIA</Text>}
+            ? <ActivityIndicator color={colors.oro} size="small" />
+            : <Text style={s.botonPrimarioTexto}>CONTINUAR A ASISTENCIA</Text>}
         </TouchableOpacity>
       </View>
     </View>
   )
 }
 
-// ─── Paso 2 — Asistencia ─────────────────────────────────────────────────────
+// ─── Paso 2 — Asistencia ──────────────────────────────────────────────────────
 
 function PasoAsistencia({
   jugadores,
@@ -304,52 +323,56 @@ function PasoAsistencia({
   onGuardar: () => Promise<void>
   onVolver: () => void
 }) {
-  const presentes = jugadores.filter(j => j.presente).length
+  const presentes  = jugadores.filter(j => j.presente).length
+  const ausentes   = jugadores.length - presentes
   const puedeGuardar = esInfantil || presentes > 0
 
   return (
     <View>
-      <TouchableOpacity style={styles.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={styles.volverTexto}>← Volver</Text>
+      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
+        <Text style={s.volverTexto}>← VOLVER</Text>
       </TouchableOpacity>
 
-      <View style={styles.seccion}>
-        <View style={styles.seccionHeader}>
-          <Text style={styles.seccionLabel}>PASO 2 · ASISTENCIA</Text>
-          {asistenciaGuardada && <Text style={styles.checkVerde}>✓</Text>}
+      {/* Contadores */}
+      <View style={s.contadores}>
+        <View style={[s.contadorBox, { borderColor: VERDE }]}>
+          <Text style={[s.contadorNum, { color: VERDE }]}>{presentes}</Text>
+          <Text style={s.contadorLabel}>PRESENTES</Text>
         </View>
-        <Text style={styles.seccionSub}>
-          {presentes} presentes · {jugadores.length - presentes} ausentes
-        </Text>
+        <View style={[s.contadorBox, { borderColor: ROJO }]}>
+          <Text style={[s.contadorNum, { color: ROJO }]}>{ausentes}</Text>
+          <Text style={s.contadorLabel}>AUSENTES</Text>
+        </View>
+      </View>
 
-        {jugadores.map((j, i) => (
-          <View key={j.id}>
-            {i > 0 && <View style={styles.filaDiv} />}
-            <FilaAsistencia jugador={j} onToggle={onToggle} />
-          </View>
-        ))}
+      <View style={s.divider} />
 
+      {/* Lista numerada */}
+      {jugadores.map((j, i) => (
+        <View key={j.id}>
+          {i > 0 && <View style={s.separator} />}
+          <FilaAsistencia jugador={j} index={i} onToggle={onToggle} />
+        </View>
+      ))}
+
+      <View style={[s.bloque, { marginTop: 16 }]}>
         {errorAsistencia && (
-          <View style={styles.bannerError}>
-            <Text style={styles.bannerErrorTexto}>{errorAsistencia}</Text>
+          <View style={s.bannerError}>
+            <Text style={s.bannerErrorTexto}>{errorAsistencia}</Text>
           </View>
         )}
-
         {asistenciaGuardada && !guardandoAsistencia && esInfantil && (
-          <View style={styles.bannerOk}>
-            <Text style={styles.bannerOkTexto}>✓ Asistencia guardada</Text>
-          </View>
+          <Text style={s.bannerOkTexto}>✓ Asistencia guardada</Text>
         )}
-
         <TouchableOpacity
-          style={[styles.boton, (!puedeGuardar || guardandoAsistencia) && { opacity: 0.4 }]}
+          style={[s.botonPrimario, (!puedeGuardar || guardandoAsistencia) && { opacity: 0.4 }]}
           onPress={onGuardar}
           disabled={!puedeGuardar || guardandoAsistencia}
           activeOpacity={0.85}
         >
           {guardandoAsistencia
-            ? <ActivityIndicator color={GOLD} size="small" />
-            : <Text style={styles.botonTexto}>
+            ? <ActivityIndicator color={colors.oro} size="small" />
+            : <Text style={s.botonPrimarioTexto}>
                 {esInfantil ? 'GUARDAR ASISTENCIA' : 'GUARDAR Y CONTINUAR A MESA'}
               </Text>}
         </TouchableOpacity>
@@ -358,7 +381,7 @@ function PasoAsistencia({
   )
 }
 
-// ─── Paso 3 — Mesa ───────────────────────────────────────────────────────────
+// ─── Paso 3 — Mesa ────────────────────────────────────────────────────────────
 
 function PasoMesa({
   jugadoresPresentes,
@@ -383,69 +406,125 @@ function PasoMesa({
   onVolver: () => void
   onIrAResultado: () => Promise<void>
 }) {
-  const titularLleno  = conteoMesa.titular >= 15
+  const titularLleno  = conteoMesa.titular  >= 15
   const suplenteLleno = conteoMesa.suplente >= 8
+
+  const titulares   = jugadoresPresentes.filter(j => j.rolEnMesa === 'titular')
+  const suplentes   = jugadoresPresentes.filter(j => j.rolEnMesa === 'suplente')
+  const disponibles = jugadoresPresentes.filter(j => j.rolEnMesa === null)
 
   return (
     <View>
-      <TouchableOpacity style={styles.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={styles.volverTexto}>← Volver a asistencia</Text>
+      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
+        <Text style={s.volverTexto}>← VOLVER A ASISTENCIA</Text>
       </TouchableOpacity>
 
-      <View style={styles.seccion}>
-        <View style={styles.seccionHeader}>
-          <Text style={styles.seccionLabel}>PASO 3 · MESA DE PARTIDO</Text>
-          {mesaGuardada && <Text style={styles.checkVerde}>✓</Text>}
-        </View>
-
+      {/* Contadores */}
+      <View style={s.conteoRow}>
         <ConteoBar conteo={conteoMesa} />
+      </View>
 
-        {jugadoresPresentes.length === 0 ? (
-          <Text style={styles.mutedTexto}>No hay jugadores presentes.</Text>
-        ) : (
-          jugadoresPresentes.map((j, i) => (
+      <View style={s.divider} />
+
+      {jugadoresPresentes.length === 0 && (
+        <Text style={[s.emptyTexto, { marginHorizontal: 20, marginTop: 16 }]}>
+          No hay jugadores presentes.
+        </Text>
+      )}
+
+      {/* ── Titulares ── */}
+      {titulares.length > 0 && (
+        <>
+          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
+            TITULARES
+          </Text>
+          {titulares.map((j, i) => (
             <View key={j.id}>
-              {i > 0 && <View style={styles.filaDiv} />}
-              <FilaMesa
-                jugador={j}
-                onAsignar={onAsignar}
-                titularLleno={titularLleno}
-                suplenteLleno={suplenteLleno}
-              />
+              {i > 0 && <View style={s.separator} />}
+              <View style={{ paddingHorizontal: 20 }}>
+                <FilaMesa
+                  jugador={j}
+                  onAsignar={onAsignar}
+                  titularLleno={titularLleno}
+                  suplenteLleno={suplenteLleno}
+                />
+              </View>
             </View>
-          ))
-        )}
+          ))}
+        </>
+      )}
 
+      {/* ── Suplentes ── */}
+      {suplentes.length > 0 && (
+        <>
+          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
+            SUPLENTES
+          </Text>
+          {suplentes.map((j, i) => (
+            <View key={j.id}>
+              {i > 0 && <View style={s.separator} />}
+              <View style={{ paddingHorizontal: 20 }}>
+                <FilaMesa
+                  jugador={j}
+                  onAsignar={onAsignar}
+                  titularLleno={titularLleno}
+                  suplenteLleno={suplenteLleno}
+                />
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+
+      {/* ── Disponibles ── */}
+      {disponibles.length > 0 && (
+        <>
+          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
+            DISPONIBLES
+          </Text>
+          {disponibles.map((j, i) => (
+            <View key={j.id}>
+              {i > 0 && <View style={s.separator} />}
+              <View style={{ paddingHorizontal: 20 }}>
+                <FilaMesa
+                  jugador={j}
+                  onAsignar={onAsignar}
+                  titularLleno={titularLleno}
+                  suplenteLleno={suplenteLleno}
+                />
+              </View>
+            </View>
+          ))}
+        </>
+      )}
+
+      <View style={[s.bloque, { marginTop: 20 }]}>
         {errorMesa && (
-          <View style={styles.bannerError}>
-            <Text style={styles.bannerErrorTexto}>{errorMesa}</Text>
+          <View style={s.bannerError}>
+            <Text style={s.bannerErrorTexto}>{errorMesa}</Text>
           </View>
         )}
-
         {mesaGuardada && !guardandoMesa && (
-          <View style={styles.bannerOk}>
-            <Text style={styles.bannerOkTexto}>✓ Mesa guardada</Text>
-          </View>
+          <Text style={s.bannerOkTexto}>✓ Mesa guardada</Text>
         )}
-
         <TouchableOpacity
-          style={[styles.boton, guardandoMesa && { opacity: 0.6 }]}
+          style={[s.botonGuardarMesa, guardandoMesa && { opacity: 0.6 }]}
           onPress={onGuardar}
           disabled={guardandoMesa}
           activeOpacity={0.85}
         >
           {guardandoMesa
-            ? <ActivityIndicator color={GOLD} size="small" />
-            : <Text style={styles.botonTexto}>GUARDAR MESA</Text>}
+            ? <ActivityIndicator color={colors.oro} size="small" />
+            : <Text style={s.botonPrimarioTexto}>GUARDAR MESA</Text>}
         </TouchableOpacity>
 
         {mesaGuardada && !esInfantil && (
           <TouchableOpacity
-            style={styles.botonSecundario}
+            style={s.botonSecundario}
             onPress={onIrAResultado}
             activeOpacity={0.85}
           >
-            <Text style={styles.botonSecundarioTexto}>IR AL RESULTADO →</Text>
+            <Text style={s.botonSecundarioTexto}>IR AL RESULTADO →</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -453,7 +532,7 @@ function PasoMesa({
   )
 }
 
-// ─── Paso 4 — Resultado ──────────────────────────────────────────────────────
+// ─── Paso 4 — Resultado ───────────────────────────────────────────────────────
 
 function PasoResultado({
   puntosPropios,
@@ -482,76 +561,68 @@ function PasoResultado({
 }) {
   return (
     <View>
-      <TouchableOpacity style={styles.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={styles.volverTexto}>← Volver a mesa</Text>
+      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
+        <Text style={s.volverTexto}>← VOLVER A MESA</Text>
       </TouchableOpacity>
 
-      <View style={styles.seccion}>
-        <View style={styles.seccionHeader}>
-          <Text style={styles.seccionLabel}>PASO 4 · RESULTADO</Text>
-          {resultadoGuardado && <Text style={styles.checkVerde}>✓</Text>}
-        </View>
-
-        <View style={styles.resultadoRow}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.inputLabel}>NOSOTROS</Text>
+      <View style={s.bloque}>
+        <View style={s.resultadoRow}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <Text style={s.seccionLabel}>NOSOTROS</Text>
             <TextInput
-              style={styles.inputNumero}
+              style={s.inputNumero}
               value={puntosPropios}
               onChangeText={onChangePropios}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor={DIVIDER}
+              placeholderTextColor="#C5BEA8"
               maxLength={3}
             />
           </View>
-          <Text style={styles.vsTexto}>vs</Text>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={[styles.inputLabel, { textAlign: 'right' }]}>RIVAL</Text>
+          <Text style={s.vsTexto}>vs</Text>
+          <View style={{ flex: 1, gap: 8 }}>
+            <Text style={[s.seccionLabel, { textAlign: 'right' }]}>RIVAL</Text>
             <TextInput
-              style={[styles.inputNumero, { textAlign: 'right' }]}
+              style={[s.inputNumero, { textAlign: 'right' }]}
               value={puntosRival}
               onChangeText={onChangeRival}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor={DIVIDER}
+              placeholderTextColor="#C5BEA8"
               maxLength={3}
             />
           </View>
         </View>
 
-        <View style={{ gap: 6 }}>
-          <Text style={styles.inputLabel}>NOMBRE DEL RIVAL</Text>
+        <View style={{ gap: 8, marginTop: 16 }}>
+          <Text style={s.seccionLabel}>NOMBRE DEL RIVAL</Text>
           <TextInput
-            style={styles.inputTexto}
+            style={s.inputTexto}
             value={rivalNombre}
             onChangeText={onChangeRivalNombre}
             placeholder="Nombre del rival"
-            placeholderTextColor={MUTED}
+            placeholderTextColor="#A89E8C"
           />
         </View>
 
         {errorResultado && (
-          <View style={styles.bannerError}>
-            <Text style={styles.bannerErrorTexto}>{errorResultado}</Text>
+          <View style={s.bannerError}>
+            <Text style={s.bannerErrorTexto}>{errorResultado}</Text>
           </View>
         )}
-
         {resultadoGuardado && !guardandoResultado && (
-          <View style={styles.bannerOk}>
-            <Text style={styles.bannerOkTexto}>✓ Resultado guardado</Text>
-          </View>
+          <Text style={s.bannerOkTexto}>✓ Resultado guardado</Text>
         )}
 
         <TouchableOpacity
-          style={[styles.boton, guardandoResultado && { opacity: 0.6 }]}
+          style={[s.botonPrimario, { marginTop: 8 }, guardandoResultado && { opacity: 0.6 }]}
           onPress={onGuardar}
           disabled={guardandoResultado}
           activeOpacity={0.85}
         >
           {guardandoResultado
-            ? <ActivityIndicator color={GOLD} size="small" />
-            : <Text style={styles.botonTexto}>
+            ? <ActivityIndicator color={colors.oro} size="small" />
+            : <Text style={s.botonPrimarioTexto}>
                 {resultadoGuardado ? 'ACTUALIZAR RESULTADO' : 'GUARDAR RESULTADO'}
               </Text>}
         </TouchableOpacity>
@@ -560,7 +631,7 @@ function PasoResultado({
   )
 }
 
-// ─── Screen principal ────────────────────────────────────────────────────────
+// ─── Screen principal ─────────────────────────────────────────────────────────
 
 export default function PartidoScreen() {
   const {
@@ -577,26 +648,26 @@ export default function PartidoScreen() {
     guardandoResultado, resultadoGuardado, errorResultado, guardarResultado,
   } = usePartido()
 
-  const pasoLabel: Record<typeof paso, string> = {
-    equipo:     'PASO 1 · EQUIPO',
-    asistencia: 'PASO 2 · ASISTENCIA',
-    mesa:       'PASO 3 · MESA',
-    resultado:  'PASO 4 · RESULTADO',
+  const pasoTitulo: Record<typeof paso, string> = {
+    equipo:     'Equipo · Partido',
+    asistencia: equipoSeleccionado ? `Asistencia · ${equipoSeleccionado.nombre}` : 'Asistencia',
+    mesa:       equipoSeleccionado ? `Mesa · ${equipoSeleccionado.nombre}` : 'Mesa de partido',
+    resultado:  'Resultado',
   }
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <Text style={styles.mutedTexto}>Sin división asignada.</Text>
-        <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
+      <SafeAreaView style={s.centrado}>
+        <Text style={s.mutedTexto}>Sin división asignada.</Text>
+        <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
     )
   }
@@ -604,16 +675,18 @@ export default function PartidoScreen() {
   const jugadoresPresentes = jugadores.filter(j => j.presente)
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.labelHeader}>
-          ENTRENADOR · {divisionNombre.toUpperCase()} · {pasoLabel[paso]}
-        </Text>
-        <Text style={styles.titulo}>Partido</Text>
-      </View>
-      <View style={styles.separador} />
+    <SafeAreaView style={s.root}>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <View style={s.header}>
+        <Text style={s.bloque}>SECCIÓN · CANCHA</Text>
+        <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
+        <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
+      </View>
+      <View style={s.divider} />
+
+      {/* ── Contenido por paso ─────────────────────────────────────────────── */}
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
         {paso === 'equipo' && (
           <PasoEquipo
             partidos={partidos}
@@ -676,73 +749,227 @@ export default function PartidoScreen() {
   )
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: CREAM },
-  centrado:           { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 8 },
-  mutedTexto:         { color: MUTED, fontSize: 14, fontFamily: 'serif', fontStyle: 'italic', textAlign: 'center' },
-  header:             { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:        { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 4 },
-  titulo:             { fontSize: 32, fontStyle: 'italic', fontFamily: 'serif', color: DARK, lineHeight: 36 },
-  separador:          { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
+const s = StyleSheet.create({
+  root:    { flex: 1, backgroundColor: colors.papel },
+  centrado:{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.papel, gap: 8 },
+  mutedTexto: { fontFamily: fonts.titulo, fontSize: 16, color: '#9A9080', textAlign: 'center' },
 
-  seccion:            { marginHorizontal: 16, marginTop: 16, gap: 10 },
-  seccionHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionLabel:       { fontSize: 10, letterSpacing: 2, color: GOLD },
-  seccionSub:         { fontSize: 12, color: MUTED },
-  checkVerde:         { fontSize: 16, color: VERDE, fontWeight: '700' },
+  // Header
+  header: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+  seccion: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    letterSpacing: 3,
+    color: colors.oro,
+    marginBottom: 6,
+  },
+  titulo: {
+    fontFamily: fonts.titulo,
+    fontSize: 26,
+    color: colors.tinta,
+    lineHeight: 32,
+  },
+  headerMeta: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: '#7A7060',
+    marginTop: 4,
+  },
+  divider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20 },
 
-  card:               { borderWidth: 1, borderColor: DIVIDER, borderRadius: 8, padding: 12 },
-  cardActivo:         { borderColor: GOLD, backgroundColor: '#FBF6EA' },
-  cardRow:            { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot:                { width: 8, height: 8, borderRadius: 4 },
-  cardTitle:          { flex: 1, fontSize: 15, color: DARK, fontWeight: '600' },
-  cardSub:            { fontSize: 12, color: MUTED, marginTop: 2 },
+  // Sections inside steps
+  bloque: { paddingHorizontal: 20, marginTop: 16, gap: 10 },
+  seccionLabel: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    letterSpacing: 3,
+    color: colors.oro,
+  },
+  seccionDivider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20, marginVertical: 16 },
 
-  emptyTexto:         { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: 'serif' },
-  emptySubtexto:      { color: MUTED, fontSize: 12 },
+  // Cards (paso 1)
+  card: {
+    borderWidth: 1,
+    borderColor: colors.tinta,
+    borderRadius: 2,
+    padding: 14,
+    backgroundColor: colors.papel,
+  },
+  cardActivo: { borderColor: colors.oro, borderWidth: 2 },
+  cardRow:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardInfo:   { flex: 1 },
+  cardTitle:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  cardSub:    { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#7A7060', marginTop: 3 },
+  checkOro:   { fontFamily: fonts.label, fontSize: 14, color: colors.oro },
 
-  badge:              { borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 },
-  badgeObligatorio:   { backgroundColor: '#FBF0D0' },
-  badgeOpcional:      { backgroundColor: '#F0EDE8' },
-  badgeTexto:         { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  emptyTexto:    { fontFamily: fonts.titulo, fontSize: 14, color: '#9A9080', fontStyle: 'italic' },
+  emptySubtexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#9A9080', marginTop: 4 },
 
-  fila:               { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
-  filaDiv:            { height: 1, backgroundColor: DIVIDER },
-  checkbox:           { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER, justifyContent: 'center', alignItems: 'center' },
-  checkboxActivo:     { backgroundColor: VERDE, borderColor: VERDE },
-  checkmark:          { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 16 },
-  nombreJugador:      { flex: 1, fontSize: 14, color: DARK },
-  nombreAusente:      { color: MUTED, textDecorationLine: 'line-through' },
-  estadoTexto:        { fontSize: 11, fontWeight: '600', width: 56, textAlign: 'right' },
+  // Equipo badges
+  equipoBadge: { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
+  equipoBadgeOblig: { backgroundColor: colors.tinta },
+  equipoBadgeOpc:   { borderWidth: 1, borderColor: colors.oro, backgroundColor: 'transparent' },
+  equipoBadgeTexto: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
 
-  rolesBotones:       { flexDirection: 'row', gap: 6 },
-  rolBoton:           { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  rolBotonTexto:      { fontSize: 11, fontWeight: '700' },
+  // Fila asistencia
+  fila:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
+  numero:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#A89E8C', width: 28 },
+  nombre:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta, flex: 1, marginRight: 10 },
+  separator: { height: 1, backgroundColor: '#E0D9C8', marginHorizontal: 20 },
 
-  conteoRow:          { flexDirection: 'row', gap: 10 },
-  conteoChip:         { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center' },
-  conteoLabel:        { fontSize: 10, letterSpacing: 1, fontWeight: '600' },
-  conteoNum:          { fontSize: 18, fontWeight: '700', lineHeight: 22 },
+  // Badges asistencia
+  badgesRow:   { flexDirection: 'row', gap: 5 },
+  badge:       { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 2, borderWidth: 1 },
+  badgeInactivo: { borderColor: '#C5BEA8', backgroundColor: 'transparent' },
+  badgePres:   { backgroundColor: VERDE, borderColor: VERDE },
+  badgeAus:    { backgroundColor: ROJO, borderColor: ROJO },
+  badgeTexto:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
 
-  bannerError:        { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 6, padding: 12 },
-  bannerErrorTexto:   { fontSize: 13, color: '#991B1B' },
-  bannerOk:           { alignItems: 'center', paddingVertical: 6 },
-  bannerOkTexto:      { fontSize: 13, color: VERDE, fontWeight: '600' },
+  // Contadores (asistencia)
+  contadores:   { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+  contadorBox:  { flex: 1, borderWidth: 1.5, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
+  contadorNum:  { fontFamily: fonts.titulo, fontSize: 28, lineHeight: 34 },
+  contadorLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: '#8A8070', marginTop: 2 },
 
-  boton:              { backgroundColor: DARK, paddingVertical: 14, borderRadius: 4, alignItems: 'center', marginTop: 4 },
-  botonTexto:         { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
+  // Conteo mesa
+  conteoRow:  { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+  conteoBox:  { flex: 1, borderWidth: 1.5, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
+  conteoNum:  { fontFamily: fonts.titulo, fontSize: 24, lineHeight: 30 },
+  conteoLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: '#8A8070', marginTop: 2 },
 
-  botonSecundario:    { borderWidth: 1.5, borderColor: GOLD, paddingVertical: 12, borderRadius: 4, alignItems: 'center', marginTop: 4 },
-  botonSecundarioTexto: { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
+  // Fila mesa — asignada (dark)
+  mesaCardDark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.tinta,
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  mesaNombreDark: {
+    flex: 1,
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.oro,
+  },
+  mesaQuitarTexto: {
+    fontFamily: fonts.label,
+    fontSize: 14,
+    color: colors.oroHondo,
+  },
 
-  volverBtn:          { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
-  volverTexto:        { color: GOLD, fontSize: 13, fontWeight: '600' },
+  // Fila mesa — disponible (light)
+  mesaCardLight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.papel,
+    borderWidth: 1,
+    borderColor: '#C5BEA8',
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  mesaNombreLight: {
+    flex: 1,
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.tinta,
+    marginRight: 10,
+  },
+  mesaBotones:   { flexDirection: 'row', gap: 6 },
+  mesaRolBtn:    {
+    width: 34,
+    height: 34,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: colors.tinta,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mesaRolBtnOff: { borderColor: '#C5BEA8', opacity: 0.4 },
+  mesaRolBtnTxt: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.tinta },
 
-  resultadoRow:       { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  vsTexto:            { fontSize: 20, color: MUTED, fontStyle: 'italic', fontFamily: 'serif', alignSelf: 'flex-end', paddingBottom: 8 },
-  inputLabel:         { fontSize: 10, letterSpacing: 2, color: GOLD },
-  inputNumero:        { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingVertical: 12, paddingHorizontal: 8, fontSize: 32, fontWeight: '700', color: DARK, textAlign: 'center' },
-  inputTexto:         { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, padding: 12, fontSize: 15, color: DARK },
+  // Botones
+  botonPrimario: {
+    backgroundColor: colors.tinta,
+    paddingVertical: 16,
+    borderRadius: 2,
+    alignItems: 'center',
+  },
+  botonPrimarioTexto: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 2.5,
+    color: colors.oro,
+  },
+  botonGuardarMesa: {
+    backgroundColor: colors.tinta,
+    paddingVertical: 18,
+    borderRadius: 2,
+    alignItems: 'center',
+  },
+  botonSecundario: {
+    borderWidth: 1,
+    borderColor: colors.oro,
+    paddingVertical: 14,
+    borderRadius: 2,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  botonSecundarioTexto: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 2,
+    color: colors.oro,
+  },
+
+  volverBtn:   { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  volverTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
+
+  // Banners
+  bannerError: {
+    borderLeftWidth: 3,
+    borderLeftColor: ROJO,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 2,
+    padding: 12,
+    marginBottom: 8,
+  },
+  bannerErrorTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#991B1B' },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: VERDE, marginBottom: 8 },
+
+  // Resultado
+  resultadoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  vsTexto: {
+    fontFamily: fonts.titulo,
+    fontSize: 24,
+    color: '#9A9080',
+    alignSelf: 'flex-end',
+    paddingBottom: 12,
+  },
+  inputNumero: {
+    borderWidth: 1.5,
+    borderColor: colors.tinta,
+    borderRadius: 2,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    fontFamily: fonts.titulo,
+    fontSize: 40,
+    color: colors.tinta,
+    textAlign: 'center',
+    backgroundColor: colors.papel,
+  },
+  inputTexto: {
+    borderWidth: 1.5,
+    borderColor: colors.tinta,
+    borderRadius: 2,
+    padding: 14,
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.tinta,
+    backgroundColor: colors.papel,
+  },
 })

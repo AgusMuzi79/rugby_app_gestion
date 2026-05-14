@@ -8,22 +8,23 @@ import {
   SafeAreaView,
 } from 'react-native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado } from '@/hooks/useAsistencia'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM = '#F5F0E8'
-const GOLD = '#C9A84C'
-const DARK = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
-const MUTED = '#7C7267'
-const VERDE = '#22C55E'
-const ROJO = '#EF4444'
+// ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const ESTADOS: { key: EstadoAsistencia; label: string; color: string }[] = [
-  { key: 'presente',    label: 'P', color: VERDE },
-  { key: 'ausente',     label: 'A', color: ROJO },
-  { key: 'justificado', label: 'J', color: GOLD },
+const VERDE  = '#4A7C59'
+const ROJO   = colors.rojoUrgente  // #C0392B
+const DORADO = colors.oro           // #E8B53C
+
+const BADGES: { key: EstadoAsistencia; label: string; bg: string; textColor: string }[] = [
+  { key: 'presente',    label: 'PRES', bg: VERDE,  textColor: '#FFFFFF' },
+  { key: 'ausente',     label: 'AUS',  bg: ROJO,   textColor: '#FFFFFF' },
+  { key: 'justificado', label: 'JUST', bg: DORADO,  textColor: '#000000' },
 ]
 
-function fechaFormateada(iso: string) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fechaFormateada(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('es-AR', {
     weekday: 'long',
@@ -32,35 +33,55 @@ function fechaFormateada(iso: string) {
   })
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function ContadorBox({ label, count, color }: { label: string; count: number; color: string }) {
+  return (
+    <View style={[s.contadorBox, { borderColor: color }]}>
+      <Text style={[s.contadorNum, { color }]}>{count}</Text>
+      <Text style={s.contadorLabel}>{label}</Text>
+    </View>
+  )
+}
+
 function FilaJugador({
   item,
+  index,
+  alertas,
   onMarca,
 }: {
   item: JugadorConEstado
+  index: number
+  alertas: string[]
   onMarca: (id: string, estado: EstadoAsistencia) => void
 }) {
+  const conAlerta = alertas.includes(item.nombre_completo)
+  const numero    = String(index + 1).padStart(2, '0')
+
   return (
-    <View style={styles.fila}>
-      <Text style={styles.nombreJugador} numberOfLines={1}>
-        {item.nombre_completo}
-      </Text>
-      <View style={styles.botonesFila}>
-        {ESTADOS.map(e => {
-          const activo = item.estado === e.key
+    <View style={s.fila}>
+      <Text style={s.numero}>{numero}</Text>
+      <View style={s.infoCol}>
+        <Text style={s.nombre} numberOfLines={1}>{item.nombre_completo}</Text>
+        {conAlerta && <Text style={s.alertaInline}>⚠ 4 AUSENCIAS</Text>}
+      </View>
+      <View style={s.badgesRow}>
+        {BADGES.map(badge => {
+          const activo = item.estado === badge.key
           return (
             <TouchableOpacity
-              key={e.key}
+              key={badge.key}
               style={[
-                styles.botonEstado,
+                s.badge,
                 activo
-                  ? { backgroundColor: e.color, borderColor: e.color }
-                  : { backgroundColor: 'transparent', borderColor: DIVIDER },
+                  ? { backgroundColor: badge.bg, borderColor: badge.bg }
+                  : s.badgeInactivo,
               ]}
-              onPress={() => onMarca(item.id, e.key)}
+              onPress={() => onMarca(item.id, badge.key)}
               activeOpacity={0.75}
             >
-              <Text style={[styles.botonEstadoTexto, { color: activo ? '#fff' : MUTED }]}>
-                {e.label}
+              <Text style={[s.badgeTexto, { color: activo ? badge.textColor : '#A09880' }]}>
+                {badge.label}
               </Text>
             </TouchableOpacity>
           )
@@ -69,6 +90,8 @@ function FilaJugador({
     </View>
   )
 }
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AsistenciaScreen() {
   const {
@@ -87,124 +110,262 @@ export default function AsistenciaScreen() {
     guardarAsistencia,
   } = useAsistencia()
 
+  const presentes = jugadores.filter(j => j.estado === 'presente').length
+  const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
+  const justifs   = jugadores.filter(j => j.estado === 'justificado').length
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <Text style={styles.mutedTexto}>Sin división asignada.</Text>
-        <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
+      <SafeAreaView style={s.centrado}>
+        <Text style={s.mutedTexto}>Sin división asignada.</Text>
+        <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
-        <Text style={styles.titulo}>Asistencia</Text>
-        <Text style={styles.fecha}>{fechaFormateada(fecha)}</Text>
-      </View>
+    <SafeAreaView style={s.root}>
 
-      <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 }} />
-
-      <View style={styles.leyenda}>
-        {ESTADOS.map(e => (
-          <View key={e.key} style={styles.leyendaItem}>
-            <View style={[styles.leyendaDot, { backgroundColor: e.color }]} />
-            <Text style={styles.leyendaTexto}>{e.key.charAt(0).toUpperCase() + e.key.slice(1)}</Text>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <View style={s.header}>
+        <View style={s.headerTop}>
+          <View style={s.headerLeft}>
+            <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
+            <Text style={s.titulo}>Toma de asistencia</Text>
           </View>
-        ))}
-        <Text style={styles.contador}>{marcados}/{jugadores.length}</Text>
+          <TouchableOpacity
+            style={[s.guardarBtn, guardando && { opacity: 0.55 }]}
+            onPress={guardarAsistencia}
+            disabled={guardando}
+            activeOpacity={0.8}
+          >
+            {guardando
+              ? <ActivityIndicator color={colors.oro} size="small" />
+              : <Text style={s.guardarTexto}>GUARDAR</Text>
+            }
+          </TouchableOpacity>
+        </View>
+        <Text style={s.headerMeta}>
+          {divisionNombre.toUpperCase()} · {fechaFormateada(fecha).toUpperCase()} · CANCHA PRINCIPAL
+        </Text>
       </View>
 
+      <View style={s.divider} />
+
+      {/* ── Contadores ─────────────────────────────────────────────────────── */}
+      <View style={s.contadores}>
+        <ContadorBox label="PRESENTES" count={presentes} color={VERDE}  />
+        <ContadorBox label="AUSENTES"  count={ausentes}  color={ROJO}   />
+        <ContadorBox label="JUSTIF."   count={justifs}   color={DORADO} />
+      </View>
+
+      {/* ── Lista de jugadores ─────────────────────────────────────────────── */}
       <FlatList
         data={jugadores}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <FilaJugador item={item} onMarca={marcarEstado} />
+        renderItem={({ item, index }) => (
+          <FilaJugador
+            item={item}
+            index={index}
+            alertas={alertas}
+            onMarca={marcarEstado}
+          />
         )}
-        ItemSeparatorComponent={() => (
-          <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 16 }} />
-        )}
+        ItemSeparatorComponent={() => <View style={s.separator} />}
         contentContainerStyle={{ paddingBottom: 8 }}
       />
 
-      <View style={styles.footer}>
-        {alertas.length > 0 && (
-          <View style={styles.alertaBanner}>
-            <Text style={styles.alertaTitulo}>⚠ 4 ausencias consecutivas</Text>
-            {alertas.map(nombre => (
-              <Text key={nombre} style={styles.alertaNombre}>· {nombre}</Text>
-            ))}
-          </View>
-        )}
-
-        {errorGuardado && !guardando && (
-          <View style={[styles.alertaBanner, { borderLeftColor: ROJO, backgroundColor: '#FEF2F2' }]}>
-            <Text style={[styles.alertaTitulo, { color: '#991B1B' }]}>Error al guardar</Text>
-            <Text style={[styles.alertaNombre, { color: '#7F1D1D' }]}>{errorGuardado}</Text>
-          </View>
-        )}
-
-        {guardado && !guardando && !errorGuardado && (
-          <View style={styles.estadoBanner}>
-            {pendienteSync ? (
-              <Text style={styles.estadoPendiente}>⏳ Pendiente de sincronización</Text>
-            ) : (
-              <Text style={styles.estadoGuardado}>✓ Asistencia guardada</Text>
-            )}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.botonGuardar, guardando && { opacity: 0.6 }]}
-          onPress={guardarAsistencia}
-          disabled={guardando}
-          activeOpacity={0.85}
-        >
-          {guardando ? (
-            <ActivityIndicator color={GOLD} size="small" />
-          ) : (
-            <Text style={styles.botonGuardarTexto}>GUARDAR ASISTENCIA</Text>
+      {/* ── Estado ─────────────────────────────────────────────────────────── */}
+      {(errorGuardado || (guardado && !guardando)) && (
+        <View style={s.statusBar}>
+          {errorGuardado && !guardando && (
+            <Text style={s.statusError}>✕ {errorGuardado}</Text>
           )}
-        </TouchableOpacity>
-      </View>
+          {guardado && !guardando && !errorGuardado && (
+            pendienteSync
+              ? <Text style={s.statusPendiente}>⏳ Pendiente de sincronización</Text>
+              : <Text style={s.statusOk}>✓ Asistencia guardada — {marcados}/{jugadores.length} marcados</Text>
+          )}
+        </View>
+      )}
+
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  container:       { flex: 1, backgroundColor: CREAM },
-  centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 8 },
-  mutedTexto:      { color: MUTED, fontSize: 14, fontFamily: 'serif', fontStyle: 'italic' },
-  header:          { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:     { fontSize: 10, letterSpacing: 2.5, color: GOLD, marginBottom: 4 },
-  titulo:          { fontSize: 32, fontStyle: 'italic', fontFamily: 'serif', color: DARK, lineHeight: 36 },
-  fecha:           { fontSize: 13, color: MUTED, marginTop: 4, fontStyle: 'italic', fontFamily: 'serif', textTransform: 'capitalize' },
-  leyenda:         { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 12 },
-  leyendaItem:     { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  leyendaDot:      { width: 8, height: 8, borderRadius: 4 },
-  leyendaTexto:    { fontSize: 11, color: MUTED },
-  contador:        { marginLeft: 'auto', fontSize: 12, color: DARK, fontWeight: '600', letterSpacing: 0.5 },
-  fila:            { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
-  nombreJugador:   { flex: 1, fontSize: 15, color: DARK, marginRight: 12 },
-  botonesFila:     { flexDirection: 'row', gap: 6 },
-  botonEstado:     { width: 36, height: 36, borderRadius: 18, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-  botonEstadoTexto:{ fontSize: 12, fontWeight: '700' },
-  footer:          { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, borderTopWidth: 1, borderTopColor: DIVIDER, gap: 8 },
-  alertaBanner:    { backgroundColor: '#FEF3C7', borderLeftWidth: 3, borderLeftColor: '#F59E0B', borderRadius: 6, padding: 12, gap: 2 },
-  alertaTitulo:    { fontSize: 12, fontWeight: '700', color: '#92400E', marginBottom: 2 },
-  alertaNombre:    { fontSize: 13, color: '#78350F' },
-  estadoBanner:    { alignItems: 'center' },
-  estadoGuardado:  { fontSize: 13, color: VERDE, fontWeight: '600' },
-  estadoPendiente: { fontSize: 13, color: GOLD, fontWeight: '600' },
-  botonGuardar:    { backgroundColor: DARK, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
-  botonGuardarTexto:{ color: GOLD, fontSize: 12, letterSpacing: 2.5, fontWeight: '600' },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  root:     { flex: 1, backgroundColor: colors.papel },
+  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.papel, gap: 8 },
+  mutedTexto: {
+    fontFamily: fonts.titulo,
+    fontSize: 16,
+    color: '#9A9080',
+    textAlign: 'center',
+  },
+
+  // Header
+  header:    { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  headerLeft: { flex: 1 },
+  seccion: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    letterSpacing: 3,
+    color: colors.oro,
+    marginBottom: 6,
+  },
+  titulo: {
+    fontFamily: fonts.titulo,
+    fontSize: 28,
+    color: colors.tinta,
+    lineHeight: 34,
+  },
+  headerMeta: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    color: '#7A7060',
+  },
+
+  // GUARDAR button (header)
+  guardarBtn: {
+    borderWidth: 1,
+    borderColor: colors.oro,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 2,
+    marginTop: 4,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  guardarTexto: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 2,
+    color: colors.oro,
+  },
+
+  divider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20 },
+
+  // Contadores
+  contadores: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 10,
+  },
+  contadorBox: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 2,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  contadorNum: {
+    fontFamily: fonts.titulo,
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  contadorLabel: {
+    fontFamily: fonts.label,
+    fontSize: 8,
+    letterSpacing: 2,
+    color: '#8A8070',
+    marginTop: 2,
+  },
+
+  // Player rows
+  fila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  numero: {
+    fontFamily: fonts.label,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: '#A89E8C',
+    width: 28,
+  },
+  infoCol: {
+    flex: 1,
+    marginRight: 10,
+  },
+  nombre: {
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.tinta,
+  },
+  alertaInline: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    letterSpacing: 1.5,
+    color: colors.rojoUrgente,
+    marginTop: 3,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#E0D9C8',
+    marginHorizontal: 20,
+  },
+
+  // Badges
+  badgesRow: { flexDirection: 'row', gap: 5 },
+  badge: {
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 2,
+    borderWidth: 1,
+  },
+  badgeInactivo: {
+    borderColor: '#C5BEA8',
+    backgroundColor: 'transparent',
+  },
+  badgeTexto: {
+    fontFamily: fonts.label,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+
+  // Status bar
+  statusBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#D4CCBA',
+  },
+  statusOk: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: VERDE,
+  },
+  statusPendiente: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.oroHondo,
+  },
+  statusError: {
+    fontFamily: fonts.label,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.rojoUrgente,
+  },
 })

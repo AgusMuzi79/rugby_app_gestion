@@ -1,11 +1,7 @@
-import { TouchableOpacity } from 'react-native'
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
-import { useSignOut } from '@/hooks/useSignOut'
 
 export default function CoordinadorLayout() {
-  const { signOut } = useSignOut()
-
   return (
     <Tabs
       screenOptions={{
@@ -28,16 +24,12 @@ export default function CoordinadorLayout() {
         name="cronica"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={color} /> }}
       />
-      <Tabs.Screen name="asistencia" options={{ href: null }} />
       <Tabs.Screen
-        name="salir"
-        options={{
-          tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} />,
-          tabBarButton: ({ children, style }) => (
-            <TouchableOpacity style={style} onPress={signOut} activeOpacity={0.7}>{children}</TouchableOpacity>
-          ),
-        }}
+        name="sobre"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
+      <Tabs.Screen name="salir" options={{ href: null }} />
+      <Tabs.Screen name="asistencia" options={{ href: null }} />
     </Tabs>
   )
 }

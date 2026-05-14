@@ -127,7 +127,7 @@ supabase start
 - `app/app/_layout.tsx` — root layout con auth guard. Usa `useRootNavigationState()` para esperar el navigator. **CRÍTICO**: dep de useEffect es `session?.access_token` (string primitivo), NO el objeto `session` — evita loop infinito por TOKEN_REFRESHED de Supabase que crea nuevas referencias de objeto.
 - `app/app/(auth)/login.tsx` + `forgot-password.tsx` — diseño "La Bitácora" (cream/gold/serif)
 - `app/app/(auth)/_layout.tsx` — stack sin header
-- `app/app/(subcomision|coordinador|entrenador|manager)/_layout.tsx` — tab navigation oscura (fondo `#0E0E0E`, activo `#E8B53C`, inactivo `#666666`), iconos Feather, `tabBarShowLabel: false`. Tab "Salir" con `tabBarButton` custom. **Ver estructura de tabs por rol abajo.**
+- `app/app/(subcomision|coordinador|entrenador|manager)/_layout.tsx` — tab navigation oscura (fondo `#0E0E0E`, activo `#E8B53C`, inactivo `#666666`), iconos Feather, `tabBarShowLabel: false`. Tab "Sobre" navega a la pantalla de perfil. **Ver estructura de tabs por rol abajo.**
 - `app/lib/supabase.ts` — cliente con AsyncStorage + AppState
 - `app/lib/offlineQueue.ts` — `encolar/obtenerCola/eliminarDeCola/tamañoCola` (nombres en español, tipo `OperacionOffline`)
 - `app/stores/authStore.ts` — Zustand: session, rol, loading, setSession, setRol, clearAuth
@@ -141,10 +141,12 @@ supabase start
 
 | Rol | Tab 1 | Tab 2 | Tab 3 | Tab 4 | href:null |
 |---|---|---|---|---|---|
-| Subcomisión | home→diario | users→usuarios | activity→cronica | user→salir | dashboard, eventos, informes, notificaciones, protocolos |
-| Coordinador | home→diario | calendar→calendario | activity→cronica | user→salir | asistencia |
-| Entrenador | home→diario | list→asistencia | activity→cronica | user→salir | lesiones, partido |
-| Manager | home→diario | dollar-sign→cobranzas | activity→cronica | user→salir | fichajes |
+| Subcomisión | home→diario | users→usuarios | activity→cronica | user→sobre | salir, dashboard, eventos, informes, notificaciones, protocolos |
+| Coordinador | home→diario | calendar→calendario | activity→cronica | user→sobre | salir, asistencia |
+| Entrenador | home→diario | list→asistencia | activity→cronica | user→sobre | salir, lesiones, partido |
+| Manager | home→diario | dollar-sign→cobranzas | activity→cronica | user→sobre | salir, fichajes |
+
+**Nota**: El tab "salir" ya no tiene `tabBarButton` custom. La sesión se cierra desde la pantalla Sobre con el botón "CERRAR SESIÓN".
 
 **Nota**: Tailwind v3 (no v4). NativeWind v4 no soporta Tailwind v4. `global.css` usa `@tailwind base/components/utilities`.
 
@@ -173,6 +175,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 - `app/components/ui/DatePickerField.tsx` — picker nativo de fecha y hora. Props: `label`, `value` (ISO `YYYY-MM-DD` o `HH:MM`), `onChange`, `mode` ('date'|'time', default 'date'), `maximumDate`, `minimumDate`, `onClear`. Usa `react-native-modal-datetime-picker` + Ionicons.
 - `app/components/shared/Header.tsx` — logo + "UNCAS RUGBY CLUB" + "La Bitácora" PlayfairDisplay, con divider gris. Usado en todas las pantallas de rol.
 - `app/components/shared/CronicaScreen.tsx` — pantalla Crónica compartida (usada como default export en las 4 rutas `/cronica`). Renderiza feed multi-fuente (lesiones, fichajes, resultados, notificaciones), items urgentes con fondo oscuro, botón "+ NUEVA NOTIFICACIÓN" solo para subcomisión/admin con modal de envío.
+- `app/components/shared/SobreScreen.tsx` — pantalla Mi Perfil compartida (usada como default export en las 4 rutas `/sobre`). Fondo oscuro tinta. Muestra nombre (PlayfairDisplay), rol + división en dorado. Toggle biometría (gestiona SecureStore `biometria_email` / `biometria_password`), toggle notificaciones (placeholder). Botón "CERRAR SESIÓN" negro/dorado. Versión "UNCAS RUGBY APP · V1.0".
 
 ### Pantallas implementadas — Subcomisión
 | Pantalla | Hook | Estado |
@@ -183,6 +186,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 | `(subcomision)/eventos.tsx` | `useEventos.ts` | ✅ completo — lista activos/historial, modal nuevo evento, detalle con resumen cobranzas + pedidos, cerrar evento |
 | `(subcomision)/informes.tsx` | `useInformes.ts` | ✅ completo — asistencia per-jugador, resultados W/L/D, fichajes recientes, financiero con forma_de_pago |
 | `(subcomision)/notificaciones.tsx` | `useNotificaciones.ts` | ✅ completo — modal nueva notif (título/mensaje/rol), historial enviadas, push via Edge Function |
+| `(subcomision)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioSubcomision`**: 5 queries paralelas — asistencia últimos 30D + variación vs 7D previos, lesiones activas (grado≥3), fichajes 7D, notificaciones recientes. Retorna stats (asistenciaPct, variacion7D, lesionesActivas, fichajesRecientes), cronicaItems (últimas 5 novedades) y `sinDatos`.
 
@@ -201,6 +205,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 | `(coordinador)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días compartido |
 | `(coordinador)/calendario.tsx` | `useCalendario.ts` | ✅ completo — lista eventos, modal nuevo evento con DatePickerField |
 | `(coordinador)/asistencia.tsx` | `useAsistenciaCoordinador.ts` | ✅ completo — asistencia per-jugador, badge 4 ausencias, selector división |
+| `(coordinador)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioCoordinador`**: 4 queries paralelas — divisiones, eventos próximos 7D, eventos últimos 30D, cobranzas activas (por división + globales). Calcula `EventoSemana[]` (con `cobranzaActiva: boolean`), `AlertaJugador[]` (4 ausencias consecutivas), `BarraAsistencia[]` (% por división, color-coded). `.or()` dinámico para filtrar cobranzas por división + `division_id.is.null`.
 
@@ -213,15 +218,20 @@ supabase gen types typescript --local > app/lib/database.types.ts
 |---|---|---|
 | `(entrenador)/diario.tsx` | `useDiarioEntrenador.ts` | ✅ completo — próximo evento, tareas pendientes, atajos |
 | `(entrenador)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días compartido |
-| `(entrenador)/asistencia.tsx` | `useAsistencia.ts` | ✅ US-EP-01 completo (online + offline) |
-| `(entrenador)/partido.tsx` | `usePartido.ts` | ✅ US-EP-02 + US-EP-03 completo |
+| `(entrenador)/asistencia.tsx` | `useAsistencia.ts` | ✅ completo — identidad La Bitácora aplicada |
+| `(entrenador)/partido.tsx` | `usePartido.ts` | ✅ completo — identidad La Bitácora aplicada |
 | `(entrenador)/lesiones.tsx` | `useLesiones.ts` | ✅ registro completo + historial por jugador + tab PROTOCOLOS (read-only, signed URL) |
+| `(entrenador)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioEntrenador`**: 6 queries paralelas. `TareaPendiente[]`: partidos últimos 3D sin resultado (RESULTADO), próximo partido sin mesa (MESA), lesiones recientes 7D (LESIÓN). `proximoEvento`: próximo partido o entrenamiento.
 
 **`useAsistencia`**: fetch jugadores por división → pre-carga asistencias del día → guardar crea evento de entrenamiento automáticamente → verifica 4 ausencias consecutivas con Promise.all → invoca `notifications` si hay 4 ausencias.
 
-**`usePartido`**: lista partidos próximos (hoy + 14 días) → selección → Paso 1 asistencia (presente/ausente) → Paso 2 mesa (C/T/S/CT por jugador presente) → validación (1 cap, ≤15 cancha, ≤8 suplentes).
+**Diseño asistencia.tsx**: fondo papel, header "SECCIÓN · CANCHA" + "Toma de asistencia" (PlayfairDisplay) + botón GUARDAR arriba a la derecha (borde dorado). Tres cajas de contadores (PRESENTES/AUSENTES/JUSTIF.) con borde de color. Lista numerada con badges `[PRES]` `[AUS]` `[JUST]`. Alerta "⚠ 4 AUSENCIAS" inline bajo el nombre post-guardado.
+
+**`usePartido`**: lista partidos próximos (hoy + 14 días) → selección → Paso 1 equipo+partido → Paso 2 asistencia (presente/ausente) → Paso 3 mesa (Titulares/Suplentes) → Paso 4 resultado. Validación: ≤15 titulares, ≤8 suplentes.
+
+**Diseño partido.tsx**: 4 pasos con header dinámico "SECCIÓN · CANCHA" + título del paso en PlayfairDisplay (ej. `Asistencia · M15 Prueba`). Paso 1: cards con borde negro, badges OBLIGATORIO (negro) / OPCIONAL (dorado). Paso 2: contadores + lista numerada igual que asistencia. Paso 3: ConteoBar dorado, jugadores en tres grupos (TITULARES/SUPLENTES/DISPONIBLES), asignados en card negro/dorado, disponibles en card papel/gris con botones [T][S]. Paso 4: inputs con borde negro, números en PlayfairDisplay 40px.
 
 **`useLesiones`**: lista lesiones de la división, modal nuevo registro con `DatePickerField`, online (insert DB + invoke `notifications`) / offline (`encolar`). Validación fecha: `if (!fecha)` (no regex — usa DatePickerField).
 
@@ -232,10 +242,16 @@ supabase gen types typescript --local > app/lib/database.types.ts
 | `(manager)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días compartido |
 | `(manager)/cobranzas.tsx` | — | pendiente |
 | `(manager)/fichajes.tsx` | `useFichajes.ts` | ✅ completo — lista/detalle/nuevo/documentos |
+| `(manager)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioManager`**: 3 queries paralelas — divisiones, eventos_financieros activos (con `cobranzas(estado, monto)` join para calcular pct/monto), últimos 3 fichajes. `EventoProgreso` incluye `esGlobal` (division_id IS NULL = pedido de subcomisión), `pct`, `montoCobrado`, `montoTotal`.
 
 **`useFichajes`**: lista jugadores fichados, modal nuevo fichaje (jugador + fichaje en 2 inserts), upload documentos a Storage bucket `fichajes` (base64 via expo-file-system), invoca `notifications` al crear fichaje. `DatePickerField` para fecha nacimiento. Validación fecha: `if (!fechaNacimiento)` (no regex).
+
+### Pantalla Sobre — Perfil de usuario
+**`useSobre`** (`app/hooks/useSobre.ts`): fetch `profiles` (nombre, rol, divisiones) + join `divisiones` para nombres. Gestiona biometría via `expo-local-authentication` + `expo-secure-store` (keys: `biometria_email`, `biometria_password`). Toggle off = delete keys. Toggle on = Alert (requiere cerrar sesión para activar). Toggle notificaciones es placeholder local.
+
+**`SobreScreen`** (`app/components/shared/SobreScreen.tsx`): fondo `tinta`, header "SECCIÓN · SOBRE" + "Mi perfil" (PlayfairDisplay). Card en `papel` con acento dorado, nombre en PlayfairDisplay grande, rol + división en ArchivoNarrow dorado (formato `ENTRENADOR · M14` si hay una división). Sección CONFIGURACIÓN: dos Switches gold-tinted. Sección CUENTA: botón "CERRAR SESIÓN" (borde dorado, texto dorado, negro). Versión al pie. Rutas: `(rol)/sobre.tsx` re-exportan `SobreScreen` como default.
 
 ### Crónica — Feed compartido
 **`useCronica`**: hook compartido para la tab Crónica de todos los roles. Queries últimos 7 días:
@@ -258,7 +274,9 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 **Nota Expo Go SDK 53**: push remotas eliminadas de Expo Go. `notifications.ts` usa `Constants.appOwnership === 'expo'` para detectar Expo Go y saltear todo lo relacionado a push (incluyendo imports dinámicos de `expo-notifications`). Para probar push se necesita un development build (`eas build --profile development`).
 
 ### Próximo paso al volver
-MVP completo. Todas las pantallas y hooks están implementados. Pendiente: pantalla `(manager)/cobranzas.tsx` (accesible desde Diario Manager pero sin pantalla propia aún). El resto del MVP está listo para testing y build.
+MVP completo. Pantallas y hooks implementados. Identidad visual La Bitácora aplicada a entrenador/asistencia y entrenador/partido. Pantalla Sobre implementada para los 4 roles.
+
+Pendiente único: `(manager)/cobranzas.tsx` (accesible desde Diario Manager pero sin pantalla propia). El resto del MVP está listo para testing y build.
 
 ## Fuentes
 
