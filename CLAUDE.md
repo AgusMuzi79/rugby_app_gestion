@@ -183,7 +183,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 | `(subcomision)/diario.tsx` | `useDiarioSubcomision.ts` | ✅ completo — 4 stat cards, crónica reciente, atajos |
 | `(subcomision)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días, nueva notif modal (subcomision only) |
 | `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | ✅ completo — lista/detalle/crear/desactivar/reactivar |
-| `(subcomision)/eventos.tsx` | `useEventos.ts` | ✅ completo — lista activos/historial, modal nuevo evento, detalle con resumen cobranzas + pedidos, cerrar evento |
+| `(subcomision)/eventos.tsx` | `useEventos.ts` | ✅ completo — identidad La Bitácora aplicada — tabs ACTIVOS/HISTORIAL con underline dorado, barra progreso por evento, detalle PlayfairDisplay, cerrar evento TINTA/ROJO, modal tipo 3-botones |
 | `(subcomision)/informes.tsx` | `useInformes.ts` | ✅ completo — asistencia per-jugador, resultados W/L/D, fichajes recientes, financiero con forma_de_pago |
 | `(subcomision)/notificaciones.tsx` | `useNotificaciones.ts` | ✅ completo — modal nueva notif (título/mensaje/rol), historial enviadas, push via Edge Function |
 | `(subcomision)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
@@ -220,7 +220,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 | `(entrenador)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días compartido |
 | `(entrenador)/asistencia.tsx` | `useAsistencia.ts` | ✅ completo — identidad La Bitácora aplicada |
 | `(entrenador)/partido.tsx` | `usePartido.ts` | ✅ completo — identidad La Bitácora aplicada |
-| `(entrenador)/lesiones.tsx` | `useLesiones.ts` | ✅ registro completo + historial por jugador + tab PROTOCOLOS (read-only, signed URL) |
+| `(entrenador)/lesiones.tsx` | `useLesiones.ts` | ✅ completo — identidad La Bitácora aplicada — grado badges progresivos (1→5 colores), card expansion, FAB dorado, tab PROTOCOLOS |
 | `(entrenador)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioEntrenador`**: 6 queries paralelas. `TareaPendiente[]`: partidos últimos 3D sin resultado (RESULTADO), próximo partido sin mesa (MESA), lesiones recientes 7D (LESIÓN). `proximoEvento`: próximo partido o entrenamiento.
@@ -235,18 +235,26 @@ supabase gen types typescript --local > app/lib/database.types.ts
 
 **`useLesiones`**: lista lesiones de la división, modal nuevo registro con `DatePickerField`, online (insert DB + invoke `notifications`) / offline (`encolar`). Validación fecha: `if (!fecha)` (no regex — usa DatePickerField).
 
+**Diseño lesiones.tsx**: fondo papel. Dos tabs LESIONES ACTIVAS / PROTOCOLOS (underline dorado). Badge de grado progresivo: 1=verde, 2=ámbar, 3=naranja, 4=rojo, 5=rojo oscuro+borde. Grado ≥3: card fondo TINTA + texto ORO. Tap en card expande descripción + "VER HISTORIAL DEL JUGADOR". SelectorGrado: activo = TINTA+ORO. Input descripción: borde inferior ORO. FAB dorado.
+
 ### Pantallas implementadas — Manager
 | Pantalla | Hook | Estado |
 |---|---|---|
 | `(manager)/diario.tsx` | `useDiarioManager.ts` | ✅ completo — cobranzas activas, pedidos subcomisión, últimos fichajes |
 | `(manager)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días compartido |
-| `(manager)/cobranzas.tsx` | — | pendiente |
-| `(manager)/fichajes.tsx` | `useFichajes.ts` | ✅ completo — lista/detalle/nuevo/documentos |
+| `(manager)/cobranzas.tsx` | `useCobranzas.ts` | ✅ completo — identidad La Bitácora aplicada — barra progreso por evento, modal por jugador, selector PAGADO/PENDIENTE, forma de pago |
+| `(manager)/fichajes.tsx` | `useFichajes.ts` | ✅ completo — identidad La Bitácora aplicada — lista numerada, badge OK, botón ABRIR documentos (signed URL) |
 | `(manager)/sobre.tsx` | `useSobre.ts` | ✅ completo — re-exporta `SobreScreen` |
 
 **`useDiarioManager`**: 3 queries paralelas — divisiones, eventos_financieros activos (con `cobranzas(estado, monto)` join para calcular pct/monto), últimos 3 fichajes. `EventoProgreso` incluye `esGlobal` (division_id IS NULL = pedido de subcomisión), `pct`, `montoCobrado`, `montoTotal`.
 
-**`useFichajes`**: lista jugadores fichados, modal nuevo fichaje (jugador + fichaje en 2 inserts), upload documentos a Storage bucket `fichajes` (base64 via expo-file-system), invoca `notifications` al crear fichaje. `DatePickerField` para fecha nacimiento. Validación fecha: `if (!fechaNacimiento)` (no regex).
+**`useCobranzas`**: lista eventos financieros activos para la división + globales. `EventoFinanciero` incluye `pctCobrado`, `countPagados`, `countJugadores`, `montoCobrado` (calculados en paralelo al cargar). `CobranzaJugador`: estado toggle, monto string (para TextInput), formaDePago. Upsert por `evento_financiero_id,jugador_id`. `resumen` calculado reactivamente: cobrado, pagados, pendientes.
+
+**Diseño cobranzas.tsx**: lista de eventos con barra de progreso (ORO, height 4), `X/Y PAGADOS · $cobrado`. Tap en evento → lista jugadores. Tap en jugador → modal: selector grande PAGADO/PENDIENTE, monto con borde inferior ORO, forma de pago (3 botones). Botón "GUARDAR" persiste todos los jugadores.
+
+**`useFichajes`**: lista jugadores fichados, modal nuevo fichaje (jugador + fichaje en 2 inserts), upload documentos a Storage bucket `fichajes` (base64 via expo-file-system), invoca `notifications` al crear fichaje. `DatePickerField` para fecha nacimiento. Validación fecha: `if (!fechaNacimiento)` (no regex). `abrirDocumento(storagePath)`: signed URL (60s) → `Linking.openURL`. Estado `abriendoDoc: string | null` para spinner por documento.
+
+**Diseño fichajes.tsx**: lista numerada (01, 02…) con badge "OK" dorado. Detalle: nombre PlayfairDisplay 28px, lista documentos con botón "ABRIR" + ícono. Modal nuevo fichaje: campos con borde inferior ORO, `DatePickerField` para nacimiento, botón "FICHAR JUGADOR" TINTA. Banner de éxito TINTA + borde ORO.
 
 ### Pantalla Sobre — Perfil de usuario
 **`useSobre`** (`app/hooks/useSobre.ts`): fetch `profiles` (nombre, rol, divisiones) + join `divisiones` para nombres. Gestiona biometría via `expo-local-authentication` + `expo-secure-store` (keys: `biometria_email`, `biometria_password`). Toggle off = delete keys. Toggle on = Alert (requiere cerrar sesión para activar). Toggle notificaciones es placeholder local.
@@ -274,9 +282,14 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 **Nota Expo Go SDK 53**: push remotas eliminadas de Expo Go. `notifications.ts` usa `Constants.appOwnership === 'expo'` para detectar Expo Go y saltear todo lo relacionado a push (incluyendo imports dinámicos de `expo-notifications`). Para probar push se necesita un development build (`eas build --profile development`).
 
 ### Próximo paso al volver
-MVP completo. Pantallas y hooks implementados. Identidad visual La Bitácora aplicada a entrenador/asistencia y entrenador/partido. Pantalla Sobre implementada para los 4 roles.
+MVP completo. Todas las pantallas y hooks implementados. Identidad visual La Bitácora aplicada a todas las pantallas funcionales de los 4 roles.
 
-Pendiente único: `(manager)/cobranzas.tsx` (accesible desde Diario Manager pero sin pantalla propia). El resto del MVP está listo para testing y build.
+**Identidad La Bitácora aplicada a**:
+- `(entrenador)/asistencia.tsx`, `partido.tsx`, `lesiones.tsx`
+- `(manager)/cobranzas.tsx`, `fichajes.tsx`
+- `(subcomision)/eventos.tsx`
+
+Listo para testing end-to-end y build EAS (`eas build --profile preview --platform all`).
 
 ## Fuentes
 

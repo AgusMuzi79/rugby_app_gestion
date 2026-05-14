@@ -16,21 +16,30 @@ import { Ionicons } from '@expo/vector-icons'
 import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial } from '@/hooks/useLesiones'
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM   = '#F5F0E8'
-const GOLD    = '#C9A84C'
-const DARK    = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
-const MUTED   = '#7C7267'
-const VERDE   = '#22C55E'
-const ROJO    = '#EF4444'
+// ─── Design tokens ────────────────────────────────────────────────────────────
 
-const GRADO_COLOR: Record<number, string> = {
-  1: '#22C55E',
-  2: '#EAB308',
-  3: '#F97316',
-  4: '#EF4444',
-  5: '#7F1D1D',
+const PAPEL     = colors.papel        // '#F6F1E4'
+const TINTA     = colors.tinta        // '#0E0E0E'
+const ORO       = colors.oro          // '#E8B53C'
+const ORO_HONDO = colors.oroHondo     // '#C9961F'
+const GRIS      = colors.grisClaro    // '#E5E0D0'
+const ROJO      = colors.rojoUrgente  // '#C0392B'
+const MUTED     = '#7C7267'
+const DIVIDER   = '#D9D3C4'
+
+// Escala progresiva de grado 1→5
+const GRADO: Record<number, { bg: string; borde?: string }> = {
+  1: { bg: '#4A7C59' },
+  2: { bg: '#C4960A' },
+  3: { bg: '#C06008' },
+  4: { bg: '#C0392B' },
+  5: { bg: '#7F1D1D', borde: '#C0392B' },
+}
+
+const GRADO_COLOR_P: Record<number, string> = {
+  1: '#4A7C59', 2: '#C4960A', 3: '#C06008', 4: '#C0392B', 5: '#7F1D1D',
 }
 
 function formatFecha(iso: string) {
@@ -40,38 +49,85 @@ function formatFecha(iso: string) {
   })
 }
 
-// ─── Componentes menores ──────────────────────────────────────────────────────
+// ─── Badge de grado ───────────────────────────────────────────────────────────
 
-function GradoBadge({ grado }: { grado: number }) {
+function GradoBadge({ grado, small }: { grado: number; small?: boolean }) {
+  const cfg = GRADO[grado] ?? { bg: MUTED }
   return (
-    <View style={[styles.gradoBadge, { backgroundColor: GRADO_COLOR[grado] ?? MUTED }]}>
-      <Text style={styles.gradoBadgeTexto}>G{grado}</Text>
+    <View style={[
+      s.gradoBadge,
+      { backgroundColor: cfg.bg },
+      cfg.borde ? { borderWidth: 1.5, borderColor: cfg.borde } : null,
+      small ? { paddingHorizontal: 6, paddingVertical: 2 } : null,
+    ]}>
+      <Text style={[s.gradoBadgeTexto, small && { fontSize: 10 }]}>G{grado}</Text>
     </View>
   )
 }
 
-function FilaLesion({ lesion, onPress }: { lesion: LesionItem; onPress?: () => void }) {
+// ─── Tarjeta de lesión con expansión ─────────────────────────────────────────
+
+function FilaLesion({
+  lesion,
+  expanded,
+  onToggle,
+  onVerHistorial,
+}: {
+  lesion: LesionItem
+  expanded: boolean
+  onToggle: () => void
+  onVerHistorial: () => void
+}) {
+  const urgente = lesion.grado >= 3
   return (
     <TouchableOpacity
-      style={styles.lesionCard}
-      onPress={onPress}
-      activeOpacity={onPress ? 0.75 : 1}
-      disabled={!onPress}
+      style={[s.lesionCard, urgente && s.lesionCardUrgente]}
+      onPress={onToggle}
+      activeOpacity={0.82}
     >
-      <View style={styles.lesionCabeza}>
-        <Text style={styles.lesionNombre} numberOfLines={1}>{lesion.jugadorNombre}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <View style={s.lesionCabeza}>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text
+            style={[s.lesionNombre, urgente && s.lesionNombreUrgente]}
+            numberOfLines={1}
+          >
+            {lesion.jugadorNombre}
+          </Text>
+          <Text style={[s.lesionFecha, urgente && { color: '#9A8870' }]}>
+            {formatFecha(lesion.fecha)}
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <GradoBadge grado={lesion.grado} />
-          {onPress && <Ionicons name="chevron-forward" size={14} color={MUTED} />}
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={13}
+            color={urgente ? ORO : MUTED}
+          />
         </View>
       </View>
-      <Text style={styles.lesionFecha}>{formatFecha(lesion.fecha)}</Text>
-      <Text style={styles.lesionDesc} numberOfLines={2}>{lesion.descripcion}</Text>
+
+      {expanded && (
+        <View style={[s.lesionExpand, urgente && { borderTopColor: '#2A2A2A' }]}>
+          <Text style={[s.expandLabel, urgente && { color: ORO }]}>DESCRIPCIÓN</Text>
+          <Text style={[s.lesionDesc, urgente && { color: '#DDD5C5' }]}>
+            {lesion.descripcion || '—'}
+          </Text>
+          <TouchableOpacity
+            style={s.historialLink}
+            onPress={onVerHistorial}
+            activeOpacity={0.7}
+          >
+            <Text style={s.historialLinkTexto}>VER HISTORIAL DEL JUGADOR</Text>
+            <Ionicons name="arrow-forward" size={11} color={ORO} />
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   )
 }
 
-// ─── Vista historial por jugador ──────────────────────────────────────────────
+// ─── Vista historial ──────────────────────────────────────────────────────────
 
 function HistorialView({
   jugador,
@@ -85,32 +141,55 @@ function HistorialView({
   onVolver: () => void
 }) {
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.detalleHeader}>
-        <TouchableOpacity onPress={onVolver} style={styles.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={GOLD} />
+    <SafeAreaView style={s.container}>
+      <View style={s.historialHeader}>
+        <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
+          <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.detalleSub}>HISTORIAL DE LESIONES</Text>
-          <Text style={styles.detalleTitulo} numberOfLines={1}>{jugador.nombre_completo}</Text>
+          <Text style={s.labelHeader}>HISTORIAL · LESIONES</Text>
+          <Text style={s.titulo} numberOfLines={1}>{jugador.nombre_completo}</Text>
         </View>
       </View>
-      <View style={styles.separador} />
+      <View style={s.separador} />
 
       {cargando ? (
-        <View style={styles.centrado}>
-          <ActivityIndicator color={GOLD} size="large" />
+        <View style={s.centrado}>
+          <ActivityIndicator color={ORO} size="large" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.lista}>
-          <View style={styles.seccionHeader}>
-            <Text style={styles.seccionLabel}>REGISTRADAS</Text>
-            <Text style={styles.seccionConteo}>{lesiones.length}</Text>
+        <ScrollView contentContainerStyle={s.lista}>
+          <View style={s.seccionHeader}>
+            <Text style={s.seccionLabel}>REGISTRADAS</Text>
+            <Text style={s.seccionConteo}>{lesiones.length}</Text>
           </View>
           {lesiones.length === 0 ? (
-            <Text style={styles.emptyTexto}>Sin lesiones registradas para este jugador.</Text>
+            <Text style={s.emptyTexto}>Sin lesiones registradas para este jugador.</Text>
           ) : (
-            lesiones.map(l => <FilaLesion key={l.id} lesion={l} />)
+            lesiones.map(l => {
+              const urgente = l.grado >= 3
+              return (
+                <View
+                  key={l.id}
+                  style={[s.lesionCard, urgente && s.lesionCardUrgente]}
+                >
+                  <View style={s.lesionCabeza}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[s.lesionNombre, urgente && s.lesionNombreUrgente]}>
+                        {formatFecha(l.fecha)}
+                      </Text>
+                      <Text
+                        style={[s.lesionDesc, urgente && { color: '#DDD5C5' }]}
+                        numberOfLines={2}
+                      >
+                        {l.descripcion}
+                      </Text>
+                    </View>
+                    <GradoBadge grado={l.grado} />
+                  </View>
+                </View>
+              )
+            })
           )}
         </ScrollView>
       )}
@@ -124,28 +203,27 @@ type Tab = 'lesiones' | 'protocolos'
 
 function TabSwitcher({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   return (
-    <View style={styles.tabSwitcher}>
-      {(['lesiones', 'protocolos'] as Tab[]).map(t => (
-        <TouchableOpacity
-          key={t}
-          style={[styles.tabBtn, tab === t && styles.tabBtnActivo]}
-          onPress={() => onChange(t)}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.tabBtnTexto, tab === t && styles.tabBtnTextoActivo]}>
-            {t === 'lesiones' ? 'LESIONES' : 'PROTOCOLOS'}
-          </Text>
-        </TouchableOpacity>
-      ))}
+    <View style={s.tabSwitcher}>
+      {(['lesiones', 'protocolos'] as Tab[]).map(t => {
+        const activo = tab === t
+        return (
+          <TouchableOpacity
+            key={t}
+            style={[s.tabBtn, activo && s.tabBtnActivo]}
+            onPress={() => onChange(t)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.tabBtnTexto, activo && s.tabBtnTextoActivo]}>
+              {t === 'lesiones' ? 'LESIONES' : 'PROTOCOLOS UAR'}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
     </View>
   )
 }
 
-// ─── Vista protocolos (entrenador, solo lectura) ──────────────────────────────
-
-const GRADO_COLOR_P: Record<number, string> = {
-  1: '#22C55E', 2: '#EAB308', 3: '#F97316', 4: '#EF4444', 5: '#7F1D1D',
-}
+// ─── Vista protocolos ─────────────────────────────────────────────────────────
 
 function agruparPorGrado(list: Protocolo[]): Array<{ grado: number | null; items: Protocolo[] }> {
   const map = new Map<number | null, Protocolo[]>()
@@ -169,57 +247,63 @@ function ProtocolosEntrenador({
   onAbrir,
 }: {
   protocolos: Protocolo[]
-  loadingP:   boolean
-  abriendo:   string | null
-  onAbrir:    (p: Protocolo) => void
+  loadingP: boolean
+  abriendo: string | null
+  onAbrir: (p: Protocolo) => void
 }) {
   if (loadingP) {
     return (
-      <View style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <View style={s.centrado}>
+        <ActivityIndicator color={ORO} size="large" />
       </View>
     )
   }
   if (protocolos.length === 0) {
     return (
-      <View style={styles.centrado}>
-        <Text style={styles.emptyTexto}>Sin protocolos cargados.</Text>
-        <Text style={[styles.mutedTexto, { marginTop: 4 }]}>La Subcomisión los publica aquí.</Text>
+      <View style={s.centrado}>
+        <Text style={s.emptyTexto}>Sin protocolos cargados.</Text>
+        <Text style={[s.mutedTexto, { marginTop: 4 }]}>La Subcomisión los publica aquí.</Text>
       </View>
     )
   }
   const grupos = agruparPorGrado(protocolos)
   return (
-    <ScrollView contentContainerStyle={[styles.lista, { paddingBottom: 40 }]}>
+    <ScrollView contentContainerStyle={[s.lista, { paddingBottom: 40 }]}>
       {grupos.map(({ grado, items }) => {
-        const color = grado === null ? GOLD : (GRADO_COLOR_P[grado] ?? MUTED)
+        const color = grado === null ? ORO : (GRADO_COLOR_P[grado] ?? MUTED)
         const label = grado === null ? 'GENERAL' : `GRADO ${grado}`
         return (
           <View key={String(grado)}>
-            <View style={[styles.seccionHeader, { marginTop: 8 }]}>
-              <Text style={[styles.seccionLabel, { color }]}>{label}</Text>
-              <Text style={styles.seccionConteo}>{items.length}</Text>
+            <View style={[s.seccionHeader, { marginTop: 8 }]}>
+              <Text style={[s.seccionLabel, { color }]}>{label}</Text>
+              <Text style={s.seccionConteo}>{items.length}</Text>
             </View>
             {items.map(p => {
               const esAbriendo = abriendo === p.id
               return (
                 <TouchableOpacity
                   key={p.id}
-                  style={styles.lesionCard}
+                  style={s.lesionCard}
                   onPress={() => onAbrir(p)}
                   activeOpacity={0.75}
                   disabled={esAbriendo}
                 >
-                  <View style={styles.lesionCabeza}>
-                    <Text style={styles.lesionNombre} numberOfLines={1}>{p.titulo}</Text>
+                  <View style={s.lesionCabeza}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={s.lesionNombre} numberOfLines={1}>{p.titulo}</Text>
+                      {p.nombre_archivo && (
+                        <Text style={s.lesionFecha} numberOfLines={1}>{p.nombre_archivo}</Text>
+                      )}
+                    </View>
                     {esAbriendo
-                      ? <ActivityIndicator size="small" color={GOLD} />
-                      : <Ionicons name="open-outline" size={16} color={GOLD} />
+                      ? <ActivityIndicator size="small" color={ORO} />
+                      : (
+                        <View style={s.docIconWrap}>
+                          <Ionicons name="document-outline" size={16} color={ORO} />
+                        </View>
+                      )
                     }
                   </View>
-                  {p.nombre_archivo && (
-                    <Text style={styles.lesionFecha} numberOfLines={1}>{p.nombre_archivo}</Text>
-                  )}
                 </TouchableOpacity>
               )
             })}
@@ -230,6 +314,8 @@ function ProtocolosEntrenador({
   )
 }
 
+// ─── Selector de jugador con búsqueda ─────────────────────────────────────────
+
 function SelectorJugador({
   jugadores,
   seleccionado,
@@ -239,27 +325,54 @@ function SelectorJugador({
   seleccionado: JugadorOpcion | null
   onSelect: (j: JugadorOpcion) => void
 }) {
+  const [busqueda, setBusqueda] = useState('')
+  const filtrados = busqueda.trim()
+    ? jugadores.filter(j =>
+        j.nombre_completo.toLowerCase().includes(busqueda.toLowerCase())
+      )
+    : jugadores
+
   return (
-    <View style={{ gap: 4 }}>
-      {jugadores.map(j => {
-        const activo = seleccionado?.id === j.id
-        return (
-          <TouchableOpacity
-            key={j.id}
-            style={[styles.jugItem, activo && styles.jugItemActivo]}
-            onPress={() => onSelect(j)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.jugItemTexto, activo && styles.jugItemTextoActivo]} numberOfLines={1}>
-              {j.nombre_completo}
-            </Text>
-            {activo && <Text style={{ color: VERDE, fontWeight: '700', fontSize: 14 }}>✓</Text>}
-          </TouchableOpacity>
-        )
-      })}
+    <View style={{ gap: 8 }}>
+      <View style={s.buscadorWrap}>
+        <Ionicons name="search" size={14} color={MUTED} style={{ marginRight: 8 }} />
+        <TextInput
+          style={s.buscadorInput}
+          value={busqueda}
+          onChangeText={setBusqueda}
+          placeholder="Buscar jugador..."
+          placeholderTextColor={MUTED}
+        />
+      </View>
+      <View style={{ gap: 4 }}>
+        {filtrados.map(j => {
+          const activo = seleccionado?.id === j.id
+          return (
+            <TouchableOpacity
+              key={j.id}
+              style={[s.jugItem, activo && s.jugItemActivo]}
+              onPress={() => onSelect(j)}
+              activeOpacity={0.75}
+            >
+              <Text
+                style={[s.jugItemTexto, activo && s.jugItemTextoActivo]}
+                numberOfLines={1}
+              >
+                {j.nombre_completo}
+              </Text>
+              {activo && <Ionicons name="checkmark" size={16} color={ORO} />}
+            </TouchableOpacity>
+          )
+        })}
+        {filtrados.length === 0 && (
+          <Text style={s.emptyTexto}>Sin resultados.</Text>
+        )}
+      </View>
     </View>
   )
 }
+
+// ─── Selector de grado ────────────────────────────────────────────────────────
 
 function SelectorGrado({
   grado,
@@ -269,18 +382,22 @@ function SelectorGrado({
   onSelect: (g: number) => void
 }) {
   return (
-    <View style={styles.gradoRow}>
+    <View style={s.gradoRow}>
       {[1, 2, 3, 4, 5].map(g => {
         const activo = grado === g
-        const color  = GRADO_COLOR[g]
         return (
           <TouchableOpacity
             key={g}
-            style={[styles.gradoBtn, { borderColor: activo ? color : DIVIDER, backgroundColor: activo ? color : 'transparent' }]}
+            style={[
+              s.gradoBtn,
+              activo
+                ? { backgroundColor: TINTA, borderColor: TINTA }
+                : { backgroundColor: 'transparent', borderColor: DIVIDER },
+            ]}
             onPress={() => onSelect(g)}
             activeOpacity={0.75}
           >
-            <Text style={[styles.gradoBtnTexto, { color: activo ? '#fff' : MUTED }]}>{g}</Text>
+            <Text style={[s.gradoBtnTexto, { color: activo ? ORO : MUTED }]}>{g}</Text>
           </TouchableOpacity>
         )
       })}
@@ -311,21 +428,22 @@ export default function LesionesScreen() {
     abrirProtocolo,
   } = useProtocolos()
 
-  const [tabActivo, setTabActivo] = useState<Tab>('lesiones')
+  const [tabActivo, setTabActivo]   = useState<Tab>('lesiones')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <Text style={styles.mutedTexto}>Sin división asignada.</Text>
-        <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
+      <SafeAreaView style={s.centrado}>
+        <Text style={s.mutedTexto}>Sin división asignada.</Text>
+        <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
     )
   }
@@ -342,18 +460,19 @@ export default function LesionesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
-        <Text style={styles.titulo}>Lesiones</Text>
+      <View style={s.header}>
+        <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
+        <Text style={s.titulo}>Lesiones</Text>
       </View>
+      <View style={s.separador} />
 
       {/* Tab switcher */}
       <TabSwitcher tab={tabActivo} onChange={setTabActivo} />
-      <View style={styles.separador} />
+      <View style={s.separador} />
 
-      {/* Protocolos (solo lectura) */}
+      {/* Vista protocolos */}
       {tabActivo === 'protocolos' && (
         <ProtocolosEntrenador
           protocolos={protocolos}
@@ -363,78 +482,96 @@ export default function LesionesScreen() {
         />
       )}
 
-      {/* Lesiones */}
+      {/* Vista lesiones */}
       {tabActivo === 'lesiones' && (
         <>
-          <ScrollView contentContainerStyle={styles.lista}>
-            <View style={styles.seccionHeader}>
-              <Text style={styles.seccionLabel}>REGISTRADAS</Text>
-              <Text style={styles.seccionConteo}>{lesiones.length}</Text>
+          <ScrollView contentContainerStyle={s.lista}>
+            <View style={s.seccionHeader}>
+              <Text style={s.seccionLabel}>ACTIVAS</Text>
+              <Text style={s.seccionConteo}>{lesiones.length}</Text>
             </View>
 
             {lesiones.length === 0 ? (
-              <Text style={styles.emptyTexto}>Sin lesiones registradas.</Text>
+              <Text style={s.emptyTexto}>Sin lesiones registradas.</Text>
             ) : (
               lesiones.map(l => (
                 <FilaLesion
                   key={l.id}
                   lesion={l}
-                  onPress={() => verHistorial({ id: l.jugador_id, nombre_completo: l.jugadorNombre })}
+                  expanded={expandedId === l.id}
+                  onToggle={() =>
+                    setExpandedId(prev => (prev === l.id ? null : l.id))
+                  }
+                  onVerHistorial={() =>
+                    verHistorial({ id: l.jugador_id, nombre_completo: l.jugadorNombre })
+                  }
                 />
               ))
             )}
           </ScrollView>
 
           {/* FAB */}
-          <View style={styles.fabWrap}>
-            <TouchableOpacity style={styles.fab} onPress={abrirModal} activeOpacity={0.85}>
-              <Text style={styles.fabTexto}>+ REGISTRAR LESIÓN</Text>
+          <View style={s.fabWrap}>
+            <TouchableOpacity style={s.fab} onPress={abrirModal} activeOpacity={0.85}>
+              <Text style={s.fabTexto}>+ LESIÓN</Text>
             </TouchableOpacity>
           </View>
         </>
       )}
 
-      {/* Modal */}
+      {/* Modal nueva lesión */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={styles.modalContainer}>
-            {/* Header del modal */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitulo}>Registrar lesión</Text>
-              <TouchableOpacity onPress={cerrarModal} disabled={guardando} activeOpacity={0.7}>
-                <Text style={styles.modalCerrar}>✕</Text>
+          <SafeAreaView style={s.modalContainer}>
+            {/* Header modal */}
+            <View style={s.modalHeader}>
+              <View>
+                <Text style={s.modalSuper}>REGISTRAR</Text>
+                <Text style={s.modalTitulo}>Nueva lesión</Text>
+              </View>
+              <TouchableOpacity
+                onPress={cerrarModal}
+                disabled={guardando}
+                activeOpacity={0.7}
+                style={s.modalClose}
+              >
+                <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            <View style={styles.separador} />
+            <View style={s.separador} />
 
-            <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
               {/* Jugador */}
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>JUGADOR</Text>
-                {jugadores.length === 0
-                  ? <Text style={styles.mutedTexto}>No hay jugadores activos.</Text>
-                  : <SelectorJugador
-                      jugadores={jugadores}
-                      seleccionado={jugadorSeleccionado}
-                      onSelect={setJugadorSeleccionado}
-                    />
-                }
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>JUGADOR</Text>
+                {jugadores.length === 0 ? (
+                  <Text style={s.mutedTexto}>No hay jugadores activos.</Text>
+                ) : (
+                  <SelectorJugador
+                    jugadores={jugadores}
+                    seleccionado={jugadorSeleccionado}
+                    onSelect={setJugadorSeleccionado}
+                  />
+                )}
               </View>
 
               {/* Grado */}
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>GRADO  (1 leve — 5 grave)</Text>
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>GRADO · 1 leve — 5 grave</Text>
                 <SelectorGrado grado={grado} onSelect={setGrado} />
               </View>
 
               {/* Descripción */}
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>DESCRIPCIÓN</Text>
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>DESCRIPCIÓN</Text>
                 <TextInput
-                  style={styles.inputMultiline}
+                  style={s.inputDesc}
                   value={descripcion}
                   onChangeText={setDescripcion}
                   placeholder="Describí la lesión..."
@@ -446,7 +583,7 @@ export default function LesionesScreen() {
               </View>
 
               {/* Fecha */}
-              <View style={styles.campo}>
+              <View style={s.campo}>
                 <DatePickerField
                   label="FECHA"
                   value={fecha}
@@ -457,37 +594,42 @@ export default function LesionesScreen() {
 
               {/* Error */}
               {error && (
-                <View style={styles.bannerError}>
-                  <Text style={styles.bannerErrorTexto}>{error}</Text>
+                <View style={s.bannerError}>
+                  <Text style={s.bannerErrorTexto}>{error}</Text>
                 </View>
               )}
 
               {/* Éxito */}
               {guardadoOk && (
-                <View style={styles.bannerOk}>
-                  <Text style={styles.bannerOkTexto}>✓ Lesión registrada</Text>
-                  <Text style={styles.bannerOkSub}>Se notificará a la Subcomisión</Text>
+                <View style={s.bannerOk}>
+                  <Text style={s.bannerOkTexto}>LESIÓN REGISTRADA</Text>
+                  <Text style={s.bannerOkSub}>Se notificará a la Subcomisión</Text>
                 </View>
               )}
 
-              {/* Guardar */}
+              {/* Botón guardar */}
               {!guardadoOk && (
                 <TouchableOpacity
-                  style={[styles.boton, guardando && { opacity: 0.6 }]}
+                  style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
                   onPress={guardarLesion}
                   disabled={guardando}
                   activeOpacity={0.85}
                 >
                   {guardando
-                    ? <ActivityIndicator color={GOLD} size="small" />
-                    : <Text style={styles.botonTexto}>GUARDAR</Text>}
+                    ? <ActivityIndicator color={ORO} size="small" />
+                    : <Text style={s.botonPrincipalTexto}>REGISTRAR LESIÓN</Text>
+                  }
                 </TouchableOpacity>
               )}
 
               {/* Cerrar post-guardado */}
               {guardadoOk && (
-                <TouchableOpacity style={styles.botonSecundario} onPress={cerrarModal} activeOpacity={0.85}>
-                  <Text style={styles.botonSecundarioTexto}>CERRAR</Text>
+                <TouchableOpacity
+                  style={s.botonSecundario}
+                  onPress={cerrarModal}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.botonSecundarioTexto}>CERRAR</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -498,88 +640,113 @@ export default function LesionesScreen() {
   )
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: CREAM },
-  centrado:     { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 8 },
-  mutedTexto:   { color: MUTED, fontSize: 14, fontFamily: 'serif', fontStyle: 'italic', textAlign: 'center' },
+const s = StyleSheet.create({
+  container:  { flex: 1, backgroundColor: PAPEL },
+  centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL, gap: 8 },
+  mutedTexto: { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
 
-  header:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:  { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 4 },
-  titulo:       { fontSize: 32, fontStyle: 'italic', fontFamily: 'serif', color: DARK, lineHeight: 36 },
-  separador:    { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
+  // Header principal (columna)
+  header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  titulo:      { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  lista:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, gap: 10 },
-  seccionHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  seccionLabel: { fontSize: 10, letterSpacing: 2, color: GOLD },
-  seccionConteo:{ fontSize: 13, color: MUTED, fontWeight: '600' },
-  emptyTexto:   { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: 'serif' },
+  // Header historial (fila con back)
+  historialHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
+  backBtn:         { padding: 4, marginRight: 2 },
 
-  // Tarjeta de lesión
-  lesionCard:   { borderWidth: 1, borderColor: DIVIDER, borderRadius: 8, padding: 14, gap: 4 },
-  lesionCabeza: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  lesionNombre: { flex: 1, fontSize: 15, fontWeight: '700', color: DARK },
-  lesionFecha:  { fontSize: 12, color: MUTED },
-  lesionDesc:   { fontSize: 13, color: DARK, opacity: 0.8, lineHeight: 18 },
+  // Tabs
+  tabSwitcher:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
+  tabBtn:            { flex: 1, paddingVertical: 9, borderRadius: 2, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  tabBtnActivo:      { backgroundColor: TINTA, borderColor: TINTA },
+  tabBtnTexto:       { fontSize: 10, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  tabBtnTextoActivo: { color: ORO },
+
+  // Lista
+  lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, gap: 10 },
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  seccionLabel:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  seccionConteo: { fontSize: 13, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
+
+  // Tarjeta lesión
+  lesionCard:          { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: PAPEL },
+  lesionCardUrgente:   { backgroundColor: TINTA, borderColor: TINTA },
+  lesionCabeza:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  lesionNombre:        { fontSize: 15, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
+  lesionNombreUrgente: { color: ORO },
+  lesionFecha:         { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
+  lesionDesc:          { fontSize: 13, color: TINTA, lineHeight: 20, fontFamily: fonts.cuerpo },
+
+  // Expansión
+  lesionExpand:       { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: DIVIDER, gap: 6 },
+  expandLabel:        { fontSize: 9, letterSpacing: 2, color: ORO_HONDO, fontFamily: fonts.label },
+  historialLink:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
+  historialLinkTexto: { fontSize: 9, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
   // Badge de grado
-  gradoBadge:     { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  gradoBadgeTexto:{ color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  gradoBadge:     { borderRadius: 3, paddingHorizontal: 8, paddingVertical: 3 },
+  gradoBadgeTexto:{ color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, fontFamily: fonts.label },
 
-  // Tab switcher
-  tabSwitcher:        { flexDirection: 'row', backgroundColor: DARK, paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
-  tabBtn:             { flex: 1, paddingVertical: 9, borderRadius: 4, borderWidth: 1.5, borderColor: '#333', alignItems: 'center' },
-  tabBtnActivo:       { backgroundColor: GOLD, borderColor: GOLD },
-  tabBtnTexto:        { fontSize: 10, letterSpacing: 1.5, color: '#666', fontWeight: '700' },
-  tabBtnTextoActivo:  { color: DARK },
+  // FAB dorado
+  fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
+  fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  fabTexto:{ color: TINTA, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
-  // Historial header
-  detalleHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
-  backBtn:       { padding: 4 },
-  detalleSub:    { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 2 },
-  detalleTitulo: { fontSize: 20, fontStyle: 'italic', fontFamily: 'serif', color: DARK },
-
-  // FAB
-  fabWrap:  { position: 'absolute', bottom: 24, left: 16, right: 16 },
-  fab:      { backgroundColor: DARK, paddingVertical: 15, borderRadius: 4, alignItems: 'center' },
-  fabTexto: { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  // Protocolo — ícono de documento
+  docIconWrap: { width: 30, height: 30, borderRadius: 2, borderWidth: 1, borderColor: ORO, alignItems: 'center', justifyContent: 'center' },
 
   // Modal
-  modalContainer: { flex: 1, backgroundColor: CREAM },
-  modalHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalTitulo:    { fontSize: 20, fontStyle: 'italic', fontFamily: 'serif', color: DARK },
-  modalCerrar:    { fontSize: 18, color: MUTED, paddingHorizontal: 4 },
+  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
+  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA },
+  modalClose:     { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 20 },
 
-  // Campos del formulario
-  campo:          { gap: 10 },
-  campoLabel:     { fontSize: 10, letterSpacing: 2, color: GOLD },
+  // Campos
+  campo:     { gap: 10 },
+  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
-  inputTexto:     { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, padding: 12, fontSize: 15, color: DARK },
-  inputMultiline: { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, padding: 12, fontSize: 15, color: DARK, minHeight: 80 },
+  // Input descripción: borde inferior dorado únicamente
+  inputDesc: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: ORO,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    fontSize: 14,
+    color: TINTA,
+    fontFamily: fonts.cuerpo,
+    minHeight: 72,
+  },
 
-  // Selector jugador
-  jugItem:        { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  jugItemActivo:  { borderColor: GOLD, backgroundColor: '#FBF6EA' },
-  jugItemTexto:   { flex: 1, fontSize: 14, color: DARK },
-  jugItemTextoActivo: { color: GOLD, fontWeight: '700' },
+  // Buscador de jugador
+  buscadorWrap:  { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, paddingHorizontal: 10, paddingVertical: 8 },
+  buscadorInput: { flex: 1, fontSize: 14, color: TINTA, fontFamily: fonts.cuerpo },
 
-  // Selector grado
-  gradoRow:     { flexDirection: 'row', gap: 10 },
-  gradoBtn:     { flex: 1, aspectRatio: 1, borderRadius: 8, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  gradoBtnTexto:{ fontSize: 16, fontWeight: '700' },
+  // Selector de jugador
+  jugItem:            { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 10 },
+  jugItemActivo:      { borderColor: ORO, backgroundColor: '#FBF6EA' },
+  jugItemTexto:       { flex: 1, fontSize: 14, color: TINTA, fontFamily: fonts.cuerpo },
+  jugItemTextoActivo: { color: ORO_HONDO, fontWeight: '700' },
+
+  // Selector de grado
+  gradoRow:     { flexDirection: 'row', gap: 8 },
+  gradoBtn:     { flex: 1, aspectRatio: 1, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  gradoBtnTexto:{ fontSize: 16, fontWeight: '700', fontFamily: fonts.label },
 
   // Banners
-  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 6, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#991B1B' },
-  bannerOk:         { backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: VERDE, borderRadius: 6, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontSize: 14, color: '#166534', fontWeight: '700' },
-  bannerOkSub:      { fontSize: 12, color: '#166534' },
+  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
+  bannerOk:         { backgroundColor: TINTA, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
+  bannerOkTexto:    { fontSize: 13, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
+  bannerOkSub:      { fontSize: 12, color: '#9A8870', fontFamily: fonts.cuerpo },
 
   // Botones
-  boton:              { backgroundColor: DARK, paddingVertical: 14, borderRadius: 4, alignItems: 'center' },
-  botonTexto:         { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
-  botonSecundario:    { borderWidth: 1.5, borderColor: GOLD, paddingVertical: 12, borderRadius: 4, alignItems: 'center' },
-  botonSecundarioTexto: { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
+  botonPrincipal:       { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalTexto:  { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
+  botonSecundarioTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

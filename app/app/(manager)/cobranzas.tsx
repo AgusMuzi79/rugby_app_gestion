@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -7,40 +8,41 @@ import {
   StyleSheet,
   SafeAreaView,
   TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import {
   useCobranzas,
   EventoFinanciero,
   CobranzaJugador,
   FormaDePago,
-  Resumen,
 } from '@/hooks/useCobranzas'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM   = '#F5F0E8'
-const GOLD    = '#C9A84C'
-const DARK    = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
-const MUTED   = '#7C7267'
-const VERDE   = '#22C55E'
-const ROJO    = '#EF4444'
-const AZUL    = '#3B82F6'
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const PAPEL     = colors.papel        // '#F6F1E4'
+const TINTA     = colors.tinta        // '#0E0E0E'
+const ORO       = colors.oro          // '#E8B53C'
+const ORO_HONDO = colors.oroHondo     // '#C9961F'
+const GRIS      = colors.grisClaro    // '#E5E0D0'
+const ROJO      = colors.rojoUrgente  // '#C0392B'
+const MUTED     = '#7C7267'
+const DIVIDER   = '#D9D3C4'
+const VERDE     = '#4A7C59'
 
 const TIPO_LABEL: Record<string, string> = {
-  viaje:         'Viaje',
-  tercer_tiempo: 'Tercer Tiempo',
-  recaudacion:   'Recaudación',
+  viaje:         'VIAJE',
+  tercer_tiempo: '3er TIEMPO',
+  recaudacion:   'RECAUDACIÓN',
 }
 
-const TIPO_COLOR: Record<string, string> = {
-  viaje:         AZUL,
-  tercer_tiempo: VERDE,
-  recaudacion:   GOLD,
-}
-
-const FORMA_LABEL: Array<{ key: FormaDePago; label: string }> = [
-  { key: 'efectivo',     label: 'Efectivo'     },
-  { key: 'transferencia', label: 'Transferencia' },
-  { key: 'otro',         label: 'Otro'          },
+const FORMA_OPS: Array<{ key: FormaDePago; label: string }> = [
+  { key: 'efectivo',      label: 'EFECTIVO' },
+  { key: 'transferencia', label: 'TRANSF.' },
+  { key: 'otro',          label: 'OTRO' },
 ]
 
 function formatFecha(iso: string) {
@@ -51,16 +53,18 @@ function formatFecha(iso: string) {
 }
 
 function formatMonto(n: number) {
-  return '$' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return '$ ' + n.toLocaleString('es-AR', {
+    minimumFractionDigits: 0, maximumFractionDigits: 2,
+  })
 }
 
-// ─── Chip de tipo de evento ───────────────────────────────────────────────────
+// ─── Barra de progreso ────────────────────────────────────────────────────────
 
-function TipoBadge({ tipo }: { tipo: string }) {
-  const color = TIPO_COLOR[tipo] ?? MUTED
+function BarraProgreso({ pct }: { pct: number }) {
+  const filled = Math.min(Math.max(pct, 0), 100)
   return (
-    <View style={[styles.tipoBadge, { borderColor: color }]}>
-      <Text style={[styles.tipoBadgeTexto, { color }]}>{TIPO_LABEL[tipo] ?? tipo}</Text>
+    <View style={s.progWrap}>
+      <View style={[s.progFill, { width: `${filled}%` }]} />
     </View>
   )
 }
@@ -69,73 +73,119 @@ function TipoBadge({ tipo }: { tipo: string }) {
 
 function EventoCard({
   evento,
-  activo,
   onSelect,
 }: {
   evento: EventoFinanciero
-  activo: boolean
   onSelect: (ev: EventoFinanciero) => void
 }) {
+  const { pctCobrado, countPagados, countJugadores, montoCobrado } = evento
   return (
-    <TouchableOpacity
-      style={[styles.card, activo && styles.cardActivo]}
-      onPress={() => onSelect(evento)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.cardRow}>
-        <View style={[styles.dot, { backgroundColor: activo ? GOLD : DIVIDER }]} />
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={[styles.cardTitulo, activo && { color: GOLD }]} numberOfLines={1}>
-            {evento.nombre}
-          </Text>
-          {evento.fecha && (
-            <Text style={styles.cardSub}>{formatFecha(evento.fecha)}</Text>
-          )}
-          {evento.descripcion ? (
-            <Text style={styles.cardSub} numberOfLines={1}>{evento.descripcion}</Text>
-          ) : null}
+    <TouchableOpacity style={s.eventoCard} onPress={() => onSelect(evento)} activeOpacity={0.82}>
+      {/* Tipo + % badge */}
+      <View style={s.eventoCardHead}>
+        <View style={s.tipoBadge}>
+          <Text style={s.tipoBadgeTexto}>{TIPO_LABEL[evento.tipo] ?? evento.tipo}</Text>
         </View>
-        <TipoBadge tipo={evento.tipo} />
-        {activo && <Text style={styles.checkVerde}>✓</Text>}
+        <View style={s.pctBadge}>
+          <Text style={s.pctBadgeTexto}>{pctCobrado}%</Text>
+        </View>
+      </View>
+
+      {/* Nombre + fecha */}
+      <Text style={s.eventoNombre} numberOfLines={2}>{evento.nombre}</Text>
+      {evento.fecha && (
+        <Text style={s.eventoFecha}>{formatFecha(evento.fecha)}</Text>
+      )}
+
+      {/* Progreso */}
+      <BarraProgreso pct={pctCobrado} />
+
+      {/* Stats */}
+      <Text style={s.eventoStats}>
+        {countPagados}/{countJugadores} PAGADOS
+        {montoCobrado > 0 ? `  ·  ${formatMonto(montoCobrado)}` : ''}
+      </Text>
+
+      <Ionicons
+        name="chevron-forward"
+        size={14}
+        color={MUTED}
+        style={{ position: 'absolute', right: 14, top: '50%' }}
+      />
+    </TouchableOpacity>
+  )
+}
+
+// ─── Fila de jugador en el detalle ────────────────────────────────────────────
+
+function FilaJugador({
+  jugador,
+  index,
+  onTap,
+}: {
+  jugador: CobranzaJugador
+  index: number
+  onTap: (id: string) => void
+}) {
+  const pagado = jugador.estado === 'pagado'
+  const numero = String(index + 1).padStart(2, '0')
+  return (
+    <TouchableOpacity style={s.filaJugador} onPress={() => onTap(jugador.jugadorId)} activeOpacity={0.8}>
+      <Text style={s.filaNumero}>{numero}</Text>
+      <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
+      <View style={[s.estadoBadge, pagado ? s.estadoPagado : s.estadoPendiente]}>
+        <Text style={[s.estadoTexto, pagado ? s.estadoPagadoTexto : s.estadoPendienteTexto]}>
+          {pagado ? 'PAGADO' : 'PENDIENTE'}
+        </Text>
       </View>
     </TouchableOpacity>
   )
 }
 
-// ─── Barra de resumen ─────────────────────────────────────────────────────────
+// ─── Barra de resumen (detalle del evento) ────────────────────────────────────
 
-function BarraResumen({ resumen }: { resumen: Resumen }) {
+function BarraResumen({
+  pagados, pendientes, cobrado,
+}: {
+  pagados: number; pendientes: number; cobrado: number
+}) {
   return (
-    <View style={styles.resumenBar}>
-      <View style={styles.resumenItem}>
-        <Text style={styles.resumenLabel}>COBRADO</Text>
-        <Text style={styles.resumenValor}>{formatMonto(resumen.cobrado)}</Text>
+    <View style={s.resumenBar}>
+      <View style={s.resumenItem}>
+        <Text style={s.resumenVal}>{formatMonto(cobrado)}</Text>
+        <Text style={s.resumenLabel}>COBRADO</Text>
       </View>
-      <View style={styles.resumenDiv} />
-      <View style={styles.resumenItem}>
-        <Text style={styles.resumenLabel}>PAGADOS</Text>
-        <Text style={[styles.resumenValor, { color: VERDE }]}>{resumen.pagados}</Text>
+      <View style={s.resumenDiv} />
+      <View style={s.resumenItem}>
+        <Text style={[s.resumenVal, { color: VERDE }]}>{pagados}</Text>
+        <Text style={s.resumenLabel}>PAGADOS</Text>
       </View>
-      <View style={styles.resumenDiv} />
-      <View style={styles.resumenItem}>
-        <Text style={styles.resumenLabel}>PENDIENTES</Text>
-        <Text style={[styles.resumenValor, { color: resumen.pendientes > 0 ? ROJO : MUTED }]}>
-          {resumen.pendientes}
-        </Text>
+      <View style={s.resumenDiv} />
+      <View style={s.resumenItem}>
+        <Text style={[s.resumenVal, { color: pendientes > 0 ? ROJO : MUTED }]}>{pendientes}</Text>
+        <Text style={s.resumenLabel}>PENDIENTES</Text>
       </View>
     </View>
   )
 }
 
-// ─── Fila de cobranza por jugador ─────────────────────────────────────────────
+// ─── Modal de pago ────────────────────────────────────────────────────────────
 
-function CobranzaRow({
+function ModalPago({
   jugador,
+  guardando,
+  error,
+  onClose,
+  onGuardar,
   onToggle,
   onMonto,
   onForma,
 }: {
   jugador: CobranzaJugador
+  guardando: boolean
+  error: string | null
+  onClose: () => void
+  onGuardar: () => void
   onToggle: (id: string) => void
   onMonto: (id: string, v: string) => void
   onForma: (id: string, f: FormaDePago) => void
@@ -143,56 +193,125 @@ function CobranzaRow({
   const pagado = jugador.estado === 'pagado'
 
   return (
-    <View style={styles.cobranzaRow}>
-      {/* Nombre + toggle estado */}
-      <View style={styles.cobranzaCabeza}>
-        <Text style={styles.jugadorNombre} numberOfLines={1}>{jugador.nombre}</Text>
-        <TouchableOpacity
-          style={[styles.estadoChip, pagado ? styles.chipPagado : styles.chipPendiente]}
-          onPress={() => onToggle(jugador.jugadorId)}
-          activeOpacity={0.75}
-        >
-          <Text style={[styles.chipTexto, { color: pagado ? '#fff' : MUTED }]}>
-            {pagado ? '✓ Pagado' : 'Pendiente'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Monto + forma (solo si pagado) */}
-      {pagado && (
-        <View style={styles.pagoDetalle}>
-          <View style={styles.montoRow}>
-            <Text style={styles.campoLabel}>MONTO $</Text>
-            <TextInput
-              style={styles.montoInput}
-              value={jugador.monto}
-              onChangeText={v => onMonto(jugador.jugadorId, v)}
-              keyboardType="decimal-pad"
-              placeholder="0"
-              placeholderTextColor={DIVIDER}
-              maxLength={10}
-            />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <SafeAreaView style={s.modalContainer}>
+        {/* Header */}
+        <View style={s.modalHeader}>
+          <View>
+            <Text style={s.modalSuper}>PAGO · JUGADOR</Text>
+            <Text style={s.modalTitulo} numberOfLines={2}>{jugador.nombre}</Text>
           </View>
-          <View style={styles.formaRow}>
-            {FORMA_LABEL.map(({ key, label }) => {
-              const activo = jugador.formaDePago === key
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={[styles.formaBtn, activo && styles.formaBtnActivo]}
-                  onPress={() => onForma(jugador.jugadorId, key)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.formaBtnTexto, activo && { color: DARK, fontWeight: '700' }]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
+          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalClose} disabled={guardando}>
+            <Ionicons name="close" size={20} color={MUTED} />
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
+        <View style={s.separador} />
+
+        <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
+          {/* Selector PAGADO / PENDIENTE */}
+          <View style={s.campo}>
+            <Text style={s.campoLabel}>ESTADO</Text>
+            <View style={s.estadoSelector}>
+              <TouchableOpacity
+                style={[s.estadoSelectorBtn, pagado && s.estadoSelectorBtnActivo]}
+                onPress={() => !pagado && onToggle(jugador.jugadorId)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={pagado ? TINTA : MUTED}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[s.estadoSelectorTexto, pagado && s.estadoSelectorTextoActivo]}>
+                  PAGADO
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.estadoSelectorBtn, !pagado && s.estadoPendienteSelector]}
+                onPress={() => pagado && onToggle(jugador.jugadorId)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="time-outline"
+                  size={18}
+                  color={!pagado ? ROJO : MUTED}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[s.estadoSelectorTexto, !pagado && { color: ROJO }]}>
+                  PENDIENTE
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Monto y forma de pago — solo si pagado */}
+          {pagado && (
+            <>
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>MONTO</Text>
+                <View style={s.montoWrap}>
+                  <Text style={s.montoSimbolo}>$</Text>
+                  <TextInput
+                    style={s.montoInput}
+                    value={jugador.monto}
+                    onChangeText={v => onMonto(jugador.jugadorId, v)}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={MUTED}
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>FORMA DE PAGO</Text>
+                <View style={s.formaRow}>
+                  {FORMA_OPS.map(({ key, label }) => {
+                    const activo = jugador.formaDePago === key
+                    return (
+                      <TouchableOpacity
+                        key={key}
+                        style={[s.formaBtn, activo && s.formaBtnActivo]}
+                        onPress={() => onForma(jugador.jugadorId, key)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[s.formaBtnTexto, activo && s.formaBtnTextoActivo]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  })}
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* Error */}
+          {error && (
+            <View style={s.bannerError}>
+              <Text style={s.bannerErrorTexto}>{error}</Text>
+            </View>
+          )}
+
+          {/* Botón guardar */}
+          <TouchableOpacity
+            style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
+            onPress={onGuardar}
+            disabled={guardando}
+            activeOpacity={0.85}
+          >
+            {guardando
+              ? <ActivityIndicator color={ORO} size="small" />
+              : <Text style={s.botonPrincipalTexto}>GUARDAR</Text>
+            }
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -209,226 +328,286 @@ export default function CobranzasScreen() {
     guardarCobranzas,
   } = useCobranzas()
 
+  const [modalJugadorId, setModalJugadorId] = useState<string | null>(null)
+  const jugadorModal = jugadores.find(j => j.jugadorId === modalJugadorId) ?? null
+
+  function handleGuardarModal() {
+    guardarCobranzas()
+    setModalJugadorId(null)
+  }
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <Text style={styles.mutedTexto}>Sin división asignada.</Text>
-        <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
+      <SafeAreaView style={s.centrado}>
+        <Text style={s.mutedTexto}>Sin división asignada.</Text>
+        <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.labelHeader}>
-          MANAGER · {divisionNombre.toUpperCase()}
-          {paso === 'jugadores' && eventoSeleccionado ? ' · COBRANZAS' : ''}
+      <View style={s.header}>
+        <Text style={s.labelHeader}>
+          {paso === 'jugadores' && eventoSeleccionado
+            ? `MANAGER · ${divisionNombre.toUpperCase()} · EVENTO`
+            : `MANAGER · ${divisionNombre.toUpperCase()}`}
         </Text>
-        <Text style={styles.titulo}>Cobranzas</Text>
+        <Text style={s.titulo}>Cobranzas</Text>
       </View>
-      <View style={styles.separador} />
+      <View style={s.separador} />
 
       {/* ── Paso: Eventos ── */}
       {paso === 'eventos' && (
-        <ScrollView contentContainerStyle={styles.lista}>
-          <Text style={styles.seccionLabel}>EVENTOS ACTIVOS</Text>
+        <ScrollView contentContainerStyle={s.lista}>
+          <View style={s.seccionHeader}>
+            <Text style={s.seccionLabel}>EVENTOS ACTIVOS</Text>
+            <Text style={s.seccionConteo}>{eventos.length}</Text>
+          </View>
 
           {eventos.length === 0 ? (
-            <View style={{ gap: 4, marginTop: 8 }}>
-              <Text style={styles.emptyTexto}>Sin eventos activos.</Text>
-              <Text style={styles.emptySubtexto}>
+            <View style={{ gap: 6, marginTop: 8 }}>
+              <Text style={s.emptyTexto}>Sin eventos activos.</Text>
+              <Text style={s.emptySubtexto}>
                 La Subcomisión o el Coordinador deben crear viajes, tercer tiempos o recaudaciones.
               </Text>
             </View>
           ) : (
-            <View style={{ gap: 10, marginTop: 8 }}>
+            <View style={{ gap: 12, marginTop: 8 }}>
               {eventos.map(ev => (
-                <EventoCard
-                  key={ev.id}
-                  evento={ev}
-                  activo={eventoSeleccionado?.id === ev.id}
-                  onSelect={seleccionarEvento}
-                />
+                <EventoCard key={ev.id} evento={ev} onSelect={seleccionarEvento} />
               ))}
             </View>
           )}
         </ScrollView>
       )}
 
-      {/* ── Paso: Jugadores / Cobranzas ── */}
+      {/* ── Paso: Jugadores ── */}
       {paso === 'jugadores' && (
         <View style={{ flex: 1 }}>
-          <TouchableOpacity style={styles.volverBtn} onPress={volverAEventos} activeOpacity={0.7}>
-            <Text style={styles.volverTexto}>← Volver a eventos</Text>
+          {/* Volver */}
+          <TouchableOpacity style={s.volverBtn} onPress={volverAEventos} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={16} color={ORO} />
+            <Text style={s.volverTexto}>Eventos</Text>
           </TouchableOpacity>
 
-          {/* Encabezado del evento seleccionado */}
+          {/* Header del evento seleccionado */}
           {eventoSeleccionado && (
-            <View style={styles.eventoResumen}>
-              <View style={styles.cardRow}>
-                <TipoBadge tipo={eventoSeleccionado.tipo} />
-                <Text style={styles.eventoNombre} numberOfLines={1}>{eventoSeleccionado.nombre}</Text>
+            <View style={s.eventoResumen}>
+              <View style={s.tipoBadge}>
+                <Text style={s.tipoBadgeTexto}>{TIPO_LABEL[eventoSeleccionado.tipo] ?? eventoSeleccionado.tipo}</Text>
               </View>
+              <Text style={s.eventoResumenNombre} numberOfLines={2}>{eventoSeleccionado.nombre}</Text>
               {eventoSeleccionado.fecha && (
-                <Text style={styles.cardSub}>{formatFecha(eventoSeleccionado.fecha)}</Text>
+                <Text style={s.eventoFecha}>{formatFecha(eventoSeleccionado.fecha)}</Text>
               )}
             </View>
           )}
 
           {/* Resumen */}
-          <BarraResumen resumen={resumen} />
-          <View style={styles.separador} />
+          <BarraResumen
+            pagados={resumen.pagados}
+            pendientes={resumen.pendientes}
+            cobrado={resumen.cobrado}
+          />
+          <View style={s.separador} />
 
           {cargandoJugadores ? (
-            <View style={styles.centrado}>
-              <ActivityIndicator color={GOLD} />
+            <View style={s.centrado}>
+              <ActivityIndicator color={ORO} />
             </View>
           ) : (
-            <ScrollView
-              contentContainerStyle={styles.jugadoresList}
-              keyboardShouldPersistTaps="handled"
-            >
+            <ScrollView contentContainerStyle={s.jugadoresList}>
               {jugadores.length === 0 ? (
-                <Text style={styles.emptyTexto}>Sin jugadores activos en la división.</Text>
+                <Text style={s.emptyTexto}>Sin jugadores activos en la división.</Text>
               ) : (
                 jugadores.map((j, i) => (
                   <View key={j.jugadorId}>
-                    {i > 0 && <View style={styles.filaDiv} />}
-                    <CobranzaRow
+                    {i > 0 && <View style={s.filaDiv} />}
+                    <FilaJugador
                       jugador={j}
-                      onToggle={toggleEstado}
-                      onMonto={actualizarMonto}
-                      onForma={actualizarFormaDePago}
+                      index={i}
+                      onTap={setModalJugadorId}
                     />
                   </View>
                 ))
               )}
 
               {error && (
-                <View style={styles.bannerError}>
-                  <Text style={styles.bannerErrorTexto}>{error}</Text>
+                <View style={s.bannerError}>
+                  <Text style={s.bannerErrorTexto}>{error}</Text>
                 </View>
               )}
 
               {guardadoOk && (
-                <View style={styles.bannerOk}>
-                  <Text style={styles.bannerOkTexto}>✓ Cobranzas guardadas</Text>
+                <View style={s.bannerOk}>
+                  <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
                 </View>
               )}
             </ScrollView>
           )}
 
-          {/* Botón guardar fijo al fondo */}
+          {/* Botón guardar global */}
           {!cargandoJugadores && jugadores.length > 0 && (
-            <View style={styles.bottomBar}>
+            <View style={s.bottomBar}>
               <TouchableOpacity
-                style={[styles.boton, guardando && { opacity: 0.6 }]}
+                style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
                 onPress={guardarCobranzas}
                 disabled={guardando}
                 activeOpacity={0.85}
               >
                 {guardando
-                  ? <ActivityIndicator color={GOLD} size="small" />
-                  : <Text style={styles.botonTexto}>GUARDAR CAMBIOS</Text>}
+                  ? <ActivityIndicator color={ORO} size="small" />
+                  : <Text style={s.botonPrincipalTexto}>GUARDAR TODOS</Text>
+                }
               </TouchableOpacity>
             </View>
           )}
         </View>
       )}
+
+      {/* Modal de pago por jugador */}
+      <Modal visible={modalJugadorId !== null} animationType="slide" presentationStyle="pageSheet">
+        {jugadorModal && (
+          <ModalPago
+            jugador={jugadorModal}
+            guardando={guardando}
+            error={error}
+            onClose={() => setModalJugadorId(null)}
+            onGuardar={handleGuardarModal}
+            onToggle={toggleEstado}
+            onMonto={actualizarMonto}
+            onForma={actualizarFormaDePago}
+          />
+        )}
+      </Modal>
     </SafeAreaView>
   )
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: CREAM },
-  centrado:     { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 8 },
-  mutedTexto:   { color: MUTED, fontSize: 14, fontFamily: 'serif', fontStyle: 'italic', textAlign: 'center' },
+const s = StyleSheet.create({
+  container:  { flex: 1, backgroundColor: PAPEL },
+  centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL, gap: 8 },
+  mutedTexto: { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
 
-  header:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:  { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 4 },
-  titulo:       { fontSize: 32, fontStyle: 'italic', fontFamily: 'serif', color: DARK, lineHeight: 36 },
-  separador:    { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
+  // Header
+  header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  titulo:      { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  lista:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
-  seccionLabel: { fontSize: 10, letterSpacing: 2, color: GOLD },
-  emptyTexto:   { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: 'serif' },
-  emptySubtexto:{ color: MUTED, fontSize: 12, marginTop: 4 },
-  checkVerde:   { fontSize: 16, color: VERDE, fontWeight: '700' },
+  // Lista eventos
+  lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  seccionLabel:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  seccionConteo: { fontSize: 13, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
+  emptySubtexto: { color: MUTED, fontSize: 12, fontFamily: fonts.cuerpo, lineHeight: 18 },
 
   // Evento card
-  card:         { borderWidth: 1, borderColor: DIVIDER, borderRadius: 8, padding: 14 },
-  cardActivo:   { borderColor: GOLD, backgroundColor: '#FBF6EA' },
-  cardRow:      { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  dot:          { width: 8, height: 8, borderRadius: 4 },
-  cardTitulo:   { flex: 1, fontSize: 15, fontWeight: '700', color: DARK },
-  cardSub:      { fontSize: 12, color: MUTED, marginTop: 2 },
+  eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 16, backgroundColor: PAPEL, gap: 8 },
+  eventoCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eventoNombre:   { fontSize: 16, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, lineHeight: 22 },
+  eventoFecha:    { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
+  eventoStats:    { fontSize: 10, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
 
   // Tipo badge
-  tipoBadge:      { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  tipoBadgeTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  tipoBadge:      { alignSelf: 'flex-start', borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
+  tipoBadgeTexto: { fontSize: 9, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+
+  // % badge
+  pctBadge:      { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
+  pctBadgeTexto: { fontSize: 12, fontWeight: '700', color: TINTA, fontFamily: fonts.label },
+
+  // Barra de progreso
+  progWrap: { height: 4, backgroundColor: GRIS, borderRadius: 2, overflow: 'hidden' },
+  progFill: { height: 4, backgroundColor: ORO, borderRadius: 2 },
 
   // Volver
-  volverBtn:    { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
-  volverTexto:  { color: GOLD, fontSize: 13, fontWeight: '600' },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverTexto:{ fontSize: 13, color: ORO, fontFamily: fonts.label, letterSpacing: 0.5 },
 
-  // Evento resumen (en paso jugadores)
-  eventoResumen:{ paddingHorizontal: 20, paddingBottom: 12, gap: 4 },
-  eventoNombre: { flex: 1, fontSize: 16, fontWeight: '700', color: DARK },
+  // Header evento seleccionado (detalle)
+  eventoResumen:       { paddingHorizontal: 20, paddingBottom: 14, gap: 6 },
+  eventoResumenNombre: { fontSize: 20, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 26 },
 
   // Barra de resumen
-  resumenBar:   { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 14, gap: 0 },
-  resumenItem:  { flex: 1, alignItems: 'center', gap: 2 },
-  resumenDiv:   { width: 1, backgroundColor: DIVIDER, marginVertical: 4 },
-  resumenLabel: { fontSize: 9, letterSpacing: 1.5, color: MUTED },
-  resumenValor: { fontSize: 16, fontWeight: '700', color: DARK },
+  resumenBar:  { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 14 },
+  resumenItem: { flex: 1, alignItems: 'center', gap: 3 },
+  resumenDiv:  { width: 1, backgroundColor: DIVIDER, marginVertical: 4 },
+  resumenLabel:{ fontSize: 9, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label },
+  resumenVal:  { fontSize: 16, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
 
   // Lista jugadores
-  jugadoresList:{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
-  filaDiv:      { height: 1, backgroundColor: DIVIDER },
+  jugadoresList: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
+  filaDiv:       { height: 1, backgroundColor: DIVIDER },
 
-  // Fila cobranza
-  cobranzaRow:  { paddingVertical: 12, gap: 10 },
-  cobranzaCabeza:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
-  jugadorNombre:{ flex: 1, fontSize: 14, fontWeight: '600', color: DARK },
+  // Fila jugador
+  filaJugador: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 },
+  filaNumero:  { fontSize: 11, color: MUTED, fontFamily: fonts.label, width: 20, textAlign: 'right' },
+  filaNombre:  { flex: 1, fontSize: 14, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
 
-  // Toggle estado
-  estadoChip:     { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1 },
-  chipPagado:     { backgroundColor: VERDE, borderColor: VERDE },
-  chipPendiente:  { backgroundColor: 'transparent', borderColor: DIVIDER },
-  chipTexto:      { fontSize: 12, fontWeight: '600' },
-
-  // Detalle pago
-  pagoDetalle:  { paddingLeft: 0, gap: 8 },
-  montoRow:     { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  campoLabel:   { fontSize: 10, letterSpacing: 1.5, color: GOLD, width: 60 },
-  montoInput:   { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 10, fontSize: 16, fontWeight: '700', color: DARK, width: 110 },
-
-  // Forma de pago
-  formaRow:       { flexDirection: 'row', gap: 8 },
-  formaBtn:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 },
-  formaBtnActivo: { borderColor: GOLD, backgroundColor: '#FBF0D0' },
-  formaBtnTexto:  { fontSize: 12, color: MUTED },
+  // Badges de estado en la lista
+  estadoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
+  estadoPagado:         { backgroundColor: VERDE, borderColor: VERDE },
+  estadoPendiente:      { backgroundColor: 'transparent', borderColor: DIVIDER },
+  estadoTexto:          { fontSize: 9, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label },
+  estadoPagadoTexto:    { color: '#FFFFFF' },
+  estadoPendienteTexto: { color: MUTED },
 
   // Bottom bar
-  bottomBar:    { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: CREAM },
-  boton:        { backgroundColor: DARK, paddingVertical: 14, borderRadius: 4, alignItems: 'center' },
-  botonTexto:   { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
+  bottomBar: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: PAPEL },
 
   // Banners
-  bannerError:      { marginTop: 12, backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 6, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#991B1B' },
-  bannerOk:         { marginTop: 12, alignItems: 'center', paddingVertical: 8 },
-  bannerOkTexto:    { fontSize: 13, color: VERDE, fontWeight: '600' },
+  bannerError:      { marginTop: 12, backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
+  bannerOk:         { marginTop: 12, backgroundColor: TINTA, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14 },
+  bannerOkTexto:    { fontSize: 11, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 2 },
+
+  // Modal
+  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
+  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, maxWidth: '85%' },
+  modalClose:     { padding: 4, marginTop: 4 },
+  modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
+
+  // Campos del modal
+  campo:     { gap: 10 },
+  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+
+  // Selector PAGADO / PENDIENTE
+  estadoSelector:            { flexDirection: 'row', gap: 10 },
+  estadoSelectorBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER },
+  estadoSelectorBtnActivo:   { backgroundColor: ORO, borderColor: ORO },
+  estadoPendienteSelector:   { borderColor: ROJO },
+  estadoSelectorTexto:       { fontSize: 11, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  estadoSelectorTextoActivo: { color: TINTA },
+
+  // Monto
+  montoWrap:   { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
+  montoSimbolo:{ fontSize: 22, color: MUTED, fontFamily: fonts.label, marginRight: 6, lineHeight: 36 },
+  montoInput:  { flex: 1, fontSize: 32, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, padding: 0 },
+
+  // Forma de pago
+  formaRow:           { flexDirection: 'row', gap: 8 },
+  formaBtn:           { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  formaBtnActivo:     { backgroundColor: TINTA, borderColor: TINTA },
+  formaBtnTexto:      { fontSize: 10, letterSpacing: 1, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  formaBtnTextoActivo:{ color: ORO },
+
+  // Botón principal
+  botonPrincipal:      { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

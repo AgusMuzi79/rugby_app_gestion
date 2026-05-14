@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -20,28 +21,37 @@ import {
   type EventoDetalle,
   type NuevoEventoForm,
 } from '@/hooks/useEventos'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM   = '#F5F0E8'
-const GOLD    = '#C9A84C'
-const DARK    = '#1A1A1A'
-const MUTED   = '#888888'
-const DIVIDER = '#E5DDD0'
-const ROJO    = '#EF4444'
-const VERDE   = '#22C55E'
-const AZUL    = '#3B82F6'
+// ─── Design tokens ────────────────────────────────────────────────────────────
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const PAPEL     = colors.papel        // '#F6F1E4'
+const TINTA     = colors.tinta        // '#0E0E0E'
+const ORO       = colors.oro          // '#E8B53C'
+const ORO_HONDO = colors.oroHondo     // '#C9961F'
+const GRIS      = colors.grisClaro    // '#E5E0D0'
+const ROJO      = colors.rojoUrgente  // '#C0392B'
+const MUTED     = '#7C7267'
+const DIVIDER   = '#D9D3C4'
+const VERDE     = '#4A7C59'
+const AZUL      = '#3B7FC4'
 
 const TIPO_LABEL: Record<TipoEvento, string> = {
-  recaudacion:   'Recaudación',
-  viaje:         'Viaje',
-  tercer_tiempo: 'Tercer Tiempo',
+  recaudacion:   'RECAUDACIÓN',
+  viaje:         'VIAJE',
+  tercer_tiempo: '3er TIEMPO',
 }
 
 const TIPO_COLOR: Record<TipoEvento, string> = {
-  recaudacion:   GOLD,
+  recaudacion:   ORO,
   viaje:         AZUL,
   tercer_tiempo: VERDE,
+}
+
+const TIPO_MODAL_LABEL: Record<TipoEvento, string> = {
+  recaudacion:   'RECAUDACIÓN\nGLOBAL',
+  viaje:         'VIAJE',
+  tercer_tiempo: 'TERCER\nTIEMPO',
 }
 
 function parseMonto(desc: string | null): number | null {
@@ -57,61 +67,117 @@ function formatFecha(fecha: string | null): string {
 }
 
 function formatPesos(n: number): string {
-  return `$${n.toLocaleString('es-AR')}`
+  return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-// ─── EventoCard ──────────────────────────────────────────────────────────────
+// ─── Tab switcher ─────────────────────────────────────────────────────────────
+
+type TabActivo = 'activos' | 'historial'
+
+function TabSwitcher({
+  tab,
+  onChange,
+  countActivos,
+  countHistorial,
+}: {
+  tab:           TabActivo
+  onChange:      (t: TabActivo) => void
+  countActivos:  number
+  countHistorial: number
+}) {
+  return (
+    <View style={s.tabRow}>
+      {(['activos', 'historial'] as TabActivo[]).map(t => {
+        const activo = tab === t
+        const count  = t === 'activos' ? countActivos : countHistorial
+        return (
+          <TouchableOpacity
+            key={t}
+            style={[s.tabBtn, activo && s.tabBtnActivo]}
+            onPress={() => onChange(t)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.tabTexto, activo && s.tabTextoActivo]}>
+              {t === 'activos' ? 'ACTIVOS' : 'HISTORIAL'}
+              {count > 0 ? `  ${count}` : ''}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}
+
+// ─── Barra de progreso ────────────────────────────────────────────────────────
+
+function BarraProgreso({ pagados, total }: { pagados: number; total: number }) {
+  const pct = total > 0 ? (pagados / total) * 100 : 0
+  const filled = Math.min(Math.max(pct, 0), 100)
+  return (
+    <View style={s.progWrap}>
+      <View style={[s.progFill, { width: `${filled}%` }]} />
+    </View>
+  )
+}
+
+// ─── Card de evento ───────────────────────────────────────────────────────────
 
 function EventoCard({
   ev,
-  onPress,
   muted = false,
+  onPress,
 }: {
   ev:      EventoItem
-  onPress?: () => void
   muted?:  boolean
+  onPress?: () => void
 }) {
-  const color        = TIPO_COLOR[ev.tipo]
-  const montoSug     = parseMonto(ev.descripcion)
-  const hayCobranzas = ev.countPagados > 0 || ev.countPendientes > 0
+  const color      = TIPO_COLOR[ev.tipo]
+  const montoSug   = parseMonto(ev.descripcion)
+  const totalPagos = ev.countPagados + ev.countPendientes
+  const hayPagos   = totalPagos > 0
 
   return (
     <TouchableOpacity
-      style={[s.card, muted && s.cardMuted]}
+      style={[s.eventoCard, muted && s.eventoCardMuted]}
       onPress={onPress}
-      activeOpacity={onPress ? 0.75 : 1}
+      activeOpacity={onPress ? 0.8 : 1}
     >
-      <View style={s.cardFila}>
-        <View style={[s.tipoBadge, { borderColor: color }]}>
-          <Text style={[s.tipoTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
+      {/* Tipo + división + fecha */}
+      <View style={s.eventoCardHead}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={[s.tipoBadge, { borderColor: color }]}>
+            <Text style={[s.tipoBadgeTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
+          </View>
+          {ev.divisionNombre && (
+            <View style={s.divBadge}>
+              <Text style={s.divBadgeTexto}>{ev.divisionNombre}</Text>
+            </View>
+          )}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {ev.fecha ? <Text style={s.cardFecha}>{formatFecha(ev.fecha)}</Text> : null}
-          {onPress && <Ionicons name="chevron-forward" size={14} color={MUTED} />}
+          {ev.fecha && <Text style={s.eventoFecha}>{formatFecha(ev.fecha)}</Text>}
+          {onPress && <Ionicons name="chevron-forward" size={13} color={MUTED} />}
         </View>
       </View>
 
-      <Text style={[s.cardNombre, muted && { color: MUTED }]} numberOfLines={2}>
+      {/* Nombre */}
+      <Text style={[s.eventoNombre, muted && { color: MUTED }]} numberOfLines={2}>
         {ev.nombre}
       </Text>
 
-      <View style={[s.cardFila, { marginTop: 2 }]}>
-        <Text style={s.cardDiv}>{ev.divisionNombre ?? 'Global'}</Text>
-        {montoSug !== null && (
-          <Text style={s.cardMontoSug}>{formatPesos(montoSug)} / jugador</Text>
-        )}
-      </View>
+      {/* Monto sugerido */}
+      {montoSug !== null && (
+        <Text style={s.eventoMontoSug}>{formatPesos(montoSug)} por jugador</Text>
+      )}
 
-      {hayCobranzas && (
-        <View style={s.cardResumen}>
-          <View style={s.resumenPill}>
-            <Text style={s.resumenPagados}>{ev.countPagados}P</Text>
-          </View>
-          <View style={[s.resumenPill, { backgroundColor: '#FEF2F2' }]}>
-            <Text style={s.resumenPendientes}>{ev.countPendientes}PN</Text>
-          </View>
-          <Text style={s.resumenCobrado}>{formatPesos(ev.totalCobrado)}</Text>
-        </View>
+      {/* Progreso + stats */}
+      {hayPagos && (
+        <>
+          <BarraProgreso pagados={ev.countPagados} total={totalPagos} />
+          <Text style={s.eventoStats}>
+            {ev.countPagados} PAGADOS · {ev.countPendientes} PEND. · {formatPesos(ev.totalCobrado)}
+          </Text>
+        </>
       )}
     </TouchableOpacity>
   )
@@ -132,9 +198,9 @@ function EventoDetalleContent({
   onCerrar: () => void
   onVolver: () => void
 }) {
-  const color      = TIPO_COLOR[ev.tipo]
-  const montoSug   = parseMonto(ev.descripcion)
-  const hayResumen = ev.resumenTotal.pagados > 0 || ev.resumenTotal.pendientes > 0
+  const color    = TIPO_COLOR[ev.tipo]
+  const montoSug = parseMonto(ev.descripcion)
+  const hayRes   = ev.resumenTotal.pagados > 0 || ev.resumenTotal.pendientes > 0
 
   function confirmarCierre() {
     Alert.alert(
@@ -148,65 +214,86 @@ function EventoDetalleContent({
   }
 
   return (
-    <SafeAreaView style={s.root}>
-      <View style={s.detalleHeader}>
+    <SafeAreaView style={s.container}>
+      {/* Barra superior */}
+      <View style={s.detalleTopBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color={GOLD} />
+          <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
-        <Text style={s.detalleTitulo} numberOfLines={1}>{ev.nombre}</Text>
+        <Text style={s.detalleLabelHeader}>EVENTO · {TIPO_LABEL[ev.tipo]}</Text>
         {ev.estado === 'cerrado' && (
-          <View style={s.cerradoBadge}><Text style={s.cerradoTexto}>CERRADO</Text></View>
+          <View style={s.cerradoBadge}>
+            <Text style={s.cerradoTexto}>CERRADO</Text>
+          </View>
         )}
       </View>
 
+      {/* Nombre grande */}
+      <View style={s.detalleNombreWrap}>
+        <Text style={s.detalleNombre}>{ev.nombre}</Text>
+      </View>
+
+      {/* Meta */}
+      <View style={s.detalleMetaRow}>
+        <View style={[s.tipoBadge, { borderColor: color }]}>
+          <Text style={[s.tipoBadgeTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
+        </View>
+        {ev.divisionNombre && (
+          <View style={s.divBadge}>
+            <Text style={s.divBadgeTexto}>{ev.divisionNombre}</Text>
+          </View>
+        )}
+        {ev.fecha && <Text style={s.eventoFecha}>{formatFecha(ev.fecha)}</Text>}
+      </View>
+      {montoSug !== null && (
+        <Text style={s.montoSugTexto}>{formatPesos(montoSug)} por jugador</Text>
+      )}
+      <View style={s.separador} />
+
       {cargando ? (
         <View style={s.centrado}>
-          <ActivityIndicator color={GOLD} size="large" />
+          <ActivityIndicator color={ORO} size="large" />
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.detalleScroll} showsVerticalScrollIndicator={false}>
-          {/* Meta */}
-          <View style={s.metaFila}>
-            <View style={[s.tipoBadge, { borderColor: color }]}>
-              <Text style={[s.tipoTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
-            </View>
-            {ev.divisionNombre && <Text style={s.metaDiv}>{ev.divisionNombre}</Text>}
-            {ev.fecha && <Text style={s.metaFecha}>{formatFecha(ev.fecha)}</Text>}
-          </View>
-          {montoSug !== null && (
-            <Text style={s.montoSugTexto}>Monto sugerido: {formatPesos(montoSug)} por jugador</Text>
-          )}
-
           {/* Resumen cobranzas */}
-          {hayResumen && (
-            <View style={{ marginTop: 20 }}>
+          {hayRes && (
+            <View style={s.seccionBlock}>
               <Text style={s.seccionLabel}>COBRANZAS</Text>
-              <View style={s.resumenCard}>
-                <View style={s.resumenFila}>
-                  <Text style={s.resumenItem}>Pagados</Text>
-                  <Text style={[s.resumenValor, { color: VERDE }]}>{ev.resumenTotal.pagados}</Text>
+              <View style={s.resumenBar}>
+                <View style={s.resumenItem}>
+                  <Text style={[s.resumenVal, { color: VERDE }]}>{ev.resumenTotal.pagados}</Text>
+                  <Text style={s.resumenLabel}>PAGADOS</Text>
                 </View>
-                <View style={[s.resumenFila, { borderTopWidth: 1, borderTopColor: DIVIDER }]}>
-                  <Text style={s.resumenItem}>Pendientes</Text>
-                  <Text style={[s.resumenValor, { color: ROJO }]}>{ev.resumenTotal.pendientes}</Text>
+                <View style={s.resumenDiv} />
+                <View style={s.resumenItem}>
+                  <Text style={[s.resumenVal, { color: ev.resumenTotal.pendientes > 0 ? ROJO : MUTED }]}>
+                    {ev.resumenTotal.pendientes}
+                  </Text>
+                  <Text style={s.resumenLabel}>PEND.</Text>
                 </View>
-                <View style={[s.resumenFila, { borderTopWidth: 1, borderTopColor: DIVIDER }]}>
-                  <Text style={s.resumenItem}>Total cobrado</Text>
-                  <Text style={[s.resumenValor, { color: DARK, fontSize: 18 }]}>
+                <View style={s.resumenDiv} />
+                <View style={s.resumenItem}>
+                  <Text style={[s.resumenVal, { fontSize: 15, color: TINTA }]}>
                     {formatPesos(ev.resumenTotal.cobrado)}
                   </Text>
+                  <Text style={s.resumenLabel}>COBRADO</Text>
                 </View>
               </View>
 
+              {/* Por división */}
               {ev.resumenPorDiv.length > 1 && (
-                <View style={{ marginTop: 10 }}>
+                <View style={{ marginTop: 16 }}>
                   <Text style={[s.seccionLabel, { marginBottom: 6 }]}>POR DIVISIÓN</Text>
-                  {ev.resumenPorDiv.map(d => (
-                    <View key={d.divisionNombre} style={s.divResumenFila}>
-                      <Text style={s.divResumenNombre} numberOfLines={1}>{d.divisionNombre}</Text>
-                      <Text style={s.divResumenDetalle}>
-                        {d.pagados}P · {d.pendientes}PN · {formatPesos(d.cobrado)}
-                      </Text>
+                  {ev.resumenPorDiv.map((d, i) => (
+                    <View key={d.divisionNombre}>
+                      {i > 0 && <View style={s.filaDiv} />}
+                      <View style={s.divFila}>
+                        <Text style={s.divFilaNombre} numberOfLines={1}>{d.divisionNombre}</Text>
+                        <Text style={s.divFilaDetalle}>
+                          {d.pagados}P · {d.pendientes}PN · {formatPesos(d.cobrado)}
+                        </Text>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -215,49 +302,54 @@ function EventoDetalleContent({
           )}
 
           {/* Pedidos */}
-          <View style={{ marginTop: 24 }}>
+          <View style={[s.seccionBlock, { marginTop: 24 }]}>
             <Text style={s.seccionLabel}>PEDIDOS</Text>
             {ev.pedidos.length === 0 ? (
-              <Text style={s.vacio}>Sin pedidos registrados.</Text>
+              <Text style={s.emptyTexto}>Sin pedidos registrados.</Text>
             ) : (
-              ev.pedidos.map(p => (
-                <View key={p.id} style={s.pedidoCard}>
-                  <View style={s.pedidoHeader}>
-                    <Text style={s.pedidoManager}>{p.managerNombre}</Text>
-                    <View style={[
-                      s.pedidoEstadoBadge,
-                      p.estado === 'confirmado' ? s.badgeConfirmado : s.badgePendientePed,
-                    ]}>
-                      <Text style={[
-                        s.pedidoEstadoTexto,
-                        { color: p.estado === 'confirmado' ? VERDE : GOLD },
-                      ]}>
-                        {p.estado === 'confirmado' ? 'CONFIRMADO' : 'PENDIENTE'}
-                      </Text>
+              <View style={{ gap: 10, marginTop: 8 }}>
+                {ev.pedidos.map(p => {
+                  const confirmado = p.estado === 'confirmado'
+                  return (
+                    <View key={p.id} style={s.pedidoCard}>
+                      <View style={s.pedidoHeader}>
+                        <Text style={s.pedidoManager}>{p.managerNombre}</Text>
+                        <View style={[
+                          s.estadoBadge,
+                          confirmado ? s.estadoConfirmado : s.estadoAbierto,
+                        ]}>
+                          <Text style={[
+                            s.estadoTexto,
+                            { color: confirmado ? VERDE : ORO_HONDO },
+                          ]}>
+                            {confirmado ? 'CONFIRMADO' : 'ABIERTO'}
+                          </Text>
+                        </View>
+                      </View>
+                      {p.items.map((it, idx) => (
+                        <Text key={idx} style={s.pedidoItem}>· {it.cantidad}× {it.concepto}</Text>
+                      ))}
+                      {p.fechaConfirmacion && (
+                        <Text style={s.pedidoFecha}>Confirmado el {formatFecha(p.fechaConfirmacion)}</Text>
+                      )}
                     </View>
-                  </View>
-                  {p.items.map((it, idx) => (
-                    <Text key={idx} style={s.pedidoItem}>· {it.cantidad}× {it.concepto}</Text>
-                  ))}
-                  {p.fechaConfirmacion && (
-                    <Text style={s.pedidoFecha}>Confirmado el {formatFecha(p.fechaConfirmacion)}</Text>
-                  )}
-                </View>
-              ))
+                  )
+                })}
+              </View>
             )}
           </View>
 
           {/* Cerrar evento */}
           {ev.estado === 'activo' && (
             <TouchableOpacity
-              style={[s.btnCerrar, cerrando && { opacity: 0.6 }]}
+              style={[s.botonCerrar, cerrando && { opacity: 0.6 }]}
               onPress={confirmarCierre}
               disabled={cerrando}
               activeOpacity={0.85}
             >
               {cerrando
                 ? <ActivityIndicator color={ROJO} size="small" />
-                : <Text style={s.btnCerrarTexto}>CERRAR EVENTO</Text>
+                : <Text style={s.botonCerrarTexto}>CERRAR EVENTO</Text>
               }
             </TouchableOpacity>
           )}
@@ -296,94 +388,117 @@ function ModalNuevoEvento({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView style={s.modalContainer}>
+          {/* Header */}
           <View style={s.modalHeader}>
-            <Text style={s.modalTitulo}>Nuevo evento</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-              <Text style={s.modalCerrar}>Cancelar</Text>
+            <View>
+              <Text style={s.modalSuper}>NUEVO</Text>
+              <Text style={s.modalTitulo}>Evento</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ padding: 4, marginTop: 4 }}>
+              <Ionicons name="close" size={20} color={MUTED} />
             </TouchableOpacity>
           </View>
+          <View style={s.separador} />
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.modalBody}>
-            {/* Nombre */}
-            <Text style={s.inputLabel}>NOMBRE DEL EVENTO</Text>
-            <TextInput
-              style={s.input}
-              placeholder="ej. Viaje Mar del Plata, Asado M14…"
-              placeholderTextColor={MUTED}
-              value={form.nombre}
-              onChangeText={v => setForm({ ...form, nombre: v })}
-              returnKeyType="next"
-            />
-
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
             {/* Tipo */}
-            <Text style={s.inputLabel}>TIPO</Text>
-            <View style={s.tipoRow}>
-              {(['recaudacion', 'viaje', 'tercer_tiempo'] as TipoEvento[]).map(t => (
-                <TouchableOpacity
-                  key={t}
-                  style={[s.tipoBtn, form.tipo === t && s.tipoBtnActivo]}
-                  onPress={() => setTipo(t)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.tipoBtnTexto, form.tipo === t && s.tipoBtnTextoActivo]}>
-                    {TIPO_LABEL[t]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={s.campo}>
+              <Text style={s.campoLabel}>TIPO</Text>
+              <View style={s.tipoRow}>
+                {(['recaudacion', 'viaje', 'tercer_tiempo'] as TipoEvento[]).map(t => {
+                  const activo = form.tipo === t
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[s.tipoBtn, activo && s.tipoBtnActivo]}
+                      onPress={() => setTipo(t)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
+                        {TIPO_MODAL_LABEL[t]}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
             </View>
 
-            {/* División (solo viaje / tercer_tiempo) */}
+            {/* División */}
             {form.tipo !== 'recaudacion' && (
-              <>
-                <Text style={s.inputLabel}>DIVISIÓN</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>DIVISIÓN</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {divisiones.map(d => (
-                      <TouchableOpacity
-                        key={d.id}
-                        style={[s.divPill, form.divisionId === d.id && s.divPillActiva]}
-                        onPress={() => setForm({ ...form, divisionId: d.id })}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[s.divPillTexto, form.divisionId === d.id && s.divPillTextoActivo]}>
-                          {d.nombre}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {divisiones.map(d => {
+                      const activo = form.divisionId === d.id
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          style={[s.divPill, activo && s.divPillActiva]}
+                          onPress={() => setForm({ ...form, divisionId: d.id })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.divPillTexto, activo && s.divPillTextoActivo]}>
+                            {d.nombre}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
                   </View>
                 </ScrollView>
-              </>
+              </View>
             )}
 
-            {/* Monto sugerido */}
-            <Text style={s.inputLabel}>MONTO SUGERIDO POR JUGADOR (opcional)</Text>
-            <TextInput
-              style={s.input}
-              placeholder="ej. 2500"
-              placeholderTextColor={MUTED}
-              value={form.montoSugerido}
-              onChangeText={v => setForm({ ...form, montoSugerido: v })}
-              keyboardType="numeric"
-              returnKeyType="done"
-            />
+            {/* Nombre */}
+            <View style={s.campo}>
+              <Text style={s.campoLabel}>NOMBRE DEL EVENTO</Text>
+              <TextInput
+                style={s.inputLinea}
+                placeholder="ej. Viaje Mar del Plata, Asado M14…"
+                placeholderTextColor={MUTED}
+                value={form.nombre}
+                onChangeText={v => setForm({ ...form, nombre: v })}
+                returnKeyType="next"
+                autoCapitalize="sentences"
+              />
+            </View>
 
+            {/* Monto sugerido */}
+            <View style={s.campo}>
+              <Text style={s.campoLabel}>MONTO POR JUGADOR (opcional)</Text>
+              <View style={s.montoWrap}>
+                <Text style={s.montoSimbolo}>$</Text>
+                <TextInput
+                  style={s.montoInput}
+                  placeholder="2500"
+                  placeholderTextColor={MUTED}
+                  value={form.montoSugerido}
+                  onChangeText={v => setForm({ ...form, montoSugerido: v })}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+
+            {/* Error */}
             {error && (
-              <View style={s.errorBanner}>
-                <Text style={s.errorTexto}>{error}</Text>
+              <View style={s.bannerError}>
+                <Text style={s.bannerErrorTexto}>{error}</Text>
               </View>
             )}
           </ScrollView>
 
+          {/* Footer */}
           <View style={s.modalFooter}>
             <TouchableOpacity
-              style={[s.btnGuardar, guardando && { opacity: 0.6 }]}
+              style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
               onPress={onGuardar}
               disabled={guardando}
               activeOpacity={0.85}
             >
               {guardando
-                ? <ActivityIndicator color={GOLD} size="small" />
-                : <Text style={s.btnGuardarTexto}>CREAR EVENTO</Text>
+                ? <ActivityIndicator color={ORO} size="small" />
+                : <Text style={s.botonPrincipalTexto}>CREAR EVENTO</Text>
               }
             </TouchableOpacity>
           </View>
@@ -393,7 +508,7 @@ function ModalNuevoEvento({
   )
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Pantalla principal ───────────────────────────────────────────────────────
 
 export default function EventosScreen() {
   const {
@@ -418,10 +533,12 @@ export default function EventosScreen() {
     crearEvento,
   } = useEventos()
 
+  const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
+
   if (loading) {
     return (
       <View style={s.centrado}>
-        <ActivityIndicator size="large" color={GOLD} />
+        <ActivityIndicator size="large" color={ORO} />
       </View>
     )
   }
@@ -443,40 +560,58 @@ export default function EventosScreen() {
     if (ok) cerrarModal()
   }
 
+  const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial
+
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.container}>
+      {/* Header */}
       <View style={s.header}>
-        <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
-        <View style={s.headerFila}>
-          <Text style={s.headerTitulo}>Eventos</Text>
-          <TouchableOpacity style={s.botonNuevo} onPress={abrirModal} activeOpacity={0.8}>
-            <Text style={s.botonNuevoTexto}>+ Nuevo</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={s.headerSub}>
-          {eventosActivos.length} activo{eventosActivos.length !== 1 ? 's' : ''}
-        </Text>
+        <Text style={s.labelHeader}>SECCIÓN · DIRECTIVA</Text>
+        <Text style={s.titulo}>Eventos</Text>
       </View>
+      <View style={s.separador} />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.listaContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.seccionLabel}>EVENTOS ACTIVOS</Text>
-        {eventosActivos.length === 0 ? (
-          <Text style={s.vacio}>Sin eventos activos. Creá el primero.</Text>
+      {/* Tabs */}
+      <TabSwitcher
+        tab={tabActivo}
+        onChange={setTabActivo}
+        countActivos={eventosActivos.length}
+        countHistorial={eventosHistorial.length}
+      />
+      <View style={s.separador} />
+
+      {/* Lista */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={s.lista}
+        showsVerticalScrollIndicator={false}
+      >
+        {listaActual.length === 0 ? (
+          <Text style={s.emptyTexto}>
+            {tabActivo === 'activos'
+              ? 'Sin eventos activos. Creá el primero.'
+              : 'Sin eventos en el historial.'}
+          </Text>
         ) : (
-          eventosActivos.map(ev => (
-            <EventoCard key={ev.id} ev={ev} onPress={() => abrirDetalle(ev)} />
-          ))
-        )}
-
-        {eventosHistorial.length > 0 && (
-          <>
-            <Text style={[s.seccionLabel, { marginTop: 24 }]}>HISTORIAL</Text>
-            {eventosHistorial.map(ev => (
-              <EventoCard key={ev.id} ev={ev} muted />
+          <View style={{ gap: 12 }}>
+            {listaActual.map(ev => (
+              <EventoCard
+                key={ev.id}
+                ev={ev}
+                muted={tabActivo === 'historial'}
+                onPress={tabActivo === 'activos' ? () => abrirDetalle(ev) : undefined}
+              />
             ))}
-          </>
+          </View>
         )}
       </ScrollView>
+
+      {/* FAB */}
+      <View style={s.fabWrap}>
+        <TouchableOpacity style={s.fab} onPress={abrirModal} activeOpacity={0.85}>
+          <Text style={s.fabTexto}>+ NUEVO EVENTO</Text>
+        </TouchableOpacity>
+      </View>
 
       <ModalNuevoEvento
         visible={modalVisible}
@@ -488,104 +623,144 @@ export default function EventosScreen() {
         guardando={guardando}
         error={errorGuardado}
       />
-    </View>
+    </SafeAreaView>
   )
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: CREAM },
-  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM },
+  container: { flex: 1, backgroundColor: PAPEL },
+  centrado:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL },
 
-  header:          { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: DARK },
-  headerLabel:     { fontSize: 10, letterSpacing: 2.5, color: GOLD, marginBottom: 4 },
-  headerFila:      { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  headerTitulo:    { fontSize: 28, fontStyle: 'italic', fontFamily: 'serif', color: '#FFF' },
-  headerSub:       { fontSize: 12, color: '#888', marginTop: 4 },
-  botonNuevo:      { backgroundColor: GOLD, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
-  botonNuevoTexto: { color: DARK, fontSize: 12, letterSpacing: 1.5, fontWeight: '700' },
+  // Header
+  header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  titulo:      { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  listaContent: { padding: 16, paddingBottom: 40, gap: 10 },
-  seccionLabel: { fontSize: 10, letterSpacing: 2, color: GOLD, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
-  vacio:        { color: MUTED, fontSize: 13, fontStyle: 'italic', paddingVertical: 4 },
+  // Tabs con línea dorada
+  tabRow:         { flexDirection: 'row', paddingHorizontal: 20, gap: 24 },
+  tabBtn:         { paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtnActivo:   { borderBottomColor: ORO },
+  tabTexto:       { fontSize: 10, letterSpacing: 2, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  tabTextoActivo: { color: TINTA },
 
-  card:        { backgroundColor: '#FFF', borderRadius: 10, padding: 14, gap: 6, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
-  cardMuted:   { opacity: 0.55 },
-  cardFila:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardNombre:  { fontSize: 16, fontWeight: '600', color: DARK },
-  cardFecha:   { fontSize: 12, color: MUTED },
-  cardDiv:     { fontSize: 11, color: GOLD, letterSpacing: 0.5 },
-  cardMontoSug: { fontSize: 11, color: MUTED },
-  cardResumen:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  resumenPill:  { backgroundColor: '#F0FFF4', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  resumenPagados:    { fontSize: 11, color: VERDE, fontWeight: '700' },
-  resumenPendientes: { fontSize: 11, color: ROJO, fontWeight: '700' },
-  resumenCobrado:    { fontSize: 12, fontWeight: '600', color: DARK },
+  // Lista
+  lista:       { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
+  emptyTexto:  { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
+  filaDiv:     { height: 1, backgroundColor: DIVIDER },
+  seccionBlock:{ gap: 0 },
+  seccionLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 8 },
 
-  tipoBadge: { borderWidth: 1.5, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  tipoTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  // Evento card
+  eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: PAPEL, gap: 8 },
+  eventoCardMuted:{ opacity: 0.5 },
+  eventoCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eventoNombre:   { fontSize: 16, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, lineHeight: 22 },
+  eventoFecha:    { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.3 },
+  eventoMontoSug: { fontSize: 10, color: MUTED, fontFamily: fonts.label },
+  eventoStats:    { fontSize: 10, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.3 },
 
-  // Detalle
-  detalleHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: DARK, gap: 10 },
-  backBtn:       { padding: 4 },
-  detalleTitulo: { flex: 1, fontSize: 18, fontStyle: 'italic', fontFamily: 'serif', color: '#FFF' },
-  cerradoBadge:  { backgroundColor: '#3A3A3A', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  cerradoTexto:  { fontSize: 10, color: MUTED, fontWeight: '700', letterSpacing: 0.5 },
+  // Badges
+  tipoBadge:      { borderWidth: 1.5, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
+  tipoBadgeTexto: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, fontFamily: fonts.label },
+  divBadge:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
+  divBadgeTexto:  { fontSize: 9, letterSpacing: 0.5, color: MUTED, fontFamily: fonts.label },
+
+  // Progress bar
+  progWrap: { height: 4, backgroundColor: GRIS, borderRadius: 2, overflow: 'hidden' },
+  progFill: { height: 4, backgroundColor: ORO, borderRadius: 2 },
+
+  // FAB dorado
+  fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
+  fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  fabTexto:{ color: TINTA, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+
+  // Detalle — barra superior
+  detalleTopBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
+  backBtn:            { padding: 4 },
+  detalleLabelHeader: { flex: 1, fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  cerradoBadge:       { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
+  cerradoTexto:       { fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label },
+
+  detalleNombreWrap:{ paddingHorizontal: 20, paddingBottom: 12, paddingTop: 4 },
+  detalleNombre:    { fontSize: 28, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 34 },
+  detalleMetaRow:   { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  montoSugTexto:    { fontSize: 12, color: ORO_HONDO, fontFamily: fonts.label, paddingHorizontal: 20, marginBottom: 12 },
 
   detalleScroll: { padding: 20, paddingBottom: 48 },
 
-  metaFila:      { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  metaDiv:       { fontSize: 13, color: MUTED },
-  metaFecha:     { fontSize: 12, color: MUTED },
-  montoSugTexto: { fontSize: 13, color: GOLD, marginTop: 8 },
+  // Resumen financiero (barra de 3 celdas)
+  resumenBar:   { flexDirection: 'row', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, overflow: 'hidden' },
+  resumenItem:  { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 4 },
+  resumenDiv:   { width: 1, backgroundColor: DIVIDER },
+  resumenLabel: { fontSize: 9, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label },
+  resumenVal:   { fontSize: 18, fontWeight: '700', fontFamily: fonts.cuerpo },
 
-  resumenCard:  { backgroundColor: '#FFF', borderRadius: 10, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, marginTop: 8 },
-  resumenFila:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 },
-  resumenItem:  { fontSize: 14, color: MUTED },
-  resumenValor: { fontSize: 22, fontWeight: '700' },
+  // Por división
+  divFila:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  divFilaNombre:  { fontSize: 13, color: TINTA, fontFamily: fonts.cuerpo, flex: 1, marginRight: 8 },
+  divFilaDetalle: { fontSize: 11, color: MUTED, fontFamily: fonts.label },
 
-  divResumenFila:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  divResumenNombre:  { fontSize: 13, fontWeight: '600', color: DARK, flex: 1, marginRight: 8 },
-  divResumenDetalle: { fontSize: 12, color: MUTED },
+  // Pedidos
+  pedidoCard:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, gap: 4 },
+  pedidoHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  pedidoManager:    { fontSize: 14, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
+  pedidoItem:       { fontSize: 13, color: MUTED, fontFamily: fonts.cuerpo },
+  pedidoFecha:      { fontSize: 10, color: MUTED, fontFamily: fonts.label, marginTop: 4 },
+  estadoBadge:      { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
+  estadoConfirmado: { borderColor: VERDE },
+  estadoAbierto:    { borderColor: ORO_HONDO },
+  estadoTexto:      { fontSize: 9, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label },
 
-  pedidoCard:         { backgroundColor: '#FFF', borderRadius: 10, padding: 14, marginTop: 8, elevation: 1, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 3 },
-  pedidoHeader:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  pedidoManager:      { fontSize: 14, fontWeight: '600', color: DARK },
-  pedidoEstadoBadge:  { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeConfirmado:    { backgroundColor: '#F0FFF4' },
-  badgePendientePed:  { backgroundColor: '#FEFCE8' },
-  pedidoEstadoTexto:  { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  pedidoItem:         { fontSize: 13, color: MUTED, marginTop: 2 },
-  pedidoFecha:        { fontSize: 11, color: MUTED, marginTop: 6 },
-
-  btnCerrar:      { marginTop: 32, borderWidth: 1.5, borderColor: ROJO, borderRadius: 6, paddingVertical: 15, alignItems: 'center' },
-  btnCerrarTexto: { color: ROJO, fontSize: 12, letterSpacing: 2, fontWeight: '700' },
+  // Botón cerrar evento — negro ancho con texto rojo
+  botonCerrar:      { marginTop: 32, backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonCerrarTexto: { color: ROJO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
   // Modal
-  modalContainer: { flex: 1, backgroundColor: CREAM },
-  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  modalTitulo:    { fontSize: 18, fontStyle: 'italic', fontFamily: 'serif', color: DARK },
-  modalCerrar:    { fontSize: 14, color: MUTED },
-  modalBody:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
-  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER },
+  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
+  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA },
+  modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20, gap: 24 },
+  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: PAPEL },
 
-  inputLabel: { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 6 },
-  input:      { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: DARK, backgroundColor: '#FFF', marginBottom: 20 },
+  // Campos
+  campo:     { gap: 10 },
+  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
-  tipoRow:            { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  tipoBtn:            { flex: 1, paddingVertical: 11, borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
-  tipoBtnActivo:      { backgroundColor: DARK, borderColor: DARK },
-  tipoBtnTexto:       { fontSize: 11, color: MUTED, fontWeight: '500' },
-  tipoBtnTextoActivo: { color: GOLD },
+  inputLinea: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: ORO,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: TINTA,
+    fontFamily: fonts.cuerpo,
+  },
 
+  montoWrap:   { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
+  montoSimbolo:{ fontSize: 18, color: MUTED, fontFamily: fonts.label, marginRight: 6, lineHeight: 30 },
+  montoInput:  { flex: 1, fontSize: 24, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, padding: 0 },
+
+  // Selector tipo (modal)
+  tipoRow:            { flexDirection: 'row', gap: 8 },
+  tipoBtn:            { flex: 1, paddingVertical: 13, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
+  tipoBtnActivo:      { backgroundColor: TINTA, borderColor: TINTA },
+  tipoBtnTexto:       { fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label, textAlign: 'center', lineHeight: 14 },
+  tipoBtnTextoActivo: { color: ORO },
+
+  // División pills
   divPill:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  divPillActiva:      { backgroundColor: DARK, borderColor: DARK },
-  divPillTexto:       { fontSize: 13, color: MUTED },
-  divPillTextoActivo: { color: GOLD },
+  divPillActiva:      { backgroundColor: TINTA, borderColor: TINTA },
+  divPillTexto:       { fontSize: 12, color: MUTED, fontFamily: fonts.label },
+  divPillTextoActivo: { color: ORO },
 
-  errorBanner: { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12, marginTop: 4 },
-  errorTexto:  { fontSize: 13, color: '#991B1B' },
-  btnGuardar:      { backgroundColor: DARK, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
-  btnGuardarTexto: { color: GOLD, fontSize: 12, letterSpacing: 2.5, fontWeight: '600' },
+  // Banner error
+  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
+
+  // Botón principal
+  botonPrincipal:      { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

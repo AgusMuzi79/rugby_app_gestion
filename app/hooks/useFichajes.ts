@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Linking } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system'
@@ -77,6 +78,9 @@ export function useFichajes() {
   const [subiendo, setSubiendo]                 = useState(false)
   const [subiendoOk, setSubiendoOk]             = useState(false)
   const [errorUpload, setErrorUpload]           = useState<string | null>(null)
+
+  // Apertura de documentos
+  const [abriendoDoc, setAbriendoDoc] = useState<string | null>(null)
 
   useEffect(() => {
     if (session) fetchDatos()
@@ -319,6 +323,15 @@ export function useFichajes() {
     setSubiendo(false)
   }
 
+  async function abrirDocumento(storagePath: string) {
+    setAbriendoDoc(storagePath)
+    const { data } = await supabase.storage
+      .from('fichajes')
+      .createSignedUrl(storagePath, 60)
+    if (data?.signedUrl) await Linking.openURL(data.signedUrl)
+    setAbriendoDoc(null)
+  }
+
   return {
     loading,
     divisionNombre,
@@ -345,5 +358,7 @@ export function useFichajes() {
     subiendoOk,
     errorUpload,
     subirDocumento,
+    abriendoDoc,
+    abrirDocumento,
   }
 }

@@ -11,32 +11,36 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import {
   useFichajes,
   JugadorFichado,
-  JugadorDetalle,
   DocumentoFichaje,
   TipoDocumento,
 } from '@/hooks/useFichajes'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM   = '#F5F0E8'
-const GOLD    = '#C9A84C'
-const DARK    = '#1A1A1A'
-const DIVIDER = '#D1C9B8'
-const MUTED   = '#7C7267'
-const VERDE   = '#22C55E'
-const ROJO    = '#EF4444'
-const AZUL    = '#3B82F6'
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const PAPEL     = colors.papel        // '#F6F1E4'
+const TINTA     = colors.tinta        // '#0E0E0E'
+const ORO       = colors.oro          // '#E8B53C'
+const ORO_HONDO = colors.oroHondo     // '#C9961F'
+const GRIS      = colors.grisClaro    // '#E5E0D0'
+const ROJO      = colors.rojoUrgente  // '#C0392B'
+const MUTED     = '#7C7267'
+const DIVIDER   = '#D9D3C4'
+const VERDE     = '#4A7C59'
 
 const TIPO_LABEL: Record<TipoDocumento, string> = {
   dni:          'DNI',
-  ficha_medica: 'Ficha Médica',
-  otro:         'Otro',
+  ficha_medica: 'FICHA MÉD.',
+  otro:         'OTRO',
 }
 
-const TIPO_DOC_COLOR: Record<string, string> = {
-  dni:          AZUL,
+const TIPO_COLOR: Record<TipoDocumento, string> = {
+  dni:          ORO,
   ficha_medica: VERDE,
   otro:         MUTED,
 }
@@ -48,78 +52,90 @@ function formatFecha(iso: string) {
   })
 }
 
-// ─── Card jugador en lista ────────────────────────────────────────────────────
+// ─── Fila de jugador en lista ─────────────────────────────────────────────────
 
-function JugadorCard({
+function FilaJugador({
   jugador,
+  index,
   onPress,
 }: {
   jugador: JugadorFichado
+  index: number
   onPress: (j: JugadorFichado) => void
 }) {
+  const numero = String(index + 1).padStart(2, '0')
   return (
-    <TouchableOpacity style={styles.card} onPress={() => onPress(jugador)} activeOpacity={0.8}>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardMeta}>DNI {jugador.dni}</Text>
-          {jugador.posicion ? (
-            <Text style={styles.cardMeta}> · {jugador.posicion}</Text>
-          ) : null}
-        </View>
-        <Text style={styles.cardSub}>Fichado el {formatFecha(jugador.fecha_fichaje)}</Text>
+    <TouchableOpacity style={s.fila} onPress={() => onPress(jugador)} activeOpacity={0.8}>
+      <Text style={s.filaNumero}>{numero}</Text>
+      <View style={s.filaInfo}>
+        <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
+        {jugador.posicion ? (
+          <Text style={s.filaPosicion}>{jugador.posicion.toUpperCase()}</Text>
+        ) : null}
       </View>
-      <Text style={styles.chevron}>›</Text>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <Text style={s.filaFecha}>{formatFecha(jugador.fecha_fichaje)}</Text>
+        <View style={s.okBadge}>
+          <Text style={s.okBadgeTexto}>OK</Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={13} color={MUTED} style={{ marginLeft: 4 }} />
     </TouchableOpacity>
-  )
-}
-
-// ─── Info card en detalle ─────────────────────────────────────────────────────
-
-function InfoCard({ jugador }: { jugador: JugadorDetalle }) {
-  const filas: Array<{ label: string; valor: string | null }> = [
-    { label: 'DNI',         valor: jugador.dni },
-    { label: 'NACIMIENTO',  valor: formatFecha(jugador.fecha_nacimiento) },
-    { label: 'POSICIÓN',    valor: jugador.posicion },
-    { label: 'FICHADO',     valor: formatFecha(jugador.fecha_fichaje) },
-  ]
-  return (
-    <View style={styles.infoCard}>
-      <Text style={styles.infoNombre}>{jugador.nombre_completo}</Text>
-      {filas.map(({ label, valor }) =>
-        valor ? (
-          <View key={label} style={styles.infoFila}>
-            <Text style={styles.infoLabel}>{label}</Text>
-            <Text style={styles.infoValor}>{valor}</Text>
-          </View>
-        ) : null,
-      )}
-    </View>
   )
 }
 
 // ─── Fila de documento ────────────────────────────────────────────────────────
 
-function DocumentoRow({ doc }: { doc: DocumentoFichaje }) {
-  const color = TIPO_DOC_COLOR[doc.tipo] ?? MUTED
+function DocumentoFila({
+  doc,
+  abriendoDoc,
+  onAbrir,
+}: {
+  doc: DocumentoFichaje
+  abriendoDoc: string | null
+  onAbrir: (path: string) => void
+}) {
+  const tipo  = doc.tipo as TipoDocumento
+  const color = TIPO_COLOR[tipo] ?? MUTED
+  const abriendo = abriendoDoc === doc.storage_path
   return (
-    <View style={styles.docRow}>
-      <View style={[styles.docBadge, { borderColor: color }]}>
-        <Text style={[styles.docBadgeTexto, { color }]}>
-          {TIPO_LABEL[doc.tipo as TipoDocumento] ?? doc.tipo}
-        </Text>
+    <View style={s.docFila}>
+      {/* Ícono */}
+      <View style={[s.docIconWrap, { borderColor: color }]}>
+        <Ionicons name="document-outline" size={16} color={color} />
       </View>
+      {/* Info */}
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={styles.docNombre} numberOfLines={1}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[s.docTipo, { color }]}>{TIPO_LABEL[tipo] ?? doc.tipo}</Text>
+        </View>
+        <Text style={s.docNombre} numberOfLines={1}>
           {doc.nombre_archivo ?? 'Archivo'}
         </Text>
-        <Text style={styles.docFecha}>{formatFecha(doc.created_at.split('T')[0])}</Text>
+        <Text style={s.docFecha}>{formatFecha(doc.created_at.split('T')[0])}</Text>
       </View>
+      {/* Botón abrir */}
+      <TouchableOpacity
+        style={s.abrirBtn}
+        onPress={() => onAbrir(doc.storage_path)}
+        disabled={abriendo}
+        activeOpacity={0.75}
+      >
+        {abriendo
+          ? <ActivityIndicator size="small" color={ORO} />
+          : (
+            <>
+              <Text style={s.abrirBtnTexto}>ABRIR</Text>
+              <Ionicons name="open-outline" size={11} color={ORO} />
+            </>
+          )
+        }
+      </TouchableOpacity>
     </View>
   )
 }
 
-// ─── Selector de tipo de documento ───────────────────────────────────────────
+// ─── Selector tipo documento ──────────────────────────────────────────────────
 
 function SelectorTipo({
   seleccionado,
@@ -130,17 +146,17 @@ function SelectorTipo({
 }) {
   const tipos: TipoDocumento[] = ['dni', 'ficha_medica', 'otro']
   return (
-    <View style={styles.tipoRow}>
+    <View style={s.tipoRow}>
       {tipos.map(t => {
         const activo = seleccionado === t
         return (
           <TouchableOpacity
             key={t}
-            style={[styles.tipoBtn, activo && styles.tipoBtnActivo]}
+            style={[s.tipoBtn, activo && s.tipoBtnActivo]}
             onPress={() => onSelect(t)}
             activeOpacity={0.75}
           >
-            <Text style={[styles.tipoBtnTexto, activo && { color: DARK, fontWeight: '700' }]}>
+            <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
               {TIPO_LABEL[t]}
             </Text>
           </TouchableOpacity>
@@ -164,57 +180,66 @@ export default function FichajesScreen() {
     guardandoFichaje, guardadoFichajeOk, errorForm, guardarFichaje,
     tipoSeleccionado, setTipoSeleccionado,
     subiendo, subiendoOk, errorUpload, subirDocumento,
+    abriendoDoc, abrirDocumento,
   } = useFichajes()
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <ActivityIndicator color={GOLD} size="large" />
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={styles.centrado}>
-        <Text style={styles.mutedTexto}>Sin división asignada.</Text>
-        <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
+      <SafeAreaView style={s.centrado}>
+        <Text style={s.mutedTexto}>Sin división asignada.</Text>
+        <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.labelHeader}>MANAGER · {divisionNombre.toUpperCase()}</Text>
-        <Text style={styles.titulo}>Fichajes</Text>
+      <View style={s.header}>
+        <Text style={s.labelHeader}>MANAGER · {divisionNombre.toUpperCase()}</Text>
+        <View style={s.tituloRow}>
+          <Text style={s.titulo}>Fichajes</Text>
+          {jugadores.length > 0 && (
+            <Text style={s.tituloConteo}>{jugadores.length} fichados</Text>
+          )}
+        </View>
       </View>
-      <View style={styles.separador} />
+      <View style={s.separador} />
 
       {/* ── Paso: Lista ── */}
       {paso === 'lista' && (
         <>
-          <ScrollView contentContainerStyle={styles.lista}>
-            <View style={styles.seccionHeader}>
-              <Text style={styles.seccionLabel}>JUGADORES FICHADOS</Text>
-              <Text style={styles.seccionConteo}>{jugadores.length}</Text>
+          <ScrollView contentContainerStyle={s.lista}>
+            <View style={s.seccionHeader}>
+              <Text style={s.seccionLabel}>JUGADORES FICHADOS</Text>
+              <Text style={s.seccionConteo}>{jugadores.length}</Text>
             </View>
 
             {jugadores.length === 0 ? (
-              <Text style={styles.emptyTexto}>Sin jugadores fichados aún.</Text>
+              <Text style={s.emptyTexto}>Sin jugadores fichados aún.</Text>
             ) : (
-              <View style={{ gap: 10, marginTop: 8 }}>
-                {jugadores.map(j => (
-                  <JugadorCard key={j.id} jugador={j} onPress={seleccionarJugador} />
+              <View style={{ marginTop: 8 }}>
+                {jugadores.map((j, i) => (
+                  <View key={j.id}>
+                    {i > 0 && <View style={s.filaDiv} />}
+                    <FilaJugador jugador={j} index={i} onPress={seleccionarJugador} />
+                  </View>
                 ))}
               </View>
             )}
           </ScrollView>
 
-          <View style={styles.fabWrap}>
-            <TouchableOpacity style={styles.fab} onPress={abrirModal} activeOpacity={0.85}>
-              <Text style={styles.fabTexto}>+ NUEVO FICHAJE</Text>
+          <View style={s.fabWrap}>
+            <TouchableOpacity style={s.fab} onPress={abrirModal} activeOpacity={0.85}>
+              <Text style={s.fabTexto}>+ NUEVO FICHAJE</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -222,66 +247,97 @@ export default function FichajesScreen() {
 
       {/* ── Paso: Detalle jugador ── */}
       {paso === 'detalle' && jugadorDetalle && (
-        <ScrollView contentContainerStyle={styles.detalleScroll}>
-          <TouchableOpacity style={styles.volverBtn} onPress={volverALista} activeOpacity={0.7}>
-            <Text style={styles.volverTexto}>← Volver a lista</Text>
+        <ScrollView contentContainerStyle={s.detalleScroll}>
+          {/* Volver */}
+          <TouchableOpacity style={s.volverBtn} onPress={volverALista} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={16} color={ORO} />
+            <Text style={s.volverTexto}>Fichajes</Text>
           </TouchableOpacity>
 
-          <InfoCard jugador={jugadorDetalle} />
+          {/* Nombre grande */}
+          <View style={s.detalleNombreWrap}>
+            <Text style={s.detalleNombre}>{jugadorDetalle.nombre_completo}</Text>
+          </View>
+          <View style={s.separador} />
 
-          {/* Documentos */}
-          <View style={styles.seccionDetalle}>
-            <Text style={styles.seccionLabel}>DOCUMENTOS</Text>
+          {/* Info rows */}
+          <View style={s.infoSection}>
+            {[
+              { label: 'POSICIÓN',   valor: jugadorDetalle.posicion },
+              { label: 'DNI',        valor: jugadorDetalle.dni },
+              { label: 'NACIMIENTO', valor: formatFecha(jugadorDetalle.fecha_nacimiento) },
+              { label: 'FICHADO',    valor: formatFecha(jugadorDetalle.fecha_fichaje) },
+            ].map(({ label, valor }) =>
+              valor ? (
+                <View key={label} style={s.infoFila}>
+                  <Text style={s.infoLabel}>{label}</Text>
+                  <Text style={s.infoValor}>{valor}</Text>
+                </View>
+              ) : null,
+            )}
+          </View>
+          <View style={s.separador} />
+
+          {/* Documentación */}
+          <View style={s.seccionDetalle}>
+            <Text style={s.seccionLabel}>DOCUMENTACIÓN</Text>
 
             {cargandoDetalle ? (
-              <ActivityIndicator color={GOLD} style={{ marginTop: 12 }} />
+              <ActivityIndicator color={ORO} style={{ marginTop: 12 }} />
             ) : jugadorDetalle.documentos.length === 0 ? (
-              <Text style={styles.emptyTexto}>Sin documentos cargados.</Text>
+              <Text style={s.emptyTexto}>Sin documentos cargados.</Text>
             ) : (
-              <View style={{ gap: 0 }}>
+              <View style={{ marginTop: 4 }}>
                 {jugadorDetalle.documentos.map((doc, i) => (
                   <View key={doc.id}>
-                    {i > 0 && <View style={styles.filaDiv} />}
-                    <DocumentoRow doc={doc} />
+                    {i > 0 && <View style={s.filaDiv} />}
+                    <DocumentoFila
+                      doc={doc}
+                      abriendoDoc={abriendoDoc}
+                      onAbrir={abrirDocumento}
+                    />
                   </View>
                 ))}
               </View>
             )}
           </View>
+          <View style={s.separador} />
 
           {/* Subir documento */}
-          <View style={styles.seccionDetalle}>
-            <Text style={styles.seccionLabel}>SUBIR DOCUMENTO</Text>
+          <View style={s.seccionDetalle}>
+            <Text style={s.seccionLabel}>SUBIR DOCUMENTO</Text>
 
-            <SelectorTipo
-              seleccionado={tipoSeleccionado}
-              onSelect={setTipoSeleccionado}
-            />
+            <SelectorTipo seleccionado={tipoSeleccionado} onSelect={setTipoSeleccionado} />
 
             {tipoSeleccionado && (
               <TouchableOpacity
-                style={[styles.boton, subiendo && { opacity: 0.6 }]}
+                style={[s.botonSubir, subiendo && { opacity: 0.6 }]}
                 onPress={() => subirDocumento(tipoSeleccionado)}
                 disabled={subiendo}
                 activeOpacity={0.85}
               >
-                {subiendo
-                  ? <ActivityIndicator color={GOLD} size="small" />
-                  : <Text style={styles.botonTexto}>
-                      SELECCIONAR ARCHIVO — {TIPO_LABEL[tipoSeleccionado]}
-                    </Text>}
+                {subiendo ? (
+                  <ActivityIndicator color={ORO} size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={16} color={ORO} />
+                    <Text style={s.botonSubirTexto}>
+                      SELECCIONAR — {TIPO_LABEL[tipoSeleccionado]}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
 
             {errorUpload && (
-              <View style={styles.bannerError}>
-                <Text style={styles.bannerErrorTexto}>{errorUpload}</Text>
+              <View style={s.bannerError}>
+                <Text style={s.bannerErrorTexto}>{errorUpload}</Text>
               </View>
             )}
 
             {subiendoOk && (
-              <View style={styles.bannerOk}>
-                <Text style={styles.bannerOkTexto}>✓ Documento subido correctamente</Text>
+              <View style={s.bannerOk}>
+                <Text style={s.bannerOkTexto}>DOCUMENTO SUBIDO</Text>
               </View>
             )}
           </View>
@@ -294,20 +350,33 @@ export default function FichajesScreen() {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitulo}>Nuevo fichaje</Text>
-              <TouchableOpacity onPress={cerrarModal} disabled={guardandoFichaje} activeOpacity={0.7}>
-                <Text style={styles.modalCerrar}>✕</Text>
+          <SafeAreaView style={s.modalContainer}>
+            {/* Header modal */}
+            <View style={s.modalHeader}>
+              <View>
+                <Text style={s.modalSuper}>NUEVO</Text>
+                <Text style={s.modalTitulo}>Fichaje</Text>
+              </View>
+              <TouchableOpacity
+                onPress={cerrarModal}
+                disabled={guardandoFichaje}
+                activeOpacity={0.7}
+                style={s.modalClose}
+              >
+                <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            <View style={styles.separador} />
+            <View style={s.separador} />
 
-            <ScrollView contentContainerStyle={styles.modalScroll} keyboardShouldPersistTaps="handled">
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>NOMBRE COMPLETO</Text>
+            <ScrollView
+              contentContainerStyle={s.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Nombre */}
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>NOMBRE COMPLETO</Text>
                 <TextInput
-                  style={styles.inputTexto}
+                  style={s.inputLinea}
                   value={nombre}
                   onChangeText={setNombre}
                   placeholder="Apellido y nombre"
@@ -316,10 +385,11 @@ export default function FichajesScreen() {
                 />
               </View>
 
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>DNI</Text>
+              {/* DNI */}
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>DNI</Text>
                 <TextInput
-                  style={styles.inputTexto}
+                  style={s.inputLinea}
                   value={dni}
                   onChangeText={setDni}
                   placeholder="40000001"
@@ -329,7 +399,8 @@ export default function FichajesScreen() {
                 />
               </View>
 
-              <View style={styles.campo}>
+              {/* Fecha nacimiento */}
+              <View style={s.campo}>
                 <DatePickerField
                   label="FECHA DE NACIMIENTO"
                   value={fechaNacimiento}
@@ -338,10 +409,11 @@ export default function FichajesScreen() {
                 />
               </View>
 
-              <View style={styles.campo}>
-                <Text style={styles.campoLabel}>POSICIÓN (opcional)</Text>
+              {/* Posición */}
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>POSICIÓN (opcional)</Text>
                 <TextInput
-                  style={styles.inputTexto}
+                  style={s.inputLinea}
                   value={posicion}
                   onChangeText={setPosicion}
                   placeholder="Apertura, Pilar, Hooker..."
@@ -350,35 +422,40 @@ export default function FichajesScreen() {
                 />
               </View>
 
+              {/* Error */}
               {errorForm && (
-                <View style={styles.bannerError}>
-                  <Text style={styles.bannerErrorTexto}>{errorForm}</Text>
+                <View style={s.bannerError}>
+                  <Text style={s.bannerErrorTexto}>{errorForm}</Text>
                 </View>
               )}
 
+              {/* Éxito */}
               {guardadoFichajeOk && (
-                <View style={styles.bannerOk}>
-                  <Text style={styles.bannerOkTexto}>✓ Fichaje registrado</Text>
-                  <Text style={styles.bannerOkSub}>Se notificará a la Subcomisión</Text>
+                <View style={s.bannerOk}>
+                  <Text style={s.bannerOkTexto}>FICHAJE REGISTRADO</Text>
+                  <Text style={s.bannerOkSub}>Se notificará a la Subcomisión</Text>
                 </View>
               )}
 
+              {/* Guardar */}
               {!guardadoFichajeOk && (
                 <TouchableOpacity
-                  style={[styles.boton, guardandoFichaje && { opacity: 0.6 }]}
+                  style={[s.botonPrincipal, guardandoFichaje && { opacity: 0.6 }]}
                   onPress={guardarFichaje}
                   disabled={guardandoFichaje}
                   activeOpacity={0.85}
                 >
                   {guardandoFichaje
-                    ? <ActivityIndicator color={GOLD} size="small" />
-                    : <Text style={styles.botonTexto}>GUARDAR FICHAJE</Text>}
+                    ? <ActivityIndicator color={ORO} size="small" />
+                    : <Text style={s.botonPrincipalTexto}>FICHAR JUGADOR</Text>
+                  }
                 </TouchableOpacity>
               )}
 
+              {/* Cerrar post-guardado */}
               {guardadoFichajeOk && (
-                <TouchableOpacity style={styles.botonSecundario} onPress={cerrarModal} activeOpacity={0.85}>
-                  <Text style={styles.botonSecundarioTexto}>CERRAR</Text>
+                <TouchableOpacity style={s.botonSecundario} onPress={cerrarModal} activeOpacity={0.85}>
+                  <Text style={s.botonSecundarioTexto}>CERRAR</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -389,89 +466,119 @@ export default function FichajesScreen() {
   )
 }
 
-// ─── Estilos ─────────────────────────────────────────────────────────────────
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: CREAM },
-  centrado:     { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 8 },
-  mutedTexto:   { color: MUTED, fontSize: 14, fontFamily: 'serif', fontStyle: 'italic', textAlign: 'center' },
+const s = StyleSheet.create({
+  container:  { flex: 1, backgroundColor: PAPEL },
+  centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL, gap: 8 },
+  mutedTexto: { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
 
+  // Header
   header:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:  { fontSize: 10, letterSpacing: 2, color: GOLD, marginBottom: 4 },
-  titulo:       { fontSize: 32, fontStyle: 'italic', fontFamily: 'serif', color: DARK, lineHeight: 36 },
+  labelHeader:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  tituloRow:    { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
+  titulo:       { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  tituloConteo: { fontSize: 13, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
   separador:    { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  lista:        { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
-  seccionHeader:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionLabel: { fontSize: 10, letterSpacing: 2, color: GOLD },
-  seccionConteo:{ fontSize: 13, color: MUTED, fontWeight: '600' },
-  emptyTexto:   { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: 'serif', marginTop: 12 },
+  // Lista
+  lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
+  seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  seccionLabel:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  seccionConteo: { fontSize: 13, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo, marginTop: 12 },
+  filaDiv:       { height: 1, backgroundColor: DIVIDER },
 
-  // Card jugador en lista
-  card:         { borderWidth: 1, borderColor: DIVIDER, borderRadius: 8, padding: 14, flexDirection: 'row', alignItems: 'center' },
-  cardBody:     { flex: 1, gap: 3 },
-  cardNombre:   { fontSize: 15, fontWeight: '700', color: DARK },
-  cardRow:      { flexDirection: 'row' },
-  cardMeta:     { fontSize: 13, color: MUTED },
-  cardSub:      { fontSize: 12, color: MUTED },
-  chevron:      { fontSize: 22, color: DIVIDER, paddingLeft: 8 },
+  // Fila de jugador
+  fila:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
+  filaNumero:  { fontSize: 11, color: MUTED, fontFamily: fonts.label, width: 22, textAlign: 'right' },
+  filaInfo:    { flex: 1, gap: 3 },
+  filaNombre:  { fontSize: 15, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
+  filaPosicion:{ fontSize: 10, color: MUTED, fontFamily: fonts.label, letterSpacing: 1 },
+  filaFecha:   { fontSize: 10, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.3 },
 
-  // FAB
-  fabWrap:      { position: 'absolute', bottom: 24, left: 16, right: 16 },
-  fab:          { backgroundColor: DARK, paddingVertical: 15, borderRadius: 4, alignItems: 'center' },
-  fabTexto:     { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  // Badge OK
+  okBadge:     { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-end' },
+  okBadgeTexto:{ fontSize: 9, fontWeight: '700', color: TINTA, fontFamily: fonts.label, letterSpacing: 1 },
+
+  // FAB dorado
+  fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
+  fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  fabTexto:{ color: TINTA, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
   // Volver
-  volverBtn:    { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8 },
-  volverTexto:  { color: GOLD, fontSize: 13, fontWeight: '600' },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverTexto:{ fontSize: 13, color: ORO, fontFamily: fonts.label, letterSpacing: 0.5 },
 
-  // Detalle
-  detalleScroll: { paddingBottom: 40 },
-  seccionDetalle:{ paddingHorizontal: 16, paddingTop: 20, gap: 12 },
+  // Detalle — nombre grande
+  detalleScroll:     { paddingBottom: 48 },
+  detalleNombreWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 18 },
+  detalleNombre:     { fontSize: 28, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 34 },
 
-  // Info card jugador
-  infoCard:     { marginHorizontal: 16, marginTop: 4, borderWidth: 1, borderColor: DIVIDER, borderRadius: 8, padding: 16, gap: 10 },
-  infoNombre:   { fontSize: 18, fontWeight: '700', color: DARK, marginBottom: 4 },
-  infoFila:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  infoLabel:    { fontSize: 10, letterSpacing: 1.5, color: MUTED, marginTop: 2, width: 90 },
-  infoValor:    { fontSize: 14, color: DARK, flex: 1, textAlign: 'right' },
+  // Info rows del detalle
+  infoSection:{ paddingHorizontal: 20, paddingVertical: 16, gap: 12 },
+  infoFila:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  infoLabel:  { fontSize: 9, letterSpacing: 2, color: MUTED, fontFamily: fonts.label, width: 90 },
+  infoValor:  { fontSize: 14, color: TINTA, fontFamily: fonts.cuerpo, flex: 1, textAlign: 'right' },
 
-  // Documentos
-  filaDiv:      { height: 1, backgroundColor: DIVIDER },
-  docRow:       { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-  docBadge:     { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  docBadgeTexto:{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  docNombre:    { fontSize: 13, color: DARK, fontWeight: '600' },
-  docFecha:     { fontSize: 11, color: MUTED },
+  // Sección detalle (documentos, upload)
+  seccionDetalle: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4, gap: 12 },
 
-  // Tipo de documento selector
-  tipoRow:         { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  tipoBtn:         { borderWidth: 1, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 7 },
-  tipoBtnActivo:   { borderColor: GOLD, backgroundColor: '#FBF0D0' },
-  tipoBtnTexto:    { fontSize: 13, color: MUTED },
+  // Fila de documento
+  docFila:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 12 },
+  docIconWrap:{ width: 34, height: 34, borderRadius: 3, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  docTipo:    { fontSize: 9, letterSpacing: 1.5, fontWeight: '700', fontFamily: fonts.label },
+  docNombre:  { fontSize: 13, color: TINTA, fontFamily: fonts.cuerpo, fontWeight: '600' },
+  docFecha:   { fontSize: 10, color: MUTED, fontFamily: fonts.label },
 
-  // Modal
-  modalContainer: { flex: 1, backgroundColor: CREAM },
-  modalHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalTitulo:    { fontSize: 20, fontStyle: 'italic', fontFamily: 'serif', color: DARK },
-  modalCerrar:    { fontSize: 18, color: MUTED, paddingHorizontal: 4 },
-  modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 20 },
+  // Botón abrir documento
+  abrirBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, justifyContent: 'center' },
+  abrirBtnTexto: { fontSize: 9, letterSpacing: 1.5, color: ORO, fontFamily: fonts.label, fontWeight: '700' },
 
-  // Campos
-  campo:          { gap: 8 },
-  campoLabel:     { fontSize: 10, letterSpacing: 2, color: GOLD },
-  inputTexto:     { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, padding: 12, fontSize: 15, color: DARK },
+  // Selector tipo
+  tipoRow:            { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  tipoBtn:            { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
+  tipoBtnActivo:      { borderColor: ORO, backgroundColor: '#FBF6EA' },
+  tipoBtnTexto:       { fontSize: 10, letterSpacing: 1, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  tipoBtnTextoActivo: { color: ORO_HONDO },
+
+  // Botón subir documento (borde dorado)
+  botonSubir:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3 },
+  botonSubirTexto: { color: ORO, fontSize: 10, letterSpacing: 2, fontFamily: fonts.label, fontWeight: '700' },
 
   // Banners
-  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 6, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#991B1B' },
-  bannerOk:         { backgroundColor: '#F0FDF4', borderLeftWidth: 3, borderLeftColor: VERDE, borderRadius: 6, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontSize: 14, color: '#166534', fontWeight: '700' },
-  bannerOkSub:      { fontSize: 12, color: '#166534' },
+  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
+  bannerOk:         { backgroundColor: TINTA, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
+  bannerOkTexto:    { fontSize: 11, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 2 },
+  bannerOkSub:      { fontSize: 12, color: '#9A8870', fontFamily: fonts.cuerpo },
+
+  // Modal
+  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
+  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA },
+  modalClose:     { padding: 4, marginTop: 4 },
+  modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
+
+  // Campos del modal
+  campo:     { gap: 10 },
+  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+
+  // Input con borde inferior dorado
+  inputLinea: {
+    borderBottomWidth: 1.5,
+    borderBottomColor: ORO,
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    fontSize: 15,
+    color: TINTA,
+    fontFamily: fonts.cuerpo,
+  },
 
   // Botones
-  boton:              { backgroundColor: DARK, paddingVertical: 14, borderRadius: 4, alignItems: 'center' },
-  botonTexto:         { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
-  botonSecundario:    { borderWidth: 1.5, borderColor: GOLD, paddingVertical: 12, borderRadius: 4, alignItems: 'center' },
-  botonSecundarioTexto: { color: GOLD, fontSize: 11, letterSpacing: 2.5, fontWeight: '600' },
+  botonPrincipal:       { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalTexto:  { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
+  botonSecundarioTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

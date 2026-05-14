@@ -8,11 +8,16 @@ export type EstadoPago   = 'pagado' | 'pendiente'
 export type PasoCobranzas = 'eventos' | 'jugadores'
 
 export interface EventoFinanciero {
-  id:          string
-  tipo:        string
-  nombre:      string
-  descripcion: string | null
-  fecha:       string | null
+  id:             string
+  tipo:           string
+  nombre:         string
+  descripcion:    string | null
+  fecha:          string | null
+  // Estadísticas de cobranza calculadas al cargar la lista
+  pctCobrado:     number
+  countPagados:   number
+  countJugadores: number
+  montoCobrado:   number
 }
 
 export interface CobranzaJugador {
@@ -99,21 +104,62 @@ export function useCobranzas() {
   }
 
   async function cargarEventos(divId: string) {
-    const { data } = await supabase
+    const { data: eventosData } = await supabase
       .from('eventos_financieros')
       .select('id, tipo, nombre, descripcion, fecha')
       .eq('estado', 'activo')
       .or(`division_id.eq.${divId},division_id.is.null`)
       .order('fecha', { ascending: false, nullsFirst: false })
 
+    if (!eventosData || eventosData.length === 0) {
+      setEventos([])
+      return
+    }
+
+    const eventoIds = eventosData.map(e => e.id)
+
+    const [cobranzasRes, jugadoresRes] = await Promise.all([
+      supabase
+        .from('cobranzas')
+        .select('evento_financiero_id, estado, monto')
+        .in('evento_financiero_id', eventoIds),
+      supabase
+        .from('jugadores')
+        .select('id', { count: 'exact', head: true })
+        .eq('division_id', divId)
+        .eq('activo', true),
+    ])
+
+    const countJugadores = jugadoresRes.count ?? 0
+
+    const statsMap = new Map<string, { pagados: number; montoCobrado: number }>()
+    for (const c of (cobranzasRes.data ?? [])) {
+      const ev = c.evento_financiero_id as string
+      if (!statsMap.has(ev)) statsMap.set(ev, { pagados: 0, montoCobrado: 0 })
+      if (c.estado === 'pagado') {
+        const s = statsMap.get(ev)!
+        s.pagados++
+        s.montoCobrado += Number(c.monto ?? 0)
+      }
+    }
+
     setEventos(
-      (data ?? []).map(e => ({
-        id:          e.id,
-        tipo:        e.tipo,
-        nombre:      e.nombre,
-        descripcion: e.descripcion,
-        fecha:       e.fecha,
-      })),
+      eventosData.map(e => {
+        const stats = statsMap.get(e.id) ?? { pagados: 0, montoCobrado: 0 }
+        return {
+          id:             e.id,
+          tipo:           e.tipo,
+          nombre:         e.nombre,
+          descripcion:    e.descripcion,
+          fecha:          e.fecha,
+          pctCobrado:     countJugadores > 0
+            ? Math.round((stats.pagados / countJugadores) * 100)
+            : 0,
+          countPagados:   stats.pagados,
+          countJugadores,
+          montoCobrado:   stats.montoCobrado,
+        }
+      }),
     )
   }
 
