@@ -11,7 +11,9 @@ export function useForgotPassword() {
     setError(null)
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email)
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'uncasrugby://reset-password',
+      })
 
       if (resetError) {
         setError('No se pudo enviar el link. Verificá el email ingresado.')

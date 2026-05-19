@@ -2,7 +2,7 @@
   "expo": {
     "name": "Uncas Rugby App",
     "slug": "uncas-rugby-app",
-    "scheme": "rugby-app",
+    "scheme": "uncasrugby",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -22,7 +22,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.uncas.rugbyapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +33,12 @@
       "expo-asset",
       "expo-font",
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d363d962-7caf-4050-81fc-b70b493289ca"
+      }
+    }
   }
 }

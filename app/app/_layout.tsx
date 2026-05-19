@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { Slot, useRouter } from 'expo-router'
-import { useRootNavigationState } from 'expo-router'
+import { Linking } from 'react-native'
+import { Slot, useRouter, useRootNavigationState } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
@@ -8,20 +8,55 @@ import type { Rol } from '@/constants/roles'
 const ROL_RUTAS: Record<string, string> = {
   subcomision: '/(subcomision)/diario',
   coordinador: '/(coordinador)/diario',
-  entrenador: '/(entrenador)/diario',
-  manager: '/(manager)/diario',
-  admin: '/(subcomision)/diario',
+  entrenador:  '/(entrenador)/diario',
+  manager:     '/(manager)/diario',
+  admin:       '/(subcomision)/diario',
 }
 
 export default function RootLayout() {
-  const router = useRouter()
+  const router   = useRouter()
   const navState = useRootNavigationState()
-  const { session, rol, loading, setSession, setRol, clearAuth } = useAuthStore()
+  const {
+    session, rol, loading, isPasswordRecovery,
+    setSession, setRol, clearAuth, setPasswordRecovery,
+  } = useAuthStore()
 
-  // Escuchar cambios de sesión
+  // Parsear deep links de recovery/invite
+  useEffect(() => {
+    async function handleUrl(url: string) {
+      // PKCE flow: ?code=...
+      const codeMatch = url.match(/[?&]code=([^&#]+)/)
+      if (codeMatch) {
+        await supabase.auth.exchangeCodeForSession(decodeURIComponent(codeMatch[1]))
+        return
+      }
+      // Implicit flow: #access_token=...
+      const fragment = url.split('#')[1]
+      if (!fragment) return
+      const params      = new URLSearchParams(fragment)
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      const type        = params.get('type')
+      if (accessToken && refreshToken) {
+        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        if (type === 'recovery') setPasswordRecovery(true)
+      }
+    }
+
+    Linking.getInitialURL().then(url => { if (url) handleUrl(url) })
+    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url))
+    return () => sub.remove()
+  }, [])
+
+  // Listener de cambios de sesión Supabase
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          setSession(newSession!)
+          setPasswordRecovery(true)
+          return
+        }
         if (newSession) {
           const { data: profile } = await supabase
             .from('profiles')
@@ -38,15 +73,19 @@ export default function RootLayout() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Guard de navegación — separado del listener de sesión
+  // Guard de navegación
   useEffect(() => {
     if (!navState?.key || loading) return
+    if (isPasswordRecovery) {
+      router.replace('/(auth)/reset-password')
+      return
+    }
     if (!session) {
       router.replace('/(auth)/login')
     } else if (rol) {
       router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
-  }, [navState?.key, session?.access_token, rol, loading])
+  }, [navState?.key, session?.access_token, rol, loading, isPasswordRecovery])
 
   return <Slot />
 }
