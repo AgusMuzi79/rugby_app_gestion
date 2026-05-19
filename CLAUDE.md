@@ -124,17 +124,21 @@ supabase start
 - 1 partido de prueba: vs Pampas RC, 2026-05-10, Cancha principal
 
 ### Expo app (app/)
-- `app/app/_layout.tsx` — root layout con auth guard. Usa `useRootNavigationState()` para esperar el navigator. **CRÍTICO**: dep de useEffect es `session?.access_token` (string primitivo), NO el objeto `session` — evita loop infinito por TOKEN_REFRESHED de Supabase que crea nuevas referencias de objeto.
-- `app/app/(auth)/login.tsx` + `forgot-password.tsx` — diseño "La Bitácora" (cream/gold/serif)
+- `app/app/index.tsx` — redirect automático a `/(auth)/login` (resuelve "unmatched route" al iniciar)
+- `app/app/_layout.tsx` — root layout con auth guard. Usa `useRootNavigationState()` para esperar el navigator. Parsea deep links al iniciar: PKCE (`?code=`) via `exchangeCodeForSession` e implicit (`#access_token=`) via `setSession`. Maneja evento `PASSWORD_RECOVERY` → setea flag `isPasswordRecovery` → redirige a `/(auth)/reset-password`. **CRÍTICO**: dep de useEffect es `session?.access_token` (string primitivo), NO el objeto `session` — evita loop infinito por TOKEN_REFRESHED.
+- `app/app/(auth)/login.tsx` — diseño La Bitácora final con fuentes custom reales: PlayfairDisplay_900Black_Italic (título), Lora_400Regular (inputs/subtítulo), ArchivoNarrow_400Regular (labels/botones). Tokens de `constants/theme.ts`. Muestra banner verde de éxito si recibe param `?mensaje=` (post reset-password). "UNCAS RUGBY CLUB · EST. 1836".
+- `app/app/(auth)/forgot-password.tsx` — misma identidad La Bitácora que login. `redirectTo: 'uncasrugby://reset-password'`.
+- `app/app/(auth)/reset-password.tsx` — pantalla nueva. Dos campos contraseña + show/hide. Llama `supabase.auth.updateUser({ password })`, luego signOut + clearAuth + redirect a login con mensaje de éxito. Usa hook `useResetPassword`.
 - `app/app/(auth)/_layout.tsx` — stack sin header
 - `app/app/(subcomision|coordinador|entrenador|manager)/_layout.tsx` — tab navigation oscura (fondo `#0E0E0E`, activo `#E8B53C`, inactivo `#666666`), iconos Feather, `tabBarShowLabel: false`. Tab "Sobre" navega a la pantalla de perfil. **Ver estructura de tabs por rol abajo.**
-- `app/lib/supabase.ts` — cliente con AsyncStorage + AppState
+- `app/lib/supabase.ts` — cliente con AsyncStorage + AppState, `detectSessionInUrl: false`
 - `app/lib/offlineQueue.ts` — `encolar/obtenerCola/eliminarDeCola/tamañoCola` (nombres en español, tipo `OperacionOffline`)
-- `app/stores/authStore.ts` — Zustand: session, rol, loading, setSession, setRol, clearAuth
+- `app/stores/authStore.ts` — Zustand: session, rol, loading, **isPasswordRecovery**, setSession, setRol, clearAuth, **setPasswordRecovery**
 - `app/constants/roles.ts` — incluye `admin` mapeado a `/(subcomision)/diario` (no dashboard)
 - `app/constants/theme.ts` — sistema de diseño "La Bitácora": `colors` (tinta/oro/oroHondo/papel/blanco/grisClaro/rojoUrgente) + `fonts` (titulo=PlayfairDisplay_900Black_Italic, cuerpo=Lora_400Regular, label=ArchivoNarrow_400Regular)
 - `app/hooks/useLogin.ts` — signIn + fetch profile.rol
-- `app/hooks/useForgotPassword.ts` — resetPasswordForEmail
+- `app/hooks/useForgotPassword.ts` — resetPasswordForEmail con `redirectTo: 'uncasrugby://reset-password'`
+- `app/hooks/useResetPassword.ts` — validación (match + mínimo 8 chars), `updateUser({ password })`, signOut, `setPasswordRecovery(false)`
 - `app/hooks/useSignOut.ts` — signOut + clearAuth
 
 **Estructura de tabs por rol** (icon Feather → pantalla):
@@ -158,15 +162,17 @@ supabase gen types typescript --local > app/lib/database.types.ts
 ### Edge Functions
 | Función | Estado | Descripción |
 |---|---|---|
-| `supabase/functions/admin-usuarios/` | ✅ completo | create (inviteUserByEmail) / deactivate (ban 876000h) / reactivate |
+| `supabase/functions/admin-usuarios/` | ✅ completo | create (`generateLink` type=invite → obtiene action_link + envía email HTML La Bitácora via Resend) / deactivate (ban 876000h) / reactivate |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API. Tipos: `lesion`, `fichaje`, `ausencias_consecutivas`, `manual`. Manual: solo push (DB insert lo hace el cliente). |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
+
+**`admin-usuarios` create flow**: usa `supabase.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo: 'uncasrugby://reset-password' } })` — esto crea el usuario y retorna `properties.action_link` SIN enviar el email de Supabase. Luego envía email HTML propio vía Resend con dos botones: "DESCARGAR LA APP" (APK link) y "CREAR MI CONTRASEÑA" (action_link). Requiere secret `RESEND_API_KEY`; si no está configurada loguea warning y continúa.
 
 **Nota Edge Functions local**: `supabase start` NO levanta el Edge Runtime. Para probar funciones localmente, correr `supabase functions serve` en paralelo.
 
 ### Dependencias nativas instaladas
 - `react-native-modal-datetime-picker@18.0.0` + `@react-native-community/datetimepicker@8.4.4` — pickers nativos de fecha/hora
-- `react-native-reanimated@3.17.5` — requerido por NativeWind css-interop en runtime
+- `react-native-reanimated@4.1.7` — compatible con SDK 54 / RN 0.81.5 (actualizado desde 3.17.5). Requerido por NativeWind css-interop en runtime.
 - `babel.config.js` tiene `react-native-reanimated/plugin` en plugins
 
 **⚠️ IMPORTANTE**: Para cualquier `npm install` en este proyecto usar siempre `--legacy-peer-deps` por conflicto `react-dom@19.2.6` vs `react@19.1.0`. Si se omite, npm puede eliminar paquetes transitivos (incluido reanimated).
@@ -281,15 +287,43 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 
 **Nota Expo Go SDK 53**: push remotas eliminadas de Expo Go. `notifications.ts` usa `Constants.appOwnership === 'expo'` para detectar Expo Go y saltear todo lo relacionado a push (incluyendo imports dinámicos de `expo-notifications`). Para probar push se necesita un development build (`eas build --profile development`).
 
+### Supabase Cloud
+- Proyecto: `tlexvbattnzpmdftjsao` (producción)
+- URL: `https://tlexvbattnzpmdftjsao.supabase.co`
+- `app/.env.local` apunta a cloud (no a local)
+- Migraciones aplicadas en cloud (`supabase db push`)
+- Edge Functions deployadas: `admin-usuarios`, `notifications`
+- **Secret a configurar**: `RESEND_API_KEY` en Supabase Dashboard → Project Settings → Edge Functions → Secrets
+- **Redirect URL a agregar**: `uncasrugby://reset-password` en Authentication → URL Configuration
+
+### EAS Build
+- `app/eas.json` creado con profiles: `development` (developmentClient), `preview` (internal, APK), `production` (internal)
+- EAS CLI v18.13.0 instalado globalmente
+- Project ID: `d363d962-7caf-4050-81fc-b70b493289ca` (en `app.json extra.eas`)
+- Scheme deep linking: `uncasrugby` (en `app.json`)
+- Build command: `eas build --profile preview --platform all` (desde `app/`)
+
+### Deep Linking — Flujo de recuperación de contraseña
+1. `useForgotPassword` llama `resetPasswordForEmail(email, { redirectTo: 'uncasrugby://reset-password' })`
+2. Supabase envía email con link `uncasrugby://reset-password#access_token=...&type=recovery`
+3. `_layout.tsx` parsea el deep link → `setSession` → `setPasswordRecovery(true)`
+4. También maneja evento `PASSWORD_RECOVERY` de `onAuthStateChange`
+5. Nav guard detecta `isPasswordRecovery` → navega a `/(auth)/reset-password`
+6. `useResetPassword` valida y llama `updateUser({ password })` → signOut → redirect login con banner
+
 ### Próximo paso al volver
-MVP completo. Todas las pantallas y hooks implementados. Identidad visual La Bitácora aplicada a todas las pantallas funcionales de los 4 roles.
+App conectada a Supabase Cloud, EAS configurado, flujo de onboarding completo.
 
-**Identidad La Bitácora aplicada a**:
-- `(entrenador)/asistencia.tsx`, `partido.tsx`, `lesiones.tsx`
-- `(manager)/cobranzas.tsx`, `fichajes.tsx`
-- `(subcomision)/eventos.tsx`
+**Pendiente para activar el email de bienvenida**:
+- Configurar `RESEND_API_KEY` en Supabase secrets
+- Agregar `uncasrugby://reset-password` como Redirect URL en Supabase Auth
 
-Listo para testing end-to-end y build EAS (`eas build --profile preview --platform all`).
+**Para lanzar build de distribución**:
+```bash
+cd app
+eas build --profile preview --platform android   # APK para Android
+eas build --profile preview --platform ios        # IPA para iOS (requiere Apple Developer)
+```
 
 ## Fuentes
 
