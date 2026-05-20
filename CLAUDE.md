@@ -125,17 +125,19 @@ supabase start
 
 ### Expo app (app/)
 - `app/app/index.tsx` — redirect automático a `/(auth)/login` (resuelve "unmatched route" al iniciar)
-- `app/app/_layout.tsx` — root layout con auth guard. Usa `useRootNavigationState()` para esperar el navigator. Parsea deep links al iniciar: PKCE (`?code=`) via `exchangeCodeForSession` e implicit (`#access_token=`) via `setSession`. Maneja evento `PASSWORD_RECOVERY` → setea flag `isPasswordRecovery` → redirige a `/(auth)/reset-password`. **CRÍTICO**: dep de useEffect es `session?.access_token` (string primitivo), NO el objeto `session` — evita loop infinito por TOKEN_REFRESHED.
+- `app/app/_layout.tsx` — root layout con auth guard, wrapeado en `ThemeProvider`. Usa `useRootNavigationState()` para esperar el navigator. Parsea deep links al iniciar: PKCE (`?code=`) via `exchangeCodeForSession` e implicit (`#access_token=`) via `setSession`. Maneja evento `PASSWORD_RECOVERY` → setea flag `isPasswordRecovery` → redirige a `/(auth)/reset-password`. Detecta deep links de tipo invite (`type=invite`) → setea `isNuevoUsuario(true)` → redirige a `/(auth)/registro`. **CRÍTICO**: dep de useEffect es `session?.access_token` (string primitivo), NO el objeto `session` — evita loop infinito por TOKEN_REFRESHED.
 - `app/app/(auth)/login.tsx` — diseño La Bitácora final con fuentes custom reales: PlayfairDisplay_900Black_Italic (título), Lora_400Regular (inputs/subtítulo), ArchivoNarrow_400Regular (labels/botones). Tokens de `constants/theme.ts`. Muestra banner verde de éxito si recibe param `?mensaje=` (post reset-password). "UNCAS RUGBY CLUB · EST. 1836".
 - `app/app/(auth)/forgot-password.tsx` — misma identidad La Bitácora que login. `redirectTo: 'uncasrugby://reset-password'`.
 - `app/app/(auth)/reset-password.tsx` — pantalla nueva. Dos campos contraseña + show/hide. Llama `supabase.auth.updateUser({ password })`, luego signOut + clearAuth + redirect a login con mensaje de éxito. Usa hook `useResetPassword`.
+- `app/app/(auth)/registro.tsx` — **NUEVO**: pantalla de bienvenida para usuarios invitados (primer acceso). Muestra el nombre del usuario y pide que configure su contraseña. Misma identidad visual que login. Al completar → redirige al diario del rol correspondiente y limpia flag `isNuevoUsuario`.
 - `app/app/(auth)/_layout.tsx` — stack sin header
 - `app/app/(subcomision|coordinador|entrenador|manager)/_layout.tsx` — tab navigation oscura (fondo `#0E0E0E`, activo `#E8B53C`, inactivo `#666666`), iconos Feather, `tabBarShowLabel: false`. Tab "Sobre" navega a la pantalla de perfil. **Ver estructura de tabs por rol abajo.**
 - `app/lib/supabase.ts` — cliente con AsyncStorage + AppState, `detectSessionInUrl: false`
 - `app/lib/offlineQueue.ts` — `encolar/obtenerCola/eliminarDeCola/tamañoCola` (nombres en español, tipo `OperacionOffline`)
-- `app/stores/authStore.ts` — Zustand: session, rol, loading, **isPasswordRecovery**, setSession, setRol, clearAuth, **setPasswordRecovery**
+- `app/stores/authStore.ts` — Zustand: session, rol, loading, **isPasswordRecovery**, **isNuevoUsuario**, setSession, setRol, clearAuth, setPasswordRecovery, **setNuevoUsuario**
 - `app/constants/roles.ts` — incluye `admin` mapeado a `/(subcomision)/diario` (no dashboard)
 - `app/constants/theme.ts` — sistema de diseño "La Bitácora": `colors` (tinta/oro/oroHondo/papel/blanco/grisClaro/rojoUrgente) + `fonts` (titulo=PlayfairDisplay_900Black_Italic, cuerpo=Lora_400Regular, label=ArchivoNarrow_400Regular)
+- `app/contexts/ThemeContext.tsx` — **NUEVO**: `ThemeProvider` (wrappea root layout), `useTheme()` hook. Modos: `'light' | 'dark' | 'system'`. Persiste elección en AsyncStorage key `@tema`. `ThemeColors` interface: `fondo, texto, acento, card, tinta, papel, oro, oroHondo, blanco, grisClaro, rojoUrgente, muted`. Light: `fondo:#F6F1E4`, `card:#FFFFFF`, `grisClaro:#E5E0D0`. Dark: `fondo:#1A1A1A`, `card:#2A2A2A`, `grisClaro:#333333`.
 - `app/hooks/useLogin.ts` — signIn + fetch profile.rol
 - `app/hooks/useForgotPassword.ts` — resetPasswordForEmail con `redirectTo: 'uncasrugby://reset-password'`
 - `app/hooks/useResetPassword.ts` — validación (match + mínimo 8 chars), `updateUser({ password })`, signOut, `setPasswordRecovery(false)`
@@ -162,33 +164,37 @@ supabase gen types typescript --local > app/lib/database.types.ts
 ### Edge Functions
 | Función | Estado | Descripción |
 |---|---|---|
-| `supabase/functions/admin-usuarios/` | ✅ completo | create (`inviteUserByEmail` → Supabase envía email via SMTP configurado + template del Dashboard) / deactivate (ban 876000h) / reactivate |
+| `supabase/functions/admin-usuarios/` | ✅ completo | create / deactivate / reactivate / **getUser** |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API. Tipos: `lesion`, `fichaje`, `ausencias_consecutivas`, `manual`. Manual: solo push (DB insert lo hace el cliente). |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
 
-**`admin-usuarios` create flow**: usa `supabase.auth.admin.inviteUserByEmail(email, { data: { nombre }, redirectTo: 'uncasrugby://reset-password' })` — Supabase crea el usuario y envía el email de invite usando el SMTP de Gmail configurado en el proyecto + template definido en el Dashboard. Sin integración Resend.
+**`admin-usuarios` acciones**:
+- `create`: `inviteUserByEmail(email, { data: { nombre }, redirectTo: 'uncasrugby://reset-password' })` — Supabase envía email de invite via SMTP Gmail + template Dashboard. Sin Resend.
+- `deactivate` / `reactivate`: ban/unban usuario (876000h).
+- `getUser`: `supabaseAdmin.auth.admin.getUserById(userId)` → retorna `{ email }`. Usado para mostrar el email (que vive en `auth.users`, no en `profiles`) en el detalle de usuario.
 
 **Nota Edge Functions local**: `supabase start` NO levanta el Edge Runtime. Para probar funciones localmente, correr `supabase functions serve` en paralelo.
 
 ### Dependencias nativas instaladas
 - `react-native-modal-datetime-picker@18.0.0` + `@react-native-community/datetimepicker@8.4.4` — pickers nativos de fecha/hora
 - `react-native-reanimated@4.1.7` — compatible con SDK 54 / RN 0.81.5 (actualizado desde 3.17.5). Requerido por NativeWind css-interop en runtime.
+- `expo-image-picker` — usado en `useSobre` para seleccionar foto de perfil. Declarado en `app.json plugins`.
 - `babel.config.js` tiene `react-native-reanimated/plugin` en plugins
 
 **⚠️ IMPORTANTE**: Para cualquier `npm install` en este proyecto usar siempre `--legacy-peer-deps` por conflicto `react-dom@19.2.6` vs `react@19.1.0`. Si se omite, npm puede eliminar paquetes transitivos (incluido reanimated).
 
 ### Componentes UI compartidos
 - `app/components/ui/DatePickerField.tsx` — picker nativo de fecha y hora. Props: `label`, `value` (ISO `YYYY-MM-DD` o `HH:MM`), `onChange`, `mode` ('date'|'time', default 'date'), `maximumDate`, `minimumDate`, `onClear`. Usa `react-native-modal-datetime-picker` + Ionicons.
-- `app/components/shared/Header.tsx` — logo + "UNCAS RUGBY CLUB" + "La Bitácora" PlayfairDisplay, con divider gris. Usado en todas las pantallas de rol.
-- `app/components/shared/CronicaScreen.tsx` — pantalla Crónica compartida (usada como default export en las 4 rutas `/cronica`). Renderiza feed multi-fuente (lesiones, fichajes, resultados, notificaciones), items urgentes con fondo oscuro, botón "+ NUEVA NOTIFICACIÓN" solo para subcomisión/admin con modal de envío.
-- `app/components/shared/SobreScreen.tsx` — pantalla Mi Perfil compartida (usada como default export en las 4 rutas `/sobre`). Fondo oscuro tinta. Muestra nombre (PlayfairDisplay), rol + división en dorado. Toggle biometría (gestiona SecureStore `biometria_email` / `biometria_password`), toggle notificaciones (placeholder). Botón "CERRAR SESIÓN" negro/dorado. Versión "UNCAS RUGBY APP · V1.0".
+- `app/components/shared/Header.tsx` — logo + "UNCAS RUGBY CLUB" + "Uncas Rugby App" PlayfairDisplay, con divider. Usa `useTheme()` — fondo, texto y divider responden al tema.
+- `app/components/shared/CronicaScreen.tsx` — pantalla Crónica compartida (usada como default export en las 4 rutas `/cronica`). Renderiza feed multi-fuente (lesiones, fichajes, resultados, notificaciones), items urgentes con fondo oscuro, botón "+ NUEVA NOTIFICACIÓN" solo para subcomisión/admin con modal de envío. Usa `useTheme()` — fondo, texto, dividers y modal responden al tema.
+- `app/components/shared/SobreScreen.tsx` — pantalla Mi Perfil compartida. Foto de perfil editable (expo-image-picker, guardada en AsyncStorage). Nombre editable con botón guardar. Toggle de tema 3-botones (CLARO / AUTO / OSCURO) que cambia `ThemeContext` globalmente. Toggle biometría (SecureStore `biometria_email` / `biometria_password`). Botón "CAMBIAR CONTRASEÑA" (envía reset email). Botón "CERRAR SESIÓN" rojo. Versión "UNCAS RUGBY APP · V1.0".
 
 ### Pantallas implementadas — Subcomisión
 | Pantalla | Hook | Estado |
 |---|---|---|
 | `(subcomision)/diario.tsx` | `useDiarioSubcomision.ts` | ✅ completo — 4 stat cards, crónica reciente, atajos |
 | `(subcomision)/cronica.tsx` | `useCronica.ts` | ✅ completo — feed 7 días, nueva notif modal (subcomision only) |
-| `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | ✅ completo — lista/detalle/crear/desactivar/reactivar |
+| `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | ✅ completo — lista/detalle/crear/desactivar/reactivar/email visible/editar divisiones |
 | `(subcomision)/eventos.tsx` | `useEventos.ts` | ✅ completo — identidad La Bitácora aplicada — tabs ACTIVOS/HISTORIAL con underline dorado, barra progreso por evento, detalle PlayfairDisplay, cerrar evento TINTA/ROJO, modal tipo 3-botones |
 | `(subcomision)/informes.tsx` | `useInformes.ts` | ✅ completo — asistencia per-jugador, resultados W/L/D, fichajes recientes, financiero con forma_de_pago |
 | `(subcomision)/notificaciones.tsx` | `useNotificaciones.ts` | ✅ completo — modal nueva notif (título/mensaje/rol), historial enviadas, push via Edge Function |
@@ -198,7 +204,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 
 **`useDashboard`**: suscripción Realtime canal único `dashboard-subcomision` (asistencias, fichajes, resultados, cobranzas). Secciones: Asistencia (% + badge 4+ ausencias consecutivas), Resultados (últimos 5 no-infantil), Fichajes (count por división), Financiero (cobrado vs pendiente).
 
-**`useUsuarios`**: lista todos los profiles, paso lista/detalle, modal nuevo usuario (invoke `admin-usuarios` action=create), desactivar/reactivar (invoke action=deactivate/reactivate). Actualización optimista del estado local.
+**`useUsuarios`**: lista todos los profiles, paso lista/detalle, modal nuevo usuario (invoke `admin-usuarios` action=create), desactivar/reactivar (invoke action=deactivate/reactivate). Al abrir detalle invoca `action=getUser` para obtener el email del usuario (que vive en `auth.users`). Estado adicional: `emailUsuario`, `cargandoEmail`. Edición de divisiones in-place con guardado. Actualización optimista del estado local.
 
 **`useEventos`**: `EventoItem` con countPagados/countPendientes/totalCobrado calculado desde join `cobranzas(estado, monto)`. Detalle carga cobranzas con join anidado `jugadores(division_id, divisiones(nombre))` para desglose por división + pedidos con `profiles(nombre)` y `items_pedido(concepto, cantidad)`. `monto_sugerido` almacenado en campo `descripcion` (no existe columna propia). Cerrar evento = UPDATE `estado = 'cerrado'` con `Alert.alert` de confirmación. Tipos: `'recaudacion' | 'viaje' | 'tercer_tiempo'`.
 
@@ -263,9 +269,9 @@ supabase gen types typescript --local > app/lib/database.types.ts
 **Diseño fichajes.tsx**: lista numerada (01, 02…) con badge "OK" dorado. Detalle: nombre PlayfairDisplay 28px, lista documentos con botón "ABRIR" + ícono. Modal nuevo fichaje: campos con borde inferior ORO, `DatePickerField` para nacimiento, botón "FICHAR JUGADOR" TINTA. Banner de éxito TINTA + borde ORO.
 
 ### Pantalla Sobre — Perfil de usuario
-**`useSobre`** (`app/hooks/useSobre.ts`): fetch `profiles` (nombre, rol, divisiones) + join `divisiones` para nombres. Gestiona biometría via `expo-local-authentication` + `expo-secure-store` (keys: `biometria_email`, `biometria_password`). Toggle off = delete keys. Toggle on = Alert (requiere cerrar sesión para activar). Toggle notificaciones es placeholder local.
+**`useSobre`** (`app/hooks/useSobre.ts`): fetch `profiles` (nombre, rol, divisiones) + join `divisiones` para nombres. `guardarNombre(nombre)`: UPDATE en `profiles`. `cambiarFoto()`: expo-image-picker → base64 → guardado en AsyncStorage key `@foto_perfil`. `enviarResetPassword()`: `resetPasswordForEmail` → notifica al usuario. Gestiona biometría via `expo-local-authentication` + `expo-secure-store` (keys: `biometria_email`, `biometria_password`). Toggle off = delete keys. Toggle on = Alert (requiere cerrar sesión para activar).
 
-**`SobreScreen`** (`app/components/shared/SobreScreen.tsx`): fondo `tinta`, header "SECCIÓN · SOBRE" + "Mi perfil" (PlayfairDisplay). Card en `papel` con acento dorado, nombre en PlayfairDisplay grande, rol + división en ArchivoNarrow dorado (formato `ENTRENADOR · M14` si hay una división). Sección CONFIGURACIÓN: dos Switches gold-tinted. Sección CUENTA: botón "CERRAR SESIÓN" (borde dorado, texto dorado, negro). Versión al pie. Rutas: `(rol)/sobre.tsx` re-exportan `SobreScreen` como default.
+**`SobreScreen`** (`app/components/shared/SobreScreen.tsx`): foto de perfil circular editable (AsyncStorage `@foto_perfil`). Nombre editable inline (PlayfairDisplay grande) con botón guardar. Rol + divisiones en dorado. Toggle de tema 3-botones: CLARO / AUTO / OSCURO — llama `setMode()` del ThemeContext. Switch biometría. Botón "CAMBIAR CONTRASEÑA". Botón "CERRAR SESIÓN" (rojo). Versión al pie. Rutas: `(rol)/sobre.tsx` re-exportan `SobreScreen` como default.
 
 ### Crónica — Feed compartido
 **`useCronica`**: hook compartido para la tab Crónica de todos los roles. Queries últimos 7 días:
@@ -311,12 +317,21 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 5. Nav guard detecta `isPasswordRecovery` → navega a `/(auth)/reset-password`
 6. `useResetPassword` valida y llama `updateUser({ password })` → signOut → redirect login con banner
 
-### Próximo paso al volver
-App conectada a Supabase Cloud, EAS configurado, flujo de onboarding completo.
+### Dark Mode — Arquitectura
+Todas las pantallas usan `useTheme()` del `ThemeContext` para colores dinámicos. Patrón estándar:
 
-**Pendiente para activar el email de bienvenida**:
-- Configurar `RESEND_API_KEY` en Supabase secrets
-- Agregar `uncasrugby://reset-password` como Redirect URL en Supabase Auth
+```tsx
+const { colors: tc } = useTheme()
+// En JSX:
+style={[s.root, { backgroundColor: tc.fondo }]}
+```
+
+- Los `StyleSheet.create` se mantienen para layout/spacing. Los colores se sobreescriben con inline style arrays.
+- Los "edition bars" (headers con fondo oscuro) NO se convierten — son un elemento de diseño que siempre debe ser oscuro.
+- Sub-componentes definidos fuera del componente principal pueden llamar `useTheme()` directamente — no necesitan prop drilling.
+
+### Próximo paso al volver
+App conectada a Supabase Cloud, EAS configurado, dark mode global implementado, flujo de onboarding completo, email visible en detalle de usuario.
 
 **Para lanzar build de distribución**:
 ```bash
