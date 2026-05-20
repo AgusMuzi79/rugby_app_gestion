@@ -22,6 +22,7 @@ import {
   type NuevoEventoForm,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ function EventoCard({
   muted?:  boolean
   onPress?: () => void
 }) {
+  const { colors: tc } = useTheme()
   const color      = TIPO_COLOR[ev.tipo]
   const montoSug   = parseMonto(ev.descripcion)
   const totalPagos = ev.countPagados + ev.countPendientes
@@ -138,7 +140,7 @@ function EventoCard({
 
   return (
     <TouchableOpacity
-      style={[s.eventoCard, muted && s.eventoCardMuted]}
+      style={[s.eventoCard, muted && s.eventoCardMuted, { backgroundColor: tc.card }]}
       onPress={onPress}
       activeOpacity={onPress ? 0.8 : 1}
     >
@@ -161,7 +163,7 @@ function EventoCard({
       </View>
 
       {/* Nombre */}
-      <Text style={[s.eventoNombre, muted && { color: MUTED }]} numberOfLines={2}>
+      <Text style={[s.eventoNombre, { color: tc.texto }, muted && { color: MUTED }]} numberOfLines={2}>
         {ev.nombre}
       </Text>
 
@@ -213,8 +215,9 @@ function EventoDetalleContent({
     )
   }
 
+  const { colors: tc } = useTheme()
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
       {/* Barra superior */}
       <View style={s.detalleTopBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
@@ -230,7 +233,7 @@ function EventoDetalleContent({
 
       {/* Nombre grande */}
       <View style={s.detalleNombreWrap}>
-        <Text style={s.detalleNombre}>{ev.nombre}</Text>
+        <Text style={[s.detalleNombre, { color: tc.texto }]}>{ev.nombre}</Text>
       </View>
 
       {/* Meta */}
@@ -532,12 +535,13 @@ export default function EventosScreen() {
     errorGuardado,
     crearEvento,
   } = useEventos()
+  const { colors: tc } = useTheme()
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
 
   if (loading) {
     return (
-      <View style={s.centrado}>
+      <View style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator size="large" color={ORO} />
       </View>
     )
@@ -563,7 +567,7 @@ export default function EventosScreen() {
   const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>SECCIÓN · DIRECTIVA</Text>

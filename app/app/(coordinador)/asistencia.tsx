@@ -9,6 +9,7 @@ import {
   SafeAreaView,
 } from 'react-native'
 import { useAsistenciaCoordinador, JugadorAsistencia } from '@/hooks/useAsistenciaCoordinador'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const CREAM  = '#F5F0E8'
 const GOLD   = '#C9A84C'
@@ -100,6 +101,7 @@ export default function AsistenciaCoordinadorScreen() {
     seleccionarDivision,
     recargar,
   } = useAsistenciaCoordinador()
+  const { colors: tc } = useTheme()
 
   if (sinDivisiones) {
     return (
@@ -113,7 +115,7 @@ export default function AsistenciaCoordinadorScreen() {
   const conAlerta = jugadores.filter(j => j.ausenciasConsecutivas).length
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: tc.fondo }]}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <Text style={styles.titulo}>Asistencia</Text>

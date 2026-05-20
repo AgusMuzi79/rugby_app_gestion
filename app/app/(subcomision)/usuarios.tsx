@@ -9,9 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
+  Alert,
 } from 'react-native'
 import { useUsuarios, rolLabel } from '@/hooks/useUsuarios'
 import type { Usuario, RolCreable, DivisionOpcion } from '@/hooks/useUsuarios'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const CREAM = '#F5F0E8'
 const GOLD  = '#C9A84C'
@@ -33,10 +35,11 @@ const ROL_COLOR: Record<string, string> = {
 
 export default function UsuariosScreen() {
   const hook = useUsuarios()
+  const { colors: tc } = useTheme()
 
   if (hook.loading) {
     return (
-      <View style={s.centrado}>
+      <View style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator size="large" color={GOLD} />
       </View>
     )
@@ -52,11 +55,12 @@ export default function UsuariosScreen() {
 // ─── Vista lista ──────────────────────────────────────────────────────────────
 
 function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const { colors: tc } = useTheme()
   const activos   = hook.usuarios.filter(u => u.activo)
   const inactivos = hook.usuarios.filter(u => !u.activo)
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: tc.fondo }]}>
       <View style={s.header}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <Text style={s.headerTitle}>Usuarios</Text>
@@ -83,11 +87,12 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 }
 
 function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => void }) {
+  const { colors: tc } = useTheme()
   const color = ROL_COLOR[usuario.rol] ?? MUTED
   const inicial = usuario.nombre.charAt(0).toUpperCase()
 
   return (
-    <TouchableOpacity style={[s.card, !usuario.activo && s.cardInactivo]} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={[s.card, { backgroundColor: tc.card }, !usuario.activo && s.cardInactivo]} onPress={onPress} activeOpacity={0.7}>
       <View style={[s.avatar, { backgroundColor: color + '22' }]}>
         <Text style={[s.avatarLetra, { color }]}>{inicial}</Text>
       </View>
@@ -112,16 +117,36 @@ function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => vo
 // ─── Vista detalle ────────────────────────────────────────────────────────────
 
 function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
-  const u = hook.usuarioSeleccionado!
-  const color = ROL_COLOR[u.rol] ?? MUTED
+  const { colors: tc } = useTheme()
+  const u     = hook.usuarioSeleccionado!
+  const color  = ROL_COLOR[u.rol] ?? MUTED
   const inicial = u.nombre.charAt(0).toUpperCase()
 
-  const divNombres = u.divisiones
-    ?.map(divId => hook.divisiones.find(d => d.id === divId)?.nombre ?? divId)
-    .join(', ') ?? null
+  function confirmarEliminar() {
+    Alert.alert(
+      '¿Estás seguro?',
+      `Vas a eliminar a ${u.nombre} permanentemente.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, continuar',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              'Última confirmación',
+              'Esta acción no se puede deshacer.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Eliminar definitivamente', style: 'destructive', onPress: hook.eliminarUsuario },
+              ],
+            ),
+        },
+      ],
+    )
+  }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: tc.fondo }]}>
       <View style={s.header}>
         <TouchableOpacity onPress={hook.volverALista} style={s.backBtn}>
           <Text style={s.backTexto}>‹ Usuarios</Text>
@@ -136,20 +161,48 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
             <Text style={[s.avatarLetraGrande, { color }]}>{inicial}</Text>
           </View>
           <Text style={s.detalleNombre}>{u.nombre}</Text>
+          {hook.cargandoEmail ? (
+            <ActivityIndicator size="small" color={GOLD} />
+          ) : hook.emailUsuario ? (
+            <Text style={s.detalleEmail}>{hook.emailUsuario}</Text>
+          ) : null}
           <View style={[s.rolBadge, { backgroundColor: color + '22', borderColor: color, alignSelf: 'center', marginTop: 6 }]}>
             <Text style={[s.rolTexto, { color }]}>{rolLabel(u.rol)}</Text>
           </View>
-          {divNombres && (
-            <Text style={s.detalleDivisiones}>{divNombres}</Text>
-          )}
-          <View style={[s.estadoBadge, { backgroundColor: u.activo ? VERDE + '22' : ROJO + '22' }]}>
+          <View style={[s.estadoBadge, { backgroundColor: u.activo ? VERDE + '22' : ROJO + '22', marginTop: 8 }]}>
             <Text style={[s.estadoTexto, { color: u.activo ? VERDE : ROJO }]}>
               {u.activo ? 'ACTIVO' : 'INACTIVO'}
             </Text>
           </View>
         </View>
 
-        {/* Feedback */}
+        {/* Divisiones editables */}
+        <View style={s.seccionDetalle}>
+          <Text style={s.seccionLabel}>DIVISIONES ASIGNADAS</Text>
+          <DivisionesMultiselect
+            divisiones={hook.divisiones}
+            seleccionadas={hook.divisionesEditDetalle}
+            onToggle={hook.toggleDivisionDetalle}
+          />
+          {hook.divisionesGuardadasOk && (
+            <View style={[s.bannerOk, { marginTop: 8 }]}>
+              <Text style={s.bannerTexto}>✓ Divisiones actualizadas.</Text>
+            </View>
+          )}
+          {hook.guardandoDivisiones ? (
+            <ActivityIndicator color={GOLD} style={{ marginTop: 12 }} />
+          ) : (
+            <TouchableOpacity
+              style={s.botonGuardar}
+              onPress={hook.guardarDivisiones}
+              activeOpacity={0.8}
+            >
+              <Text style={s.botonGuardarTexto}>GUARDAR CAMBIOS</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Feedback estado */}
         {hook.estadoCambiadoOk && (
           <View style={s.bannerOk}>
             <Text style={s.bannerTexto}>
@@ -163,7 +216,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
           </View>
         )}
 
-        {/* Acción */}
+        {/* Acción estado */}
         {hook.cambiandoEstado ? (
           <ActivityIndicator color={GOLD} style={{ marginTop: 16 }} />
         ) : u.activo ? (
@@ -181,6 +234,19 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
             activeOpacity={0.8}
           >
             <Text style={s.botonOkTexto}>Reactivar usuario</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Eliminar — doble confirmación */}
+        {hook.eliminando ? (
+          <ActivityIndicator color={ROJO} style={{ marginTop: 8 }} />
+        ) : (
+          <TouchableOpacity
+            style={s.botonEliminar}
+            onPress={confirmarEliminar}
+            activeOpacity={0.8}
+          >
+            <Text style={s.botonEliminarTexto}>ELIMINAR USUARIO</Text>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -363,9 +429,13 @@ const s = StyleSheet.create({
   avatarGrande:       { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   avatarLetraGrande:  { fontSize: 28, fontWeight: '700' },
   detalleNombre:      { fontSize: 20, fontWeight: '700', color: DARK },
-  detalleDivisiones:  { fontSize: 13, color: MUTED, textAlign: 'center', marginTop: 4 },
-  estadoBadge:        { borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4, marginTop: 8 },
+  detalleEmail:       { fontSize: 13, color: MUTED, marginTop: 2 },
+  estadoBadge:        { borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4 },
   estadoTexto:        { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
+  seccionDetalle:     { marginTop: 8, backgroundColor: CARD, borderRadius: 10, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  seccionLabel:       { fontSize: 10, fontWeight: '700', letterSpacing: 2, color: MUTED, textTransform: 'uppercase', marginBottom: 4 },
+  botonGuardar:       { backgroundColor: GOLD, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 4 },
+  botonGuardarTexto:  { color: DARK, fontWeight: '700', fontSize: 13, letterSpacing: 1 },
 
   // Feedback banners
   bannerOk:    { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12 },
@@ -377,6 +447,8 @@ const s = StyleSheet.create({
   botonPeligroTexto: { color: '#FFFFFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.5 },
   botonOk:           { backgroundColor: VERDE, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
   botonOkTexto:      { color: '#FFFFFF', fontWeight: '700', fontSize: 15, letterSpacing: 0.5 },
+  botonEliminar:     { borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 16, borderWidth: 1.5, borderColor: ROJO },
+  botonEliminarTexto: { color: ROJO, fontWeight: '700', fontSize: 14, letterSpacing: 1 },
 
   // FAB
   fab:      { position: 'absolute', bottom: 24, right: 20, backgroundColor: GOLD, borderRadius: 30, paddingHorizontal: 20, paddingVertical: 14, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },

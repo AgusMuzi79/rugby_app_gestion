@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { useCalendario, EventoCalendario, TipoEvento } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const CREAM  = '#F5F0E8'
 const GOLD   = '#C9A84C'
@@ -224,9 +225,7 @@ export default function CalendarioScreen() {
   } = useCalendario()
 
   const [modalVisible, setModalVisible] = useState(false)
-
-  // useState needs to be imported — add it here via closure with the hook
-  // (already included via the component's scope)
+  const { colors: tc } = useTheme()
 
   function abrirModal() {
     resetForm()
@@ -256,7 +255,7 @@ export default function CalendarioScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: tc.fondo }]}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>

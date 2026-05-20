@@ -14,6 +14,7 @@ import {
   type FichajeReciente,
   type EventoFinancieroInforme,
 } from '@/hooks/useInformes'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const CREAM = '#F5F0E8'
 const GOLD  = '#C9A84C'
@@ -260,10 +261,11 @@ export default function InformesScreen() {
     fichajesRecientes,
     financiero,
   } = useInformes()
+  const { colors: tc } = useTheme()
 
   if (loading) {
     return (
-      <View style={s.centrado}>
+      <View style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator size="large" color={GOLD} />
         <Text style={s.cargandoTexto}>Cargando informes…</Text>
       </View>
@@ -271,7 +273,7 @@ export default function InformesScreen() {
   }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: tc.fondo }]}>
       <View style={s.header}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <Text style={s.headerTitle}>Informes</Text>

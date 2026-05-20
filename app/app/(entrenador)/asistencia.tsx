@@ -9,6 +9,7 @@ import {
 } from 'react-native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado } from '@/hooks/useAsistencia'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ export default function AsistenciaScreen() {
     guardarAsistencia,
   } = useAsistencia()
 
+  const { colors: tc } = useTheme()
   const presentes = jugadores.filter(j => j.estado === 'presente').length
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
   const justifs   = jugadores.filter(j => j.estado === 'justificado').length
@@ -132,7 +134,7 @@ export default function AsistenciaScreen() {
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: tc.fondo }]}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>

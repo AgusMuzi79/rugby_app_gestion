@@ -41,9 +41,15 @@ export function useUsuarios() {
   // Detalle
   const [paso, setPaso]                             = useState<PasoUsuarios>('lista')
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<Usuario | null>(null)
-  const [cambiandoEstado, setCambiandoEstado]       = useState(false)
-  const [estadoCambiadoOk, setEstadoCambiadoOk]     = useState(false)
-  const [errorEstado, setErrorEstado]               = useState<string | null>(null)
+  const [cambiandoEstado, setCambiandoEstado]           = useState(false)
+  const [estadoCambiadoOk, setEstadoCambiadoOk]         = useState(false)
+  const [errorEstado, setErrorEstado]                   = useState<string | null>(null)
+  const [eliminando, setEliminando]                     = useState(false)
+  const [divisionesEditDetalle, setDivisionesEditDetalle] = useState<string[]>([])
+  const [guardandoDivisiones, setGuardandoDivisiones]   = useState(false)
+  const [divisionesGuardadasOk, setDivisionesGuardadasOk] = useState(false)
+  const [emailUsuario, setEmailUsuario]                 = useState<string | null>(null)
+  const [cargandoEmail, setCargandoEmail]               = useState(false)
 
   // Modal nuevo usuario
   const [modalVisible, setModalVisible]                 = useState(false)
@@ -97,7 +103,20 @@ export function useUsuarios() {
     setUsuarioSeleccionado(u)
     setEstadoCambiadoOk(false)
     setErrorEstado(null)
+    setDivisionesEditDetalle(u.divisiones ?? [])
+    setDivisionesGuardadasOk(false)
+    setEmailUsuario(null)
     setPaso('detalle')
+    void fetchEmail(u.id)
+  }
+
+  async function fetchEmail(userId: string) {
+    setCargandoEmail(true)
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+      body: { action: 'getUser', userId },
+    })
+    if (!error && data?.email) setEmailUsuario(data.email)
+    setCargandoEmail(false)
   }
 
   function volverALista() {
@@ -164,6 +183,58 @@ export function useUsuarios() {
     setCreando(false)
   }
 
+  // ─── Divisiones (detalle) ────────────────────────────────────────────────
+
+  function toggleDivisionDetalle(divId: string) {
+    setDivisionesEditDetalle(prev =>
+      prev.includes(divId) ? prev.filter(id => id !== divId) : [...prev, divId],
+    )
+  }
+
+  async function guardarDivisiones() {
+    if (!usuarioSeleccionado) return
+    setGuardandoDivisiones(true)
+    setErrorEstado(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ divisiones: divisionesEditDetalle.length > 0 ? divisionesEditDetalle : null })
+      .eq('id', usuarioSeleccionado.id)
+    if (error) {
+      setErrorEstado('Error al guardar divisiones.')
+    } else {
+      const nuevas = divisionesEditDetalle.length > 0 ? divisionesEditDetalle : null
+      setUsuarioSeleccionado(prev => prev ? { ...prev, divisiones: nuevas } : prev)
+      setUsuarios(prev =>
+        prev.map(u => u.id === usuarioSeleccionado.id ? { ...u, divisiones: nuevas } : u),
+      )
+      setDivisionesGuardadasOk(true)
+      setTimeout(() => setDivisionesGuardadasOk(false), 2000)
+    }
+    setGuardandoDivisiones(false)
+  }
+
+  // ─── Eliminar usuario ─────────────────────────────────────────────────────
+
+  async function eliminarUsuario() {
+    if (!usuarioSeleccionado) return
+    setEliminando(true)
+    setErrorEstado(null)
+
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+      body: { action: 'delete', userId: usuarioSeleccionado.id },
+    })
+
+    if (error || data?.error) {
+      setErrorEstado(data?.error ?? error?.message ?? 'Error al eliminar el usuario.')
+      setEliminando(false)
+      return
+    }
+
+    setUsuarios(prev => prev.filter(u => u.id !== usuarioSeleccionado.id))
+    setEliminando(false)
+    volverALista()
+  }
+
   // ─── Cambiar estado ───────────────────────────────────────────────────────
 
   async function cambiarEstado(accion: 'deactivate' | 'reactivate') {
@@ -203,6 +274,15 @@ export function useUsuarios() {
     seleccionarUsuario,
     volverALista,
     cambiarEstado,
+    eliminando,
+    eliminarUsuario,
+    emailUsuario,
+    cargandoEmail,
+    divisionesEditDetalle,
+    toggleDivisionDetalle,
+    guardandoDivisiones,
+    divisionesGuardadasOk,
+    guardarDivisiones,
     modalVisible,
     abrirModal,
     cerrarModal,

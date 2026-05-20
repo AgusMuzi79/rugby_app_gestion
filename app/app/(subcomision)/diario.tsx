@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioSubcomision, type CronicaItem } from '@/hooks/useDiarioSubcomision'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,10 +34,11 @@ function tiempoRelativo(iso: string): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
+  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={s.secLine} />
+      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
     </View>
   )
 }
@@ -47,15 +49,16 @@ function StatCard({
   label: string; value: string; sub?: string
   variacion?: number | null; urgente?: boolean; accentOro?: boolean
 }) {
+  const { colors: tc } = useTheme()
   const varColor = (variacion ?? 0) >= 0 ? '#2ECC71' : colors.rojoUrgente
   const varText  = variacion === null || variacion === undefined
     ? null
     : `${variacion >= 0 ? '+' : ''}${variacion}% vs sem. ant.`
 
   return (
-    <View style={[s.statCard, accentOro && s.statCardOro]}>
-      <Text style={s.statLabel}>{label}</Text>
-      <Text style={s.statValue}>{value}</Text>
+    <View style={[s.statCard, accentOro && s.statCardOro, { backgroundColor: tc.card, borderColor: tc.grisClaro }]}>
+      <Text style={[s.statLabel, { color: tc.texto }]}>{label}</Text>
+      <Text style={[s.statValue, { color: tc.texto }]}>{value}</Text>
       {sub      ? <Text style={s.statSub}>{sub}</Text>   : null}
       {varText  ? <Text style={[s.statVar, { color: varColor }]}>{varText}</Text> : null}
       {urgente  ? (
@@ -84,15 +87,16 @@ const BADGE_LABEL: Record<string, string> = {
 }
 
 function FilaCronica({ item, onPress }: { item: CronicaItem; onPress: () => void }) {
+  const { colors: tc } = useTheme()
   return (
-    <TouchableOpacity style={s.cronicaRow} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={[s.cronicaRow, { borderBottomColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.75}>
       <View style={[s.badge, BADGE_STYLE[item.tipo]]}>
         <Text style={[s.badgeText, { color: BADGE_TEXT_COLOR[item.tipo] }]}>
           {BADGE_LABEL[item.tipo]}
         </Text>
       </View>
       <View style={s.cronicaBody}>
-        <Text style={s.cronicaTitulo} numberOfLines={1}>{item.titulo}</Text>
+        <Text style={[s.cronicaTitulo, { color: tc.texto }]} numberOfLines={1}>{item.titulo}</Text>
         <Text style={s.cronicaMensaje} numberOfLines={1}>
           {item.mensaje.length > 55 ? item.mensaje.slice(0, 55) + '…' : item.mensaje}
         </Text>
@@ -109,12 +113,13 @@ export default function DiarioSubcomisionScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { loading, data } = useDiarioSubcomision()
+  const { colors: tc } = useTheme()
 
   const primerNombre = data.nombre.split(' ')[0] || '—'
 
   return (
     <ScrollView
-      style={s.root}
+      style={[s.root, { backgroundColor: tc.fondo }]}
       contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
     >
@@ -128,8 +133,8 @@ export default function DiarioSubcomisionScreen() {
 
       {/* Greeting */}
       <View style={s.saludoContainer}>
-        <Text style={s.saludoTexto}>Buen día, {primerNombre}.</Text>
-        <View style={s.saludoDivider} />
+        <Text style={[s.saludoTexto, { color: tc.texto }]}>Buen día, {primerNombre}.</Text>
+        <View style={[s.saludoDivider, { backgroundColor: tc.grisClaro }]} />
       </View>
 
       {loading ? (
@@ -193,18 +198,18 @@ export default function DiarioSubcomisionScreen() {
             <SectionHeader title="ATAJOS · SECCIÓN DIRECTIVA" />
             <View style={s.atajosCol}>
               <TouchableOpacity
-                style={s.atajoBtn}
+                style={[s.atajoBtn, { borderColor: tc.texto }]}
                 onPress={() => router.navigate('/(subcomision)/informes')}
                 activeOpacity={0.75}
               >
-                <Text style={s.atajoBtnText}>VER INFORMES →</Text>
+                <Text style={[s.atajoBtnText, { color: tc.texto }]}>VER INFORMES →</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={s.atajoBtn}
+                style={[s.atajoBtn, { borderColor: tc.texto }]}
                 onPress={() => router.navigate('/(subcomision)/eventos')}
                 activeOpacity={0.75}
               >
-                <Text style={s.atajoBtnText}>NUEVO EVENTO →</Text>
+                <Text style={[s.atajoBtnText, { color: tc.texto }]}>NUEVO EVENTO →</Text>
               </TouchableOpacity>
             </View>
           </View>

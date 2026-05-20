@@ -20,6 +20,7 @@ import {
   FormaDePago,
 } from '@/hooks/useCobranzas'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -328,6 +329,7 @@ export default function CobranzasScreen() {
     guardarCobranzas,
   } = useCobranzas()
 
+  const { colors: tc } = useTheme()
   const [modalJugadorId, setModalJugadorId] = useState<string | null>(null)
   const jugadorModal = jugadores.find(j => j.jugadorId === modalJugadorId) ?? null
 
@@ -354,7 +356,7 @@ export default function CobranzasScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>

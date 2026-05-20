@@ -37,7 +37,7 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
 
           {/* Título */}
-          <Text style={styles.title}>La Bitácora</Text>
+          <Text style={styles.title}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
           <View style={[styles.divider, { backgroundColor: DIVIDER }]} />

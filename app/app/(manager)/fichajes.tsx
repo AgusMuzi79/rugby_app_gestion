@@ -20,6 +20,7 @@ import {
 } from '@/hooks/useFichajes'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -183,9 +184,11 @@ export default function FichajesScreen() {
     abriendoDoc, abrirDocumento,
   } = useFichajes()
 
+  const { colors: tc } = useTheme()
+
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -201,7 +204,7 @@ export default function FichajesScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>MANAGER · {divisionNombre.toUpperCase()}</Text>

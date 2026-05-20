@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Header } from '@/components/shared/Header'
 import { useCronica, type FeedItem, type FeedTipo } from '@/hooks/useCronica'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -46,12 +47,13 @@ function TipoBadge({ tipo }: { tipo: FeedTipo }) {
 }
 
 function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
+  const { colors: tc } = useTheme()
   const urgente = item.urgente
   const Wrapper = onPress ? TouchableOpacity : View
 
   return (
     <Wrapper
-      style={[s.feedRow, urgente && s.feedRowUrgente]}
+      style={[s.feedRow, { borderBottomColor: tc.grisClaro }, urgente && s.feedRowUrgente]}
       {...(onPress ? { onPress, activeOpacity: 0.8 } : {})}
     >
       <View style={s.feedMeta}>
@@ -61,7 +63,7 @@ function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
         </Text>
         {onPress ? <Text style={[s.feedArrow, urgente && { color: colors.oro }]}>→</Text> : null}
       </View>
-      <Text style={[s.feedTitulo, urgente && { color: colors.oro }]} numberOfLines={2}>
+      <Text style={[s.feedTitulo, { color: tc.texto }, urgente && { color: colors.oro }]} numberOfLines={2}>
         {item.titulo}
       </Text>
       {item.desc ? (
@@ -80,6 +82,7 @@ export function CronicaScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { loading, items, rol, enviarNotificacion } = useCronica()
+  const { colors: tc } = useTheme()
   const esSubcomision = ['subcomision', 'admin'].includes(rol)
 
   const [modalVisible, setModalVisible] = useState(false)
@@ -111,7 +114,7 @@ export function CronicaScreen() {
   return (
     <>
       <ScrollView
-        style={s.root}
+        style={[s.root, { backgroundColor: tc.fondo }]}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
       >
@@ -125,8 +128,8 @@ export function CronicaScreen() {
 
         {/* Título */}
         <View style={s.tituloContainer}>
-          <Text style={s.tituloTexto}>Bandeja del día.</Text>
-          <View style={s.tituloDivider} />
+          <Text style={[s.tituloTexto, { color: tc.texto }]}>Bandeja del día.</Text>
+          <View style={[s.tituloDivider, { backgroundColor: tc.grisClaro }]} />
         </View>
 
         {/* Nueva notificación — subcomision only */}
@@ -174,11 +177,11 @@ export function CronicaScreen() {
         onRequestClose={handleCerrarModal}
       >
         <KeyboardAvoidingView
-          style={s.modalRoot}
+          style={[s.modalRoot, { backgroundColor: tc.fondo }]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <View style={s.modalHeaderRow}>
-            <Text style={s.modalTitulo}>Nueva Notificación</Text>
+            <Text style={[s.modalTitulo, { color: tc.texto }]}>Nueva Notificación</Text>
             <TouchableOpacity
               onPress={handleCerrarModal}
               hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
@@ -186,12 +189,12 @@ export function CronicaScreen() {
               <Text style={s.modalCerrar}>✕</Text>
             </TouchableOpacity>
           </View>
-          <View style={s.modalDivider} />
+          <View style={[s.modalDivider, { backgroundColor: tc.grisClaro }]} />
 
           <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
             <Text style={s.inputLabel}>TÍTULO</Text>
             <TextInput
-              style={s.input}
+              style={[s.input, { backgroundColor: tc.card, borderColor: tc.grisClaro, color: tc.texto }]}
               value={titulo}
               onChangeText={setTitulo}
               placeholder="Ej: Asamblea anual de socios"
@@ -202,7 +205,7 @@ export function CronicaScreen() {
 
             <Text style={[s.inputLabel, { marginTop: 20 }]}>MENSAJE</Text>
             <TextInput
-              style={[s.input, s.inputMultiline]}
+              style={[s.input, s.inputMultiline, { backgroundColor: tc.card, borderColor: tc.grisClaro, color: tc.texto }]}
               value={mensaje}
               onChangeText={setMensaje}
               placeholder="Escribí el mensaje para todos los usuarios…"

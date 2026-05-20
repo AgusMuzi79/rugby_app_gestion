@@ -12,6 +12,7 @@ import {
   type BarraAsistencia,
 } from '@/hooks/useDiarioCoordinador'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,28 +45,30 @@ function barColor(pct: number | null): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
+  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={s.secLine} />
+      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
     </View>
   )
 }
 
 function FilaEvento({ ev, onPress }: { ev: EventoSemana; onPress: () => void }) {
+  const { colors: tc } = useTheme()
   const { dia, num } = formatFecha(ev.fecha)
   const hora         = formatHora(ev.hora)
   const detalle      = [hora, ev.lugar].filter(Boolean).join(' · ')
 
   return (
-    <TouchableOpacity style={s.eventoRow} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={[s.eventoRow, { borderBottomColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.75}>
       <View style={s.eventoFechaCol}>
         <Text style={s.eventoFechaDia}>{dia}</Text>
         <Text style={s.eventoFechaSlash}>/</Text>
-        <Text style={s.eventoFechaNum}>{num}</Text>
+        <Text style={[s.eventoFechaNum, { color: tc.texto }]}>{num}</Text>
       </View>
       <View style={s.eventoBody}>
-        <Text style={s.eventoNombre} numberOfLines={1}>{nombreEvento(ev)}</Text>
+        <Text style={[s.eventoNombre, { color: tc.texto }]} numberOfLines={1}>{nombreEvento(ev)}</Text>
         {detalle ? <Text style={s.eventoDetalle}>{detalle}</Text> : null}
         {ev.cobranzaActiva && (
           <View style={s.cobranzaBadge}>
@@ -79,10 +82,11 @@ function FilaEvento({ ev, onPress }: { ev: EventoSemana; onPress: () => void }) 
 }
 
 function CardAlerta({ alerta }: { alerta: AlertaJugador }) {
+  const { colors: tc } = useTheme()
   return (
-    <View style={s.alertaCard}>
+    <View style={[s.alertaCard, { backgroundColor: tc.fondo }]}>
       <Text style={s.alertaLabel}>ALERTA · ASISTENCIA</Text>
-      <Text style={s.alertaNombre}>{alerta.nombre}</Text>
+      <Text style={[s.alertaNombre, { color: tc.texto }]}>{alerta.nombre}</Text>
       <Text style={s.alertaDiv}>{alerta.divisionNombre}</Text>
       <Text style={s.alertaDesc}>
         4 o más entrenamientos consecutivos con ausencia. Sugerido: contactar al manager.
@@ -92,18 +96,19 @@ function CardAlerta({ alerta }: { alerta: AlertaJugador }) {
 }
 
 function FilaBarra({ barra }: { barra: BarraAsistencia }) {
+  const { colors: tc } = useTheme()
   const pct   = barra.pct ?? 0
   const color = barColor(barra.pct)
 
   return (
     <View style={s.barraContainer}>
       <View style={s.barraNombreRow}>
-        <Text style={s.barraNombre} numberOfLines={1}>{barra.nombre}</Text>
+        <Text style={[s.barraNombre, { color: tc.texto }]} numberOfLines={1}>{barra.nombre}</Text>
         <Text style={[s.barraPct, { color }]}>
           {barra.pct !== null ? `${barra.pct}%` : '—'}
         </Text>
       </View>
-      <View style={s.barraFondo}>
+      <View style={[s.barraFondo, { backgroundColor: tc.grisClaro }]}>
         <View style={{ flex: pct, height: 4, backgroundColor: color, borderRadius: 2 }} />
         <View style={{ flex: Math.max(0, 100 - pct) }} />
       </View>
@@ -117,11 +122,12 @@ export default function DiarioCoordinadorScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { loading, data } = useDiarioCoordinador()
+  const { colors: tc } = useTheme()
 
   if (data.sinDivisiones && !loading) {
     return (
-      <View style={[s.root, s.centered]}>
-        <Text style={s.sinDivTitle}>Sin divisiones asignadas.</Text>
+      <View style={[s.root, s.centered, { backgroundColor: tc.fondo }]}>
+        <Text style={[s.sinDivTitle, { color: tc.texto }]}>Sin divisiones asignadas.</Text>
         <Text style={s.sinDivSub}>Contactá a la Subcomisión.</Text>
       </View>
     )
@@ -135,7 +141,7 @@ export default function DiarioCoordinadorScreen() {
 
   return (
     <ScrollView
-      style={s.root}
+      style={[s.root, { backgroundColor: tc.fondo }]}
       contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
     >
@@ -151,10 +157,10 @@ export default function DiarioCoordinadorScreen() {
 
       {/* Título */}
       <View style={s.tituloContainer}>
-        <Text style={s.tituloTexto}>
+        <Text style={[s.tituloTexto, { color: tc.texto }]}>
           Calendario{divPrincipal ? ` e ${divPrincipal}` : ''}.
         </Text>
-        <View style={s.tituloDivider} />
+        <View style={[s.tituloDivider, { backgroundColor: tc.grisClaro }]} />
       </View>
 
       {loading ? (

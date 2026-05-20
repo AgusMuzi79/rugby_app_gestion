@@ -12,26 +12,81 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useResetPassword } from '@/hooks/useResetPassword'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
+import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
 
-export default function ResetPasswordScreen() {
-  const [password, setPassword]           = useState('')
-  const [confirmacion, setConfirmacion]   = useState('')
+export default function RegistroScreen() {
+  const router              = useRouter()
+  const { session, setNuevoUsuario } = useAuthStore()
+
+  const [cargando, setCargando]               = useState(true)
+  const [nombre, setNombre]                   = useState('')
+  const [nombreOriginal, setNombreOriginal]   = useState('')
+  const [rol, setRol]                         = useState<Rol | null>(null)
+  const [password, setPassword]               = useState('')
+  const [confirmacion, setConfirmacion]       = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
-  const { actualizarPassword, loading, error, completado } = useResetPassword()
-  const router = useRouter()
+  const [loading, setLoading]                 = useState(false)
+  const [error, setError]                     = useState<string | null>(null)
 
   useEffect(() => {
-    if (completado) {
-      router.replace({
-        pathname: '/(auth)/login',
-        params: { mensaje: 'Contraseña actualizada. Ingresá con tu nueva clave.' },
-      })
+    void cargarPerfil()
+  }, [])
+
+  async function cargarPerfil() {
+    if (!session?.user) { setCargando(false); return }
+    const { data } = await supabase
+      .from('profiles')
+      .select('nombre, rol')
+      .eq('id', session.user.id)
+      .single()
+    if (data) {
+      setNombre(data.nombre ?? '')
+      setNombreOriginal(data.nombre ?? '')
+      setRol(data.rol as Rol)
     }
-  }, [completado])
+    setCargando(false)
+  }
+
+  async function guardar() {
+    const nombreTrim = nombre.trim()
+    const pass       = password.trim()
+    const conf       = confirmacion.trim()
+
+    if (!nombreTrim)      { setError('El nombre es requerido.'); return }
+    if (!pass)            { setError('La contraseña es requerida.'); return }
+    if (pass.length < 8)  { setError('La contraseña debe tener al menos 8 caracteres.'); return }
+    if (pass !== conf)    { setError('Las contraseñas no coinciden.'); return }
+
+    setLoading(true)
+    setError(null)
+
+    const { error: passErr } = await supabase.auth.updateUser({ password: pass })
+    if (passErr) { setError(passErr.message); setLoading(false); return }
+
+    if (nombreTrim !== nombreOriginal && session?.user) {
+      await supabase
+        .from('profiles')
+        .update({ nombre: nombreTrim })
+        .eq('id', session.user.id)
+    }
+
+    setNuevoUsuario(false)
+    setLoading(false)
+    router.replace((rol ? ROL_RUTA_INICIAL[rol] : '/(auth)/login') as Parameters<typeof router.replace>[0])
+  }
+
+  if (cargando) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.papel, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator color={colors.oro} />
+      </View>
+    )
+  }
 
   return (
     <KeyboardAvoidingView
@@ -44,9 +99,24 @@ export default function ResetPasswordScreen() {
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
           <Text style={styles.title}>Uncas Rugby App</Text>
           <View style={[styles.divider, { backgroundColor: colors.grisClaro }]} />
-          <Text style={styles.subtitle}>Establecé tu nueva contraseña de acceso.</Text>
+          <Text style={styles.subtitle}>Bienvenido. Confirmá tu nombre y elegí una contraseña de acceso.</Text>
 
-          {/* Nueva contraseña */}
+          {/* Nombre */}
+          <View style={styles.fieldWrap}>
+            <Text style={styles.label}>NOMBRE COMPLETO</Text>
+            <TextInput
+              style={styles.input}
+              value={nombre}
+              onChangeText={setNombre}
+              autoCapitalize="words"
+              autoCorrect={false}
+              placeholder="Tu nombre completo"
+              placeholderTextColor={PLACEHOLDER}
+              editable={!loading}
+            />
+          </View>
+
+          {/* Contraseña */}
           <View style={styles.fieldWrap}>
             <Text style={styles.label}>NUEVA CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
@@ -73,7 +143,7 @@ export default function ResetPasswordScreen() {
             </View>
           </View>
 
-          {/* Confirmar contraseña */}
+          {/* Confirmar */}
           <View style={[styles.fieldWrap, { marginBottom: 32 }]}>
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
@@ -87,23 +157,21 @@ export default function ResetPasswordScreen() {
             />
           </View>
 
-          {/* Error */}
           {error !== null && (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
-          {/* Botón */}
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonLoading]}
-            onPress={() => actualizarPassword(password, confirmacion)}
+            onPress={guardar}
             disabled={loading}
             activeOpacity={0.85}
           >
             {loading
               ? <ActivityIndicator color={colors.oro} size="small" />
-              : <Text style={styles.buttonText}>GUARDAR CONTRASEÑA →</Text>
+              : <Text style={styles.buttonText}>INGRESAR AL SISTEMA →</Text>
             }
           </TouchableOpacity>
 

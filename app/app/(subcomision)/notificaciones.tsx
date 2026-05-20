@@ -17,6 +17,7 @@ import {
   type RolDestinatario,
   type NotifForm,
 } from '@/hooks/useNotificaciones'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const CREAM   = '#F5F0E8'
 const GOLD    = '#C9A84C'
@@ -183,6 +184,7 @@ export default function NotificacionesScreen() {
     errorEnvio,
     enviarNotificacion,
   } = useNotificaciones()
+  const { colors: tc } = useTheme()
 
   async function handleEnviar() {
     const ok = await enviarNotificacion()
@@ -190,7 +192,7 @@ export default function NotificacionesScreen() {
   }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: tc.fondo }]}>
       <View style={s.header}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <View style={s.headerFila}>

@@ -17,6 +17,7 @@ import {
   Equipo,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -648,6 +649,7 @@ export default function PartidoScreen() {
     guardandoResultado, resultadoGuardado, errorResultado, guardarResultado,
   } = usePartido()
 
+  const { colors: tc } = useTheme()
   const pasoTitulo: Record<typeof paso, string> = {
     equipo:     'Equipo · Partido',
     asistencia: equipoSeleccionado ? `Asistencia · ${equipoSeleccionado.nombre}` : 'Asistencia',
@@ -675,7 +677,7 @@ export default function PartidoScreen() {
   const jugadoresPresentes = jugadores.filter(j => j.presente)
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={[s.root, { backgroundColor: tc.fondo }]}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>

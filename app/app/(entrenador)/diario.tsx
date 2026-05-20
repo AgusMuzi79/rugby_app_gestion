@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -31,10 +32,11 @@ function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
+  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={s.secLine} />
+      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
     </View>
   )
 }
@@ -71,13 +73,14 @@ const TAREA_COLORS: Record<TareaPendiente['tipo'], string> = {
 }
 
 function FilaTarea({ tarea, onPress }: { tarea: TareaPendiente; onPress: () => void }) {
+  const { colors: tc } = useTheme()
   const badgeColor = TAREA_COLORS[tarea.tipo]
   return (
-    <TouchableOpacity style={s.tareaRow} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={[s.tareaRow, { borderBottomColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.75}>
       <View style={[s.tareaBadge, { backgroundColor: badgeColor }]}>
         <Text style={s.tareaBadgeText}>{tarea.tipo}</Text>
       </View>
-      <Text style={s.tareaDesc} numberOfLines={1}>{tarea.desc}</Text>
+      <Text style={[s.tareaDesc, { color: tc.texto }]} numberOfLines={1}>{tarea.desc}</Text>
       <Text style={s.tareaArrow}>→</Text>
     </TouchableOpacity>
   )
@@ -89,11 +92,12 @@ export default function DiarioEntrenadorScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { loading, data } = useDiarioEntrenador()
+  const { colors: tc } = useTheme()
 
   if (data.sinDivision && !loading) {
     return (
-      <View style={[s.root, s.centered]}>
-        <Text style={s.sinDivTitle}>Sin división asignada.</Text>
+      <View style={[s.root, s.centered, { backgroundColor: tc.fondo }]}>
+        <Text style={[s.sinDivTitle, { color: tc.texto }]}>Sin división asignada.</Text>
         <Text style={s.sinDivSub}>Contactá a la Subcomisión.</Text>
       </View>
     )
@@ -101,7 +105,7 @@ export default function DiarioEntrenadorScreen() {
 
   return (
     <ScrollView
-      style={s.root}
+      style={[s.root, { backgroundColor: tc.fondo }]}
       contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
       showsVerticalScrollIndicator={false}
     >
@@ -117,8 +121,8 @@ export default function DiarioEntrenadorScreen() {
 
       {/* Greeting */}
       <View style={s.saludoContainer}>
-        <Text style={s.saludoTexto}>{data.nombre || '—'}.</Text>
-        <View style={s.saludoDivider} />
+        <Text style={[s.saludoTexto, { color: tc.texto }]}>{data.nombre || '—'}.</Text>
+        <View style={[s.saludoDivider, { backgroundColor: tc.grisClaro }]} />
       </View>
 
       {loading ? (
@@ -166,27 +170,27 @@ export default function DiarioEntrenadorScreen() {
                   <Text style={[s.atajoText, s.atajoTextDark]}>+ LESIÓN</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={s.atajoCard}
+                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
                   onPress={() => router.navigate('/(entrenador)/partido')}
                   activeOpacity={0.8}
                 >
-                  <Text style={s.atajoText}>MESA PARTIDO</Text>
+                  <Text style={[s.atajoText, { color: tc.texto }]}>MESA PARTIDO</Text>
                 </TouchableOpacity>
               </View>
               <View style={s.gridRow}>
                 <TouchableOpacity
-                  style={s.atajoCard}
+                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
                   onPress={() => router.navigate('/(entrenador)/partido')}
                   activeOpacity={0.8}
                 >
-                  <Text style={s.atajoText}>RESULTADO</Text>
+                  <Text style={[s.atajoText, { color: tc.texto }]}>RESULTADO</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={s.atajoCard}
+                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
                   onPress={() => router.navigate('/(entrenador)/lesiones')}
                   activeOpacity={0.8}
                 >
-                  <Text style={s.atajoText}>PROTOCOLOS</Text>
+                  <Text style={[s.atajoText, { color: tc.texto }]}>PROTOCOLOS</Text>
                 </TouchableOpacity>
               </View>
             </View>

@@ -61,7 +61,7 @@ export default function LoginScreen() {
           </Text>
 
           {/* Título serif itálico */}
-          <Text style={styles.title}>La Bitácora</Text>
+          <Text style={styles.title}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
           <View style={[styles.divider, { backgroundColor: DIVIDER }]} />

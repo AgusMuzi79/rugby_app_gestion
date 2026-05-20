@@ -162,11 +162,11 @@ supabase gen types typescript --local > app/lib/database.types.ts
 ### Edge Functions
 | Función | Estado | Descripción |
 |---|---|---|
-| `supabase/functions/admin-usuarios/` | ✅ completo | create (`generateLink` type=invite → obtiene action_link + envía email HTML La Bitácora via Resend) / deactivate (ban 876000h) / reactivate |
+| `supabase/functions/admin-usuarios/` | ✅ completo | create (`inviteUserByEmail` → Supabase envía email via SMTP configurado + template del Dashboard) / deactivate (ban 876000h) / reactivate |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API. Tipos: `lesion`, `fichaje`, `ausencias_consecutivas`, `manual`. Manual: solo push (DB insert lo hace el cliente). |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
 
-**`admin-usuarios` create flow**: usa `supabase.auth.admin.generateLink({ type: 'invite', email, options: { redirectTo: 'uncasrugby://reset-password' } })` — esto crea el usuario y retorna `properties.action_link` SIN enviar el email de Supabase. Luego envía email HTML propio vía Resend con dos botones: "DESCARGAR LA APP" (APK link) y "CREAR MI CONTRASEÑA" (action_link). Requiere secret `RESEND_API_KEY`; si no está configurada loguea warning y continúa.
+**`admin-usuarios` create flow**: usa `supabase.auth.admin.inviteUserByEmail(email, { data: { nombre }, redirectTo: 'uncasrugby://reset-password' })` — Supabase crea el usuario y envía el email de invite usando el SMTP de Gmail configurado en el proyecto + template definido en el Dashboard. Sin integración Resend.
 
 **Nota Edge Functions local**: `supabase start` NO levanta el Edge Runtime. Para probar funciones localmente, correr `supabase functions serve` en paralelo.
 
@@ -293,8 +293,8 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 - `app/.env.local` apunta a cloud (no a local)
 - Migraciones aplicadas en cloud (`supabase db push`)
 - Edge Functions deployadas: `admin-usuarios`, `notifications`
-- **Secret a configurar**: `RESEND_API_KEY` en Supabase Dashboard → Project Settings → Edge Functions → Secrets
-- **Redirect URL a agregar**: `uncasrugby://reset-password` en Authentication → URL Configuration
+- Redirect URL configurada: `uncasrugby://reset-password` en Authentication → URL Configuration ✅
+- SMTP: Gmail configurado en Supabase Dashboard → Project Settings → Auth → SMTP
 
 ### EAS Build
 - `app/eas.json` creado con profiles: `development` (developmentClient), `preview` (internal, APK), `production` (internal)

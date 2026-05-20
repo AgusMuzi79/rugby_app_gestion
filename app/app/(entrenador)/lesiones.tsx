@@ -17,6 +17,7 @@ import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial } from '@/hook
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -427,6 +428,7 @@ export default function LesionesScreen() {
     abriendo,
     abrirProtocolo,
   } = useProtocolos()
+  const { colors: tc } = useTheme()
 
   const [tabActivo, setTabActivo]   = useState<Tab>('lesiones')
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -460,7 +462,7 @@ export default function LesionesScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
