@@ -97,7 +97,7 @@ function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => vo
         <Text style={[s.avatarLetra, { color }]}>{inicial}</Text>
       </View>
       <View style={s.filaInfo}>
-        <Text style={[s.cardNombre, !usuario.activo && s.textoInactivo]}>{usuario.nombre}</Text>
+        <Text style={[s.cardNombre, { color: tc.tinta }, !usuario.activo && s.textoInactivo]}>{usuario.nombre}</Text>
         <View style={s.rolFila}>
           <View style={[s.rolBadge, { backgroundColor: color + '22', borderColor: color }]}>
             <Text style={[s.rolTexto, { color }]}>{rolLabel(usuario.rol)}</Text>
@@ -156,11 +156,11 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent}>
         {/* Info del usuario */}
-        <View style={s.detalleCard}>
+        <View style={[s.detalleCard, { backgroundColor: tc.card }]}>
           <View style={[s.avatarGrande, { backgroundColor: color + '22' }]}>
             <Text style={[s.avatarLetraGrande, { color }]}>{inicial}</Text>
           </View>
-          <Text style={s.detalleNombre}>{u.nombre}</Text>
+          <Text style={[s.detalleNombre, { color: tc.tinta }]}>{u.nombre}</Text>
           {hook.cargandoEmail ? (
             <ActivityIndicator size="small" color={GOLD} />
           ) : hook.emailUsuario ? (
@@ -177,7 +177,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
         </View>
 
         {/* Divisiones editables */}
-        <View style={s.seccionDetalle}>
+        <View style={[s.seccionDetalle, { backgroundColor: tc.card }]}>
           <Text style={s.seccionLabel}>DIVISIONES ASIGNADAS</Text>
           <DivisionesMultiselect
             divisiones={hook.divisiones}
@@ -186,7 +186,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
           />
           {hook.divisionesGuardadasOk && (
             <View style={[s.bannerOk, { marginTop: 8 }]}>
-              <Text style={s.bannerTexto}>✓ Divisiones actualizadas.</Text>
+              <Text style={[s.bannerTexto, { color: tc.tinta }]}>✓ Divisiones actualizadas.</Text>
             </View>
           )}
           {hook.guardandoDivisiones ? (
@@ -205,14 +205,14 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
         {/* Feedback estado */}
         {hook.estadoCambiadoOk && (
           <View style={s.bannerOk}>
-            <Text style={s.bannerTexto}>
+            <Text style={[s.bannerTexto, { color: tc.tinta }]}>
               {hook.usuarioSeleccionado?.activo ? '✓ Usuario reactivado.' : '✓ Usuario desactivado.'}
             </Text>
           </View>
         )}
         {hook.errorEstado && (
           <View style={s.bannerError}>
-            <Text style={s.bannerTexto}>{hook.errorEstado}</Text>
+            <Text style={[s.bannerTexto, { color: tc.tinta }]}>{hook.errorEstado}</Text>
           </View>
         )}
 
@@ -263,9 +263,10 @@ const ROLES_CREABLES: { value: RolCreable; label: string }[] = [
 ]
 
 function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const { colors: tc } = useTheme()
   return (
     <Modal visible={hook.modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={hook.cerrarModal}>
-      <KeyboardAvoidingView style={s.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={[s.modalRoot, { backgroundColor: tc.fondo }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.modalHeader}>
           <Text style={s.modalTitulo}>Nuevo usuario</Text>
           <TouchableOpacity onPress={hook.cerrarModal}>
@@ -276,14 +277,14 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
           {hook.creadoOk ? (
             <View style={s.bannerOk}>
-              <Text style={s.bannerTexto}>✓ Usuario creado. Se envió un email de invitación.</Text>
+              <Text style={[s.bannerTexto, { color: tc.tinta }]}>✓ Usuario creado. Se envió un email de invitación.</Text>
             </View>
           ) : (
             <>
               {/* Nombre */}
-              <Text style={s.inputLabel}>Nombre completo</Text>
+              <Text style={[s.inputLabel, { color: tc.tinta }]}>Nombre completo</Text>
               <TextInput
-                style={s.input}
+                style={[s.input, { color: tc.tinta, backgroundColor: tc.card }]}
                 value={hook.nombre}
                 onChangeText={hook.setNombre}
                 placeholder="Ej: Juan Pérez"
@@ -292,9 +293,9 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
               />
 
               {/* Email */}
-              <Text style={s.inputLabel}>Email</Text>
+              <Text style={[s.inputLabel, { color: tc.tinta }]}>Email</Text>
               <TextInput
-                style={s.input}
+                style={[s.input, { color: tc.tinta, backgroundColor: tc.card }]}
                 value={hook.email}
                 onChangeText={hook.setEmail}
                 placeholder="correo@ejemplo.com"
@@ -305,7 +306,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
               />
 
               {/* Rol */}
-              <Text style={s.inputLabel}>Rol</Text>
+              <Text style={[s.inputLabel, { color: tc.tinta }]}>Rol</Text>
               <View style={s.rolSelector}>
                 {ROLES_CREABLES.map(r => (
                   <TouchableOpacity
@@ -322,7 +323,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
               </View>
 
               {/* Divisiones */}
-              <Text style={s.inputLabel}>Divisiones asignadas</Text>
+              <Text style={[s.inputLabel, { color: tc.tinta }]}>Divisiones asignadas</Text>
               <DivisionesMultiselect
                 divisiones={hook.divisiones}
                 seleccionadas={hook.divisionesSeleccionadas}
@@ -332,7 +333,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
               {/* Error */}
               {hook.errorForm && (
                 <View style={s.bannerError}>
-                  <Text style={s.bannerTexto}>{hook.errorForm}</Text>
+                  <Text style={[s.bannerTexto, { color: tc.tinta }]}>{hook.errorForm}</Text>
                 </View>
               )}
 
@@ -366,6 +367,7 @@ function DivisionesMultiselect({
   seleccionadas: string[]
   onToggle: (id: string) => void
 }) {
+  const { colors: tc } = useTheme()
   if (divisiones.length === 0) {
     return <Text style={s.vacio}>Sin divisiones disponibles.</Text>
   }
@@ -380,7 +382,7 @@ function DivisionesMultiselect({
             onPress={() => onToggle(d.id)}
             activeOpacity={0.7}
           >
-            <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]} numberOfLines={1}>
+            <Text style={[s.divPillTexto, !activa && { color: MUTED }, activa && s.divPillTextoActivo, activa && { color: tc.tinta }]} numberOfLines={1}>
               {d.nombre}
             </Text>
           </TouchableOpacity>

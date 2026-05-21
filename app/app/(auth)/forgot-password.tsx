@@ -13,18 +13,19 @@ import {
 import { useRouter } from 'expo-router'
 import { useForgotPassword } from '@/hooks/useForgotPassword'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const PLACEHOLDER = '#9B9A8F'
-const DIVIDER     = colors.grisClaro
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('')
   const { enviarLink, loading, error, enviado } = useForgotPassword()
   const router = useRouter()
+  const { colors: tc } = useTheme()
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.papel }}
+      style={{ flex: 1, backgroundColor: tc.fondo }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -37,16 +38,16 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
 
           {/* Título */}
-          <Text style={styles.title}>Uncas Rugby App</Text>
+          <Text style={[styles.title, { color: tc.tinta }]}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
-          <View style={[styles.divider, { backgroundColor: DIVIDER }]} />
+          <View style={[styles.divider, { backgroundColor: tc.grisClaro }]} />
 
           {enviado ? (
             /* ── Estado de éxito ── */
             <View style={styles.successWrap}>
               <Text style={styles.successIcon}>✓</Text>
-              <Text style={styles.successTitle}>Link enviado</Text>
+              <Text style={[styles.successTitle, { color: tc.tinta }]}>Link enviado</Text>
               <Text style={styles.successBody}>
                 Si el email está registrado, vas a recibir un link para
                 restablecer tu contraseña.
@@ -62,9 +63,9 @@ export default function ForgotPasswordScreen() {
 
               {/* Campo EMAIL */}
               <View style={styles.fieldWrap}>
-                <Text style={styles.label}>EMAIL</Text>
+                <Text style={[styles.label, { color: tc.tinta }]}>EMAIL</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: tc.tinta }]}
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
@@ -78,14 +79,14 @@ export default function ForgotPasswordScreen() {
 
               {/* Error banner */}
               {error !== null && (
-                <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>{error}</Text>
+                <View style={[styles.errorBanner, { backgroundColor: tc.card }]}>
+                  <Text style={[styles.errorText, { color: tc.tinta }]}>{error}</Text>
                 </View>
               )}
 
               {/* Botón principal */}
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonLoading]}
+                style={[styles.button, { backgroundColor: tc.tinta }, loading && styles.buttonLoading]}
                 onPress={() => enviarLink(email)}
                 disabled={loading}
                 activeOpacity={0.85}
@@ -136,7 +137,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 48,
-    color: colors.tinta,
     marginBottom: 16,
     lineHeight: 54,
   },
@@ -160,20 +160,17 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 10,
     letterSpacing: 2,
-    color: colors.tinta,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
   },
   button: {
-    backgroundColor: colors.tinta,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
@@ -188,7 +185,6 @@ const styles = StyleSheet.create({
     color: colors.oro,
   },
   errorBanner: {
-    backgroundColor: '#FEF8EC',
     borderWidth: 1,
     borderColor: colors.oro,
     borderRadius: 6,
@@ -200,7 +196,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 13,
     textAlign: 'center',
-    color: colors.tinta,
   },
   successWrap: {
     alignItems: 'center',
@@ -214,7 +209,6 @@ const styles = StyleSheet.create({
   successTitle: {
     fontFamily: fonts.titulo,
     fontSize: 28,
-    color: colors.tinta,
     marginBottom: 12,
     textAlign: 'center',
   },

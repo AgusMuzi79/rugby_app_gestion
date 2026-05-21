@@ -43,6 +43,7 @@ function esPasado(iso: string) {
 }
 
 function FilaEvento({ evento }: { evento: EventoCalendario }) {
+  const { colors: tc } = useTheme()
   const pasado = esPasado(evento.fecha)
   const hoy    = esHoy(evento.fecha)
   const esPartido = evento.tipo === 'partido'
@@ -54,7 +55,7 @@ function FilaEvento({ evento }: { evento: EventoCalendario }) {
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={[styles.eventoTitulo, pasado && { color: MUTED }]} numberOfLines={1}>
+          <Text style={[styles.eventoTitulo, { color: tc.tinta }, pasado && { color: MUTED }]} numberOfLines={1}>
             {esPartido ? `vs. ${evento.rival ?? 'Rival'}` : 'Entrenamiento'}
           </Text>
           {hoy && <View style={styles.hoyBadge}><Text style={styles.hoyTexto}>HOY</Text></View>}
@@ -91,12 +92,13 @@ function ModalNuevoEvento({
   guardando,
   errorGuardado,
 }: ModalNuevoEventoProps) {
+  const { colors: tc } = useTheme()
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView style={styles.modalContainer}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: tc.fondo }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitulo}>Nuevo evento</Text>
+            <Text style={[styles.modalTitulo, { color: tc.tinta }]}>Nuevo evento</Text>
             <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
               <Text style={styles.modalCerrar}>Cancelar</Text>
             </TouchableOpacity>
@@ -162,7 +164,7 @@ function ModalNuevoEvento({
             {/* Lugar */}
             <Text style={styles.inputLabel}>CANCHA / LUGAR (opcional)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: tc.tinta, backgroundColor: tc.card }]}
               placeholder="ej. Cancha 1"
               placeholderTextColor={MUTED}
               value={form.lugar}
@@ -174,7 +176,7 @@ function ModalNuevoEvento({
               <>
                 <Text style={styles.inputLabel}>RIVAL</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: tc.tinta, backgroundColor: tc.card }]}
                   placeholder="Nombre del equipo rival"
                   placeholderTextColor={MUTED}
                   value={form.rival}
@@ -239,7 +241,7 @@ export default function CalendarioScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={[styles.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={GOLD} size="large" />
       </SafeAreaView>
     )
@@ -247,7 +249,7 @@ export default function CalendarioScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={[styles.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={styles.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -259,7 +261,7 @@ export default function CalendarioScreen() {
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <Text style={styles.titulo}>Calendario</Text>
+          <Text style={[styles.titulo, { color: tc.tinta }]}>Calendario</Text>
           <TouchableOpacity style={styles.botonNuevo} onPress={abrirModal} activeOpacity={0.8}>
             <Text style={styles.botonNuevoTexto}>+ Nuevo</Text>
           </TouchableOpacity>
@@ -269,14 +271,14 @@ export default function CalendarioScreen() {
         </Text>
       </View>
 
-      <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 }} />
+      <View style={{ height: 1, backgroundColor: tc.grisClaro, marginHorizontal: 20 }} />
 
       <FlatList
         data={eventos}
         keyExtractor={item => item.id}
         renderItem={({ item }) => <FilaEvento evento={item} />}
         ItemSeparatorComponent={() => (
-          <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 }} />
+          <View style={{ height: 1, backgroundColor: tc.grisClaro, marginHorizontal: 20 }} />
         )}
         contentContainerStyle={eventos.length === 0 ? styles.listaVacia : { paddingBottom: 16 }}
         ListEmptyComponent={

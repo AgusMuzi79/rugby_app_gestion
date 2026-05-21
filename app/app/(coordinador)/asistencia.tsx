@@ -28,6 +28,7 @@ function colorPorcentaje(p: number | null): string {
 }
 
 function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
+  const { colors: tc } = useTheme()
   const { porcentaje, ausenciasConsecutivas, totalEventos, totalPresentes, nombre_completo } = jugador
   const color = colorPorcentaje(porcentaje)
 
@@ -35,7 +36,7 @@ function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
     <View style={styles.fila}>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.nombreJugador} numberOfLines={1}>{nombre_completo}</Text>
+          <Text style={[styles.nombreJugador, { color: tc.tinta }]} numberOfLines={1}>{nombre_completo}</Text>
           {ausenciasConsecutivas && (
             <View style={styles.alerta}>
               <Text style={styles.alertaTexto}>4 AUST.</Text>
@@ -105,7 +106,7 @@ export default function AsistenciaCoordinadorScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={[styles.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={styles.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -118,7 +119,7 @@ export default function AsistenciaCoordinadorScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: tc.fondo }]}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
-        <Text style={styles.titulo}>Asistencia</Text>
+        <Text style={[styles.titulo, { color: tc.tinta }]}>Asistencia</Text>
         {divisionNombre ? (
           <Text style={styles.subtitulo}>{divisionNombre}</Text>
         ) : null}
@@ -130,7 +131,7 @@ export default function AsistenciaCoordinadorScreen() {
         onSeleccionar={seleccionarDivision}
       />
 
-      <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20, marginTop: divisiones.length > 1 ? 12 : 0 }} />
+      <View style={{ height: 1, backgroundColor: tc.grisClaro, marginHorizontal: 20, marginTop: divisiones.length > 1 ? 12 : 0 }} />
 
       {loading ? (
         <View style={styles.centrado}>
@@ -157,7 +158,7 @@ export default function AsistenciaCoordinadorScreen() {
                 <Text style={styles.leyendaTexto}>{l.label}</Text>
               </View>
             ))}
-            <Text style={styles.contador}>{jugadores.length} jugadores</Text>
+            <Text style={[styles.contador, { color: tc.tinta }]}>{jugadores.length} jugadores</Text>
           </View>
 
           <FlatList
@@ -165,7 +166,7 @@ export default function AsistenciaCoordinadorScreen() {
             keyExtractor={item => item.id}
             renderItem={({ item }) => <FilaJugador jugador={item} />}
             ItemSeparatorComponent={() => (
-              <View style={{ height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 }} />
+              <View style={{ height: 1, backgroundColor: tc.grisClaro, marginHorizontal: 20 }} />
             )}
             contentContainerStyle={jugadores.length === 0 ? { flex: 1 } : { paddingBottom: 16 }}
             ListEmptyComponent={

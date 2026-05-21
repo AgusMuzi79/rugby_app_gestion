@@ -56,6 +56,7 @@ function FilaJugador({
   alertas: string[]
   onMarca: (id: string, estado: EstadoAsistencia) => void
 }) {
+  const { colors: tc } = useTheme()
   const conAlerta = alertas.includes(item.nombre_completo)
   const numero    = String(index + 1).padStart(2, '0')
 
@@ -63,7 +64,7 @@ function FilaJugador({
     <View style={s.fila}>
       <Text style={s.numero}>{numero}</Text>
       <View style={s.infoCol}>
-        <Text style={s.nombre} numberOfLines={1}>{item.nombre_completo}</Text>
+        <Text style={[s.nombre, { color: tc.tinta }]} numberOfLines={1}>{item.nombre_completo}</Text>
         {conAlerta && <Text style={s.alertaInline}>⚠ 4 AUSENCIAS</Text>}
       </View>
       <View style={s.badgesRow}>
@@ -118,7 +119,7 @@ export default function AsistenciaScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -126,7 +127,7 @@ export default function AsistenciaScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -141,7 +142,7 @@ export default function AsistenciaScreen() {
         <View style={s.headerTop}>
           <View style={s.headerLeft}>
             <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
-            <Text style={s.titulo}>Toma de asistencia</Text>
+            <Text style={[s.titulo, { color: tc.tinta }]}>Toma de asistencia</Text>
           </View>
           <TouchableOpacity
             style={[s.guardarBtn, guardando && { opacity: 0.55 }]}
@@ -160,7 +161,7 @@ export default function AsistenciaScreen() {
         </Text>
       </View>
 
-      <View style={s.divider} />
+      <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
 
       {/* ── Contadores ─────────────────────────────────────────────────────── */}
       <View style={s.contadores}>
@@ -181,13 +182,13 @@ export default function AsistenciaScreen() {
             onMarca={marcarEstado}
           />
         )}
-        ItemSeparatorComponent={() => <View style={s.separator} />}
+        ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: tc.grisClaro }]} />}
         contentContainerStyle={{ paddingBottom: 8 }}
       />
 
       {/* ── Estado ─────────────────────────────────────────────────────────── */}
       {(errorGuardado || (guardado && !guardando)) && (
-        <View style={s.statusBar}>
+        <View style={[s.statusBar, { borderTopColor: tc.grisClaro }]}>
           {errorGuardado && !guardando && (
             <Text style={s.statusError}>✕ {errorGuardado}</Text>
           )}

@@ -79,9 +79,10 @@ function EventoCard({
   evento: EventoFinanciero
   onSelect: (ev: EventoFinanciero) => void
 }) {
+  const { colors: tc } = useTheme()
   const { pctCobrado, countPagados, countJugadores, montoCobrado } = evento
   return (
-    <TouchableOpacity style={s.eventoCard} onPress={() => onSelect(evento)} activeOpacity={0.82}>
+    <TouchableOpacity style={[s.eventoCard, { backgroundColor: tc.fondo }]} onPress={() => onSelect(evento)} activeOpacity={0.82}>
       {/* Tipo + % badge */}
       <View style={s.eventoCardHead}>
         <View style={s.tipoBadge}>
@@ -93,7 +94,7 @@ function EventoCard({
       </View>
 
       {/* Nombre + fecha */}
-      <Text style={s.eventoNombre} numberOfLines={2}>{evento.nombre}</Text>
+      <Text style={[s.eventoNombre, { color: tc.tinta }]} numberOfLines={2}>{evento.nombre}</Text>
       {evento.fecha && (
         <Text style={s.eventoFecha}>{formatFecha(evento.fecha)}</Text>
       )}
@@ -128,12 +129,13 @@ function FilaJugador({
   index: number
   onTap: (id: string) => void
 }) {
+  const { colors: tc } = useTheme()
   const pagado = jugador.estado === 'pagado'
   const numero = String(index + 1).padStart(2, '0')
   return (
     <TouchableOpacity style={s.filaJugador} onPress={() => onTap(jugador.jugadorId)} activeOpacity={0.8}>
       <Text style={s.filaNumero}>{numero}</Text>
-      <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
+      <Text style={[s.filaNombre, { color: tc.tinta }]} numberOfLines={1}>{jugador.nombre}</Text>
       <View style={[s.estadoBadge, pagado ? s.estadoPagado : s.estadoPendiente]}>
         <Text style={[s.estadoTexto, pagado ? s.estadoPagadoTexto : s.estadoPendienteTexto]}>
           {pagado ? 'PAGADO' : 'PENDIENTE'}
@@ -153,7 +155,7 @@ function BarraResumen({
   return (
     <View style={s.resumenBar}>
       <View style={s.resumenItem}>
-        <Text style={s.resumenVal}>{formatMonto(cobrado)}</Text>
+        <Text style={[s.resumenVal, { color: TINTA }]}>{formatMonto(cobrado)}</Text>
         <Text style={s.resumenLabel}>COBRADO</Text>
       </View>
       <View style={s.resumenDiv} />
@@ -191,6 +193,7 @@ function ModalPago({
   onMonto: (id: string, v: string) => void
   onForma: (id: string, f: FormaDePago) => void
 }) {
+  const { colors: tc } = useTheme()
   const pagado = jugador.estado === 'pagado'
 
   return (
@@ -198,18 +201,18 @@ function ModalPago({
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <SafeAreaView style={s.modalContainer}>
+      <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
         {/* Header */}
         <View style={s.modalHeader}>
           <View>
             <Text style={s.modalSuper}>PAGO · JUGADOR</Text>
-            <Text style={s.modalTitulo} numberOfLines={2}>{jugador.nombre}</Text>
+            <Text style={[s.modalTitulo, { color: tc.tinta }]} numberOfLines={2}>{jugador.nombre}</Text>
           </View>
           <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalClose} disabled={guardando}>
             <Ionicons name="close" size={20} color={MUTED} />
           </TouchableOpacity>
         </View>
-        <View style={s.separador} />
+        <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
         <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
           {/* Selector PAGADO / PENDIENTE */}
@@ -257,7 +260,7 @@ function ModalPago({
                 <View style={s.montoWrap}>
                   <Text style={s.montoSimbolo}>$</Text>
                   <TextInput
-                    style={s.montoInput}
+                    style={[s.montoInput, { color: tc.tinta }]}
                     value={jugador.monto}
                     onChangeText={v => onMonto(jugador.jugadorId, v)}
                     keyboardType="decimal-pad"
@@ -340,7 +343,7 @@ export default function CobranzasScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -348,7 +351,7 @@ export default function CobranzasScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -364,9 +367,9 @@ export default function CobranzasScreen() {
             ? `MANAGER · ${divisionNombre.toUpperCase()} · EVENTO`
             : `MANAGER · ${divisionNombre.toUpperCase()}`}
         </Text>
-        <Text style={s.titulo}>Cobranzas</Text>
+        <Text style={[s.titulo, { color: tc.tinta }]}>Cobranzas</Text>
       </View>
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* ── Paso: Eventos ── */}
       {paso === 'eventos' && (
@@ -408,7 +411,7 @@ export default function CobranzasScreen() {
               <View style={s.tipoBadge}>
                 <Text style={s.tipoBadgeTexto}>{TIPO_LABEL[eventoSeleccionado.tipo] ?? eventoSeleccionado.tipo}</Text>
               </View>
-              <Text style={s.eventoResumenNombre} numberOfLines={2}>{eventoSeleccionado.nombre}</Text>
+              <Text style={[s.eventoResumenNombre, { color: tc.tinta }]} numberOfLines={2}>{eventoSeleccionado.nombre}</Text>
               {eventoSeleccionado.fecha && (
                 <Text style={s.eventoFecha}>{formatFecha(eventoSeleccionado.fecha)}</Text>
               )}
@@ -421,7 +424,7 @@ export default function CobranzasScreen() {
             pendientes={resumen.pendientes}
             cobrado={resumen.cobrado}
           />
-          <View style={s.separador} />
+          <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
           {cargandoJugadores ? (
             <View style={s.centrado}>
@@ -460,7 +463,7 @@ export default function CobranzasScreen() {
 
           {/* Botón guardar global */}
           {!cargandoJugadores && jugadores.length > 0 && (
-            <View style={s.bottomBar}>
+            <View style={[s.bottomBar, { backgroundColor: tc.fondo }]}>
               <TouchableOpacity
                 style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
                 onPress={guardarCobranzas}

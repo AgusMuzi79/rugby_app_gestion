@@ -156,6 +156,7 @@ function SelectorPartidos({
   seleccionado: PartidoEvento | null
   onSelect: (p: PartidoEvento) => void
 }) {
+  const { colors: tc } = useTheme()
   if (partidos.length === 0) {
     return (
       <View style={{ gap: 4 }}>
@@ -171,13 +172,13 @@ function SelectorPartidos({
         return (
           <TouchableOpacity
             key={p.id}
-            style={[s.card, activo && s.cardActivo]}
+            style={[s.card, activo && s.cardActivo, { borderColor: tc.tinta, backgroundColor: tc.fondo }]}
             onPress={() => onSelect(p)}
             activeOpacity={0.8}
           >
             <View style={s.cardRow}>
               <View style={s.cardInfo}>
-                <Text style={[s.cardTitle, activo && { color: colors.oro }]}>
+                <Text style={[s.cardTitle, { color: tc.tinta }, activo && { color: colors.oro }]}>
                   vs {p.rival ?? 'Rival por confirmar'}
                 </Text>
                 <Text style={s.cardSub}>
@@ -324,6 +325,7 @@ function PasoAsistencia({
   onGuardar: () => Promise<void>
   onVolver: () => void
 }) {
+  const { colors: tc } = useTheme()
   const presentes  = jugadores.filter(j => j.presente).length
   const ausentes   = jugadores.length - presentes
   const puedeGuardar = esInfantil || presentes > 0
@@ -351,7 +353,7 @@ function PasoAsistencia({
       {/* Lista numerada */}
       {jugadores.map((j, i) => (
         <View key={j.id}>
-          {i > 0 && <View style={s.separator} />}
+          {i > 0 && <View style={[s.separator, { backgroundColor: tc.grisClaro }]} />}
           <FilaAsistencia jugador={j} index={i} onToggle={onToggle} />
         </View>
       ))}
@@ -560,6 +562,7 @@ function PasoResultado({
   onGuardar: () => Promise<void>
   onVolver: () => void
 }) {
+  const { colors: tc } = useTheme()
   return (
     <View>
       <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
@@ -571,7 +574,7 @@ function PasoResultado({
           <View style={{ flex: 1, gap: 8 }}>
             <Text style={s.seccionLabel}>NOSOTROS</Text>
             <TextInput
-              style={s.inputNumero}
+              style={[s.inputNumero, { color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
               value={puntosPropios}
               onChangeText={onChangePropios}
               keyboardType="number-pad"
@@ -584,7 +587,7 @@ function PasoResultado({
           <View style={{ flex: 1, gap: 8 }}>
             <Text style={[s.seccionLabel, { textAlign: 'right' }]}>RIVAL</Text>
             <TextInput
-              style={[s.inputNumero, { textAlign: 'right' }]}
+              style={[s.inputNumero, { textAlign: 'right', color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
               value={puntosRival}
               onChangeText={onChangeRival}
               keyboardType="number-pad"
@@ -598,7 +601,7 @@ function PasoResultado({
         <View style={{ gap: 8, marginTop: 16 }}>
           <Text style={s.seccionLabel}>NOMBRE DEL RIVAL</Text>
           <TextInput
-            style={s.inputTexto}
+            style={[s.inputTexto, { color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
             value={rivalNombre}
             onChangeText={onChangeRivalNombre}
             placeholder="Nombre del rival"
@@ -659,7 +662,7 @@ export default function PartidoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -667,7 +670,7 @@ export default function PartidoScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -682,10 +685,10 @@ export default function PartidoScreen() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>
         <Text style={s.bloque}>SECCIÓN · CANCHA</Text>
-        <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
+        <Text style={[s.titulo, { color: tc.tinta }]}>{pasoTitulo[paso]}</Text>
         <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
       </View>
-      <View style={s.divider} />
+      <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
 
       {/* ── Contenido por paso ─────────────────────────────────────────────── */}
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>

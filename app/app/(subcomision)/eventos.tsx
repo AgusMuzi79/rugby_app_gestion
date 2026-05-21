@@ -86,6 +86,7 @@ function TabSwitcher({
   countActivos:  number
   countHistorial: number
 }) {
+  const { colors: tc } = useTheme()
   return (
     <View style={s.tabRow}>
       {(['activos', 'historial'] as TabActivo[]).map(t => {
@@ -98,7 +99,7 @@ function TabSwitcher({
             onPress={() => onChange(t)}
             activeOpacity={0.8}
           >
-            <Text style={[s.tabTexto, activo && s.tabTextoActivo]}>
+            <Text style={[s.tabTexto, activo && s.tabTextoActivo, activo && { color: tc.tinta }]}>
               {t === 'activos' ? 'ACTIVOS' : 'HISTORIAL'}
               {count > 0 ? `  ${count}` : ''}
             </Text>
@@ -251,7 +252,7 @@ function EventoDetalleContent({
       {montoSug !== null && (
         <Text style={s.montoSugTexto}>{formatPesos(montoSug)} por jugador</Text>
       )}
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {cargando ? (
         <View style={s.centrado}>
@@ -277,7 +278,7 @@ function EventoDetalleContent({
                 </View>
                 <View style={s.resumenDiv} />
                 <View style={s.resumenItem}>
-                  <Text style={[s.resumenVal, { fontSize: 15, color: TINTA }]}>
+                  <Text style={[s.resumenVal, { fontSize: 15, color: tc.tinta }]}>
                     {formatPesos(ev.resumenTotal.cobrado)}
                   </Text>
                   <Text style={s.resumenLabel}>COBRADO</Text>
@@ -292,7 +293,7 @@ function EventoDetalleContent({
                     <View key={d.divisionNombre}>
                       {i > 0 && <View style={s.filaDiv} />}
                       <View style={s.divFila}>
-                        <Text style={s.divFilaNombre} numberOfLines={1}>{d.divisionNombre}</Text>
+                        <Text style={[s.divFilaNombre, { color: tc.tinta }]} numberOfLines={1}>{d.divisionNombre}</Text>
                         <Text style={s.divFilaDetalle}>
                           {d.pagados}P · {d.pendientes}PN · {formatPesos(d.cobrado)}
                         </Text>
@@ -316,7 +317,7 @@ function EventoDetalleContent({
                   return (
                     <View key={p.id} style={s.pedidoCard}>
                       <View style={s.pedidoHeader}>
-                        <Text style={s.pedidoManager}>{p.managerNombre}</Text>
+                        <Text style={[s.pedidoManager, { color: tc.tinta }]}>{p.managerNombre}</Text>
                         <View style={[
                           s.estadoBadge,
                           confirmado ? s.estadoConfirmado : s.estadoAbierto,
@@ -383,6 +384,7 @@ function ModalNuevoEvento({
   guardando:  boolean
   error:      string | null
 }) {
+  const { colors: tc } = useTheme()
   function setTipo(t: TipoEvento) {
     setForm({ ...form, tipo: t, divisionId: t === 'recaudacion' ? null : form.divisionId })
   }
@@ -390,12 +392,12 @@ function ModalNuevoEvento({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView style={s.modalContainer}>
+        <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
           {/* Header */}
           <View style={s.modalHeader}>
             <View>
               <Text style={s.modalSuper}>NUEVO</Text>
-              <Text style={s.modalTitulo}>Evento</Text>
+              <Text style={[s.modalTitulo, { color: tc.tinta }]}>Evento</Text>
             </View>
             <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ padding: 4, marginTop: 4 }}>
               <Ionicons name="close" size={20} color={MUTED} />
@@ -456,7 +458,7 @@ function ModalNuevoEvento({
             <View style={s.campo}>
               <Text style={s.campoLabel}>NOMBRE DEL EVENTO</Text>
               <TextInput
-                style={s.inputLinea}
+                style={[s.inputLinea, { color: tc.tinta }]}
                 placeholder="ej. Viaje Mar del Plata, Asado M14…"
                 placeholderTextColor={MUTED}
                 value={form.nombre}
@@ -472,7 +474,7 @@ function ModalNuevoEvento({
               <View style={s.montoWrap}>
                 <Text style={s.montoSimbolo}>$</Text>
                 <TextInput
-                  style={s.montoInput}
+                  style={[s.montoInput, { color: tc.tinta }]}
                   placeholder="2500"
                   placeholderTextColor={MUTED}
                   value={form.montoSugerido}
@@ -492,7 +494,7 @@ function ModalNuevoEvento({
           </ScrollView>
 
           {/* Footer */}
-          <View style={s.modalFooter}>
+          <View style={[s.modalFooter, { backgroundColor: tc.fondo }]}>
             <TouchableOpacity
               style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
               onPress={onGuardar}
@@ -571,9 +573,9 @@ export default function EventosScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>SECCIÓN · DIRECTIVA</Text>
-        <Text style={s.titulo}>Eventos</Text>
+        <Text style={[s.titulo, { color: tc.tinta }]}>Eventos</Text>
       </View>
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* Tabs */}
       <TabSwitcher
@@ -582,7 +584,7 @@ export default function EventosScreen() {
         countActivos={eventosActivos.length}
         countHistorial={eventosHistorial.length}
       />
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* Lista */}
       <ScrollView

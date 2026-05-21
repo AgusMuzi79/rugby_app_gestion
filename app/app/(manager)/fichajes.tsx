@@ -64,12 +64,13 @@ function FilaJugador({
   index: number
   onPress: (j: JugadorFichado) => void
 }) {
+  const { colors: tc } = useTheme()
   const numero = String(index + 1).padStart(2, '0')
   return (
     <TouchableOpacity style={s.fila} onPress={() => onPress(jugador)} activeOpacity={0.8}>
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaInfo}>
-        <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
+        <Text style={[s.filaNombre, { color: tc.tinta }]} numberOfLines={1}>{jugador.nombre_completo}</Text>
         {jugador.posicion ? (
           <Text style={s.filaPosicion}>{jugador.posicion.toUpperCase()}</Text>
         ) : null}
@@ -96,6 +97,7 @@ function DocumentoFila({
   abriendoDoc: string | null
   onAbrir: (path: string) => void
 }) {
+  const { colors: tc } = useTheme()
   const tipo  = doc.tipo as TipoDocumento
   const color = TIPO_COLOR[tipo] ?? MUTED
   const abriendo = abriendoDoc === doc.storage_path
@@ -110,7 +112,7 @@ function DocumentoFila({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={[s.docTipo, { color }]}>{TIPO_LABEL[tipo] ?? doc.tipo}</Text>
         </View>
-        <Text style={s.docNombre} numberOfLines={1}>
+        <Text style={[s.docNombre, { color: tc.tinta }]} numberOfLines={1}>
           {doc.nombre_archivo ?? 'Archivo'}
         </Text>
         <Text style={s.docFecha}>{formatFecha(doc.created_at.split('T')[0])}</Text>
@@ -196,7 +198,7 @@ export default function FichajesScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -209,13 +211,13 @@ export default function FichajesScreen() {
       <View style={s.header}>
         <Text style={s.labelHeader}>MANAGER · {divisionNombre.toUpperCase()}</Text>
         <View style={s.tituloRow}>
-          <Text style={s.titulo}>Fichajes</Text>
+          <Text style={[s.titulo, { color: tc.tinta }]}>Fichajes</Text>
           {jugadores.length > 0 && (
             <Text style={s.tituloConteo}>{jugadores.length} fichados</Text>
           )}
         </View>
       </View>
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* ── Paso: Lista ── */}
       {paso === 'lista' && (
@@ -259,9 +261,9 @@ export default function FichajesScreen() {
 
           {/* Nombre grande */}
           <View style={s.detalleNombreWrap}>
-            <Text style={s.detalleNombre}>{jugadorDetalle.nombre_completo}</Text>
+            <Text style={[s.detalleNombre, { color: tc.tinta }]}>{jugadorDetalle.nombre_completo}</Text>
           </View>
-          <View style={s.separador} />
+          <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
           {/* Info rows */}
           <View style={s.infoSection}>
@@ -274,12 +276,12 @@ export default function FichajesScreen() {
               valor ? (
                 <View key={label} style={s.infoFila}>
                   <Text style={s.infoLabel}>{label}</Text>
-                  <Text style={s.infoValor}>{valor}</Text>
+                  <Text style={[s.infoValor, { color: tc.tinta }]}>{valor}</Text>
                 </View>
               ) : null,
             )}
           </View>
-          <View style={s.separador} />
+          <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
           {/* Documentación */}
           <View style={s.seccionDetalle}>
@@ -304,7 +306,7 @@ export default function FichajesScreen() {
               </View>
             )}
           </View>
-          <View style={s.separador} />
+          <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
           {/* Subir documento */}
           <View style={s.seccionDetalle}>
@@ -353,12 +355,12 @@ export default function FichajesScreen() {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={s.modalContainer}>
+          <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
             {/* Header modal */}
             <View style={s.modalHeader}>
               <View>
                 <Text style={s.modalSuper}>NUEVO</Text>
-                <Text style={s.modalTitulo}>Fichaje</Text>
+                <Text style={[s.modalTitulo, { color: tc.tinta }]}>Fichaje</Text>
               </View>
               <TouchableOpacity
                 onPress={cerrarModal}
@@ -369,7 +371,7 @@ export default function FichajesScreen() {
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            <View style={s.separador} />
+            <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
             <ScrollView
               contentContainerStyle={s.modalScroll}
@@ -379,7 +381,7 @@ export default function FichajesScreen() {
               <View style={s.campo}>
                 <Text style={s.campoLabel}>NOMBRE COMPLETO</Text>
                 <TextInput
-                  style={s.inputLinea}
+                  style={[s.inputLinea, { color: tc.tinta }]}
                   value={nombre}
                   onChangeText={setNombre}
                   placeholder="Apellido y nombre"
@@ -392,7 +394,7 @@ export default function FichajesScreen() {
               <View style={s.campo}>
                 <Text style={s.campoLabel}>DNI</Text>
                 <TextInput
-                  style={s.inputLinea}
+                  style={[s.inputLinea, { color: tc.tinta }]}
                   value={dni}
                   onChangeText={setDni}
                   placeholder="40000001"
@@ -416,7 +418,7 @@ export default function FichajesScreen() {
               <View style={s.campo}>
                 <Text style={s.campoLabel}>POSICIÓN (opcional)</Text>
                 <TextInput
-                  style={s.inputLinea}
+                  style={[s.inputLinea, { color: tc.tinta }]}
                   value={posicion}
                   onChangeText={setPosicion}
                   placeholder="Apertura, Pilar, Hooker..."

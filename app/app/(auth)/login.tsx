@@ -15,15 +15,16 @@ import { Link, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useLogin } from '@/hooks/useLogin'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const PLACEHOLDER = '#9B9A8F'
-const DIVIDER     = colors.grisClaro
 
 export default function LoginScreen() {
   const [email, setEmail]                     = useState('')
   const [password, setPassword]               = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
 
+  const { colors: tc } = useTheme()
   const {
     login,
     loginConBiometria,
@@ -37,7 +38,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.papel }}
+      style={{ flex: 1, backgroundColor: tc.fondo }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
@@ -61,10 +62,10 @@ export default function LoginScreen() {
           </Text>
 
           {/* Título serif itálico */}
-          <Text style={styles.title}>Uncas Rugby App</Text>
+          <Text style={[styles.title, { color: tc.tinta }]}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
-          <View style={[styles.divider, { backgroundColor: DIVIDER }]} />
+          <View style={[styles.divider, { backgroundColor: tc.grisClaro }]} />
 
           {/* Subtítulo */}
           <Text style={styles.subtitle}>
@@ -80,9 +81,9 @@ export default function LoginScreen() {
 
           {/* Campo USUARIO */}
           <View style={styles.fieldWrap}>
-            <Text style={styles.label}>USUARIO</Text>
+            <Text style={[styles.label, { color: tc.tinta }]}>USUARIO</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: tc.tinta }]}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -96,10 +97,10 @@ export default function LoginScreen() {
 
           {/* Campo CONTRASEÑA */}
           <View style={[styles.fieldWrap, { marginBottom: 32 }]}>
-            <Text style={styles.label}>CONTRASEÑA</Text>
+            <Text style={[styles.label, { color: tc.tinta }]}>CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, { color: tc.tinta }]}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!mostrarPassword}
@@ -123,14 +124,14 @@ export default function LoginScreen() {
 
           {/* Error banner */}
           {error !== null && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={[styles.errorBanner, { backgroundColor: tc.card }]}>
+              <Text style={[styles.errorText, { color: tc.tinta }]}>{error}</Text>
             </View>
           )}
 
           {/* Botón principal */}
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonLoading]}
+            style={[styles.button, { backgroundColor: tc.tinta }, loading && styles.buttonLoading]}
             onPress={() => login(email, password)}
             disabled={loading}
             activeOpacity={0.85}
@@ -204,7 +205,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 52,
-    color: colors.tinta,
     marginBottom: 16,
     lineHeight: 58,
   },
@@ -228,13 +228,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 10,
     letterSpacing: 2,
-    color: colors.tinta,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -248,7 +246,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -259,7 +256,6 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   button: {
-    backgroundColor: colors.tinta,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
@@ -290,7 +286,6 @@ const styles = StyleSheet.create({
     color: colors.oro,
   },
   errorBanner: {
-    backgroundColor: '#FEF8EC',
     borderWidth: 1,
     borderColor: colors.oro,
     borderRadius: 6,
@@ -302,7 +297,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 13,
     textAlign: 'center',
-    color: colors.tinta,
   },
   successBanner: {
     backgroundColor: '#F0F9EC',

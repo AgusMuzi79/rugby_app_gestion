@@ -16,12 +16,14 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
 import { colors, fonts } from '@/constants/theme'
+import { useTheme } from '@/contexts/ThemeContext'
 
 const PLACEHOLDER = '#9B9A8F'
 
 export default function RegistroScreen() {
   const router              = useRouter()
   const { session, setNuevoUsuario } = useAuthStore()
+  const { colors: tc } = useTheme()
 
   const [cargando, setCargando]               = useState(true)
   const [nombre, setNombre]                   = useState('')
@@ -82,7 +84,7 @@ export default function RegistroScreen() {
 
   if (cargando) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.papel, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: tc.fondo, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colors.oro} />
       </View>
     )
@@ -90,22 +92,22 @@ export default function RegistroScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.papel }}
+      style={{ flex: 1, backgroundColor: tc.fondo }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
         <View style={styles.container}>
 
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
-          <Text style={styles.title}>Uncas Rugby App</Text>
-          <View style={[styles.divider, { backgroundColor: colors.grisClaro }]} />
+          <Text style={[styles.title, { color: tc.tinta }]}>Uncas Rugby App</Text>
+          <View style={[styles.divider, { backgroundColor: tc.grisClaro }]} />
           <Text style={styles.subtitle}>Bienvenido. Confirmá tu nombre y elegí una contraseña de acceso.</Text>
 
           {/* Nombre */}
           <View style={styles.fieldWrap}>
-            <Text style={styles.label}>NOMBRE COMPLETO</Text>
+            <Text style={[styles.label, { color: tc.tinta }]}>NOMBRE COMPLETO</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: tc.tinta }]}
               value={nombre}
               onChangeText={setNombre}
               autoCapitalize="words"
@@ -118,10 +120,10 @@ export default function RegistroScreen() {
 
           {/* Contraseña */}
           <View style={styles.fieldWrap}>
-            <Text style={styles.label}>NUEVA CONTRASEÑA</Text>
+            <Text style={[styles.label, { color: tc.tinta }]}>NUEVA CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, { color: tc.tinta }]}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!mostrarPassword}
@@ -145,9 +147,9 @@ export default function RegistroScreen() {
 
           {/* Confirmar */}
           <View style={[styles.fieldWrap, { marginBottom: 32 }]}>
-            <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
+            <Text style={[styles.label, { color: tc.tinta }]}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: tc.tinta }]}
               value={confirmacion}
               onChangeText={setConfirmacion}
               secureTextEntry={!mostrarPassword}
@@ -158,13 +160,13 @@ export default function RegistroScreen() {
           </View>
 
           {error !== null && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={[styles.errorBanner, { backgroundColor: tc.card }]}>
+              <Text style={[styles.errorText, { color: tc.tinta }]}>{error}</Text>
             </View>
           )}
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonLoading]}
+            style={[styles.button, { backgroundColor: tc.tinta }, loading && styles.buttonLoading]}
             onPress={guardar}
             disabled={loading}
             activeOpacity={0.85}
@@ -202,7 +204,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 48,
-    color: colors.tinta,
     marginBottom: 16,
     lineHeight: 54,
   },
@@ -226,13 +227,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 10,
     letterSpacing: 2,
-    color: colors.tinta,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -246,7 +245,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -257,7 +255,6 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   button: {
-    backgroundColor: colors.tinta,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
@@ -272,7 +269,6 @@ const styles = StyleSheet.create({
     color: colors.oro,
   },
   errorBanner: {
-    backgroundColor: '#FEF8EC',
     borderWidth: 1,
     borderColor: colors.oro,
     borderRadius: 6,
@@ -284,7 +280,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 13,
     textAlign: 'center',
-    color: colors.tinta,
   },
   footer: {
     fontFamily: fonts.label,

@@ -79,17 +79,18 @@ function FilaLesion({
   onToggle: () => void
   onVerHistorial: () => void
 }) {
+  const { colors: tc } = useTheme()
   const urgente = lesion.grado >= 3
   return (
     <TouchableOpacity
-      style={[s.lesionCard, urgente && s.lesionCardUrgente]}
+      style={[s.lesionCard, !urgente && { backgroundColor: tc.fondo }, urgente && s.lesionCardUrgente]}
       onPress={onToggle}
       activeOpacity={0.82}
     >
       <View style={s.lesionCabeza}>
         <View style={{ flex: 1, gap: 3 }}>
           <Text
-            style={[s.lesionNombre, urgente && s.lesionNombreUrgente]}
+            style={[s.lesionNombre, !urgente && { color: tc.tinta }, urgente && s.lesionNombreUrgente]}
             numberOfLines={1}
           >
             {lesion.jugadorNombre}
@@ -326,6 +327,7 @@ function SelectorJugador({
   seleccionado: JugadorOpcion | null
   onSelect: (j: JugadorOpcion) => void
 }) {
+  const { colors: tc } = useTheme()
   const [busqueda, setBusqueda] = useState('')
   const filtrados = busqueda.trim()
     ? jugadores.filter(j =>
@@ -335,10 +337,10 @@ function SelectorJugador({
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={s.buscadorWrap}>
+      <View style={[s.buscadorWrap, { backgroundColor: tc.card, borderColor: tc.grisClaro }]}>
         <Ionicons name="search" size={14} color={MUTED} style={{ marginRight: 8 }} />
         <TextInput
-          style={s.buscadorInput}
+          style={[s.buscadorInput, { color: tc.tinta }]}
           value={busqueda}
           onChangeText={setBusqueda}
           placeholder="Buscar jugador..."
@@ -351,12 +353,12 @@ function SelectorJugador({
           return (
             <TouchableOpacity
               key={j.id}
-              style={[s.jugItem, activo && s.jugItemActivo]}
+              style={[s.jugItem, { borderColor: tc.grisClaro }, activo && s.jugItemActivo]}
               onPress={() => onSelect(j)}
               activeOpacity={0.75}
             >
               <Text
-                style={[s.jugItemTexto, activo && s.jugItemTextoActivo]}
+                style={[s.jugItemTexto, !activo && { color: tc.tinta }, activo && s.jugItemTextoActivo]}
                 numberOfLines={1}
               >
                 {j.nombre_completo}
@@ -435,7 +437,7 @@ export default function LesionesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -443,7 +445,7 @@ export default function LesionesScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -466,13 +468,13 @@ export default function LesionesScreen() {
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
-        <Text style={s.titulo}>Lesiones</Text>
+        <Text style={[s.titulo, { color: tc.tinta }]}>Lesiones</Text>
       </View>
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* Tab switcher */}
       <TabSwitcher tab={tabActivo} onChange={setTabActivo} />
-      <View style={s.separador} />
+      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
       {/* Vista protocolos */}
       {tabActivo === 'protocolos' && (
@@ -527,12 +529,12 @@ export default function LesionesScreen() {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={s.modalContainer}>
+          <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
             {/* Header modal */}
             <View style={s.modalHeader}>
               <View>
                 <Text style={s.modalSuper}>REGISTRAR</Text>
-                <Text style={s.modalTitulo}>Nueva lesión</Text>
+                <Text style={[s.modalTitulo, { color: tc.tinta }]}>Nueva lesión</Text>
               </View>
               <TouchableOpacity
                 onPress={cerrarModal}
@@ -543,7 +545,7 @@ export default function LesionesScreen() {
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            <View style={s.separador} />
+            <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
 
             <ScrollView
               contentContainerStyle={s.modalScroll}
@@ -573,7 +575,7 @@ export default function LesionesScreen() {
               <View style={s.campo}>
                 <Text style={s.campoLabel}>DESCRIPCIÓN</Text>
                 <TextInput
-                  style={s.inputDesc}
+                  style={[s.inputDesc, { color: tc.tinta }]}
                   value={descripcion}
                   onChangeText={setDescripcion}
                   placeholder="Describí la lesión..."

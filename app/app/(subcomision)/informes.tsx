@@ -51,6 +51,7 @@ function tipoColor(tipo: string): string {
 // ─── Sección Asistencia ───────────────────────────────────────────────────────
 
 function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
+  const { colors: tc } = useTheme()
   // Agrupar por división
   const gruposMap = new Map<string, JugadorAsistencia[]>()
   for (const a of datos) {
@@ -75,15 +76,15 @@ function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
         grupos.map(g => (
           <View key={g.divisionNombre} style={{ gap: 4 }}>
             <View style={s.divHeader}>
-              <Text style={s.divHeaderTexto}>{g.divisionNombre}</Text>
+              <Text style={[s.divHeaderTexto, { color: tc.tinta }]}>{g.divisionNombre}</Text>
               {g.tieneAlertas && (
                 <View style={s.badgeRojo}><Text style={s.badgeTexto}>ALERTA</Text></View>
               )}
             </View>
             {g.jugadores.map(j => (
-              <View key={j.jugadorId} style={s.card}>
+              <View key={j.jugadorId} style={[s.card, { backgroundColor: tc.card }]}>
                 <View style={s.fila}>
-                  <Text style={s.cardNombre} numberOfLines={1}>{j.nombre}</Text>
+                  <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{j.nombre}</Text>
                   <View style={s.filaRight}>
                     {j.ausenciasConsecutivas && (
                       <View style={s.badgeRojo}><Text style={s.badgeTexto}>4 AUST.</Text></View>
@@ -106,6 +107,7 @@ function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
 // ─── Sección Resultados ───────────────────────────────────────────────────────
 
 function SeccionResultados({ datos }: { datos: ResultadoInforme[] }) {
+  const { colors: tc } = useTheme()
   const wins   = datos.filter(r => r.resultado === 'W').length
   const losses = datos.filter(r => r.resultado === 'L').length
   const draws  = datos.filter(r => r.resultado === 'D').length
@@ -126,13 +128,13 @@ function SeccionResultados({ datos }: { datos: ResultadoInforme[] }) {
         <Text style={s.vacio}>Sin resultados cargados.</Text>
       ) : (
         datos.map(r => (
-          <View key={r.id} style={s.card}>
+          <View key={r.id} style={[s.card, { backgroundColor: tc.card }]}>
             <View style={s.fila}>
               <View style={[s.resBadge, resStyle(r.resultado)]}>
                 <Text style={s.resBadgeTexto}>{r.resultado}</Text>
               </View>
-              <Text style={s.marcador}>{r.puntosPropios}–{r.puntosRival}</Text>
-              <Text style={[s.cardNombre, { marginRight: 0, marginLeft: 8 }]} numberOfLines={1}>
+              <Text style={[s.marcador, { color: tc.tinta }]}>{r.puntosPropios}–{r.puntosRival}</Text>
+              <Text style={[s.cardNombre, { color: tc.tinta, marginRight: 0, marginLeft: 8 }]} numberOfLines={1}>
                 {r.rival ? `vs. ${r.rival}` : '—'}
               </Text>
               <Text style={s.cardFecha}>{formatFecha(r.fecha)}</Text>
@@ -154,6 +156,7 @@ function SeccionFichajes({
   porDiv:    DivisionFichajesResumen[]
   recientes: FichajeReciente[]
 }) {
+  const { colors: tc } = useTheme()
   const total = porDiv.reduce((s, d) => s + d.total, 0)
   return (
     <View style={s.seccion}>
@@ -165,10 +168,10 @@ function SeccionFichajes({
         <Text style={s.vacio}>Sin jugadores fichados.</Text>
       ) : (
         porDiv.map(d => (
-          <View key={d.divisionId} style={s.card}>
+          <View key={d.divisionId} style={[s.card, { backgroundColor: tc.card }]}>
             <View style={s.fila}>
-              <Text style={s.cardNombre} numberOfLines={1}>{d.divisionNombre}</Text>
-              <Text style={s.numGrande}>{d.total}</Text>
+              <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{d.divisionNombre}</Text>
+              <Text style={[s.numGrande, { color: tc.tinta }]}>{d.total}</Text>
             </View>
           </View>
         ))
@@ -177,9 +180,9 @@ function SeccionFichajes({
         <>
           <Text style={[s.seccionTitulo, { marginTop: 12 }]}>Últimas altas</Text>
           {recientes.map(f => (
-            <View key={f.id} style={s.card}>
+            <View key={f.id} style={[s.card, { backgroundColor: tc.card }]}>
               <View style={s.fila}>
-                <Text style={s.cardNombre} numberOfLines={1}>{f.nombre}</Text>
+                <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{f.nombre}</Text>
                 <Text style={s.cardFecha}>{formatFecha(f.fechaFichaje)}</Text>
               </View>
               <Text style={s.cardDiv}>{f.divisionNombre}</Text>
@@ -194,6 +197,7 @@ function SeccionFichajes({
 // ─── Sección Financiero ───────────────────────────────────────────────────────
 
 function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
+  const { colors: tc } = useTheme()
   return (
     <View style={s.seccion}>
       <Text style={s.seccionTitulo}>Financiero</Text>
@@ -203,7 +207,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
         datos.map(ef => {
           const color = tipoColor(ef.tipo)
           return (
-            <View key={ef.id} style={[s.card, { gap: 8 }]}>
+            <View key={ef.id} style={[s.card, { gap: 8, backgroundColor: tc.card }]}>
               <View style={s.fila}>
                 <View style={[s.tipoBadge, { borderColor: color }]}>
                   <Text style={[s.tipoTexto, { color }]}>
@@ -214,15 +218,15 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
                   <Text style={s.cardFecha}>{ef.divisionNombre}</Text>
                 )}
               </View>
-              <Text style={s.cardNombre}>{ef.nombre}</Text>
+              <Text style={[s.cardNombre, { color: tc.tinta }]}>{ef.nombre}</Text>
 
               {/* Barra de progreso */}
-              <View style={s.progressBar}>
+              <View style={[s.progressBar, { backgroundColor: tc.grisClaro }]}>
                 <View style={[s.progressFill, { width: `${ef.porcentajeCobrado}%` }]} />
               </View>
 
               <View style={s.fila}>
-                <Text style={s.cobrado}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
+                <Text style={[s.cobrado, { color: tc.tinta }]}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
                 <Text style={s.cardMuted}>
                   {ef.porcentajeCobrado}% · {ef.countPagados}P · {ef.countPendientes}PN
                 </Text>
@@ -231,8 +235,8 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
               {Object.keys(ef.formasDePago).length > 0 && (
                 <View style={s.formasRow}>
                   {Object.entries(ef.formasDePago).map(([forma, monto]) => (
-                    <View key={forma} style={s.formaPill}>
-                      <Text style={s.formaTexto}>
+                    <View key={forma} style={[s.formaPill, { backgroundColor: tc.card }]}>
+                      <Text style={[s.formaTexto, { color: tc.tinta }]}>
                         {forma}: ${monto.toLocaleString('es-AR')}
                       </Text>
                     </View>
