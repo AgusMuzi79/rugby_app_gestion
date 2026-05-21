@@ -318,7 +318,7 @@ Filtrado por división para no-subcomisión (lesiones + fichajes por `division_i
 6. `useResetPassword` valida y llama `updateUser({ password })` → signOut → redirect login con banner
 
 ### Dark Mode — Arquitectura
-Todas las pantallas usan `useTheme()` del `ThemeContext` para colores dinámicos. Patrón estándar:
+**COMPLETO** — Todas las pantallas usan `useTheme()` del `ThemeContext` para colores dinámicos. Patrón estándar:
 
 ```tsx
 const { colors: tc } = useTheme()
@@ -328,10 +328,20 @@ style={[s.root, { backgroundColor: tc.fondo }]}
 
 - Los `StyleSheet.create` se mantienen para layout/spacing. Los colores se sobreescriben con inline style arrays.
 - Los "edition bars" (headers con fondo oscuro) NO se convierten — son un elemento de diseño que siempre debe ser oscuro.
-- Sub-componentes definidos fuera del componente principal pueden llamar `useTheme()` directamente — no necesitan prop drilling.
+- Cards urgentes (`feedRowUrgente`, `lesionCardUrgente`) y botones primarios SIEMPRE oscuros — no se convierten.
+- Sub-componentes definidos fuera del componente principal llaman `useTheme()` directamente — no necesitan prop drilling.
+
+**Pantallas con dark mode aplicado (todas):**
+- `(auth)/login.tsx`, `forgot-password.tsx`, `registro.tsx`
+- `(entrenador)/asistencia.tsx`, `partido.tsx`, `lesiones.tsx`
+- `(manager)/cobranzas.tsx`, `fichajes.tsx`
+- `(subcomision)/eventos.tsx`, `informes.tsx`, `usuarios.tsx`
+- `(coordinador)/calendario.tsx`, `asistencia.tsx`
+- `components/shared/Header.tsx`, `SobreScreen.tsx`, `CronicaScreen.tsx`
+- Todos los `diario.tsx` de cada rol
 
 ### Próximo paso al volver
-App conectada a Supabase Cloud, EAS configurado, dark mode global implementado, flujo de onboarding completo, email visible en detalle de usuario.
+App conectada a Supabase Cloud, EAS configurado, dark mode global completo en todas las pantallas, flujo de onboarding completo, email visible en detalle de usuario.
 
 **Para lanzar build de distribución**:
 ```bash
