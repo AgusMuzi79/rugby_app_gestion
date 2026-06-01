@@ -12,6 +12,9 @@ const ROL_RUTAS: Record<string, string> = {
   entrenador:  '/(entrenador)/diario',
   manager:     '/(manager)/diario',
   admin:       '/(subcomision)/diario',
+  secretaria:  '/(secretaria)/diario',
+  porteria:    '/(porteria)/scanner',
+  socio:       '/(socio)/carnet',
 }
 
 export default function RootLayout() {
