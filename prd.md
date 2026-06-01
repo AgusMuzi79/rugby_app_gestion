@@ -1,33 +1,38 @@
-# APP DE GESTIÓN OPERATIVA DEL CLUB
-### Documento de Captura de Requerimientos
-**Versión 1.0 | Mayo 2026**
+# APP DE GESTIÓN DEL CLUB — DOCUMENTO DE REQUERIMIENTOS
+### Integración: Gestión Operativa + Módulo de Socios
+**Versión 2.1 | Mayo 2026**
 
 ---
 
 ## 1. Resumen Ejecutivo
 
-La App de Gestión Operativa del Club es una solución digital interna orientada al cuerpo técnico y organizativo del club. Su propósito es centralizar y digitalizar todos los procesos que hoy se manejan de forma manual (vía WhatsApp, planillas o papel), eliminando la pérdida de información, los retrasos en las comunicaciones y la falta de visibilidad entre áreas.
+La App de Gestión del Club es una plataforma unificada que centraliza dos grandes dominios: la gestión operativa interna del cuerpo técnico y la relación institucional con los socios del club.
 
-La aplicación cubre cuatro grandes dominios: gestión de partidos y entrenamientos, seguimiento de jugadores (asistencia, lesiones, fichajes), administración financiera operativa (cobranzas de viajes, tercer tiempo y eventos) y comunicación interna entre los distintos roles del club.
+La **v1** (ya especificada e implementada) cubre los procesos del cuerpo técnico: asistencia, lesiones, fichajes, cobranzas operativas e informes. La **v2** incorpora el módulo de socios: carnet digital, pago de cuotas, control de acceso en portería y comunicación institucional.
 
-En su primera versión, la app será utilizada exclusivamente por el cuerpo técnico y organizativo, con cuatro roles bien definidos: Subcomisión, Coordinador, Entrenador y Manager.
+Ambos módulos conviven en una sola app con roles diferenciados. Un mismo usuario puede tener más de un rol (por ejemplo, un jugador que también es socio). La base de datos y la autenticación son compartidas.
 
 ---
 
 ## 2. Usuarios y Roles
 
-| Rol | Descripción | Responsabilidades principales |
+| Rol | Descripción | Módulo |
 |---|---|---|
-| **Subcomisión** | Órgano directivo de la rama deportiva. Tiene visión global de todas las divisiones. | Recibe informes agregados (deportivos, financieros, fichajes). Recibe alertas de lesiones. Genera eventos de recaudación. Da de alta usuarios. Envía notificaciones a cualquier rol. |
-| **Coordinador** | Responsable de la coordinación de divisiones infantiles y juveniles. | Da de alta eventos deportivos y administrativos. Recibe informes de asistencia con alertas por inasistencias reiteradas. Gestiona el calendario de la división. |
-| **Entrenador** | Responsable técnico de cada equipo o división. | Releva asistencia en entrenamientos y partidos. Registra lesiones con detalle y grado. Carga resultado del partido. Administra la mesa de partido. |
-| **Manager** | Responsable operativo y administrativo del equipo. | Gestiona cobranzas (viajes, tercer tiempo). Administra fichajes. Carga pedidos de eventos de Subcomisión y confirma recepción de comprobantes. |
+| **Subcomisión** | Órgano directivo. Visión global de todas las divisiones y del estado institucional. | Operativo |
+| **Coordinador** | Gestiona calendario y divisiones infantiles/juveniles. | Operativo |
+| **Entrenador** | Toma asistencia, registra lesiones, carga resultados. | Operativo |
+| **Manager** | Gestiona cobranzas y fichajes de su equipo. | Operativo |
+| **Secretaría** | Administra socios: altas, pagos manuales, categorías, noticias. | Socios |
+| **Portería** | Escanea carnets QR para validar acceso al club. | Socios |
+| **Socio** | Usuario final. Accede a su carnet digital, paga cuotas y recibe noticias. | Socios |
+
+> **Nota:** Los jugadores no tienen acceso a la app en rol de "jugador". Sin embargo, si son socios del club, acceden con el rol Socio. Todo jugador es socio, pero no todo socio es jugador.
 
 ---
 
 ## 3. Alcance del MVP
 
-### 3.1 Incluido en el MVP
+### 3.1 MVP v1 — Gestión Operativa (implementado)
 
 - Gestión de asistencia a entrenamientos y partidos (por Entrenador)
 - Registro de lesiones con detalle y grado de severidad
@@ -40,13 +45,28 @@ En su primera versión, la app será utilizada exclusivamente por el cuerpo téc
 - Carpeta de documentos importantes (protocolos de lesiones, guías operativas)
 - Sistema de roles y permisos diferenciados
 
-### 3.2 Fuera del MVP (backlog futuro)
+### 3.2 MVP v2 — Módulo de Socios
 
-- Portal o acceso para jugadores o familias
-- Integración con sistemas de pago externos
-- App pública o acceso para socios
-- Estadísticas deportivas avanzadas por jugador
-- Módulo de comunicación con terceros (árbitros, federaciones)
+- Carnet digital con QR dinámico tipo TOTP (funciona offline)
+- Foto de perfil obligatoria con validación de rostro via IA
+- Pago de cuotas integrado con Mercado Pago
+- Registro manual de pago en ventanilla (Secretaría)
+- Generación y envío automático de comprobante PDF por email
+- Gestión de categorías y montos de cuota desde Secretaría
+- Alta de socios nuevos por Secretaría
+- Muro de noticias con filtrado por deporte/categoría
+- Notificaciones push institucionales
+- Control de acceso en portería via escaneo de QR
+- Sesión única por dispositivo para el rol Socio
+- Estado de morosidad visible en el carnet (bloqueado si adeuda)
+
+### 3.3 Fuera del MVP (backlog futuro)
+
+- Reglas automáticas de recargo por morosidad (pendiente de definición por la comisión directiva)
+- Portal web para socios
+- Estadísticas deportivas por jugador/socio
+- Integración con sistemas de federación
+- Recuperación de cuenta al cambiar de dispositivo (flujo manual por ahora)
 
 ---
 
@@ -198,76 +218,205 @@ En su primera versión, la app será utilizada exclusivamente por el cuerpo téc
 
 ---
 
+### Épica 7: Identidad Digital del Socio
+
+#### Historia 7.1 — Carnet digital con QR dinámico
+
+| | |
+|---|---|
+| **Como** | Socio |
+| **Quiero** | ver mi carnet digital en la app con un código QR que se actualiza automáticamente |
+| **Para** | identificarme en portería sin necesidad de carnet físico ni conexión a internet |
+| **Criterios de aceptación** | ✓ El QR es de tipo TOTP: se regenera cada 30 segundos |
+| | ✓ El carnet funciona sin conexión a internet en el dispositivo del socio |
+| | ✓ El carnet muestra nombre, foto, categoría y estado de membresía |
+| | ✓ Si el socio está moroso, el carnet se muestra visualmente bloqueado |
+| | ✓ La sesión está vinculada a un único dispositivo; no puede haber dos sesiones activas simultáneas |
+
+#### Historia 7.2 — Foto de perfil con validación de rostro
+
+| | |
+|---|---|
+| **Como** | Socio |
+| **Quiero** | subir una foto de perfil que aparezca en mi carnet |
+| **Para** | que mi identidad sea verificable visualmente en portería |
+| **Criterios de aceptación** | ✓ La foto es obligatoria para completar el perfil |
+| | ✓ El sistema valida automáticamente que la imagen contenga un rostro humano real (via IA) |
+| | ✓ Se rechaza cualquier imagen que no sea un rostro (logos, objetos, imágenes de otra persona, etc.) |
+| | ✓ El socio recibe un mensaje claro si la foto es rechazada y puede reintentarlo |
+
+#### Historia 7.3 — Validación de acceso en Portería
+
+| | |
+|---|---|
+| **Como** | Personal de Portería |
+| **Quiero** | escanear el QR del carnet de un socio para validar su acceso al club |
+| **Para** | controlar el ingreso de forma rápida y segura sin necesidad de verificación manual |
+| **Criterios de aceptación** | ✓ La app de portería lee el QR y muestra el resultado de validación en menos de 2 segundos |
+| | ✓ Muestra nombre, foto y estado del socio (habilitado / moroso / inactivo) |
+| | ✓ El sistema detecta QRs vencidos o inválidos y alerta al operador |
+| | ✓ Funciona con conectividad limitada (no requiere conexión perfecta) |
+| | ✓ Portería no tiene acceso a datos financieros ni documentación del socio |
+
+---
+
+### Épica 8: Gestión de Cuotas y Pagos
+
+#### Historia 8.1 — Pago de cuota desde la app
+
+| | |
+|---|---|
+| **Como** | Socio |
+| **Quiero** | pagar mi cuota mensual desde la app |
+| **Para** | regularizar mi situación sin tener que ir al club en persona |
+| **Criterios de aceptación** | ✓ Puedo ver el monto a pagar según mi categoría |
+| | ✓ El pago se procesa via Mercado Pago (tarjeta, transferencia, billetera) |
+| | ✓ Al completar el pago, recibo un comprobante PDF por email automáticamente |
+| | ✓ El comprobante también queda disponible para descarga desde la app |
+| | ✓ Mi estado de membresía se actualiza automáticamente al confirmar el pago |
+
+#### Historia 8.2 — Registro manual de pago en ventanilla
+
+| | |
+|---|---|
+| **Como** | Secretaría |
+| **Quiero** | registrar un pago realizado en efectivo o transferencia por ventanilla |
+| **Para** | que el estado del socio quede actualizado en el sistema aunque no haya pagado por la app |
+| **Criterios de aceptación** | ✓ Puedo buscar un socio y registrar un pago manual con monto, fecha y forma de pago |
+| | ✓ Se genera el comprobante PDF y se envía por email al socio |
+| | ✓ El estado de morosidad del socio se actualiza inmediatamente |
+| | ✓ Queda registrado que el pago fue ingresado manualmente por Secretaría |
+
+#### Historia 8.3 — Gestión de categorías y montos de cuota
+
+| | |
+|---|---|
+| **Como** | Secretaría |
+| **Quiero** | administrar las categorías de socios y sus montos de cuota desde la app |
+| **Para** | actualizar los precios cuando la comisión directiva lo decida sin necesidad de intervención técnica |
+| **Criterios de aceptación** | ✓ Puedo ver la lista de categorías activas con sus montos vigentes |
+| | ✓ Puedo crear, editar y desactivar categorías |
+| | ✓ Cada socio tiene asignada una categoría que determina su cuota mensual |
+| | ✓ Los cambios de monto aplican al próximo período, no retroactivamente |
+
+---
+
+### Épica 9: Administración de Socios
+
+#### Historia 9.1 — Alta de nuevo socio
+
+| | |
+|---|---|
+| **Como** | Secretaría |
+| **Quiero** | dar de alta a un nuevo socio en el sistema |
+| **Para** | que pueda acceder a la app, obtener su carnet y pagar su cuota |
+| **Criterios de aceptación** | ✓ Puedo ingresar datos básicos: nombre, DNI, fecha de nacimiento, email, categoría |
+| | ✓ El sistema envía un email de invitación al socio para que complete su perfil y suba su foto |
+| | ✓ El socio queda en estado "pendiente" hasta completar su foto de perfil validada |
+| | ✓ Una vez completado, el carnet queda activo |
+
+#### Historia 9.2 — Consulta de estado de socios
+
+| | |
+|---|---|
+| **Como** | Secretaría |
+| **Quiero** | ver el listado de socios con su estado de membresía y deuda |
+| **Para** | identificar rápidamente quiénes están al día y quiénes tienen cuotas pendientes |
+| **Criterios de aceptación** | ✓ Puedo filtrar socios por estado (al día, moroso, inactivo) y por categoría |
+| | ✓ Veo el historial de pagos de cada socio |
+| | ✓ Puedo buscar socios por nombre o DNI |
+
+---
+
+### Épica 10: Comunicación Institucional
+
+#### Historia 10.1 — Muro de noticias
+
+| | |
+|---|---|
+| **Como** | Socio |
+| **Quiero** | ver las novedades del club en un feed de noticias dentro de la app |
+| **Para** | estar informado sobre eventos, partidos, actividades y comunicados sin depender de grupos de WhatsApp |
+| **Criterios de aceptación** | ✓ El muro muestra noticias en orden cronológico |
+| | ✓ Puedo filtrar por deporte o categoría |
+| | ✓ Las noticias pueden incluir texto e imágenes |
+
+#### Historia 10.2 — Publicación de noticias
+
+| | |
+|---|---|
+| **Como** | Secretaría o Subcomisión |
+| **Quiero** | publicar noticias y comunicados en el muro de la app |
+| **Para** | informar a los socios de forma centralizada y sin intermediarios |
+| **Criterios de aceptación** | ✓ Puedo redactar y publicar noticias con título, cuerpo e imagen opcional |
+| | ✓ Puedo asignar etiquetas por deporte o categoría |
+| | ✓ Puedo enviar una notificación push asociada a la publicación |
+| | ✓ Puedo editar o eliminar noticias publicadas |
+| | ✓ Secretaría publica contenido institucional (cuotas, socios, administración) |
+| | ✓ Subcomisión publica contenido deportivo y operativo |
+
+---
+
 ## 5. Requerimientos No Funcionales
 
-### Plataforma
-- Aplicación móvil (iOS y Android). En primera instancia puede ser una PWA o app híbrida.
-- Acceso también desde navegador web (responsive) para uso en escritorio.
-
-### Seguridad y Accesos
-- Autenticación por usuario y contraseña. Considerar autenticación de dos factores para la Subcomisión.
-- Sistema de roles y permisos: cada rol solo ve y puede hacer lo que le corresponde.
-- Los datos de jugadores (DNI, documentación) deben almacenarse de forma segura.
-
-### Disponibilidad
-- La app debe funcionar en modo offline para funciones críticas (toma de asistencia, registro de lesión) con sincronización posterior cuando hay conexión.
-- Alta disponibilidad esperada en horarios de entrenamiento y partido (mañana y tarde/noche).
-
-### Performance
-- Respuesta de la app en menos de 2 segundos para operaciones comunes.
-- Notificaciones push en tiempo real (menos de 30 segundos de latencia).
-
-### Escalabilidad
-- La app debe soportar ~60 usuarios activos iniciales sin límite fijo de crecimiento.
-- Arquitectura que permita sumar nuevas divisiones o roles sin rediseño mayor.
+| Categoría | Requerimiento |
+|---|---|
+| **Plataforma** | App móvil (iOS/Android) + acceso web responsive. PWA o app híbrida válida para MVP. |
+| **Offline - Operativo** | Toma de asistencia y registro de lesión deben funcionar sin conexión, con sync posterior. |
+| **Offline - Socios** | El carnet QR del socio debe funcionar sin conexión. La validación en portería debe operar con conectividad limitada. |
+| **Performance** | Respuesta < 2 segundos para operaciones comunes. Validación de QR en portería < 2 segundos. Push < 30 segundos de latencia. |
+| **Seguridad - Auth** | Email + password. 2FA recomendado para Subcomisión. Datos de jugadores/socios (DNI, documentación) con almacenamiento seguro. |
+| **Seguridad - QR** | El secreto TOTP es único por socio y nunca se expone en el cliente. |
+| **Seguridad - Sesión** | Un socio solo puede tener sesión activa en un dispositivo a la vez. |
+| **Pagos** | Integración con Mercado Pago vía checkout y webhooks de confirmación. |
+| **Comprobantes** | Generación de PDF automática al confirmar pago (manual o digital). Plantilla con logo del club. |
+| **Foto de perfil** | Validación de rostro via AWS Rekognition antes de activar el carnet. |
+| **Escalabilidad** | ~60 usuarios operativos iniciales + socios del club. Arquitectura que permita sumar divisiones, roles o módulos sin rediseño mayor. |
 
 ---
 
 ## 6. Restricciones y Supuestos
 
-### Supuestos
-- Cada entrenador y manager tiene un smartphone con acceso a internet (al menos ocasional).
-- La Subcomisión actúa como administrador del sistema y gestiona el alta y baja de usuarios.
-- Los jugadores no tienen acceso a la app en esta versión.
-- Los eventos de recaudación son creados por la Subcomisión; los Managers solo responden a ellos.
-- El club cuenta con 17 planteles activos (infantiles, juveniles, plantel superior, femenino y rugby mixed).
-- La escala de gravedad de lesiones es fija del 1 al 5, definida internamente por el club. No requiere configuración desde la app.
-- Los fichajes son cargados y confirmados directamente por el Manager, sin flujo de aprobación adicional.
-- Los eventos de recaudación se cierran manualmente por la Subcomisión; no tienen fecha de vencimiento automática.
-- La elección de stack tecnológico queda a criterio del arquitecto técnico del proyecto.
-
-### Restricciones
-- La app debe soportar un mínimo de ~60 usuarios activos (34 entrenadores + 17 managers + 5 coordinadores + 8 subcomisión) sin límite fijo de crecimiento.
-- No hay integración con sistemas de pago en esta versión; las cobranzas registran monto, forma de pago y estado de forma manual.
-- Los documentos de protocolos deben ser cargados manualmente por la Subcomisión.
-- Presupuesto y tiempo de desarrollo a definir con el equipo técnico.
+- Las reglas de penalización por morosidad y recargos están **pendientes de definición** por la comisión directiva (reunión viernes). No se implementa lógica de bloqueo por mora hasta tener esa definición.
+- El QR TOTP rota cada **30 segundos** (estándar de la industria).
+- Si un socio cambia de celular, portería puede verificar visualmente la identidad al escanear (la foto aparece en pantalla). No se requiere flujo técnico de recuperación de dispositivo en el MVP.
+- La Portería no tiene acceso a datos financieros ni a documentación personal de los socios.
+- Secretaría puede registrar pagos en efectivo sin pasar por Mercado Pago.
+- Todo jugador es también socio, pero no todo socio es jugador.
+- Los montos de cuota son actualizables por Secretaría; los cambios aplican al próximo período.
+- Comprobantes PDF con plantilla personalizada con logo del club (logo a proveer por el club al momento de implementar).
+- Validación de rostro via **AWS Rekognition** (`DetectFaces`). Capa gratuita de 5.000 imágenes/mes, suficiente para el volumen del club.
+- Publicación de noticias: Secretaría publica contenido institucional; Subcomisión publica contenido deportivo y operativo.
+- La escala de gravedad de lesiones es fija del 1 al 5. No editable desde la app.
+- Los eventos de recaudación se cierran manualmente por la Subcomisión, sin vencimiento automático.
 
 ---
 
-## 7. Decisiones Tomadas
+## 7. Preguntas Abiertas
 
-Las siguientes preguntas fueron respondidas y quedan cerradas como definiciones del proyecto:
+| # | Pregunta | Responsable |
+|---|---|---|
+| 1 | ¿Con cuántos meses de deuda se bloquea el carnet? | Comisión Directiva — reunión viernes |
+| 2 | ¿Se aplican recargos por mora? ¿A partir de cuándo y de cuánto? | Comisión Directiva — reunión viernes |
+| 3 | ¿La regla de bloqueo por morosidad la puede configurar Secretaría desde la app, o es fija? | A definir tras reunión |
 
-### Escala y usuarios
-17 planteles activos. Aproximadamente 60 usuarios iniciales (2 entrenadores + 1 manager por división, 5 coordinadores, 8 subcomisión). Sin límite fijo de usuarios.
+---
 
-### Lesiones
-Escala fija del 1 al 5, definida por el club. No editable desde la app.
+## 8. Decisiones Cerradas
 
-### Cobranzas
-Se registran: estado (pagado / pendiente), monto y forma de pago (efectivo, transferencia, etc.).
-
-### Administración del sistema
-La Subcomisión gestiona el alta y baja de todos los usuarios directamente desde la app. No hay perfil técnico separado.
-
-### Fichajes
-El Manager tiene autoridad directa. No requiere aprobación de Coordinador ni Subcomisión.
-
-### Eventos de recaudación
-Se cierran manualmente por la Subcomisión. No tienen vencimiento automático.
-
-### Stack tecnológico
-A definir por el arquitecto técnico del proyecto. Sin restricciones desde el lado del negocio.
+| | Decisión |
+|---|---|
+| ✅ | TOTP rota cada **30 segundos** |
+| ✅ | Cambio de celular: portería verifica identidad visualmente con la foto. Sin flujo técnico en MVP |
+| ✅ | Publicación de noticias: **Secretaría** (institucional/cuotas) y **Subcomisión** (deportivo/operativo) |
+| ✅ | Comprobantes PDF con plantilla personalizada y logo del club (logo a proveer al implementar) |
+| ✅ | Validación de rostro: **AWS Rekognition** — capa gratuita cubre el volumen del club |
+| ✅ | Stack v2: se mantiene React Native + Expo + Supabase. Se agrega Mercado Pago SDK |
+| ✅ | La tabla `jugadores` se vincula con la nueva tabla `socios` via `socio_id` |
+| ✅ | La Edge Function `notifications` existente se extiende para cubrir notificaciones institucionales del módulo socios |
+| ✅ | Escala de lesiones fija del 1 al 5, definida por el club. No editable desde la app |
+| ✅ | Fichajes: el Manager tiene autoridad directa, sin flujo de aprobación |
+| ✅ | Administración del sistema: la Subcomisión gestiona alta y baja de todos los usuarios operativos |
 
 ---
 

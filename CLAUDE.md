@@ -58,11 +58,11 @@ rugby_app_gestion/
 
 ## Estado del proyecto
 
-**App mobile:** completa — dark mode global, todas las pantallas por rol, EAS Android APK listo.  
-**Panel web:** completo — 5 páginas (login, dashboard, usuarios, divisiones, informes).  
-**Backend:** 5 migraciones + 2 Edge Functions deployadas en cloud.
+**v1 — Gestión Operativa:** completa — dark mode global, todas las pantallas por rol, EAS Android APK listo. Panel web con 5 páginas. 5 migraciones + 2 Edge Functions en cloud.
 
-**Pendientes:** iOS build, deploy Vercel, dark mode system en web. Ver backlog completo en [`reglas-negocio.md`](.claude/context/reglas-negocio.md).
+**v2 — Módulo Socios:** en diseño — carnet QR TOTP, pago de cuotas (Mercado Pago), portería, muro de noticias. Roles nuevos: Secretaría, Portería, Socio. Ver PRD v2.1.
+
+**Pendientes v1:** iOS build, deploy Vercel, dark mode system en web. Ver backlog completo en [`reglas-negocio.md`](.claude/context/reglas-negocio.md).
 
 ## Fuentes
 
