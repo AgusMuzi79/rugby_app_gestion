@@ -16,12 +16,13 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 
 | Rol | Responsabilidad |
 |---|---|
-| **Subcomisión** | Órgano directivo. Visión global. Admin del sistema (alta/baja usuarios). |
+| **Subcomisión** | Órgano directivo. Visión global. Admin del sistema. |
 | **Coordinador** | Gestiona calendario y divisiones infantiles/juveniles. |
 | **Entrenador** | Toma asistencia, registra lesiones, carga resultados. |
 | **Manager** | Gestiona cobranzas y fichajes de su equipo. |
-
-Los jugadores **no tienen acceso** a la app en esta versión.
+| **Secretaría** | Gestiona socios (alta, categorías, foto, estado) y publica noticias. |
+| **Portería** | Escanea carnets QR de socios para validar acceso. |
+| **Socio** | Ve su carnet digital QR, cuotas y noticias del club. |
 
 ## Stack tecnológico
 
@@ -58,11 +59,11 @@ rugby_app_gestion/
 
 ## Estado del proyecto
 
-**v1 — Gestión Operativa:** completa — dark mode global, todas las pantallas por rol, EAS Android APK listo. Panel web con 5 páginas. 5 migraciones + 2 Edge Functions en cloud.
+**v1 — Gestión Operativa:** completa — dark mode global, todas las pantallas por rol, EAS Android APK listo. Panel web con 5 páginas.
 
-**v2 — Módulo Socios:** en diseño — carnet QR TOTP, pago de cuotas (Mercado Pago), portería, muro de noticias. Roles nuevos: Secretaría, Portería, Socio. Ver PRD v2.1.
+**v2 — Módulo Socios:** pantallas Expo completas ✅ — schema SQL ✅ — 3 Edge Functions escritas ✅ — **pendiente: aplicar migraciones + secrets + deploy Edge Functions + test end-to-end**.
 
-**Pendientes v1:** iOS build, deploy Vercel, dark mode system en web. Ver backlog completo en [`reglas-negocio.md`](.claude/context/reglas-negocio.md).
+**Próximo paso:** aplicar migraciones v2 (`supabase start && supabase db push --local`), setear secrets en Supabase cloud, deploy de `admin-socios`, `socios-qr`, `socios-pagos --no-verify-jwt`.
 
 ## Fuentes
 

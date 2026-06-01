@@ -32,7 +32,24 @@ supabase db push --local   # aplica las 3 migraciones pendientes
 |---|---|---|
 | `supabase/functions/admin-usuarios/` | ✅ completo | `create` / `deactivate` / `reactivate` / `getUser` |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API |
+| `supabase/functions/admin-socios/` | ✅ escrito | `create` / `deactivate` / `reactivate` / `validate-photo` (Rekognition) |
+| `supabase/functions/socios-qr/` | ✅ escrito | `get-secret` (socio) / `validate` (portería) — TOTP server-side |
+| `supabase/functions/socios-pagos/` | ✅ escrito | `checkout` (MP preference) / `webhook` (sin JWT) / `manual` — con PDF comprobante vía Resend |
+| `supabase/functions/_shared/totp.ts` | ✅ escrito | TOTP RFC 6238 puro (crypto.subtle, sin deps externas) |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
+
+**Secrets requeridos antes de deploy** (v2 Edge Functions):
+```bash
+supabase secrets set AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1
+supabase secrets set MERCADOPAGO_ACCESS_TOKEN=... RESEND_API_KEY=... CLUB_EMAIL_FROM=...
+```
+
+**Deploy v2**:
+```bash
+supabase functions deploy admin-socios
+supabase functions deploy socios-qr
+supabase functions deploy socios-pagos --no-verify-jwt
+```
 
 ### `admin-usuarios` — detalle de acciones
 
