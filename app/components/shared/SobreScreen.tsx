@@ -5,19 +5,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
-import { useTheme, ThemeMode } from '@/contexts/ThemeContext'
+import { useTheme } from '@/contexts/ThemeContext'
 import { fonts } from '@/constants/theme'
 
-const GOLD      = '#E8B53C'
-const GOLD_DEEP = '#C9961F'
-const ROJO      = '#C0392B'
+const GOLD      = '#F5B41C'
+const GOLD_DEEP = '#C9890A'
+const ROJO      = '#CC4127'
 const VERDE     = '#22C55E'
-
-const MODOS: { value: ThemeMode; label: string }[] = [
-  { value: 'light',  label: 'Claro'   },
-  { value: 'dark',   label: 'Oscuro'  },
-  { value: 'system', label: 'Sistema' },
-]
 
 export function SobreScreen() {
   const insets = useSafeAreaInsets()
@@ -25,10 +19,10 @@ export function SobreScreen() {
     perfil, loading,
     nombre, setNombre, guardandoNombre, nombreGuardado, guardarNombre,
     enviandoReset, resetEnviado, enviarResetPassword,
-    foto, cambiarFoto,
+    foto, cambiandoFoto, cambiarFoto,
   } = useSobre()
   const { signOut }              = useSignOut()
-  const { mode, setMode, colors, isDark } = useTheme()
+  const { colors } = useTheme()
 
   if (loading) {
     return (
@@ -50,7 +44,7 @@ export function SobreScreen() {
     .join('')
     .toUpperCase()
 
-  const border = isDark ? '#2A2A2A' : '#E5E0D0'
+  const border = colors.grisClaro
 
   return (
     <View style={[s.root, { backgroundColor: colors.fondo, paddingTop: insets.top }]}>
@@ -69,17 +63,23 @@ export function SobreScreen() {
         {/* ── Foto + rol ───────────────────────────────────────────── */}
         <View style={[s.card, { backgroundColor: colors.card }]}>
           <View style={[s.cardAccent, { backgroundColor: GOLD }]} />
-          <TouchableOpacity onPress={cambiarFoto} style={s.fotoWrap} activeOpacity={0.8}>
-            {foto ? (
+          <TouchableOpacity onPress={cambiarFoto} style={s.fotoWrap} activeOpacity={0.8} disabled={cambiandoFoto}>
+            {cambiandoFoto ? (
+              <View style={[s.fotoCirculo, { backgroundColor: colors.grisClaro }]}>
+                <ActivityIndicator color={GOLD} />
+              </View>
+            ) : foto ? (
               <Image source={{ uri: foto }} style={s.fotoImg} />
             ) : (
-              <View style={[s.fotoCirculo, { backgroundColor: isDark ? '#333' : '#E5E0D0' }]}>
+              <View style={[s.fotoCirculo, { backgroundColor: colors.grisClaro }]}>
                 <Text style={[s.fotoIniciales, { color: GOLD }]}>{iniciales}</Text>
               </View>
             )}
-            <View style={[s.fotoBadge, { backgroundColor: GOLD }]}>
-              <Text style={s.fotoBadgeTexto}>✎</Text>
-            </View>
+            {!cambiandoFoto && (
+              <View style={[s.fotoBadge, { backgroundColor: GOLD }]}>
+                <Text style={s.fotoBadgeTexto}>✎</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <Text style={[s.rolLabel, { color: GOLD_DEEP }]}>{rolDisplay}</Text>
           {perfil && perfil.divisiones.length > 1 && (
@@ -136,29 +136,6 @@ export function SobreScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Apariencia ──────────────────────────────────────────── */}
-        <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: GOLD }]}>APARIENCIA</Text>
-          <View style={[s.temaRow, { backgroundColor: colors.card, borderColor: border }]}>
-            {MODOS.map((opt, i) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  s.temaBtn,
-                  i < MODOS.length - 1 && { borderRightWidth: 1, borderRightColor: border },
-                  mode === opt.value && { backgroundColor: GOLD },
-                ]}
-                onPress={() => setMode(opt.value)}
-                activeOpacity={0.7}
-              >
-                <Text style={[s.temaBtnTexto, { color: mode === opt.value ? '#0E0E0E' : colors.texto }]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* ── Cuenta ──────────────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: GOLD }]}>CUENTA</Text>
@@ -171,7 +148,7 @@ export function SobreScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[s.version, { color: isDark ? '#444' : '#AAA' }]}>UNCAS RUGBY APP · V1.0</Text>
+        <Text style={[s.version, { color: colors.muted }]}>UNCAS RUGBY APP · V1.0</Text>
 
       </ScrollView>
     </View>
@@ -214,11 +191,6 @@ const s = StyleSheet.create({
   // Seguridad
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },
   rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 14 },
-
-  // Apariencia
-  temaRow:      { flexDirection: 'row', borderRadius: 2, borderWidth: 1, overflow: 'hidden' },
-  temaBtn:      { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  temaBtnTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1 },
 
   // Cuenta
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },

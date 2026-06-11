@@ -1,10 +1,28 @@
 import { useEffect } from 'react'
 import { Linking } from 'react-native'
 import { Slot, useRouter, useRootNavigationState } from 'expo-router'
+import * as SplashScreen from 'expo-splash-screen'
+import {
+  useFonts,
+  Barlow_400Regular,
+  Barlow_600SemiBold,
+  Barlow_700Bold,
+  Barlow_900Black,
+} from '@expo-google-fonts/barlow'
+import {
+  BarlowSemiCondensed_400Regular,
+  BarlowSemiCondensed_600SemiBold,
+  BarlowSemiCondensed_700Bold,
+} from '@expo-google-fonts/barlow-semi-condensed'
+import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
+import { View } from 'react-native'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { StripeBackground } from '@/components/shared/StripeBackground'
+
+SplashScreen.preventAutoHideAsync()
 
 const ROL_RUTAS: Record<string, string> = {
   subcomision: '/(subcomision)/diario',
@@ -18,6 +36,21 @@ const ROL_RUTAS: Record<string, string> = {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Barlow_400Regular,
+    Barlow_600SemiBold,
+    Barlow_700Bold,
+    Barlow_900Black,
+    BarlowSemiCondensed_400Regular,
+    BarlowSemiCondensed_600SemiBold,
+    BarlowSemiCondensed_700Bold,
+    JetBrainsMono_400Regular,
+  })
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync()
+  }, [fontsLoaded])
+
   const router   = useRouter()
   const navState = useRootNavigationState()
   const {
@@ -100,5 +133,14 @@ export default function RootLayout() {
     }
   }, [navState?.key, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario])
 
-  return <ThemeProvider><Slot /></ThemeProvider>
+  if (!fontsLoaded) return null
+
+  return (
+    <ThemeProvider>
+      <View style={{ flex: 1, backgroundColor: '#15110A' }}>
+        <StripeBackground />
+        <Slot />
+      </View>
+    </ThemeProvider>
+  )
 }

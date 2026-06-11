@@ -1,15 +1,16 @@
 export const colors = {
-  tinta:       '#0E0E0E',
-  oro:         '#E8B53C',
-  oroHondo:    '#C9961F',
-  papel:       '#F6F1E4',
+  tinta:       '#F3EFE4',
+  oro:         '#F5B41C',
+  oroHondo:    '#C9890A',
+  papel:       '#15110A',
   blanco:      '#FFFFFF',
-  grisClaro:   '#E5E0D0',
-  rojoUrgente: '#C0392B',
+  grisClaro:   '#2C2418',
+  rojoUrgente: '#CC4127',
 }
 
 export const fonts = {
-  titulo: 'PlayfairDisplay_900Black_Italic',
-  cuerpo: 'Lora_400Regular',
-  label:  'ArchivoNarrow_400Regular',
+  titulo: 'Barlow_900Black',
+  cuerpo: 'Barlow_400Regular',
+  label:  'BarlowSemiCondensed_600SemiBold',
+  mono:   'JetBrainsMono_400Regular',
 }

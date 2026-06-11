@@ -1,8 +1,9 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Modal, TextInput, Alert, ScrollView,
+  TouchableOpacity, Modal, TextInput, Alert, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
@@ -77,6 +78,9 @@ function NoticiaRow({
 
 // ─── Modal de creación ────────────────────────────────────────────────────────
 
+const DEPORTES = ['rugby', 'hockey', 'tenis'] as const
+type Deporte = typeof DEPORTES[number]
+
 function ModalNuevaNoticia({
   visible,
   guardando,
@@ -86,28 +90,40 @@ function ModalNuevaNoticia({
   visible:   boolean
   guardando: boolean
   onClose:   () => void
-  onCreate:  (titulo: string, cuerpo: string) => void
+  onCreate:  (titulo: string, cuerpo: string, etiquetas: string[]) => void
 }) {
   const { colors: tc } = useTheme()
-  const [titulo, setTitulo] = useState('')
-  const [cuerpo, setCuerpo] = useState('')
+  const [titulo, setTitulo]   = useState('')
+  const [cuerpo, setCuerpo]   = useState('')
+  const [deporte, setDeporte] = useState<Deporte | null>(null)
 
   const handleCrear = () => {
     if (!titulo.trim()) { Alert.alert('Campo requerido', 'El título es obligatorio.'); return }
     if (!cuerpo.trim()) { Alert.alert('Campo requerido', 'El contenido es obligatorio.'); return }
-    onCreate(titulo.trim(), cuerpo.trim())
+    onCreate(titulo.trim(), cuerpo.trim(), deporte ? [deporte] : [])
   }
 
   const handleClose = () => {
     setTitulo('')
     setCuerpo('')
+    setDeporte(null)
     onClose()
   }
 
+  const border = tc.grisClaro
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={[s.modalOverlay]}>
-        <View style={[s.modal, { backgroundColor: tc.card }]}>
+      <KeyboardAvoidingView
+        style={s.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          style={[s.modal, { backgroundColor: tc.card }]}
+          contentContainerStyle={s.modalContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <View style={s.modalHeader}>
             <Text style={[s.modalTitle, { color: tc.texto }]}>NUEVA NOTICIA</Text>
             <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
@@ -126,7 +142,7 @@ function ModalNuevaNoticia({
 
           <Text style={[s.inputLabel, { color: tc.muted, marginTop: 16 }]}>CONTENIDO</Text>
           <TextInput
-            style={[s.inputMulti, { color: tc.texto, borderColor: tc.grisClaro }]}
+            style={[s.inputMulti, { color: tc.texto, borderColor: border }]}
             value={cuerpo}
             onChangeText={setCuerpo}
             placeholder="Escribí el contenido aquí…"
@@ -136,7 +152,37 @@ function ModalNuevaNoticia({
             textAlignVertical="top"
           />
 
+          <Text style={[s.inputLabel, { color: tc.muted, marginTop: 16 }]}>DEPORTE</Text>
+          <View style={s.deporteRow}>
+            {DEPORTES.map(d => {
+              const activo = deporte === d
+              return (
+                <TouchableOpacity
+                  key={d}
+                  style={[
+                    s.deporteChip,
+                    activo
+                      ? { backgroundColor: colors.tinta, borderColor: colors.tinta }
+                      : { backgroundColor: 'transparent', borderColor: border },
+                  ]}
+                  onPress={() => setDeporte(prev => prev === d ? null : d)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[
+                    s.deporteChipText,
+                    { color: activo ? colors.oro : tc.muted },
+                  ]}>
+                    {d.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
           <Text style={[s.draftNote, { color: tc.muted }]}>
+            Opcional. Permite a los socios filtrar por deporte.
+          </Text>
+
+          <Text style={[s.draftNote, { color: tc.muted, marginTop: 8 }]}>
             Se guardará como borrador. Podés publicarla luego.
           </Text>
 
@@ -152,8 +198,8 @@ function ModalNuevaNoticia({
               <Text style={s.crearBtnText}>GUARDAR BORRADOR</Text>
             )}
           </TouchableOpacity>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
@@ -162,12 +208,14 @@ function ModalNuevaNoticia({
 
 export default function NoticiasSecretariaScreen() {
   const insets         = useSafeAreaInsets()
+  const scrollRef = useRef<FlatList>(null)
+  useScrollToTop(scrollRef)
   const { colors: tc } = useTheme()
   const { noticias, loading, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
   const [modalVisible, setModalVisible] = useState(false)
 
-  const handleCrear = async (titulo: string, cuerpo: string) => {
-    const ok = await crear({ titulo, cuerpo, etiquetas: [] })
+  const handleCrear = async (titulo: string, cuerpo: string, etiquetas: string[]) => {
+    const ok = await crear({ titulo, cuerpo, etiquetas })
     if (ok) setModalVisible(false)
   }
 
@@ -195,6 +243,7 @@ export default function NoticiasSecretariaScreen() {
         </View>
       ) : (
         <FlatList
+          ref={scrollRef}
           data={noticias}
           keyExtractor={n => n.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
@@ -291,8 +340,9 @@ const s = StyleSheet.create({
   },
   modal: {
     borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 24, gap: 6,
+    maxHeight: '90%',
   },
+  modalContent: { padding: 24, gap: 6 },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 16,
@@ -300,6 +350,13 @@ const s = StyleSheet.create({
   modalTitle: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
   },
+
+  deporteRow:      { flexDirection: 'row', gap: 8, marginTop: 8 },
+  deporteChip: {
+    borderWidth: 1, borderRadius: 3,
+    paddingHorizontal: 14, paddingVertical: 7,
+  },
+  deporteChipText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2 },
 
   inputLabel: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginTop: 4 },
   input: {

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@source "../components";
+
+@theme {
+  --color-papel: #15110A;
+  --color-tinta: #F3EFE4;
+  --color-oro: #F5B41C;
+  --color-oro-hondo: #C9890A;
+  --color-dark: #0B0905;
+  --color-gris: #8E8574;
+  --color-gris-claro: #2C2418;
+  --color-rojo: #CC4127;
+  --color-card: #1C1710;
+
+  --font-playfair: var(--font-barlow-var);
+  --font-lora: var(--font-barlow-semi-var);
+}
+
+body {
+  background: repeating-linear-gradient(135deg, #15110A 0 17px, #191309 17px 34px);
+  color: #F3EFE4;
+}
+
+.bg-papel {
+  background: repeating-linear-gradient(135deg, #15110A 0 17px, #191309 17px 34px);
+}

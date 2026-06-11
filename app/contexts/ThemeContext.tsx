@@ -1,8 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
-import { useColorScheme } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-
-export type ThemeMode = 'light' | 'dark' | 'system'
+import React, { createContext, useContext } from 'react'
 
 export interface ThemeColors {
   fondo:       string
@@ -19,72 +15,34 @@ export interface ThemeColors {
   muted:       string
 }
 
-const LIGHT: ThemeColors = {
-  fondo:       '#F6F1E4',
-  texto:       '#0E0E0E',
-  acento:      '#E8B53C',
-  card:        '#FFFFFF',
-  tinta:       '#0E0E0E',
-  papel:       '#F6F1E4',
-  oro:         '#E8B53C',
-  oroHondo:    '#C9961F',
+const THEME: ThemeColors = {
+  fondo:       'transparent',
+  texto:       '#F3EFE4',
+  acento:      '#F5B41C',
+  card:        '#1C1710',
+  tinta:       '#F3EFE4',
+  papel:       'transparent',
+  oro:         '#F5B41C',
+  oroHondo:    '#C9890A',
   blanco:      '#FFFFFF',
-  grisClaro:   '#E5E0D0',
-  rojoUrgente: '#C0392B',
-  muted:       '#888888',
+  grisClaro:   '#2C2418',
+  rojoUrgente: '#CC4127',
+  muted:       '#8E8574',
 }
-
-const DARK: ThemeColors = {
-  fondo:       '#1A1A1A',
-  texto:       '#F6F1E4',
-  acento:      '#E8B53C',
-  card:        '#2A2A2A',
-  tinta:       '#F6F1E4',
-  papel:       '#1A1A1A',
-  oro:         '#E8B53C',
-  oroHondo:    '#C9961F',
-  blanco:      '#FFFFFF',
-  grisClaro:   '#333333',
-  rojoUrgente: '#C0392B',
-  muted:       '#888888',
-}
-
-const STORAGE_KEY = '@theme_mode'
 
 interface ThemeContextValue {
-  mode:     ThemeMode
-  setMode:  (mode: ThemeMode) => void
-  colors:   ThemeColors
-  isDark:   boolean
+  colors: ThemeColors
+  isDark: boolean
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  mode:    'system',
-  setMode: () => {},
-  colors:  LIGHT,
-  isDark:  false,
+  colors: THEME,
+  isDark: true,
 })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme          = useColorScheme()
-  const [mode, setModeState]  = useState<ThemeMode>('system')
-
-  useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then(val => {
-      if (val === 'light' || val === 'dark' || val === 'system') setModeState(val)
-    })
-  }, [])
-
-  function setMode(m: ThemeMode) {
-    setModeState(m)
-    void AsyncStorage.setItem(STORAGE_KEY, m)
-  }
-
-  const isDark       = mode === 'dark' || (mode === 'system' && systemScheme === 'dark')
-  const themeColors  = isDark ? DARK : LIGHT
-
   return (
-    <ThemeContext.Provider value={{ mode, setMode, colors: themeColors, isDark }}>
+    <ThemeContext.Provider value={{ colors: THEME, isDark: true }}>
       {children}
     </ThemeContext.Provider>
   )
