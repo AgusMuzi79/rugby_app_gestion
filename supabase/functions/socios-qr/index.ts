@@ -110,7 +110,8 @@ async function handleValidate(
       estado,
       foto_path,
       foto_validada,
-      categorias_socio ( nombre )
+      categorias_socio ( nombre ),
+      profiles!socios_profile_id_fkey ( nombre )
     `)
     .eq('numero_socio', numero_socio)
     .single()
@@ -139,12 +140,14 @@ async function handleValidate(
 
   // Código válido — retornar info del socio (sin el secret)
   const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
+  const nombre    = (socio.profiles as { nombre: string } | null)?.nombre ?? '—'
 
   return jsonOk({
-    valido:       true,
-    numero_socio: socio.numero_socio,
-    estado:       socio.estado,
-    foto_path:    socio.foto_path,
+    valido:        true,
+    nombre,
+    numero_socio:  socio.numero_socio,
+    estado:        socio.estado,
+    foto_path:     socio.foto_path,
     foto_validada: socio.foto_validada,
     categoria,
   })

@@ -90,6 +90,15 @@ function DetalleSocio({
   const [modalCobrar,   setModalCobrar]   = useState(false)
   const [actualizando,  setActualizando]  = useState(false)
   const [msg,           setMsg]           = useState('')
+  const [fotoUrl,       setFotoUrl]       = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!socio.foto_path) { setFotoUrl(null); return }
+    supabase.storage
+      .from('socios-fotos')
+      .createSignedUrl(socio.foto_path, 300)
+      .then(({ data }) => { if (data) setFotoUrl(data.signedUrl) })
+  }, [socio.foto_path])
 
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
@@ -98,7 +107,7 @@ function DetalleSocio({
   const handleDesactivar = async () => {
     if (!confirm('¿Desactivar este socio? Se bloqueará su acceso.')) return
     setActualizando(true)
-    const json = await callEdgeFunction('admin-socios', { action: 'deactivate', socioId: socio.id })
+    const json = await callEdgeFunction('admin-socios', { action: 'deactivate', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus('Socio desactivado.')
@@ -107,7 +116,7 @@ function DetalleSocio({
 
   const handleReactivar = async () => {
     setActualizando(true)
-    const json = await callEdgeFunction('admin-socios', { action: 'reactivate', socioId: socio.id })
+    const json = await callEdgeFunction('admin-socios', { action: 'reactivate', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus('Socio reactivado.')
@@ -116,7 +125,7 @@ function DetalleSocio({
 
   const handleValidarFoto = async () => {
     setActualizando(true)
-    const json = await callEdgeFunction('admin-socios', { action: 'validate-photo', socioId: socio.id })
+    const json = await callEdgeFunction('admin-socios', { action: 'validate-photo', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus(json.validada ? 'Foto validada ✓' : (json.mensaje ?? 'No se pudo validar la foto.'))
@@ -136,7 +145,7 @@ function DetalleSocio({
   const handleQuitarTarjeta = async () => {
     if (!confirm('¿Quitar la tarjeta guardada de este socio?')) return
     setActualizando(true)
-    const json = await callEdgeFunction('socios-pagos', { action: 'remove-card', socioId: socio.id })
+    const json = await callEdgeFunction('socios-pagos', { action: 'remove-card', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus('Tarjeta quitada.')
@@ -232,6 +241,13 @@ function DetalleSocio({
 
         {/* Acciones */}
         <div className="flex flex-col gap-3">
+          {fotoUrl ? (
+            <img src={fotoUrl} alt="Foto socio" className="w-full aspect-square object-cover mb-1" />
+          ) : (
+            <div className="w-full aspect-square bg-card border border-gris-claro flex items-center justify-center mb-1">
+              <span className="font-lora text-xs tracking-widest text-tinta/30">SIN FOTO</span>
+            </div>
+          )}
           <p className="font-lora text-xs tracking-widest text-tinta/50 mb-1">ACCIONES</p>
 
           {socio.estado !== 'inactivo' && (
@@ -357,7 +373,7 @@ function ModalPagoManual({
     if (isNaN(montoNum) || montoNum <= 0) { setError('Monto inválido.'); return }
     setEnviando(true); setError('')
     const json = await callEdgeFunction('socios-pagos', {
-      action: 'manual', socioId, periodo: periodo.trim(), monto: montoNum, formaPago,
+      action: 'manual', socio_id: socioId, periodo: periodo.trim(), monto: montoNum, forma_pago: formaPago,
     })
     setEnviando(false)
     if (json.error) { setError(json.error); return }
@@ -428,7 +444,7 @@ function ModalAsociarTarjeta({
     setEnviando(true); setError('')
     const json = await callEdgeFunction('socios-pagos', {
       action: 'associate-card',
-      socioId,
+      socio_id: socioId,
       cardData: {
         card_number: digits, expiration_month: month, expiration_year: fullYear,
         security_code: cvv, cardholder_name: cardholderName.trim(),
@@ -485,7 +501,7 @@ function ModalCobrarTarjeta({
     if (!/^\d{4}-\d{2}$/.test(periodo.trim())) { setError('Período inválido. Usá YYYY-MM.'); return }
     setEnviando(true); setError('')
     const json = await callEdgeFunction('socios-pagos', {
-      action: 'charge-card', socioId, periodo: periodo.trim(),
+      action: 'charge-card', socio_id: socioId, periodo: periodo.trim(),
     })
     setEnviando(false)
     if (json.error) { setError(json.error); return }

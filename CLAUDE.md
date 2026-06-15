@@ -97,10 +97,30 @@ rugby_app_gestion/
 | Login web: toggle ver/ocultar contraseña | ✅ |
 | `useScrollToTop` en todas las tabs (13 pantallas, 7 roles) | ✅ |
 | Identidad visual nueva — app + web (Barlow, paleta marrón, patrón rayas) | ✅ |
-| Portería: test carnet QR end-to-end | ⏳ pendiente |
+| Push al publicar noticia (Edge Function `notifications` + web secretaría) | ✅ |
+| Panel web secretaría — página categorías (CRUD completo) | ✅ |
+| Fix NativeWind — eliminado de `metro.config.js` y `babel.config.js` (0 usos de `className`) | ✅ |
+| Fix loop React Navigation v7 — `_layout.tsx` sin `return null` ni `useRootNavigationState` | ✅ |
+| Fix `style={{ }}` inline — barrido completo en 28+ pantallas → `StyleSheet.create` | ✅ |
+| Fix QR carnet — color negro sobre blanco para máximo contraste y escaneo | ✅ |
+| EAS env vars `EXPO_PUBLIC_SUPABASE_URL` + `ANON_KEY` seteadas en environment `preview` | ✅ |
+| `supabase.ts` — reemplazado `!` por `?? ''` para evitar crash si faltan env vars | ✅ |
+| Portería: test carnet QR end-to-end | ⏳ pendiente (rebuild preview con todos los fixes) |
 | Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 | Limpiar duplicados `servicios_opcionales` (seed corrido 2 veces) | ✅ |
 | Deploy web en Vercel | ⏳ pendiente |
+| Web secretaría — foto socio: signed URL + display en detalle | ✅ |
+| Web secretaría — fix `socioId` → `socio_id` en todos los callEdgeFunction | ✅ |
+| Web secretaría — fix `formaPago` → `forma_pago` en pago manual | ✅ |
+| `socios-qr` — agrega `nombre` a la respuesta de `validate` | ✅ |
+| Portería `scanner.tsx` — fix colores: fondo `papel`, textos `tinta`/`MUTED` | ✅ |
+| `useCuotas` + `cuotas.tsx` — desglose categoría+servicios en cards pendientes | ✅ |
+| `useUsuarios` — filtra rol `socio` de la lista, agrega labels secretaria/portería | ✅ |
+| `admin-usuarios` — login con DNI como contraseña inicial (sin invite email) | ✅ |
+| `admin-usuarios` — roles creables por subco vs admin (secretaría/portería solo admin) | ✅ |
+| `admin-usuarios` — email de bienvenida genérico vía Resend (fire & forget) | ✅ |
+| `usuarios.tsx` — campo DNI, selector de roles por rol del caller, colores secretaria/portería | ✅ |
+| `CLUB_EMAIL_FROM` — email del club pendiente de confirmar | ⏳ pendiente |
 
 **Notas de comportamiento actual:**
 - `validate-photo` corre sin Rekognition si `AWS_ACCESS_KEY_ID` no está seteado (valida manualmente directo en DB).
@@ -117,8 +137,12 @@ rugby_app_gestion/
 - `web/.env.local` apunta a Supabase cloud (`tlexvbattnzpmdftjsao`).
 - `useScrollToTop` de `@react-navigation/native` aplicado en todas las tabs principales — tocar el ícono activo scrollea al tope.
 - **Identidad visual:** tema fijo oscuro (sin toggle light/dark). Paleta: fondo `#15110A`, card `#1C1710`, sidebar web `#0B0905`, oro `#F5B41C`, texto `#F3EFE4`, muted `#8E8574`. Fuentes: Barlow + Barlow Semi Condensed + JetBrains Mono.
-- Fondo de pantallas app es `transparent` — el patrón de rayas diagonales lo provee `StripeBackground` en el root layout (`app/components/shared/StripeBackground.tsx`).
+- Fondo de pantallas app es `#15110A` (explícito en `ThemeContext` — `fondo` y `papel` ya no son `transparent`). `StripeBackground` existe en `app/components/shared/StripeBackground.tsx` pero no está montado en el root layout (SVG Pattern tiene bugs en Android). Pendiente reimplementación con líneas SVG individuales.
 - Web: patrón de rayas en `body` y `.bg-papel` via `globals.css`. Sidebars usan `style` inline (`#0B0905`) porque `components/` no era escaneado por Tailwind (ahora fijo con `@source "../components"`).
+- **NativeWind eliminado del app móvil:** `nativewind` fue removido de `metro.config.js` (`withNativeWind`) y de `babel.config.js` (`jsxImportSource`). La app usa `StyleSheet.create` en todas partes — no hay ningún `className` en el código. NativeWind solo aplica al panel web (`web/`).
+- **React Navigation v7 + New Architecture — loop infinito:** nunca retornar `null` desde el root layout (`_layout.tsx`) ni usar `useRootNavigationState()`. Retornar `null` desmonta/remonta el árbol de navegación y `useRootNavigationState` usa `useNavigation()` internamente, ambos generan cascadas de `useSyncExternalStore` → `forceStoreRerender` en loop. Patrón correcto: siempre renderizar el árbol (el `SplashScreen.preventAutoHideAsync()` oculta la UI), y usar un flag `useState(false)` + `useEffect(() => setMounted(true), [])` en lugar de `navState?.key`.
+- **EAS env vars:** `.env.local` está en `.gitignore` — EAS no lo lee. Las variables `EXPO_PUBLIC_*` deben setearse con `eas env:create --environment preview`. Ya configuradas: `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en environment `preview`.
+- Panel web secretaría — rutas: `(secretaria)/secretaria/{socios,noticias,servicios,categorias}/page.tsx`.
 - `suppressHydrationWarning` en `<html>` del layout web — evita falso error por Dark Reader extension.
 
 **Débito automático con tarjeta — diseño implementado:**
@@ -129,8 +153,17 @@ rugby_app_gestion/
 - Cambio de tarjeta por el socio: **no dispara cobro** aunque el período esté impago
 - `forma_pago = 'tarjeta'` agregado al CHECK constraint en `pagos_socios`
 
+**Notas adicionales:**
+- Socios del club: **1000+** personas (los ~60 usuarios son el cuerpo técnico/organizativo).
+- `useUsuarios` filtra `rol = 'socio'` — los socios no aparecen en la gestión de usuarios de subcomisión.
+- Creación de usuarios staff: nombre + email + DNI. Contraseña inicial = DNI. Sin invite email.
+- Roles creables por subcomisión: coordinador, entrenador, manager, subcomisión. Secretaría y portería solo admin.
+- Email de bienvenida: se envía vía Resend al crear usuario. Si `RESEND_API_KEY` no está seteado, se omite sin fallar.
+- `CLUB_EMAIL_FROM` — pendiente de confirmar el email oficial del club.
+
 **Próximo paso:**
-- Portería: test carnet QR end-to-end
+- Confirmar email del club → `supabase secrets set CLUB_EMAIL_FROM=...`
+- Rebuild preview APK (`eas build --profile preview --platform android`) — incluye todos los fixes
 - Deploy web en Vercel
 - Setear secrets de MercadoPago, Resend y AWS cuando estén disponibles
 

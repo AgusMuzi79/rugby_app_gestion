@@ -27,7 +27,7 @@ export default function ScannerScreen() {
           <Text style={s.permBarLabel}>PORTERÍA · SCANNER</Text>
         </View>
         <View style={s.center}>
-          <Feather name="camera-off" size={48} color={colors.grisClaro} />
+          <Feather name="camera-off" size={48} color={MUTED} />
           <Text style={s.permTitle}>Cámara requerida</Text>
           <Text style={s.permSub}>
             La app necesita acceso a la cámara para escanear los carnets.
@@ -161,13 +161,15 @@ export default function ScannerScreen() {
 
 const VISOR_SIZE = 240
 
+const MUTED = '#8E8574'
+
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: colors.tinta },
+  root:   { flex: 1, backgroundColor: colors.papel },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 },
 
   permBar: {
-    paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
-    borderBottomWidth: 1, borderBottomColor: '#1A1A1A',
+    paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.papel,
+    borderBottomWidth: 1, borderBottomColor: '#2C2418',
   },
   permBarLabel: {
     fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
@@ -175,10 +177,10 @@ const s = StyleSheet.create({
   },
 
   permTitle: {
-    fontFamily: fonts.titulo, fontSize: 26, color: colors.blanco, textAlign: 'center',
+    fontFamily: fonts.titulo, fontSize: 26, color: colors.tinta, textAlign: 'center',
   },
   permSub: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: colors.grisClaro,
+    fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED,
     textAlign: 'center', paddingHorizontal: 40,
   },
   permBtn: {
@@ -219,7 +221,7 @@ const s = StyleSheet.create({
   // Validando
   validandoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20 },
   validandoText: {
-    fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: colors.grisClaro,
+    fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED,
   },
 
   // Resultado
@@ -241,19 +243,19 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: '#333333',
   },
   fotoPlaceholder: {
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#1A1A1A',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#2C2418',
   },
   resultInfo: { flex: 1, gap: 10 },
   resultNombre: {
-    fontFamily: fonts.titulo, fontSize: 22, color: colors.blanco, marginBottom: 6,
+    fontFamily: fonts.titulo, fontSize: 22, color: colors.tinta, marginBottom: 6,
   },
   resultRow:   { gap: 2 },
   resultLabel: {
     fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.grisClaro,
+    textTransform: 'uppercase', color: MUTED,
   },
   resultValor: {
-    fontFamily: fonts.cuerpo, fontSize: 14, color: colors.blanco,
+    fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta,
   },
   alertaFoto: {
     marginTop: 6, backgroundColor: colors.oroHondo,
@@ -266,7 +268,7 @@ const s = StyleSheet.create({
   motivoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   motivoText: {
     fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic',
-    color: colors.grisClaro, textAlign: 'center',
+    color: MUTED, textAlign: 'center',
   },
 
   nuevoBtn: {

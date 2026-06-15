@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 
-export type RolCreable = 'coordinador' | 'entrenador' | 'manager'
+export type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
 
 export interface Usuario {
@@ -23,6 +23,8 @@ const ROL_LABEL: Record<string, string> = {
   coordinador: 'Coordinador',
   entrenador:  'Entrenador',
   manager:     'Manager',
+  secretaria:  'Secretaría',
+  porteria:    'Portería',
   admin:       'Admin',
 }
 
@@ -55,6 +57,7 @@ export function useUsuarios() {
   const [modalVisible, setModalVisible]                 = useState(false)
   const [nombre, setNombre]                             = useState('')
   const [email, setEmail]                               = useState('')
+  const [dni, setDni]                                   = useState('')
   const [rolSeleccionado, setRolSeleccionado]           = useState<RolCreable | null>(null)
   const [divisionesSeleccionadas, setDivisionesSeleccionadas] = useState<string[]>([])
   const [creando, setCreando]                           = useState(false)
@@ -84,6 +87,7 @@ export function useUsuarios() {
       .from('profiles')
       .select('id, nombre, rol, activo, divisiones')
       .neq('rol', 'admin')
+      .neq('rol', 'socio')
       .order('nombre')
     setUsuarios(data ?? [])
   }
@@ -129,6 +133,7 @@ export function useUsuarios() {
   function abrirModal() {
     setNombre('')
     setEmail('')
+    setDni('')
     setRolSeleccionado(null)
     setDivisionesSeleccionadas([])
     setErrorForm(null)
@@ -154,10 +159,13 @@ export function useUsuarios() {
     const nombreTrim = nombre.trim()
     const emailTrim  = email.trim().toLowerCase()
 
-    if (!nombreTrim)                                  { setErrorForm('Ingresá el nombre completo.'); return }
-    if (!emailTrim)                                   { setErrorForm('Ingresá el email.'); return }
+    const dniTrim = dni.trim()
+
+    if (!nombreTrim) { setErrorForm('Ingresá el nombre completo.'); return }
+    if (!emailTrim)  { setErrorForm('Ingresá el email.'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) { setErrorForm('El email no es válido.'); return }
-    if (!rolSeleccionado)                             { setErrorForm('Seleccioná un rol.'); return }
+    if (!dniTrim)    { setErrorForm('Ingresá el DNI.'); return }
+    if (!rolSeleccionado) { setErrorForm('Seleccioná un rol.'); return }
 
     setCreando(true)
     setErrorForm(null)
@@ -167,6 +175,7 @@ export function useUsuarios() {
         action:     'create',
         nombre:     nombreTrim,
         email:      emailTrim,
+        dni:        dniTrim,
         rol:        rolSeleccionado,
         divisiones: divisionesSeleccionadas,
       },
@@ -288,6 +297,7 @@ export function useUsuarios() {
     cerrarModal,
     nombre,             setNombre,
     email,              setEmail,
+    dni,                setDni,
     rolSeleccionado,    setRolSeleccionado,
     divisionesSeleccionadas,
     toggleDivision,
