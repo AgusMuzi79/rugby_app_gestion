@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 const NAV = [
-  { href: '/secretaria/socios',    label: 'Socios'    },
-  { href: '/secretaria/noticias',  label: 'Noticias'  },
-  { href: '/secretaria/servicios', label: 'Servicios' },
+  { href: '/secretaria/socios',      label: 'Socios'      },
+  { href: '/secretaria/noticias',    label: 'Noticias'    },
+  { href: '/secretaria/servicios',   label: 'Servicios'   },
+  { href: '/secretaria/categorias',  label: 'Categorías'  },
 ]
 
 interface Props {

@@ -16,14 +16,30 @@
 | `20260511000000_protocolos_bucket.sql` | Bucket `protocolos` + políticas storage | ✅ cloud+local |
 | `20260512000000_protocolos_schema.sql` | Tablas `protocolos_lesion`, `protocolo_pasos`, `protocolo_alertas`, `grtp_etapas` | ✅ cloud+local |
 | `20260512000001_protocolos_seed.sql` | Datos iniciales de protocolos | ✅ cloud+local |
-| `20260601000000_socios_schema.sql` | **v2** — 6 tablas nuevas (socios, secrets, cuotas, pagos, noticias, categorias), roles nuevos | ⏳ pendiente aplicar |
-| `20260601000001_socios_rls.sql` | **v2** — Políticas RLS módulo socios | ⏳ pendiente aplicar |
-| `20260601000002_socios_storage.sql` | **v2** — Buckets `socios-fotos`, `noticias-imagenes`, `comprobantes` | ⏳ pendiente aplicar |
+| `20260601000000_socios_schema.sql` | **v2** — 6 tablas nuevas (socios, secrets, cuotas, pagos, noticias, categorias), roles nuevos | ✅ cloud / ❌ local |
+| `20260601000001_socios_rls.sql` | **v2** — Políticas RLS módulo socios | ✅ cloud / ❌ local |
+| `20260601000002_socios_storage.sql` | **v2** — Buckets `socios-fotos`, `noticias-imagenes`, `comprobantes` | ✅ cloud / ❌ local |
+| `20260608000000_fix_push_tokens_update_policy.sql` | Fix RLS UPDATE en `push_tokens`: USING(true) para upsert entre usuarios | ✅ aplicada vía `db query --linked` |
+| `20260609000000_servicios_opcionales.sql` | Tablas `servicios_opcionales` + `socio_servicios`, RLS, seed | ✅ aplicada vía `db query --linked` |
+| `20260609000002_mp_card_fields.sql` | Columnas MP en `socios`, `'tarjeta'` en CHECK de `pagos_socios` | ✅ aplicada |
+| `20260610000000_fix_push_tokens_delete_policy.sql` | DELETE policy `push_tokens` → `USING (true)` para fix de re-asignación entre usuarios | ⏳ pendiente `db push` |
 
-Para aplicar las migraciones v2 (requiere Docker Desktop corriendo):
+Las migraciones v2 (`20260601000000/01/02`) fueron aplicadas al cloud **manualmente via SQL editor** y marcadas con `migration repair`. Las migraciones `20260608` y `20260609000000` se aplicaron vía `supabase db query --linked` (estaban en el historial pero el SQL nunca se había ejecutado).
+
+El entorno local no está sincronizado — `database.types.ts` no incluye tablas v2. Para sincronizar local:
 ```bash
-supabase start
-supabase db push --local   # aplica las 3 migraciones pendientes
+supabase start   # requiere Docker Desktop
+supabase db push --local
+supabase gen types typescript --local > app/lib/database.types.ts
+```
+
+**`categorias_socio` requiere seed manual** — la tabla se crea vacía. Insertar via SQL editor:
+```sql
+INSERT INTO categorias_socio (nombre, descripcion, monto_mensual) VALUES
+  ('Activo',    'Socio activo con acceso completo',        5000.00),
+  ('Adherente', 'Socio adherente sin actividad deportiva', 3000.00),
+  ('Juvenil',   'Menores de 18 años',                      2500.00),
+  ('Vitalicio', 'Socio vitalicio',                            0.00);
 ```
 
 ## Edge Functions
@@ -32,24 +48,20 @@ supabase db push --local   # aplica las 3 migraciones pendientes
 |---|---|---|
 | `supabase/functions/admin-usuarios/` | ✅ completo | `create` / `deactivate` / `reactivate` / `getUser` |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API |
-| `supabase/functions/admin-socios/` | ✅ escrito | `create` / `deactivate` / `reactivate` / `validate-photo` (Rekognition) |
-| `supabase/functions/socios-qr/` | ✅ escrito | `get-secret` (socio) / `validate` (portería) — TOTP server-side |
-| `supabase/functions/socios-pagos/` | ✅ escrito | `checkout` (MP preference) / `webhook` (sin JWT) / `manual` — con PDF comprobante vía Resend |
+| `supabase/functions/admin-socios/` | ✅ deployada | `create` / `deactivate` / `reactivate` / `validate-photo` (Rekognition con fallback manual si AWS no configurado) |
+| `supabase/functions/socios-qr/` | ✅ deployada | `get-secret` (socio) / `validate` (portería) — TOTP server-side |
+| `supabase/functions/socios-pagos/` | ✅ deployada (`--no-verify-jwt`) | `checkout` / `webhook` / `manual` / `associate-card` / `remove-card` / `charge-card` / `cobro-mensual` (cron) |
 | `supabase/functions/_shared/totp.ts` | ✅ escrito | TOTP RFC 6238 puro (crypto.subtle, sin deps externas) |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
 
-**Secrets requeridos antes de deploy** (v2 Edge Functions):
+**Secrets requeridos** (pendientes cuando estén disponibles):
 ```bash
 supabase secrets set AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1
 supabase secrets set MERCADOPAGO_ACCESS_TOKEN=... RESEND_API_KEY=... CLUB_EMAIL_FROM=...
+supabase secrets set CRON_SECRET=...   # para autorizar cobro-mensual desde pg_cron
 ```
 
-**Deploy v2**:
-```bash
-supabase functions deploy admin-socios
-supabase functions deploy socios-qr
-supabase functions deploy socios-pagos --no-verify-jwt
-```
+**Comportamiento `validate-photo`**: si `AWS_ACCESS_KEY_ID` no está seteado, valida la foto manualmente (sin Rekognition) y pasa estado a `activo`. Cuando se configuren los secrets de AWS, usa Rekognition automáticamente.
 
 ### `admin-usuarios` — detalle de acciones
 

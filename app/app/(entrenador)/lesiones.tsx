@@ -17,18 +17,17 @@ import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial } from '@/hook
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
-const PAPEL     = colors.papel        // '#F6F1E4'
-const TINTA     = colors.tinta        // '#0E0E0E'
-const ORO       = colors.oro          // '#E8B53C'
-const ORO_HONDO = colors.oroHondo     // '#C9961F'
-const GRIS      = colors.grisClaro    // '#E5E0D0'
-const ROJO      = colors.rojoUrgente  // '#C0392B'
-const MUTED     = '#7C7267'
-const DIVIDER   = '#D9D3C4'
+const FONDO     = '#15110A'
+const CARD      = '#1C1710'
+const TEXTO     = '#F3EFE4'
+const MUTED     = '#8E8574'
+const DIVIDER   = '#2C2418'
+const ORO       = colors.oro
+const ORO_HONDO = colors.oroHondo
+const ROJO      = colors.rojoUrgente
 
 // Escala progresiva de grado 1→5
 const GRADO: Record<number, { bg: string; borde?: string }> = {
@@ -57,11 +56,13 @@ function GradoBadge({ grado, small }: { grado: number; small?: boolean }) {
   return (
     <View style={[
       s.gradoBadge,
+      // backgroundColor is truly dynamic (per grado value from runtime data)
       { backgroundColor: cfg.bg },
+      // borderColor is truly dynamic (optional, from runtime data)
       cfg.borde ? { borderWidth: 1.5, borderColor: cfg.borde } : null,
-      small ? { paddingHorizontal: 6, paddingVertical: 2 } : null,
+      small && s.gradoBadgeSmall,
     ]}>
-      <Text style={[s.gradoBadgeTexto, small && { fontSize: 10 }]}>G{grado}</Text>
+      <Text style={[s.gradoBadgeTexto, small && s.gradoBadgeTextoSmall]}>G{grado}</Text>
     </View>
   )
 }
@@ -79,27 +80,26 @@ function FilaLesion({
   onToggle: () => void
   onVerHistorial: () => void
 }) {
-  const { colors: tc } = useTheme()
   const urgente = lesion.grado >= 3
   return (
     <TouchableOpacity
-      style={[s.lesionCard, !urgente && { backgroundColor: tc.fondo }, urgente && s.lesionCardUrgente]}
+      style={[s.lesionCard, urgente ? s.lesionCardUrgente : s.lesionCardNormal]}
       onPress={onToggle}
       activeOpacity={0.82}
     >
       <View style={s.lesionCabeza}>
-        <View style={{ flex: 1, gap: 3 }}>
+        <View style={s.lesionCabezaInfo}>
           <Text
-            style={[s.lesionNombre, !urgente && { color: tc.tinta }, urgente && s.lesionNombreUrgente]}
+            style={[s.lesionNombre, urgente ? s.lesionNombreUrgente : s.lesionNombreNormal]}
             numberOfLines={1}
           >
             {lesion.jugadorNombre}
           </Text>
-          <Text style={[s.lesionFecha, urgente && { color: '#9A8870' }]}>
+          <Text style={[s.lesionFecha, urgente && s.lesionFechaUrgente]}>
             {formatFecha(lesion.fecha)}
           </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={s.lesionBadgeRow}>
           <GradoBadge grado={lesion.grado} />
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
@@ -110,9 +110,9 @@ function FilaLesion({
       </View>
 
       {expanded && (
-        <View style={[s.lesionExpand, urgente && { borderTopColor: '#2A2A2A' }]}>
-          <Text style={[s.expandLabel, urgente && { color: ORO }]}>DESCRIPCIÓN</Text>
-          <Text style={[s.lesionDesc, urgente && { color: '#DDD5C5' }]}>
+        <View style={[s.lesionExpand, urgente && s.lesionExpandUrgente]}>
+          <Text style={[s.expandLabel, urgente && s.expandLabelUrgente]}>DESCRIPCIÓN</Text>
+          <Text style={[s.lesionDesc, urgente && s.lesionDescUrgente]}>
             {lesion.descripcion || '—'}
           </Text>
           <TouchableOpacity
@@ -148,7 +148,7 @@ function HistorialView({
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
+        <View style={s.historialTitleFlex}>
           <Text style={s.labelHeader}>HISTORIAL · LESIONES</Text>
           <Text style={s.titulo} numberOfLines={1}>{jugador.nombre_completo}</Text>
         </View>
@@ -173,15 +173,15 @@ function HistorialView({
               return (
                 <View
                   key={l.id}
-                  style={[s.lesionCard, urgente && s.lesionCardUrgente]}
+                  style={[s.lesionCard, urgente ? s.lesionCardUrgente : s.lesionCardNormal]}
                 >
                   <View style={s.lesionCabeza}>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={[s.lesionNombre, urgente && s.lesionNombreUrgente]}>
+                    <View style={s.lesionCabezaInfo}>
+                      <Text style={[s.lesionNombre, urgente ? s.lesionNombreUrgente : s.lesionNombreNormal]}>
                         {formatFecha(l.fecha)}
                       </Text>
                       <Text
-                        style={[s.lesionDesc, urgente && { color: '#DDD5C5' }]}
+                        style={[s.lesionDesc, urgente && s.lesionDescUrgente]}
                         numberOfLines={2}
                       >
                         {l.descripcion}
@@ -264,19 +264,21 @@ function ProtocolosEntrenador({
     return (
       <View style={s.centrado}>
         <Text style={s.emptyTexto}>Sin protocolos cargados.</Text>
-        <Text style={[s.mutedTexto, { marginTop: 4 }]}>La Subcomisión los publica aquí.</Text>
+        <Text style={s.protocolosSub}>La Subcomisión los publica aquí.</Text>
       </View>
     )
   }
   const grupos = agruparPorGrado(protocolos)
   return (
-    <ScrollView contentContainerStyle={[s.lista, { paddingBottom: 40 }]}>
+    <ScrollView contentContainerStyle={s.listaProtocolos}>
       {grupos.map(({ grado, items }) => {
+        // color is truly dynamic (per grado value from runtime data map)
         const color = grado === null ? ORO : (GRADO_COLOR_P[grado] ?? MUTED)
         const label = grado === null ? 'GENERAL' : `GRADO ${grado}`
         return (
           <View key={String(grado)}>
-            <View style={[s.seccionHeader, { marginTop: 8 }]}>
+            <View style={s.seccionHeaderMt}>
+              {/* color is runtime-dynamic — keep inline */}
               <Text style={[s.seccionLabel, { color }]}>{label}</Text>
               <Text style={s.seccionConteo}>{items.length}</Text>
             </View>
@@ -291,8 +293,8 @@ function ProtocolosEntrenador({
                   disabled={esAbriendo}
                 >
                   <View style={s.lesionCabeza}>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={s.lesionNombre} numberOfLines={1}>{p.titulo}</Text>
+                    <View style={s.lesionCabezaInfo}>
+                      <Text style={s.lesionNombreNormal} numberOfLines={1}>{p.titulo}</Text>
                       {p.nombre_archivo && (
                         <Text style={s.lesionFecha} numberOfLines={1}>{p.nombre_archivo}</Text>
                       )}
@@ -327,7 +329,6 @@ function SelectorJugador({
   seleccionado: JugadorOpcion | null
   onSelect: (j: JugadorOpcion) => void
 }) {
-  const { colors: tc } = useTheme()
   const [busqueda, setBusqueda] = useState('')
   const filtrados = busqueda.trim()
     ? jugadores.filter(j =>
@@ -336,29 +337,29 @@ function SelectorJugador({
     : jugadores
 
   return (
-    <View style={{ gap: 8 }}>
-      <View style={[s.buscadorWrap, { backgroundColor: tc.card, borderColor: tc.grisClaro }]}>
-        <Ionicons name="search" size={14} color={MUTED} style={{ marginRight: 8 }} />
+    <View style={s.selectorGap8}>
+      <View style={s.buscadorWrap}>
+        <Ionicons name="search" size={14} color={MUTED} style={s.buscadorIcon} />
         <TextInput
-          style={[s.buscadorInput, { color: tc.tinta }]}
+          style={s.buscadorInput}
           value={busqueda}
           onChangeText={setBusqueda}
           placeholder="Buscar jugador..."
           placeholderTextColor={MUTED}
         />
       </View>
-      <View style={{ gap: 4 }}>
+      <View style={s.selectorGap4}>
         {filtrados.map(j => {
           const activo = seleccionado?.id === j.id
           return (
             <TouchableOpacity
               key={j.id}
-              style={[s.jugItem, { borderColor: tc.grisClaro }, activo && s.jugItemActivo]}
+              style={[s.jugItem, activo && s.jugItemActivo]}
               onPress={() => onSelect(j)}
               activeOpacity={0.75}
             >
               <Text
-                style={[s.jugItemTexto, !activo && { color: tc.tinta }, activo && s.jugItemTextoActivo]}
+                style={[s.jugItemTexto, activo ? s.jugItemTextoActivo : s.jugItemTextoNormal]}
                 numberOfLines={1}
               >
                 {j.nombre_completo}
@@ -391,16 +392,13 @@ function SelectorGrado({
         return (
           <TouchableOpacity
             key={g}
-            style={[
-              s.gradoBtn,
-              activo
-                ? { backgroundColor: TINTA, borderColor: TINTA }
-                : { backgroundColor: 'transparent', borderColor: DIVIDER },
-            ]}
+            style={[s.gradoBtn, activo ? s.gradoBtnActivo : s.gradoBtnInactivo]}
             onPress={() => onSelect(g)}
             activeOpacity={0.75}
           >
-            <Text style={[s.gradoBtnTexto, { color: activo ? ORO : MUTED }]}>{g}</Text>
+            <Text style={[s.gradoBtnTexto, activo ? s.gradoBtnTextoActivo : s.gradoBtnTextoInactivo]}>
+              {g}
+            </Text>
           </TouchableOpacity>
         )
       })}
@@ -430,14 +428,13 @@ export default function LesionesScreen() {
     abriendo,
     abrirProtocolo,
   } = useProtocolos()
-  const { colors: tc } = useTheme()
 
   const [tabActivo, setTabActivo]   = useState<Tab>('lesiones')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -445,7 +442,7 @@ export default function LesionesScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -464,17 +461,17 @@ export default function LesionesScreen() {
   }
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
-        <Text style={[s.titulo, { color: tc.tinta }]}>Lesiones</Text>
+        <Text style={s.titulo}>Lesiones</Text>
       </View>
-      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.separador} />
 
       {/* Tab switcher */}
       <TabSwitcher tab={tabActivo} onChange={setTabActivo} />
-      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.separador} />
 
       {/* Vista protocolos */}
       {tabActivo === 'protocolos' && (
@@ -526,15 +523,15 @@ export default function LesionesScreen() {
       {/* Modal nueva lesión */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView
-          style={{ flex: 1 }}
+          style={s.kavFlex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
+          <SafeAreaView style={s.modalContainer}>
             {/* Header modal */}
             <View style={s.modalHeader}>
               <View>
                 <Text style={s.modalSuper}>REGISTRAR</Text>
-                <Text style={[s.modalTitulo, { color: tc.tinta }]}>Nueva lesión</Text>
+                <Text style={s.modalTitulo}>Nueva lesión</Text>
               </View>
               <TouchableOpacity
                 onPress={cerrarModal}
@@ -545,7 +542,7 @@ export default function LesionesScreen() {
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
             </View>
-            <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+            <View style={s.separador} />
 
             <ScrollView
               contentContainerStyle={s.modalScroll}
@@ -575,7 +572,7 @@ export default function LesionesScreen() {
               <View style={s.campo}>
                 <Text style={s.campoLabel}>DESCRIPCIÓN</Text>
                 <TextInput
-                  style={[s.inputDesc, { color: tc.tinta }]}
+                  style={s.inputDesc}
                   value={descripcion}
                   onChangeText={setDescripcion}
                   placeholder="Describí la lesión..."
@@ -614,7 +611,7 @@ export default function LesionesScreen() {
               {/* Botón guardar */}
               {!guardadoOk && (
                 <TouchableOpacity
-                  style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
+                  style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
                   onPress={guardarLesion}
                   disabled={guardando}
                   activeOpacity={0.85}
@@ -647,66 +644,106 @@ export default function LesionesScreen() {
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: PAPEL },
-  centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL, gap: 8 },
+  container:  { flex: 1, backgroundColor: FONDO },
+  centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
   mutedTexto: { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
 
-  // Header principal (columna)
+  // Header principal
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
   labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
-  titulo:      { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  titulo:      { fontSize: 32, fontFamily: fonts.titulo, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
   // Header historial (fila con back)
-  historialHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
-  backBtn:         { padding: 4, marginRight: 2 },
+  historialHeader:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
+  historialTitleFlex:{ flex: 1 },
+  backBtn:           { padding: 4, marginRight: 2 },
 
   // Tabs
   tabSwitcher:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
   tabBtn:            { flex: 1, paddingVertical: 9, borderRadius: 2, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
-  tabBtnActivo:      { backgroundColor: TINTA, borderColor: TINTA },
+  tabBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
   tabBtnTexto:       { fontSize: 10, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
   tabBtnTextoActivo: { color: ORO },
 
-  // Lista
+  // Lista lesiones
   lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, gap: 10 },
   seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  seccionHeaderMt:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, marginTop: 8 },
   seccionLabel:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
   seccionConteo: { fontSize: 13, color: MUTED, fontWeight: '600' },
   emptyTexto:    { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
 
+  // Lista protocolos (extra paddingBottom)
+  listaProtocolos: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, gap: 10 },
+  protocolosSub:   { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center', marginTop: 4 },
+
   // Tarjeta lesión
-  lesionCard:          { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: PAPEL },
-  lesionCardUrgente:   { backgroundColor: TINTA, borderColor: TINTA },
-  lesionCabeza:        { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  lesionNombre:        { fontSize: 15, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
-  lesionNombreUrgente: { color: ORO },
-  lesionFecha:         { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
-  lesionDesc:          { fontSize: 13, color: TINTA, lineHeight: 20, fontFamily: fonts.cuerpo },
+  lesionCard:         { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14 },
+  lesionCardNormal:   { backgroundColor: FONDO },
+  lesionCardUrgente:  { backgroundColor: TEXTO, borderColor: TEXTO },
+  lesionCabeza:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  lesionCabezaInfo:   { flex: 1, gap: 3 },
+  lesionBadgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  lesionNombre:       { fontSize: 15, fontWeight: '700', fontFamily: fonts.cuerpo },
+  lesionNombreNormal: { color: TEXTO },
+  lesionNombreUrgente:{ color: ORO },
+  lesionFecha:        { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
+  lesionFechaUrgente: { color: '#9A8870' },
+  lesionDesc:         { fontSize: 13, color: TEXTO, lineHeight: 20, fontFamily: fonts.cuerpo },
+  lesionDescUrgente:  { color: '#0E0E0E' },
 
   // Expansión
   lesionExpand:       { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: DIVIDER, gap: 6 },
+  lesionExpandUrgente:{ borderTopColor: '#2A2A2A' },
   expandLabel:        { fontSize: 9, letterSpacing: 2, color: ORO_HONDO, fontFamily: fonts.label },
+  expandLabelUrgente: { color: ORO },
   historialLink:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
   historialLinkTexto: { fontSize: 9, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
   // Badge de grado
-  gradoBadge:     { borderRadius: 3, paddingHorizontal: 8, paddingVertical: 3 },
-  gradoBadgeTexto:{ color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, fontFamily: fonts.label },
+  gradoBadge:          { borderRadius: 3, paddingHorizontal: 8, paddingVertical: 3 },
+  gradoBadgeSmall:     { paddingHorizontal: 6, paddingVertical: 2 },
+  gradoBadgeTexto:     { color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, fontFamily: fonts.label },
+  gradoBadgeTextoSmall:{ fontSize: 10 },
 
   // FAB dorado
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ color: TINTA, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  fabTexto:{ color: FONDO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
   // Protocolo — ícono de documento
   docIconWrap: { width: 30, height: 30, borderRadius: 2, borderWidth: 1, borderColor: ORO, alignItems: 'center', justifyContent: 'center' },
 
+  // Buscador de jugador
+  buscadorWrap:  { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: CARD },
+  buscadorIcon:  { marginRight: 8 },
+  buscadorInput: { flex: 1, fontSize: 14, color: TEXTO, fontFamily: fonts.cuerpo },
+
+  // Selector jugador
+  selectorGap8: { gap: 8 },
+  selectorGap4: { gap: 4 },
+  jugItem:            { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 10 },
+  jugItemActivo:      { borderColor: ORO, backgroundColor: '#1C1510' },
+  jugItemTexto:       { flex: 1, fontSize: 14, fontFamily: fonts.cuerpo },
+  jugItemTextoNormal: { color: TEXTO },
+  jugItemTextoActivo: { color: ORO_HONDO, fontWeight: '700' },
+
+  // Selector de grado
+  gradoRow:              { flexDirection: 'row', gap: 8 },
+  gradoBtn:              { flex: 1, aspectRatio: 1, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  gradoBtnActivo:        { backgroundColor: TEXTO, borderColor: TEXTO },
+  gradoBtnInactivo:      { backgroundColor: 'transparent', borderColor: DIVIDER },
+  gradoBtnTexto:         { fontSize: 16, fontWeight: '700', fontFamily: fonts.label },
+  gradoBtnTextoActivo:   { color: ORO },
+  gradoBtnTextoInactivo: { color: MUTED },
+
   // Modal
-  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  kavFlex:        { flex: 1 },
+  modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
-  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA },
+  modalTitulo:    { fontSize: 26, fontFamily: fonts.titulo, color: TEXTO },
   modalClose:     { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 20 },
 
@@ -714,42 +751,28 @@ const s = StyleSheet.create({
   campo:     { gap: 10 },
   campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
-  // Input descripción: borde inferior dorado únicamente
+  // Input descripción
   inputDesc: {
     borderBottomWidth: 1.5,
     borderBottomColor: ORO,
     paddingVertical: 10,
     paddingHorizontal: 0,
     fontSize: 14,
-    color: TINTA,
+    color: TEXTO,
     fontFamily: fonts.cuerpo,
     minHeight: 72,
   },
 
-  // Buscador de jugador
-  buscadorWrap:  { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, paddingHorizontal: 10, paddingVertical: 8 },
-  buscadorInput: { flex: 1, fontSize: 14, color: TINTA, fontFamily: fonts.cuerpo },
-
-  // Selector de jugador
-  jugItem:            { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 10 },
-  jugItemActivo:      { borderColor: ORO, backgroundColor: '#FBF6EA' },
-  jugItemTexto:       { flex: 1, fontSize: 14, color: TINTA, fontFamily: fonts.cuerpo },
-  jugItemTextoActivo: { color: ORO_HONDO, fontWeight: '700' },
-
-  // Selector de grado
-  gradoRow:     { flexDirection: 'row', gap: 8 },
-  gradoBtn:     { flex: 1, aspectRatio: 1, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  gradoBtnTexto:{ fontSize: 16, fontWeight: '700', fontFamily: fonts.label },
-
   // Banners
-  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
-  bannerOk:         { backgroundColor: TINTA, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
+  bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontSize: 13, color: '#FFAAAA', fontFamily: fonts.cuerpo },
+  bannerOk:         { backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
   bannerOkTexto:    { fontSize: 13, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
   bannerOkSub:      { fontSize: 12, color: '#9A8870', fontFamily: fonts.cuerpo },
 
   // Botones
-  botonPrincipal:       { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:       { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalOff:    { opacity: 0.6 },
   botonPrincipalTexto:  { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
   botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
   botonSecundarioTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },

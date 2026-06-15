@@ -3,7 +3,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/expo-push-notification-service/push/send'
 
-type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual'
+type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual' | 'noticia_publicada'
 type TipoReferencia   = 'lesion' | 'fichaje' | 'asistencia'
 
 interface NotifPayload {
@@ -18,6 +18,11 @@ interface ManualPayload {
   titulo:          string
   mensaje:         string
   rolDestinatario: 'coordinador' | 'entrenador' | 'manager' | 'todos'
+}
+
+interface NoticiaPayload {
+  titulo:    string
+  noticiaId: string
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -35,7 +40,7 @@ Deno.serve(async (req: Request) => {
   )
   if (authErr) return jsonError(401, 'Token inválido')
 
-  let body: { type: NotificationType; payload: NotifPayload | ManualPayload }
+  let body: { type: NotificationType; payload: NotifPayload | ManualPayload | NoticiaPayload }
   try {
     body = await req.json()
   } catch {
@@ -62,6 +67,12 @@ Deno.serve(async (req: Request) => {
         await notificarFichaje(np)
       } else if (type === 'ausencias_consecutivas') {
         await notificarAusencias(np)
+      } else if (type === 'noticia_publicada') {
+        const np = payload as NoticiaPayload
+        if (!np?.titulo || !np?.noticiaId) {
+          return jsonError(400, 'Payload noticia incompleto')
+        }
+        await notificarNoticiaPublicada(np)
       } else {
         return jsonError(400, `Tipo desconocido: ${type}`)
       }
@@ -106,6 +117,14 @@ async function notificarManual(p: ManualPayload): Promise<void> {
   }
 
   await enviarExpoPush(allTokens, p.titulo, p.mensaje, { type: 'manual' })
+}
+
+async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<void> {
+  const { tokens } = await getDestinatariosRol('socio')
+  await enviarExpoPush(tokens, 'Nueva Noticia', p.titulo, {
+    type: 'noticia_publicada',
+    noticiaId: p.noticiaId,
+  })
 }
 
 async function notificarAusencias(p: NotifPayload): Promise<void> {

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as ImagePicker from 'expo-image-picker'
+import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_LABELS, Rol } from '@/constants/roles'
@@ -11,6 +12,13 @@ export interface PerfilData {
   email:      string
   rolLabel:   string
   divisiones: string[]
+}
+
+function decodeBase64(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes  = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
 }
 
 export function useSobre() {
@@ -23,6 +31,10 @@ export function useSobre() {
   const [enviandoReset, setEnviandoReset]     = useState(false)
   const [resetEnviado, setResetEnviado]       = useState(false)
   const [foto, setFoto]                       = useState<string | null>(null)
+  const [cambiandoFoto, setCambiandoFoto]     = useState(false)
+
+  const rolRef    = useRef<string>('')
+  const socioIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     void cargarPerfil()
@@ -31,9 +43,6 @@ export function useSobre() {
   async function cargarPerfil() {
     if (!session?.user) { setLoading(false); return }
 
-    const fotoGuardada = await AsyncStorage.getItem(`@perfil_foto_${session.user.id}`)
-    if (fotoGuardada) setFoto(fotoGuardada)
-
     const { data: profile } = await supabase
       .from('profiles')
       .select('nombre, rol, divisiones')
@@ -41,6 +50,31 @@ export function useSobre() {
       .single()
 
     if (!profile) { setLoading(false); return }
+
+    rolRef.current = profile.rol
+
+    // Para socios: foto desde Supabase Storage (la misma que el carnet)
+    if (profile.rol === 'socio') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: socio } = await (supabase as any)
+        .from('socios')
+        .select('id, foto_path')
+        .eq('profile_id', session.user.id)
+        .single()
+
+      socioIdRef.current = socio?.id ?? null
+
+      if (socio?.foto_path) {
+        const { data: signed } = await supabase.storage
+          .from('socios-fotos')
+          .createSignedUrl(socio.foto_path as string, 3600)
+        if (signed?.signedUrl) setFoto(signed.signedUrl)
+      }
+    } else {
+      // Otros roles: foto local guardada en AsyncStorage
+      const fotoGuardada = await AsyncStorage.getItem(`@perfil_foto_${session.user.id}`)
+      if (fotoGuardada) setFoto(fotoGuardada)
+    }
 
     let divisionNombres: string[] = []
     if (profile.divisiones && profile.divisiones.length > 0) {
@@ -81,16 +115,27 @@ export function useSobre() {
   async function enviarResetPassword() {
     if (!perfil?.email) return
     setEnviandoReset(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(perfil.email, {
-      redirectTo: 'uncasrugby://reset-password',
-    })
-    if (error) {
+    try {
+      const timeout = new Promise<{ error: Error }>(resolve =>
+        setTimeout(() => resolve({ error: new Error('timeout') }), 15000)
+      )
+      const { error } = await Promise.race([
+        supabase.auth.resetPasswordForEmail(perfil.email, {
+          redirectTo: 'uncasrugby://reset-password',
+        }),
+        timeout,
+      ])
+      if (error) {
+        Alert.alert('Error', 'No se pudo enviar el email. Verificá la conexión.')
+      } else {
+        setResetEnviado(true)
+        setTimeout(() => setResetEnviado(false), 3000)
+      }
+    } catch {
       Alert.alert('Error', 'No se pudo enviar el email.')
-    } else {
-      setResetEnviado(true)
-      setTimeout(() => setResetEnviado(false), 3000)
+    } finally {
+      setEnviandoReset(false)
     }
-    setEnviandoReset(false)
   }
 
   async function cambiarFoto() {
@@ -99,13 +144,51 @@ export function useSobre() {
       Alert.alert('Permiso requerido', 'Necesitás permitir acceso a la galería.')
       return
     }
+
+    const isSocio = rolRef.current === 'socio'
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images',
       allowsEditing: true,
-      aspect:       [1, 1] as [number, number],
-      quality:      0.7,
+      aspect: isSocio ? [3, 4] as [number, number] : [1, 1] as [number, number],
+      quality: 0.8,
     })
-    if (!result.canceled && result.assets[0]?.uri && session?.user) {
+    if (result.canceled || !result.assets[0]) return
+
+    if (isSocio) {
+      // Socios: subir al bucket socios-fotos (misma foto que el carnet)
+      const socioId = socioIdRef.current
+      if (!socioId) { Alert.alert('Error', 'No se encontró tu registro de socio.'); return }
+
+      setCambiandoFoto(true)
+      try {
+        const asset    = result.assets[0]
+        const base64   = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' })
+        const filePath = `${socioId}/foto.jpg`
+
+        const { error: uploadErr } = await supabase.storage
+          .from('socios-fotos')
+          .upload(filePath, decodeBase64(base64), { contentType: 'image/jpeg', upsert: true })
+
+        if (uploadErr) { Alert.alert('Error', 'No se pudo subir la foto.'); return }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('socios')
+          .update({ foto_path: filePath, foto_validada: false })
+          .eq('id', socioId)
+
+        const { data: signed } = await supabase.storage
+          .from('socios-fotos')
+          .createSignedUrl(filePath, 3600)
+        setFoto(signed?.signedUrl ?? null)
+      } catch {
+        Alert.alert('Error', 'Ocurrió un error al subir la foto.')
+      } finally {
+        setCambiandoFoto(false)
+      }
+    } else {
+      // Otros roles: guardar URI local en AsyncStorage
+      if (!session?.user) return
       const uri = result.assets[0].uri
       setFoto(uri)
       await AsyncStorage.setItem(`@perfil_foto_${session.user.id}`, uri)
@@ -123,6 +206,7 @@ export function useSobre() {
     resetEnviado,
     enviarResetPassword,
     foto,
+    cambiandoFoto,
     cambiarFoto,
   }
 }

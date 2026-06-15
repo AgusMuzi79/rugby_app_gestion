@@ -14,16 +14,19 @@ import {
   type FichajeReciente,
   type EventoFinancieroInforme,
 } from '@/hooks/useInformes'
-import { useTheme } from '@/contexts/ThemeContext'
+import { colors, fonts } from '@/constants/theme'
 
-const CREAM = '#F5F0E8'
-const GOLD  = '#C9A84C'
-const DARK  = '#1A1A1A'
-const MUTED = '#888888'
-const ROJO  = '#EF4444'
-const VERDE = '#22C55E'
-const AMBER = '#F59E0B'
-const AZUL  = '#3B82F6'
+// ─── Tokens ───────────────────────────────────────────────────────────────────
+
+const FONDO   = '#15110A'
+const CARD    = '#1C1710'
+const TEXTO   = '#F3EFE4'
+const MUTED   = '#8E8574'
+const DIVIDER = '#2C2418'
+const ROJO    = colors.rojoUrgente
+const VERDE   = '#22C55E'
+const AMBER   = '#F59E0B'
+const AZUL    = '#3B82F6'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,15 +47,13 @@ function resStyle(res: 'W' | 'L' | 'D') {
 }
 
 function tipoColor(tipo: string): string {
-  const map: Record<string, string> = { viaje: AZUL, tercer_tiempo: VERDE, recaudacion: GOLD }
+  const map: Record<string, string> = { viaje: AZUL, tercer_tiempo: VERDE, recaudacion: colors.oro }
   return map[tipo] ?? MUTED
 }
 
 // ─── Sección Asistencia ───────────────────────────────────────────────────────
 
 function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
-  const { colors: tc } = useTheme()
-  // Agrupar por división
   const gruposMap = new Map<string, JugadorAsistencia[]>()
   for (const a of datos) {
     let arr = gruposMap.get(a.divisionId)
@@ -74,17 +75,17 @@ function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
         <Text style={s.vacio}>Sin datos de asistencia recientes.</Text>
       ) : (
         grupos.map(g => (
-          <View key={g.divisionNombre} style={{ gap: 4 }}>
+          <View key={g.divisionNombre} style={s.gap4}>
             <View style={s.divHeader}>
-              <Text style={[s.divHeaderTexto, { color: tc.tinta }]}>{g.divisionNombre}</Text>
+              <Text style={s.divHeaderTexto}>{g.divisionNombre}</Text>
               {g.tieneAlertas && (
                 <View style={s.badgeRojo}><Text style={s.badgeTexto}>ALERTA</Text></View>
               )}
             </View>
             {g.jugadores.map(j => (
-              <View key={j.jugadorId} style={[s.card, { backgroundColor: tc.card }]}>
+              <View key={j.jugadorId} style={s.card}>
                 <View style={s.fila}>
-                  <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{j.nombre}</Text>
+                  <Text style={s.cardNombre} numberOfLines={1}>{j.nombre}</Text>
                   <View style={s.filaRight}>
                     {j.ausenciasConsecutivas && (
                       <View style={s.badgeRojo}><Text style={s.badgeTexto}>4 AUST.</Text></View>
@@ -107,7 +108,6 @@ function SeccionAsistencia({ datos }: { datos: JugadorAsistencia[] }) {
 // ─── Sección Resultados ───────────────────────────────────────────────────────
 
 function SeccionResultados({ datos }: { datos: ResultadoInforme[] }) {
-  const { colors: tc } = useTheme()
   const wins   = datos.filter(r => r.resultado === 'W').length
   const losses = datos.filter(r => r.resultado === 'L').length
   const draws  = datos.filter(r => r.resultado === 'D').length
@@ -128,13 +128,13 @@ function SeccionResultados({ datos }: { datos: ResultadoInforme[] }) {
         <Text style={s.vacio}>Sin resultados cargados.</Text>
       ) : (
         datos.map(r => (
-          <View key={r.id} style={[s.card, { backgroundColor: tc.card }]}>
+          <View key={r.id} style={s.card}>
             <View style={s.fila}>
               <View style={[s.resBadge, resStyle(r.resultado)]}>
                 <Text style={s.resBadgeTexto}>{r.resultado}</Text>
               </View>
-              <Text style={[s.marcador, { color: tc.tinta }]}>{r.puntosPropios}–{r.puntosRival}</Text>
-              <Text style={[s.cardNombre, { color: tc.tinta, marginRight: 0, marginLeft: 8 }]} numberOfLines={1}>
+              <Text style={s.marcador}>{r.puntosPropios}–{r.puntosRival}</Text>
+              <Text style={s.cardNombreResult} numberOfLines={1}>
                 {r.rival ? `vs. ${r.rival}` : '—'}
               </Text>
               <Text style={s.cardFecha}>{formatFecha(r.fecha)}</Text>
@@ -156,8 +156,7 @@ function SeccionFichajes({
   porDiv:    DivisionFichajesResumen[]
   recientes: FichajeReciente[]
 }) {
-  const { colors: tc } = useTheme()
-  const total = porDiv.reduce((s, d) => s + d.total, 0)
+  const total = porDiv.reduce((acc, d) => acc + d.total, 0)
   return (
     <View style={s.seccion}>
       <View style={s.seccionEncabezado}>
@@ -168,21 +167,21 @@ function SeccionFichajes({
         <Text style={s.vacio}>Sin jugadores fichados.</Text>
       ) : (
         porDiv.map(d => (
-          <View key={d.divisionId} style={[s.card, { backgroundColor: tc.card }]}>
+          <View key={d.divisionId} style={s.card}>
             <View style={s.fila}>
-              <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{d.divisionNombre}</Text>
-              <Text style={[s.numGrande, { color: tc.tinta }]}>{d.total}</Text>
+              <Text style={s.cardNombre} numberOfLines={1}>{d.divisionNombre}</Text>
+              <Text style={s.numGrande}>{d.total}</Text>
             </View>
           </View>
         ))
       )}
       {recientes.length > 0 && (
         <>
-          <Text style={[s.seccionTitulo, { marginTop: 12 }]}>Últimas altas</Text>
+          <Text style={s.seccionTituloMt}>Últimas altas</Text>
           {recientes.map(f => (
-            <View key={f.id} style={[s.card, { backgroundColor: tc.card }]}>
+            <View key={f.id} style={s.card}>
               <View style={s.fila}>
-                <Text style={[s.cardNombre, { color: tc.tinta }]} numberOfLines={1}>{f.nombre}</Text>
+                <Text style={s.cardNombre} numberOfLines={1}>{f.nombre}</Text>
                 <Text style={s.cardFecha}>{formatFecha(f.fechaFichaje)}</Text>
               </View>
               <Text style={s.cardDiv}>{f.divisionNombre}</Text>
@@ -197,7 +196,6 @@ function SeccionFichajes({
 // ─── Sección Financiero ───────────────────────────────────────────────────────
 
 function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
-  const { colors: tc } = useTheme()
   return (
     <View style={s.seccion}>
       <Text style={s.seccionTitulo}>Financiero</Text>
@@ -205,9 +203,10 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
         <Text style={s.vacio}>Sin eventos financieros activos.</Text>
       ) : (
         datos.map(ef => {
+          // color is truly dynamic (per tipo from runtime data) — keep inline
           const color = tipoColor(ef.tipo)
           return (
-            <View key={ef.id} style={[s.card, { gap: 8, backgroundColor: tc.card }]}>
+            <View key={ef.id} style={s.cardGap}>
               <View style={s.fila}>
                 <View style={[s.tipoBadge, { borderColor: color }]}>
                   <Text style={[s.tipoTexto, { color }]}>
@@ -218,15 +217,15 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
                   <Text style={s.cardFecha}>{ef.divisionNombre}</Text>
                 )}
               </View>
-              <Text style={[s.cardNombre, { color: tc.tinta }]}>{ef.nombre}</Text>
+              <Text style={s.cardNombre}>{ef.nombre}</Text>
 
-              {/* Barra de progreso */}
-              <View style={[s.progressBar, { backgroundColor: tc.grisClaro }]}>
+              {/* Barra de progreso — width is dynamic */}
+              <View style={s.progressBar}>
                 <View style={[s.progressFill, { width: `${ef.porcentajeCobrado}%` }]} />
               </View>
 
               <View style={s.fila}>
-                <Text style={[s.cobrado, { color: tc.tinta }]}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
+                <Text style={s.cobrado}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
                 <Text style={s.cardMuted}>
                   {ef.porcentajeCobrado}% · {ef.countPagados}P · {ef.countPendientes}PN
                 </Text>
@@ -235,8 +234,8 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
               {Object.keys(ef.formasDePago).length > 0 && (
                 <View style={s.formasRow}>
                   {Object.entries(ef.formasDePago).map(([forma, monto]) => (
-                    <View key={forma} style={[s.formaPill, { backgroundColor: tc.card }]}>
-                      <Text style={[s.formaTexto, { color: tc.tinta }]}>
+                    <View key={forma} style={s.formaPill}>
+                      <Text style={s.formaTexto}>
                         {forma}: ${monto.toLocaleString('es-AR')}
                       </Text>
                     </View>
@@ -255,29 +254,21 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 
 export default function InformesScreen() {
   const {
-    loading,
-    divisiones,
-    divisionFiltro,
-    setDivisionFiltro,
-    asistencias,
-    resultados,
-    fichajesPorDiv,
-    fichajesRecientes,
-    financiero,
+    loading, divisiones, divisionFiltro, setDivisionFiltro,
+    asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
   } = useInformes()
-  const { colors: tc } = useTheme()
 
   if (loading) {
     return (
-      <View style={[s.centrado, { backgroundColor: tc.fondo }]}>
-        <ActivityIndicator size="large" color={GOLD} />
+      <View style={s.centrado}>
+        <ActivityIndicator size="large" color={colors.oro} />
         <Text style={s.cargandoTexto}>Cargando informes…</Text>
       </View>
     )
   }
 
   return (
-    <View style={[s.root, { backgroundColor: tc.fondo }]}>
+    <View style={s.root}>
       <View style={s.header}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <Text style={s.headerTitle}>Informes</Text>
@@ -328,73 +319,77 @@ export default function InformesScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: CREAM },
-  centrado:      { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 12 },
-  cargandoTexto: { color: MUTED, fontSize: 13 },
+  root:          { flex: 1, backgroundColor: FONDO },
+  centrado:      { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 12 },
+  cargandoTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 13 },
 
-  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: DARK },
-  headerLabel: { fontSize: 10, letterSpacing: 2.5, color: GOLD, marginBottom: 4 },
-  headerTitle: { fontSize: 28, fontStyle: 'italic', fontFamily: 'serif', color: '#FFFFFF' },
+  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: TEXTO },
+  headerLabel: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
+  headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: FONDO },
 
-  selectorWrap:    { backgroundColor: DARK, paddingBottom: 12 },
+  selectorWrap:    { backgroundColor: TEXTO, paddingBottom: 12 },
   selectorContent: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A' },
-  pillActiva:      { backgroundColor: GOLD, borderColor: GOLD },
-  pillTexto:       { color: '#AAAAAA', fontSize: 12, fontWeight: '500' },
-  pillTextoActiva: { color: DARK },
+  pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
+  pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
+  pillTexto:       { fontFamily: fonts.label, color: MUTED, fontSize: 12, fontWeight: '500' },
+  pillTextoActiva: { color: FONDO },
 
   scroll:        { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 48, gap: 24 },
 
   seccion:           { gap: 8 },
   seccionEncabezado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionTitulo:     { fontSize: 11, letterSpacing: 1.5, color: GOLD, fontWeight: '700', textTransform: 'uppercase' },
-  seccionTotal:      { fontSize: 12, color: MUTED },
-  vacio:             { color: MUTED, fontSize: 13, fontStyle: 'italic', paddingVertical: 4 },
+  seccionTitulo:     { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oro, fontWeight: '700', textTransform: 'uppercase' },
+  seccionTituloMt:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oro, fontWeight: '700', textTransform: 'uppercase', marginTop: 12 },
+  seccionTotal:      { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED },
+  vacio:             { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 13, fontStyle: 'italic', paddingVertical: 4 },
+  gap4:              { gap: 4 },
 
   divHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, paddingHorizontal: 2 },
-  divHeaderTexto: { fontSize: 13, fontWeight: '700', color: DARK, letterSpacing: 0.3 },
+  divHeaderTexto: { fontFamily: fonts.cuerpo, fontSize: 13, fontWeight: '700', color: TEXTO, letterSpacing: 0.3 },
 
-  card:       { backgroundColor: '#FFFFFF', borderRadius: 10, padding: 12, gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
+  card:       { backgroundColor: CARD, borderRadius: 10, padding: 12, gap: 4, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
+  cardGap:    { backgroundColor: CARD, borderRadius: 10, padding: 12, gap: 8, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4 },
   fila:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   filaRight:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardNombre: { fontSize: 14, fontWeight: '600', color: DARK, flex: 1, marginRight: 8 },
-  cardMuted:  { fontSize: 12, color: MUTED },
-  cardFecha:  { fontSize: 12, color: MUTED },
-  cardDiv:    { fontSize: 11, color: GOLD, letterSpacing: 0.5 },
+  cardNombre: { fontFamily: fonts.cuerpo, fontSize: 14, fontWeight: '600', color: TEXTO, flex: 1, marginRight: 8 },
+  cardNombreResult: { fontFamily: fonts.cuerpo, fontSize: 14, fontWeight: '600', color: TEXTO, flex: 1, marginRight: 0, marginLeft: 8 },
+  cardMuted:  { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED },
+  cardFecha:  { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED },
+  cardDiv:    { fontFamily: fonts.label, fontSize: 11, color: colors.oro, letterSpacing: 0.5 },
 
   badgeRojo:  { backgroundColor: ROJO, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeTexto: { color: '#FFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  badgeTexto: { fontFamily: fonts.label, color: '#FFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
 
-  porcNum:    { fontSize: 18, fontWeight: '700', minWidth: 44, textAlign: 'right' },
+  porcNum:    { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700', minWidth: 44, textAlign: 'right' },
   porcAlto:   { color: VERDE },
   porcMedio:  { color: AMBER },
   porcBajo:   { color: ROJO },
   porcNeutro: { color: MUTED },
 
   wldRow: { flexDirection: 'row', gap: 10 },
-  wld:    { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  wld:    { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   wldW:   { color: VERDE },
   wldL:   { color: ROJO },
-  wldD:   { color: GOLD },
+  wldD:   { color: colors.oro },
 
   resBadge:      { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  resBadgeTexto: { fontSize: 11, fontWeight: '700', color: '#FFF' },
+  resBadgeTexto: { fontFamily: fonts.label, fontSize: 11, fontWeight: '700', color: '#FFF' },
   resW:          { backgroundColor: VERDE },
   resL:          { backgroundColor: ROJO },
-  resD:          { backgroundColor: GOLD },
-  marcador:      { fontSize: 18, fontWeight: '700', color: DARK, marginHorizontal: 6 },
+  resD:          { backgroundColor: colors.oro },
+  marcador:      { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700', color: TEXTO, marginHorizontal: 6 },
 
-  numGrande: { fontSize: 24, fontWeight: '700', color: DARK },
+  numGrande: { fontFamily: fonts.cuerpo, fontSize: 24, fontWeight: '700', color: TEXTO },
 
   tipoBadge: { borderWidth: 1.5, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  tipoTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  cobrado:   { fontSize: 13, fontWeight: '600', color: DARK },
+  tipoTexto: { fontFamily: fonts.label, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  cobrado:   { fontFamily: fonts.cuerpo, fontSize: 13, fontWeight: '600', color: TEXTO },
 
-  progressBar:  { height: 4, backgroundColor: '#E8E0D0', borderRadius: 2, overflow: 'hidden' },
+  progressBar:  { height: 4, backgroundColor: DIVIDER, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: 4, backgroundColor: VERDE, borderRadius: 2 },
 
   formasRow:  { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  formaPill:  { backgroundColor: '#F0EDE6', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
-  formaTexto: { fontSize: 11, color: DARK },
+  formaPill:  { backgroundColor: DIVIDER, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  formaTexto: { fontFamily: fonts.label, fontSize: 11, color: TEXTO },
 })

@@ -9,19 +9,20 @@ const TOTP_SECRET_KEY = 'totp_secret'
 export interface CarnetData {
   numero_socio: string
   nombre:       string
-  qrContent:    string   // "{numero_socio}:{totp_code}"
-  code:         string   // 6-digit TOTP
+  qrContent:    string
+  code:         string
   estado:       string
   categoria:    string
   secondsLeft:  number
 }
 
 export function useCarnet() {
-  const { session } = useAuthStore()
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState<string | null>(null)
-  const [data, setData]           = useState<CarnetData | null>(null)
-  const lastStepRef               = useRef(-1)
+  const { session }  = useAuthStore()
+  const userId       = session?.user.id
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const [data, setData]       = useState<CarnetData | null>(null)
+  const lastStepRef           = useRef(-1)
 
   const getSecret = useCallback(async (): Promise<string | null> => {
     const cached = await SecureStore.getItemAsync(TOTP_SECRET_KEY)
@@ -37,7 +38,7 @@ export function useCarnet() {
   }, [])
 
   const buildCarnet = useCallback(async () => {
-    if (!session?.user.id) return
+    if (!userId) return
 
     const secret = await getSecret()
     if (!secret) {
@@ -52,13 +53,13 @@ export function useCarnet() {
     const [{ data: socio }, { data: profile }] = await Promise.all([
       db
         .from('socios')
-        .select('numero_socio, estado, categorias_socio ( nombre )')
-        .eq('profile_id', session.user.id)
+        .select('id, numero_socio, estado, categorias_socio ( nombre )')
+        .eq('profile_id', userId)
         .single(),
       supabase
         .from('profiles')
         .select('nombre')
-        .eq('id', session.user.id)
+        .eq('id', userId)
         .single(),
     ])
 
@@ -68,7 +69,7 @@ export function useCarnet() {
       return
     }
 
-    const code      = await generateTOTP(secret)
+    const code      = generateTOTP(secret)
     const sLeft     = secondsUntilRefresh()
     const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
     const nombre    = profile?.nombre ?? '—'
@@ -86,18 +87,17 @@ export function useCarnet() {
     })
     setError(null)
     setLoading(false)
-  }, [session, getSecret])
+  }, [userId, getSecret])
 
   useEffect(() => { buildCarnet() }, [buildCarnet])
 
   // Tick every second: update countdown and regenerate code when step changes
   useEffect(() => {
     const timer = setInterval(async () => {
-      const sLeft    = secondsUntilRefresh()
-      const nowStep  = Math.floor(Date.now() / 1000 / 30)
+      const sLeft   = secondsUntilRefresh()
+      const nowStep = Math.floor(Date.now() / 1000 / 30)
 
       if (nowStep !== lastStepRef.current) {
-        // New 30-second window — regenerate code
         await buildCarnet()
       } else {
         setData(prev => prev ? { ...prev, secondsLeft: sLeft } : null)

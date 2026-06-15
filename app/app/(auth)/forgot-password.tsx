@@ -13,7 +13,6 @@ import {
 import { useRouter } from 'expo-router'
 import { useForgotPassword } from '@/hooks/useForgotPassword'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 const PLACEHOLDER = '#9B9A8F'
 
@@ -21,15 +20,14 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('')
   const { enviarLink, loading, error, enviado } = useForgotPassword()
   const router = useRouter()
-  const { colors: tc } = useTheme()
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: tc.fondo }}
+      style={styles.kav}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.container}>
@@ -38,16 +36,16 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
 
           {/* Título */}
-          <Text style={[styles.title, { color: tc.tinta }]}>Uncas Rugby App</Text>
+          <Text style={styles.title}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
-          <View style={[styles.divider, { backgroundColor: tc.grisClaro }]} />
+          <View style={styles.divider} />
 
           {enviado ? (
             /* ── Estado de éxito ── */
             <View style={styles.successWrap}>
               <Text style={styles.successIcon}>✓</Text>
-              <Text style={[styles.successTitle, { color: tc.tinta }]}>Link enviado</Text>
+              <Text style={styles.successTitle}>Link enviado</Text>
               <Text style={styles.successBody}>
                 Si el email está registrado, vas a recibir un link para
                 restablecer tu contraseña.
@@ -63,9 +61,9 @@ export default function ForgotPasswordScreen() {
 
               {/* Campo EMAIL */}
               <View style={styles.fieldWrap}>
-                <Text style={[styles.label, { color: tc.tinta }]}>EMAIL</Text>
+                <Text style={styles.label}>EMAIL</Text>
                 <TextInput
-                  style={[styles.input, { color: tc.tinta }]}
+                  style={styles.input}
                   value={email}
                   onChangeText={setEmail}
                   autoCapitalize="none"
@@ -79,14 +77,14 @@ export default function ForgotPasswordScreen() {
 
               {/* Error banner */}
               {error !== null && (
-                <View style={[styles.errorBanner, { backgroundColor: tc.card }]}>
-                  <Text style={[styles.errorText, { color: tc.tinta }]}>{error}</Text>
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{error}</Text>
                 </View>
               )}
 
               {/* Botón principal */}
               <TouchableOpacity
-                style={[styles.button, { backgroundColor: tc.tinta }, loading && styles.buttonLoading]}
+                style={[styles.button, loading && styles.buttonLoading]}
                 onPress={() => enviarLink(email)}
                 disabled={loading}
                 activeOpacity={0.85}
@@ -119,6 +117,8 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  kav:           { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { flexGrow: 1 },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -137,11 +137,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 48,
+    color: colors.tinta,
     marginBottom: 16,
     lineHeight: 54,
   },
   divider: {
     height: 1,
+    backgroundColor: '#2C2418',
     marginBottom: 24,
   },
   subtitle: {
@@ -160,17 +162,20 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 10,
     letterSpacing: 2,
+    color: colors.tinta,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
     fontSize: 16,
+    color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
   },
   button: {
+    backgroundColor: colors.tinta,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
@@ -185,6 +190,7 @@ const styles = StyleSheet.create({
     color: colors.oro,
   },
   errorBanner: {
+    backgroundColor: '#1C1710',
     borderWidth: 1,
     borderColor: colors.oro,
     borderRadius: 6,
@@ -195,6 +201,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: fonts.cuerpo,
     fontSize: 13,
+    color: colors.tinta,
     textAlign: 'center',
   },
   successWrap: {
@@ -209,6 +216,7 @@ const styles = StyleSheet.create({
   successTitle: {
     fontFamily: fonts.titulo,
     fontSize: 28,
+    color: colors.tinta,
     marginBottom: 12,
     textAlign: 'center',
   },

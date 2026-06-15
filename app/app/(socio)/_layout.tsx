@@ -1,17 +1,10 @@
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
+import { TAB_SCREEN_OPTIONS } from '@/constants/tabOptions'
 
 export default function SocioLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        tabBarStyle: { backgroundColor: '#0E0E0E', borderTopColor: '#1A1A1A' },
-        tabBarActiveTintColor: '#E8B53C',
-        tabBarInactiveTintColor: '#666666',
-        tabBarShowLabel: false,
-        headerShown: false,
-      }}
-    >
+    <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="carnet"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size} color={color} /> }}

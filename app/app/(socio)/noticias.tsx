@@ -1,11 +1,24 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native'
+import { useState, useMemo, useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useNoticias, type Noticia } from '@/hooks/useNoticias'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Filtro = 'todas' | 'rugby' | 'hockey' | 'tenis'
+
+const FILTROS: { value: Filtro; label: string }[] = [
+  { value: 'todas',  label: 'TODAS'  },
+  { value: 'rugby',  label: 'RUGBY'  },
+  { value: 'hockey', label: 'HOCKEY' },
+  { value: 'tenis',  label: 'TENIS'  },
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,35 +40,62 @@ function tiempoRelativo(iso: string): string {
   return 'HOY'
 }
 
-// ─── Sub-component ────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function FiltroBar({
+  filtro,
+  onChange,
+}: {
+  filtro:   Filtro
+  onChange: (f: Filtro) => void
+}) {
+  return (
+    <View style={s.filtroBar}>
+      {FILTROS.map(f => {
+        const activo = filtro === f.value
+        return (
+          <TouchableOpacity
+            key={f.value}
+            style={[s.filtroChip, activo ? s.filtroChipActivo : s.filtroChipInactivo]}
+            onPress={() => onChange(f.value)}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.filtroText, activo ? s.filtroTextActivo : s.filtroTextInactivo]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}
 
 function NoticiaCard({ noticia }: { noticia: Noticia }) {
-  const { colors: tc } = useTheme()
+  const deporte = (['rugby', 'hockey', 'tenis'] as const)
+    .find(d => noticia.etiquetas.includes(d))
 
   return (
-    <View style={[s.card, { backgroundColor: tc.card, borderColor: tc.grisClaro }]}>
+    <View style={s.card}>
       <View style={s.cardMeta}>
         <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
-        {noticia.etiquetas.length > 0 && (
-          <View style={s.etiquetasRow}>
-            {noticia.etiquetas.slice(0, 3).map(et => (
-              <View key={et} style={[s.etiqueta, { borderColor: tc.grisClaro }]}>
-                <Text style={[s.etiquetaText, { color: tc.muted }]}>{et.toUpperCase()}</Text>
-              </View>
-            ))}
+        {deporte && (
+          <View style={s.deporteBadge}>
+            <Text style={s.deporteText}>
+              {deporte.toUpperCase()}
+            </Text>
           </View>
         )}
       </View>
 
-      <Text style={[s.cardTitulo, { color: tc.texto }]}>{noticia.titulo}</Text>
+      <Text style={s.cardTitulo}>{noticia.titulo}</Text>
 
-      <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.divider} />
 
-      <Text style={[s.cardCuerpo, { color: tc.texto }]} numberOfLines={5}>
+      <Text style={s.cardCuerpo} numberOfLines={5}>
         {noticia.cuerpo}
       </Text>
 
-      <Text style={[s.cardAutor, { color: tc.muted }]}>
+      <Text style={s.cardAutor}>
         — {noticia.autor}
       </Text>
     </View>
@@ -65,13 +105,22 @@ function NoticiaCard({ noticia }: { noticia: Noticia }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function NoticiasPublicasScreen() {
-  const insets         = useSafeAreaInsets()
-  const { colors: tc } = useTheme()
+  const insets = useSafeAreaInsets()
   const { noticias, loading, refetch } = useNoticias(true)
+  const [filtro, setFiltro] = useState<Filtro>('todas')
+  const scrollRef = useRef<FlatList>(null)
+  useScrollToTop(scrollRef)
+
+  const noticiasFiltradas = useMemo(() =>
+    filtro === 'todas'
+      ? noticias
+      : noticias.filter(n => n.etiquetas.includes(filtro)),
+    [noticias, filtro]
+  )
 
   return (
-    <View style={[s.root, { backgroundColor: tc.fondo }]}>
-      <View style={{ paddingTop: insets.top }}>
+    <View style={s.root}>
+      <View style={[s.topSection, { paddingTop: insets.top }]}>
         <Header />
         <View style={s.edicionBar}>
           <Text style={s.edicionLabel}>SECCIÓN · NOTICIAS</Text>
@@ -79,23 +128,27 @@ export default function NoticiasPublicasScreen() {
         </View>
         <View style={s.secRow}>
           <Text style={s.secTitle}>NOVEDADES DEL CLUB</Text>
-          <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+          <View style={s.secLine} />
         </View>
+        <FiltroBar filtro={filtro} onChange={setFiltro} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={{ marginTop: 40 }} />
-      ) : noticias.length === 0 ? (
+        <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : noticiasFiltradas.length === 0 ? (
         <View style={s.emptyContainer}>
-          <Text style={[s.emptyText, { color: tc.muted }]}>
-            No hay noticias publicadas aún.
+          <Text style={s.emptyText}>
+            {filtro === 'todas'
+              ? 'No hay noticias publicadas aún.'
+              : `No hay noticias de ${filtro} por el momento.`}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={noticias}
+          ref={scrollRef}
+          data={noticiasFiltradas}
           keyExtractor={n => n.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 60, gap: 16 }}
+          contentContainerStyle={s.listContent}
           renderItem={({ item }) => <NoticiaCard noticia={item} />}
           onRefresh={refetch}
           refreshing={loading}
@@ -108,7 +161,10 @@ export default function NoticiasPublicasScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
+  root:          { flex: 1, backgroundColor: '#15110A' },
+  topSection:    {},
+  activityIndicator: { marginTop: 40 },
+  listContent:   { paddingHorizontal: 20, paddingBottom: 60, gap: 16, paddingTop: 16 },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -131,26 +187,46 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
-  secLine: { flex: 1, height: 1 },
+  secLine: { flex: 1, height: 1, backgroundColor: '#2C2418' },
 
+  // Filtro bar
+  filtroBar: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: 20, paddingBottom: 14,
+    borderBottomWidth: 1, borderBottomColor: '#2C2418',
+  },
+  filtroChip: {
+    borderWidth: 1, borderRadius: 3,
+    paddingHorizontal: 12, paddingVertical: 6,
+  },
+  filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
+  filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: '#2C2418' },
+  filtroText: {
+    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+  },
+  filtroTextActivo:  { color: colors.oro },
+  filtroTextInactivo:{ color: '#8E8574' },
+
+  // Cards
   card: {
     borderWidth: 1, borderRadius: 4, padding: 18, gap: 10,
+    backgroundColor: '#1C1710', borderColor: '#2C2418',
   },
   cardMeta:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   metaTiempo: {
     fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: colors.oroHondo,
   },
-  etiquetasRow: { flexDirection: 'row', gap: 6 },
-  etiqueta: {
-    borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2,
+  deporteBadge: {
+    borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2,
+    borderColor: '#2C2418',
   },
-  etiquetaText: { fontFamily: fonts.label, fontSize: 7, letterSpacing: 1 },
+  deporteText: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: colors.oroHondo },
 
-  cardTitulo: { fontFamily: fonts.titulo, fontSize: 22, lineHeight: 28 },
-  divider:    { height: 1 },
-  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 13, lineHeight: 20 },
-  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic' },
+  cardTitulo: { fontFamily: fonts.titulo, fontSize: 22, lineHeight: 28, color: '#F3EFE4' },
+  divider:    { height: 1, backgroundColor: '#2C2418' },
+  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 13, lineHeight: 20, color: '#F3EFE4' },
+  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic', color: '#8E8574' },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic' },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: '#8E8574' },
 })

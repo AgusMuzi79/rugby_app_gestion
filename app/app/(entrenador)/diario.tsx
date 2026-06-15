@@ -2,12 +2,13 @@ import {
   ScrollView, View, Text, TouchableOpacity,
   ActivityIndicator, StyleSheet,
 } from 'react-native'
+import { useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -32,11 +33,10 @@ function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
-  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.secLine} />
     </View>
   )
 }
@@ -73,14 +73,13 @@ const TAREA_COLORS: Record<TareaPendiente['tipo'], string> = {
 }
 
 function FilaTarea({ tarea, onPress }: { tarea: TareaPendiente; onPress: () => void }) {
-  const { colors: tc } = useTheme()
   const badgeColor = TAREA_COLORS[tarea.tipo]
   return (
-    <TouchableOpacity style={[s.tareaRow, { borderBottomColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={s.tareaRow} onPress={onPress} activeOpacity={0.75}>
       <View style={[s.tareaBadge, { backgroundColor: badgeColor }]}>
         <Text style={s.tareaBadgeText}>{tarea.tipo}</Text>
       </View>
-      <Text style={[s.tareaDesc, { color: tc.texto }]} numberOfLines={1}>{tarea.desc}</Text>
+      <Text style={s.tareaDesc} numberOfLines={1}>{tarea.desc}</Text>
       <Text style={s.tareaArrow}>→</Text>
     </TouchableOpacity>
   )
@@ -89,15 +88,16 @@ function FilaTarea({ tarea, onPress }: { tarea: TareaPendiente; onPress: () => v
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function DiarioEntrenadorScreen() {
+  const scrollRef = useRef<ScrollView>(null)
+  useScrollToTop(scrollRef)
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { loading, data } = useDiarioEntrenador()
-  const { colors: tc } = useTheme()
 
   if (data.sinDivision && !loading) {
     return (
-      <View style={[s.root, s.centered, { backgroundColor: tc.fondo }]}>
-        <Text style={[s.sinDivTitle, { color: tc.texto }]}>Sin división asignada.</Text>
+      <View style={s.sinDivWrap}>
+        <Text style={s.sinDivTitle}>Sin división asignada.</Text>
         <Text style={s.sinDivSub}>Contactá a la Subcomisión.</Text>
       </View>
     )
@@ -105,8 +105,9 @@ export default function DiarioEntrenadorScreen() {
 
   return (
     <ScrollView
-      style={[s.root, { backgroundColor: tc.fondo }]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
+      ref={scrollRef}
+      style={s.root}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
     >
       <Header />
@@ -121,12 +122,12 @@ export default function DiarioEntrenadorScreen() {
 
       {/* Greeting */}
       <View style={s.saludoContainer}>
-        <Text style={[s.saludoTexto, { color: tc.texto }]}>{data.nombre || '—'}.</Text>
-        <View style={[s.saludoDivider, { backgroundColor: tc.grisClaro }]} />
+        <Text style={s.saludoTexto}>{data.nombre || '—'}.</Text>
+        <View style={s.saludoDivider} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : (
         <>
           {/* ── PRÓXIMO EVENTO ── */}
@@ -170,27 +171,27 @@ export default function DiarioEntrenadorScreen() {
                   <Text style={[s.atajoText, s.atajoTextDark]}>+ LESIÓN</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
+                  style={s.atajoCard}
                   onPress={() => router.navigate('/(entrenador)/partido')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.atajoText, { color: tc.texto }]}>MESA PARTIDO</Text>
+                  <Text style={s.atajoText}>MESA PARTIDO</Text>
                 </TouchableOpacity>
               </View>
               <View style={s.gridRow}>
                 <TouchableOpacity
-                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
+                  style={s.atajoCard}
                   onPress={() => router.navigate('/(entrenador)/partido')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.atajoText, { color: tc.texto }]}>RESULTADO</Text>
+                  <Text style={s.atajoText}>RESULTADO</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[s.atajoCard, { backgroundColor: tc.fondo, borderColor: tc.texto }]}
+                  style={s.atajoCard}
                   onPress={() => router.navigate('/(entrenador)/lesiones')}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.atajoText, { color: tc.texto }]}>PROTOCOLOS</Text>
+                  <Text style={s.atajoText}>PROTOCOLOS</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -204,8 +205,14 @@ export default function DiarioEntrenadorScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: colors.papel },
-  centered:{ justifyContent: 'center', alignItems: 'center' },
+  root:          { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { paddingBottom: 48 },
+  activityIndicator: { marginTop: 40 },
+
+  sinDivWrap: {
+    flex: 1, backgroundColor: '#15110A',
+    justifyContent: 'center', alignItems: 'center',
+  },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -281,7 +288,7 @@ const s = StyleSheet.create({
   atajoCard: {
     flex: 1, borderWidth: 1, borderColor: colors.tinta,
     paddingVertical: 26, alignItems: 'center', borderRadius: 4,
-    backgroundColor: colors.papel,
+    backgroundColor: '#15110A',
   },
   atajoCardGold: { backgroundColor: colors.oro, borderColor: colors.oro },
   atajoText:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: colors.tinta },

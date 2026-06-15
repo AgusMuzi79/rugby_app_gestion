@@ -17,8 +17,11 @@
 - `app/lib/supabase.ts` — cliente con AsyncStorage + AppState, `detectSessionInUrl: false`
 - `app/lib/offlineQueue.ts` — `encolar/obtenerCola/eliminarDeCola/tamañoCola` (tipo `OperacionOffline`)
 - `app/lib/notifications.ts` — `registerPushToken()`: permisos → canal Android → `getExpoPushTokenAsync()` → upsert en `push_tokens`
-- `app/constants/roles.ts` — `admin` mapeado a `/(subcomision)/diario`
+- `app/lib/totp-client.ts` — TOTP RFC 6238 client-side: `generateTOTP(secret)` (síncrono) + `secondsUntilRefresh()`. **Pure JS SHA-1 + HMAC-SHA1** sin `crypto.subtle` — compatible con Hermes/React Native en todas las versiones.
+- `app/constants/roles.ts` — `admin` mapeado a `/(subcomision)/diario`. Roles v2: `secretaria→/(secretaria)/diario`, `porteria→/(porteria)/scanner`, `socio→/(socio)/carnet`
 - `app/constants/theme.ts` — sistema "La Bitácora": `colors` (tinta/oro/oroHondo/papel/blanco/grisClaro/rojoUrgente) + `fonts` (titulo=PlayfairDisplay_900Black_Italic, cuerpo=Lora_400Regular, label=ArchivoNarrow_400Regular)
+
+**Tablas v2 en hooks**: usar `const db = supabase as any` — `database.types.ts` no incluye tablas v2 hasta regenerar types con Docker local.
 
 ### Hooks auth
 
@@ -98,10 +101,47 @@ Queries últimos 7 días: `lesiones` → LESIÓN (urgente si grado≥3), `jugado
 
 fetch `profiles` + join `divisiones`. `cambiarFoto()`: expo-image-picker → base64 → AsyncStorage `@foto_perfil`. Biometría: `expo-local-authentication` + `expo-secure-store` (keys: `biometria_email`, `biometria_password`). Toggle off = delete keys.
 
+`enviarResetPassword()`: tiene `try/catch/finally` + timeout de 15s vía `Promise.race` — si Supabase tarda o falla, el spinner siempre para y muestra error. `useForgotPassword` tiene el mismo timeout.
+
+## Pantallas — Secretaría
+
+| Pantalla | Hook | Notas clave |
+|---|---|---|
+| `(secretaria)/diario.tsx` | `useDiarioSecretaria.ts` | Stats (activos/morosos/pendientes/inactivos) + últimos 6 pagos aprobados |
+| `(secretaria)/socios.tsx` | `useSociosSecretaria.ts` | Lista con filtro por estado, FAB crear, detalle con foto/validación. Modal: `KeyboardAvoidingView` es el contenedor raíz con `flex:1 behavior='padding'`; backdrop `TouchableOpacity flex:1` adentro (se achica cuando sube teclado). Si `categorias.filter(c => c.activa)` retorna vacío, muestra mensaje "Sin categorías — verificar seed en Supabase". |
+| `(secretaria)/noticias.tsx` | `useNoticias(false)` | CRUD noticias con toggle publicar/borrador. FAB + modal |
+| `(secretaria)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
+
+## Pantallas — Portería
+
+| Pantalla | Hook | Notas clave |
+|---|---|---|
+| `(porteria)/scanner.tsx` | `useScanner.ts` | `CameraView` con `barcodeScannerSettings: { barcodeTypes: ['qr'] }` + `onBarcodeScanned`. Overlay visor con esquinas. Parsea `{numero_socio}:{6-digit-totp}` → valida con `socios-qr` Edge Function |
+| `(porteria)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
+
+## Pantallas — Socio
+
+| Pantalla | Hook | Notas clave |
+|---|---|---|
+| `(socio)/carnet.tsx` | `useCarnet.ts` | QR con `react-native-qrcode-svg`. Contenido: `{numero_socio}:{totp_6_digits}`. Countdown 30s con barra de progreso. TOTP secret en `expo-secure-store` (`totp_secret` key), se obtiene una vez de `socios-qr` Edge Function. Sin sección de foto — la foto se gestiona desde "Mi perfil" (`useSobre`). |
+| `(socio)/cuotas.tsx` | `useCuotas.ts` | Lista cuotas. `iniciarPago()` → `socios-pagos` action=checkout → abre `checkout_url` con `Linking.openURL` |
+| `(socio)/noticias.tsx` | `useNoticias(true)` | Solo noticias publicadas |
+| `(socio)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
+
+## Hooks v2
+
+- `useCarnet` — secret SecureStore → socios-qr → TOTP cada 30s. Retorna solo `{ loading, error, data }`. La foto ya no se maneja aquí — se gestiona en `useSobre` (para rol `socio`, carga desde bucket `socios-fotos` y sube al mismo path).
+- `useCuotas` — lista + iniciarPago via socios-pagos
+- `useNoticias(soloPublicadas)` — CRUD o solo lectura según param
+- `useDiarioSecretaria` — stats socios + pagos recientes
+- `useSociosSecretaria` — CRUD socios via admin-socios + fotoSignedUrl
+- `useScanner` — parseo QR + validación via socios-qr + signed URL foto
+
 ## Push Notifications
 
 - `registerPushToken()` llamado en `useLogin` (fire-and-forget)
 - `useLesiones`, `useFichajes`, `useAsistencia` invocan la Edge Function `notifications`
+- **Dev build**: requiere `google-services.json` en `app/` + `android.googleServicesFile` en `app.json`. Archivo excluido de git (`.gitignore`).
 - En Expo Go SDK 53: detectar con `Constants.appOwnership === 'expo'` y saltear push
 
 ## Deep Linking — Flujo completo

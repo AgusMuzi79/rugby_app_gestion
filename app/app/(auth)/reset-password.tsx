@@ -35,15 +35,15 @@ export default function ResetPasswordScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.papel }}
+      style={styles.kav}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.container}>
 
           <Text style={styles.clubName}>UNCAS RUGBY CLUB · EST. 1836</Text>
           <Text style={styles.title}>Uncas Rugby App</Text>
-          <View style={[styles.divider, { backgroundColor: colors.grisClaro }]} />
+          <View style={styles.divider} />
           <Text style={styles.subtitle}>Establecé tu nueva contraseña de acceso.</Text>
 
           {/* Nueva contraseña */}
@@ -74,7 +74,7 @@ export default function ResetPasswordScreen() {
           </View>
 
           {/* Confirmar contraseña */}
-          <View style={[styles.fieldWrap, { marginBottom: 32 }]}>
+          <View style={styles.fieldWrapLast}>
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
               style={styles.input}
@@ -116,6 +116,8 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  kav:           { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { flexGrow: 1 },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -140,6 +142,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
+    backgroundColor: '#2C2418',
     marginBottom: 24,
   },
   subtitle: {
@@ -153,6 +156,9 @@ const styles = StyleSheet.create({
   },
   fieldWrap: {
     marginBottom: 28,
+  },
+  fieldWrapLast: {
+    marginBottom: 32,
   },
   label: {
     fontFamily: fonts.label,

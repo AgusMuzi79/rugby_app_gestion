@@ -70,20 +70,22 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   if (!dni)          return jsonError(400, 'dni es requerido')
   if (!categoria_id) return jsonError(400, 'categoria_id es requerido')
 
-  // 1. Invite al email → crea auth.users
-  const { data: inviteData, error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    data: { nombre },
-    redirectTo: 'uncasrugby://registro',
+  // 1. Crear usuario con DNI como contraseña inicial (sin email de confirmación)
+  const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: dni,
+    email_confirm: true,
+    user_metadata: { nombre },
   })
-  if (inviteErr || !inviteData.user) {
-    const msg = inviteErr?.message ?? 'Error al enviar la invitación'
+  if (createErr || !userData.user) {
+    const msg = createErr?.message ?? 'Error al crear el usuario'
     if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exists')) {
       return jsonError(409, 'Ya existe un usuario con ese email')
     }
     return jsonError(500, msg)
   }
 
-  const userId = inviteData.user.id
+  const userId = userData.user.id
 
   // 2. Crear profile con rol='socio'
   const { error: profileErr } = await supabaseAdmin
@@ -221,6 +223,18 @@ async function handleValidatePhoto(
 
   if (fetchErr || !socio) return jsonError(404, 'Socio no encontrado')
   if (!socio.foto_path)   return jsonError(400, 'El socio no tiene foto cargada')
+
+  // Sin AWS configurado: validación manual directa
+  const awsKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
+  if (!awsKeyId) {
+    const nuevoEstado = socio.estado === 'pendiente' ? 'activo' : socio.estado
+    const { error: updateErr } = await supabaseAdmin
+      .from('socios')
+      .update({ foto_validada: true, estado: nuevoEstado })
+      .eq('id', socioId)
+    if (updateErr) return jsonError(500, 'Error al actualizar: ' + updateErr.message)
+    return jsonOk({ validada: true, estado: nuevoEstado })
+  }
 
   // Descargar imagen desde Storage
   const { data: fileData, error: dlErr } = await supabaseAdmin.storage

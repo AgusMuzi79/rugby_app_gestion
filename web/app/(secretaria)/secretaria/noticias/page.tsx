@@ -73,7 +73,16 @@ export default function NoticiasPage() {
 
   const handleTogglePublicar = async (id: string, publicada: boolean) => {
     const { error } = await supabase.from('noticias').update({ publicada }).eq('id', id)
-    if (!error) setNoticias(ns => ns.map(n => n.id === id ? { ...n, publicada } : n))
+    if (error) return
+    setNoticias(ns => ns.map(n => n.id === id ? { ...n, publicada } : n))
+    if (publicada) {
+      const noticia = noticias.find(n => n.id === id)
+      if (noticia) {
+        supabase.functions.invoke('notifications', {
+          body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: id } },
+        }).catch(() => {})
+      }
+    }
   }
 
   const handleEliminar = async (id: string) => {

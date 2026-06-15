@@ -2,6 +2,8 @@ import {
   ScrollView, View, Text, TouchableOpacity,
   ActivityIndicator, StyleSheet,
 } from 'react-native'
+import { useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
@@ -12,7 +14,6 @@ import {
   type BarraAsistencia,
 } from '@/hooks/useDiarioCoordinador'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -45,30 +46,28 @@ function barColor(pct: number | null): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
-  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.secLine} />
     </View>
   )
 }
 
 function FilaEvento({ ev, onPress }: { ev: EventoSemana; onPress: () => void }) {
-  const { colors: tc } = useTheme()
   const { dia, num } = formatFecha(ev.fecha)
   const hora         = formatHora(ev.hora)
   const detalle      = [hora, ev.lugar].filter(Boolean).join(' · ')
 
   return (
-    <TouchableOpacity style={[s.eventoRow, { borderBottomColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={s.eventoRow} onPress={onPress} activeOpacity={0.75}>
       <View style={s.eventoFechaCol}>
         <Text style={s.eventoFechaDia}>{dia}</Text>
         <Text style={s.eventoFechaSlash}>/</Text>
-        <Text style={[s.eventoFechaNum, { color: tc.texto }]}>{num}</Text>
+        <Text style={s.eventoFechaNum}>{num}</Text>
       </View>
       <View style={s.eventoBody}>
-        <Text style={[s.eventoNombre, { color: tc.texto }]} numberOfLines={1}>{nombreEvento(ev)}</Text>
+        <Text style={s.eventoNombre} numberOfLines={1}>{nombreEvento(ev)}</Text>
         {detalle ? <Text style={s.eventoDetalle}>{detalle}</Text> : null}
         {ev.cobranzaActiva && (
           <View style={s.cobranzaBadge}>
@@ -82,11 +81,10 @@ function FilaEvento({ ev, onPress }: { ev: EventoSemana; onPress: () => void }) 
 }
 
 function CardAlerta({ alerta }: { alerta: AlertaJugador }) {
-  const { colors: tc } = useTheme()
   return (
-    <View style={[s.alertaCard, { backgroundColor: tc.fondo }]}>
+    <View style={s.alertaCard}>
       <Text style={s.alertaLabel}>ALERTA · ASISTENCIA</Text>
-      <Text style={[s.alertaNombre, { color: tc.texto }]}>{alerta.nombre}</Text>
+      <Text style={s.alertaNombre}>{alerta.nombre}</Text>
       <Text style={s.alertaDiv}>{alerta.divisionNombre}</Text>
       <Text style={s.alertaDesc}>
         4 o más entrenamientos consecutivos con ausencia. Sugerido: contactar al manager.
@@ -96,19 +94,19 @@ function CardAlerta({ alerta }: { alerta: AlertaJugador }) {
 }
 
 function FilaBarra({ barra }: { barra: BarraAsistencia }) {
-  const { colors: tc } = useTheme()
   const pct   = barra.pct ?? 0
   const color = barColor(barra.pct)
 
   return (
     <View style={s.barraContainer}>
       <View style={s.barraNombreRow}>
-        <Text style={[s.barraNombre, { color: tc.texto }]} numberOfLines={1}>{barra.nombre}</Text>
+        <Text style={s.barraNombre} numberOfLines={1}>{barra.nombre}</Text>
         <Text style={[s.barraPct, { color }]}>
           {barra.pct !== null ? `${barra.pct}%` : '—'}
         </Text>
       </View>
-      <View style={[s.barraFondo, { backgroundColor: tc.grisClaro }]}>
+      <View style={s.barraFondo}>
+        {/* flex: pct is truly dynamic — must remain inline */}
         <View style={{ flex: pct, height: 4, backgroundColor: color, borderRadius: 2 }} />
         <View style={{ flex: Math.max(0, 100 - pct) }} />
       </View>
@@ -119,15 +117,16 @@ function FilaBarra({ barra }: { barra: BarraAsistencia }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function DiarioCoordinadorScreen() {
+  const scrollRef = useRef<ScrollView>(null)
+  useScrollToTop(scrollRef)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { loading, data } = useDiarioCoordinador()
-  const { colors: tc } = useTheme()
 
   if (data.sinDivisiones && !loading) {
     return (
-      <View style={[s.root, s.centered, { backgroundColor: tc.fondo }]}>
-        <Text style={[s.sinDivTitle, { color: tc.texto }]}>Sin divisiones asignadas.</Text>
+      <View style={s.sinDivWrap}>
+        <Text style={s.sinDivTitle}>Sin divisiones asignadas.</Text>
         <Text style={s.sinDivSub}>Contactá a la Subcomisión.</Text>
       </View>
     )
@@ -141,8 +140,9 @@ export default function DiarioCoordinadorScreen() {
 
   return (
     <ScrollView
-      style={[s.root, { backgroundColor: tc.fondo }]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
+      ref={scrollRef}
+      style={s.root}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
     >
       <Header />
@@ -157,14 +157,14 @@ export default function DiarioCoordinadorScreen() {
 
       {/* Título */}
       <View style={s.tituloContainer}>
-        <Text style={[s.tituloTexto, { color: tc.texto }]}>
+        <Text style={s.tituloTexto}>
           Calendario{divPrincipal ? ` e ${divPrincipal}` : ''}.
         </Text>
-        <View style={[s.tituloDivider, { backgroundColor: tc.grisClaro }]} />
+        <View style={s.tituloDivider} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : (
         <>
           {/* ── ESTA SEMANA ── */}
@@ -225,8 +225,14 @@ export default function DiarioCoordinadorScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: colors.papel },
-  centered:{ justifyContent: 'center', alignItems: 'center' },
+  root:          { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { paddingBottom: 48 },
+  activityIndicator: { marginTop: 40 },
+
+  sinDivWrap: {
+    flex: 1, backgroundColor: '#15110A',
+    justifyContent: 'center', alignItems: 'center',
+  },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -280,7 +286,7 @@ const s = StyleSheet.create({
   // Alertas
   alertasList: { gap: 10 },
   alertaCard: {
-    backgroundColor: colors.papel,
+    backgroundColor: '#15110A',
     borderWidth: 1, borderColor: colors.oro,
     borderRadius: 4, padding: 16, gap: 4,
   },

@@ -1,13 +1,13 @@
 import {
-  View, Text, StyleSheet, ScrollView,
-  ActivityIndicator, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native'
+import { useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
 import { useCarnet } from '@/hooks/useCarnet'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,14 +40,16 @@ const ESTADO_LABEL: Record<string, string> = {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CarnetScreen() {
-  const insets          = useSafeAreaInsets()
-  const { colors: tc }  = useTheme()
+  const scrollRef = useRef<ScrollView>(null)
+  useScrollToTop(scrollRef)
+  const insets = useSafeAreaInsets()
   const { loading, error, data } = useCarnet()
 
   return (
     <ScrollView
-      style={[s.root, { backgroundColor: tc.fondo }]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 60 }}
+      ref={scrollRef}
+      style={s.root}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
     >
       <Header />
@@ -58,14 +60,14 @@ export default function CarnetScreen() {
       </View>
 
       <View style={s.saludoContainer}>
-        <Text style={[s.saludoTexto, { color: tc.texto }]}>
+        <Text style={s.saludoTexto}>
           Tu carnet{data ? `, ${data.nombre.split(' ')[0]}.` : '.'}
         </Text>
-        <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
+        <View style={s.divider} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : error ? (
         <View style={s.errorContainer}>
           <Text style={s.errorText}>{error}</Text>
@@ -76,35 +78,33 @@ export default function CarnetScreen() {
           <View style={s.section}>
             <View style={s.secRow}>
               <Text style={s.secTitle}>CARNET DIGITAL</Text>
-              <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+              <View style={s.secLine} />
             </View>
 
-            <View style={[s.carnetCard, { backgroundColor: tc.card, borderColor: tc.grisClaro }]}>
+            <View style={s.carnetCard}>
               {/* Número de socio */}
-              <Text style={[s.numLabel, { color: tc.muted }]}>Nº DE SOCIO</Text>
-              <Text style={[s.numValue, { color: tc.texto }]}>{data.numero_socio}</Text>
+              <Text style={s.numLabel}>Nº DE SOCIO</Text>
+              <Text style={s.numValue}>{data.numero_socio}</Text>
 
               {/* QR Code */}
               <View style={s.qrWrapper}>
                 <QRCode
                   value={data.qrContent}
                   size={210}
-                  backgroundColor="transparent"
-                  color={colors.tinta}
+                  backgroundColor="#FFFFFF"
+                  color="#000000"
                 />
               </View>
 
               {/* Countdown */}
               <View style={s.countdownRow}>
-                <Text style={[s.countdownLabel, { color: tc.muted }]}>Se renueva en</Text>
-                <Text style={[s.countdownNum, { color: tc.texto }]}>{data.secondsLeft}s</Text>
+                <Text style={s.countdownLabel}>Se renueva en</Text>
+                <Text style={s.countdownNum}>{data.secondsLeft}s</Text>
               </View>
-              <View style={[s.progressTrack, { backgroundColor: tc.grisClaro }]}>
+              <View style={s.progressTrack}>
+                {/* width is truly dynamic (secondsLeft changes every tick) — must remain inline */}
                 <View
-                  style={[
-                    s.progressFill,
-                    { width: `${(data.secondsLeft / 30) * 100}%` },
-                  ]}
+                  style={[s.progressFill, { width: `${(data.secondsLeft / 30) * 100}%` }]}
                 />
               </View>
 
@@ -115,22 +115,22 @@ export default function CarnetScreen() {
                 </Text>
               </View>
 
-              <Text style={[s.categoriaText, { color: tc.muted }]}>
+              <Text style={s.categoriaText}>
                 CATEGORÍA: {data.categoria.toUpperCase()}
               </Text>
             </View>
           </View>
 
           {/* ── CÓDIGO MANUAL ── */}
-          <View style={[s.section, { marginTop: 18 }]}>
+          <View style={s.sectionCodigo}>
             <View style={s.secRow}>
               <Text style={s.secTitle}>CÓDIGO DE HOY</Text>
-              <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+              <View style={s.secLine} />
             </View>
-            <Text style={[s.codigoHint, { color: tc.muted }]}>
+            <Text style={s.codigoHint}>
               Si la cámara no puede leer tu QR, dictá este código.
             </Text>
-            <Text style={[s.codigoValue, { color: tc.texto }]}>
+            <Text style={s.codigoValue}>
               {formatCodigo(data.code)}
             </Text>
           </View>
@@ -143,7 +143,9 @@ export default function CarnetScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root: { flex: 1 },
+  root:          { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { paddingBottom: 60 },
+  activityIndicator: { marginTop: 60 },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -159,20 +161,22 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, marginBottom: 14 },
-  divider:         { height: 1 },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: '#F3EFE4', marginBottom: 14 },
+  divider:         { height: 1, backgroundColor: '#2C2418' },
 
-  section:  { paddingHorizontal: 20, paddingTop: 22 },
+  section:      { paddingHorizontal: 20, paddingTop: 22 },
+  sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine:  { flex: 1, height: 1 },
+  secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
 
   carnetCard: {
     borderWidth: 1, borderRadius: 6, padding: 24,
     alignItems: 'center', gap: 12,
+    backgroundColor: '#1C1710', borderColor: '#2C2418',
   },
-  numLabel:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase' },
-  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48 },
+  numLabel:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
+  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: '#F3EFE4' },
 
   qrWrapper: {
     padding: 16, backgroundColor: colors.blanco,
@@ -181,10 +185,10 @@ const s = StyleSheet.create({
   },
 
   countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 22 },
+  countdownLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
+  countdownNum:   { fontFamily: fonts.titulo, fontSize: 22, color: '#F3EFE4' },
 
-  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden' },
+  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
   progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
 
   estadoBadge: {
@@ -194,12 +198,12 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  categoriaText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, marginTop: 2 },
+  categoriaText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
 
-  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', marginBottom: 10 },
+  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
   codigoValue: {
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
-    textAlign: 'center',
+    textAlign: 'center', color: '#F3EFE4',
   },
 
   errorContainer: { padding: 40, alignItems: 'center' },

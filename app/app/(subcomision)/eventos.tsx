@@ -22,18 +22,17 @@ import {
   type NuevoEventoForm,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
-const PAPEL     = colors.papel        // '#F6F1E4'
-const TINTA     = colors.tinta        // '#0E0E0E'
-const ORO       = colors.oro          // '#E8B53C'
-const ORO_HONDO = colors.oroHondo     // '#C9961F'
-const GRIS      = colors.grisClaro    // '#E5E0D0'
-const ROJO      = colors.rojoUrgente  // '#C0392B'
-const MUTED     = '#7C7267'
-const DIVIDER   = '#D9D3C4'
+const FONDO     = '#15110A'
+const CARD      = '#1C1710'
+const TEXTO     = '#F3EFE4'
+const MUTED     = '#8E8574'
+const DIVIDER   = '#2C2418'
+const ORO       = colors.oro
+const ORO_HONDO = colors.oroHondo
+const ROJO      = colors.rojoUrgente
 const VERDE     = '#4A7C59'
 const AZUL      = '#3B7FC4'
 
@@ -76,17 +75,11 @@ function formatPesos(n: number): string {
 type TabActivo = 'activos' | 'historial'
 
 function TabSwitcher({
-  tab,
-  onChange,
-  countActivos,
-  countHistorial,
+  tab, onChange, countActivos, countHistorial,
 }: {
-  tab:           TabActivo
-  onChange:      (t: TabActivo) => void
-  countActivos:  number
-  countHistorial: number
+  tab: TabActivo; onChange: (t: TabActivo) => void
+  countActivos: number; countHistorial: number
 }) {
-  const { colors: tc } = useTheme()
   return (
     <View style={s.tabRow}>
       {(['activos', 'historial'] as TabActivo[]).map(t => {
@@ -99,7 +92,7 @@ function TabSwitcher({
             onPress={() => onChange(t)}
             activeOpacity={0.8}
           >
-            <Text style={[s.tabTexto, activo && s.tabTextoActivo, activo && { color: tc.tinta }]}>
+            <Text style={[s.tabTexto, activo && s.tabTextoActivo]}>
               {t === 'activos' ? 'ACTIVOS' : 'HISTORIAL'}
               {count > 0 ? `  ${count}` : ''}
             </Text>
@@ -113,10 +106,11 @@ function TabSwitcher({
 // ─── Barra de progreso ────────────────────────────────────────────────────────
 
 function BarraProgreso({ pagados, total }: { pagados: number; total: number }) {
-  const pct = total > 0 ? (pagados / total) * 100 : 0
+  const pct    = total > 0 ? (pagados / total) * 100 : 0
   const filled = Math.min(Math.max(pct, 0), 100)
   return (
     <View style={s.progWrap}>
+      {/* width is truly dynamic — keep inline */}
       <View style={[s.progFill, { width: `${filled}%` }]} />
     </View>
   )
@@ -125,15 +119,11 @@ function BarraProgreso({ pagados, total }: { pagados: number; total: number }) {
 // ─── Card de evento ───────────────────────────────────────────────────────────
 
 function EventoCard({
-  ev,
-  muted = false,
-  onPress,
+  ev, muted = false, onPress,
 }: {
-  ev:      EventoItem
-  muted?:  boolean
-  onPress?: () => void
+  ev: EventoItem; muted?: boolean; onPress?: () => void
 }) {
-  const { colors: tc } = useTheme()
+  // color is truly dynamic (per tipo from runtime data) — keep inline
   const color      = TIPO_COLOR[ev.tipo]
   const montoSug   = parseMonto(ev.descripcion)
   const totalPagos = ev.countPagados + ev.countPendientes
@@ -141,13 +131,12 @@ function EventoCard({
 
   return (
     <TouchableOpacity
-      style={[s.eventoCard, muted && s.eventoCardMuted, { backgroundColor: tc.card }]}
+      style={[s.eventoCard, muted && s.eventoCardMuted]}
       onPress={onPress}
       activeOpacity={onPress ? 0.8 : 1}
     >
-      {/* Tipo + división + fecha */}
       <View style={s.eventoCardHead}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={s.eventoCardHeadLeft}>
           <View style={[s.tipoBadge, { borderColor: color }]}>
             <Text style={[s.tipoBadgeTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
           </View>
@@ -157,23 +146,20 @@ function EventoCard({
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={s.eventoCardHeadRight}>
           {ev.fecha && <Text style={s.eventoFecha}>{formatFecha(ev.fecha)}</Text>}
           {onPress && <Ionicons name="chevron-forward" size={13} color={MUTED} />}
         </View>
       </View>
 
-      {/* Nombre */}
-      <Text style={[s.eventoNombre, { color: tc.texto }, muted && { color: MUTED }]} numberOfLines={2}>
+      <Text style={[s.eventoNombre, muted && s.eventoNombreMuted]} numberOfLines={2}>
         {ev.nombre}
       </Text>
 
-      {/* Monto sugerido */}
       {montoSug !== null && (
         <Text style={s.eventoMontoSug}>{formatPesos(montoSug)} por jugador</Text>
       )}
 
-      {/* Progreso + stats */}
       {hayPagos && (
         <>
           <BarraProgreso pagados={ev.countPagados} total={totalPagos} />
@@ -189,18 +175,11 @@ function EventoCard({
 // ─── Vista detalle ────────────────────────────────────────────────────────────
 
 function EventoDetalleContent({
-  ev,
-  cargando,
-  cerrando,
-  onCerrar,
-  onVolver,
+  ev, cargando, cerrando, onCerrar, onVolver,
 }: {
-  ev:       EventoDetalle
-  cargando: boolean
-  cerrando: boolean
-  onCerrar: () => void
-  onVolver: () => void
+  ev: EventoDetalle; cargando: boolean; cerrando: boolean; onCerrar: () => void; onVolver: () => void
 }) {
+  // color is truly dynamic (per tipo) — keep inline
   const color    = TIPO_COLOR[ev.tipo]
   const montoSug = parseMonto(ev.descripcion)
   const hayRes   = ev.resumenTotal.pagados > 0 || ev.resumenTotal.pendientes > 0
@@ -216,10 +195,8 @@ function EventoDetalleContent({
     )
   }
 
-  const { colors: tc } = useTheme()
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
-      {/* Barra superior */}
+    <SafeAreaView style={s.container}>
       <View style={s.detalleTopBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />
@@ -232,12 +209,10 @@ function EventoDetalleContent({
         )}
       </View>
 
-      {/* Nombre grande */}
       <View style={s.detalleNombreWrap}>
-        <Text style={[s.detalleNombre, { color: tc.texto }]}>{ev.nombre}</Text>
+        <Text style={s.detalleNombre}>{ev.nombre}</Text>
       </View>
 
-      {/* Meta */}
       <View style={s.detalleMetaRow}>
         <View style={[s.tipoBadge, { borderColor: color }]}>
           <Text style={[s.tipoBadgeTexto, { color }]}>{TIPO_LABEL[ev.tipo]}</Text>
@@ -252,7 +227,7 @@ function EventoDetalleContent({
       {montoSug !== null && (
         <Text style={s.montoSugTexto}>{formatPesos(montoSug)} por jugador</Text>
       )}
-      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.separador} />
 
       {cargando ? (
         <View style={s.centrado}>
@@ -260,40 +235,38 @@ function EventoDetalleContent({
         </View>
       ) : (
         <ScrollView contentContainerStyle={s.detalleScroll} showsVerticalScrollIndicator={false}>
-          {/* Resumen cobranzas */}
           {hayRes && (
             <View style={s.seccionBlock}>
               <Text style={s.seccionLabel}>COBRANZAS</Text>
               <View style={s.resumenBar}>
                 <View style={s.resumenItem}>
-                  <Text style={[s.resumenVal, { color: VERDE }]}>{ev.resumenTotal.pagados}</Text>
+                  <Text style={[s.resumenVal, s.resumenValVerde]}>{ev.resumenTotal.pagados}</Text>
                   <Text style={s.resumenLabel}>PAGADOS</Text>
                 </View>
                 <View style={s.resumenDiv} />
                 <View style={s.resumenItem}>
-                  <Text style={[s.resumenVal, { color: ev.resumenTotal.pendientes > 0 ? ROJO : MUTED }]}>
+                  <Text style={[s.resumenVal, ev.resumenTotal.pendientes > 0 ? s.resumenValRojo : s.resumenValMuted]}>
                     {ev.resumenTotal.pendientes}
                   </Text>
                   <Text style={s.resumenLabel}>PEND.</Text>
                 </View>
                 <View style={s.resumenDiv} />
                 <View style={s.resumenItem}>
-                  <Text style={[s.resumenVal, { fontSize: 15, color: tc.tinta }]}>
+                  <Text style={s.resumenValCobrado}>
                     {formatPesos(ev.resumenTotal.cobrado)}
                   </Text>
                   <Text style={s.resumenLabel}>COBRADO</Text>
                 </View>
               </View>
 
-              {/* Por división */}
               {ev.resumenPorDiv.length > 1 && (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={[s.seccionLabel, { marginBottom: 6 }]}>POR DIVISIÓN</Text>
+                <View style={s.porDivWrap}>
+                  <Text style={s.seccionLabelMb}>POR DIVISIÓN</Text>
                   {ev.resumenPorDiv.map((d, i) => (
                     <View key={d.divisionNombre}>
                       {i > 0 && <View style={s.filaDiv} />}
                       <View style={s.divFila}>
-                        <Text style={[s.divFilaNombre, { color: tc.tinta }]} numberOfLines={1}>{d.divisionNombre}</Text>
+                        <Text style={s.divFilaNombre} numberOfLines={1}>{d.divisionNombre}</Text>
                         <Text style={s.divFilaDetalle}>
                           {d.pagados}P · {d.pendientes}PN · {formatPesos(d.cobrado)}
                         </Text>
@@ -305,27 +278,20 @@ function EventoDetalleContent({
             </View>
           )}
 
-          {/* Pedidos */}
-          <View style={[s.seccionBlock, { marginTop: 24 }]}>
+          <View style={s.seccionBlockMt}>
             <Text style={s.seccionLabel}>PEDIDOS</Text>
             {ev.pedidos.length === 0 ? (
               <Text style={s.emptyTexto}>Sin pedidos registrados.</Text>
             ) : (
-              <View style={{ gap: 10, marginTop: 8 }}>
+              <View style={s.pedidosList}>
                 {ev.pedidos.map(p => {
                   const confirmado = p.estado === 'confirmado'
                   return (
                     <View key={p.id} style={s.pedidoCard}>
                       <View style={s.pedidoHeader}>
-                        <Text style={[s.pedidoManager, { color: tc.tinta }]}>{p.managerNombre}</Text>
-                        <View style={[
-                          s.estadoBadge,
-                          confirmado ? s.estadoConfirmado : s.estadoAbierto,
-                        ]}>
-                          <Text style={[
-                            s.estadoTexto,
-                            { color: confirmado ? VERDE : ORO_HONDO },
-                          ]}>
+                        <Text style={s.pedidoManager}>{p.managerNombre}</Text>
+                        <View style={[s.estadoBadge, confirmado ? s.estadoConfirmado : s.estadoAbierto]}>
+                          <Text style={[s.estadoTexto, confirmado ? s.estadoTextoConfirmado : s.estadoTextoAbierto]}>
                             {confirmado ? 'CONFIRMADO' : 'ABIERTO'}
                           </Text>
                         </View>
@@ -343,10 +309,9 @@ function EventoDetalleContent({
             )}
           </View>
 
-          {/* Cerrar evento */}
           {ev.estado === 'activo' && (
             <TouchableOpacity
-              style={[s.botonCerrar, cerrando && { opacity: 0.6 }]}
+              style={[s.botonCerrar, cerrando && s.botonCerrarOff]}
               onPress={confirmarCierre}
               disabled={cerrando}
               activeOpacity={0.85}
@@ -366,46 +331,33 @@ function EventoDetalleContent({
 // ─── Modal nuevo evento ───────────────────────────────────────────────────────
 
 function ModalNuevoEvento({
-  visible,
-  onClose,
-  onGuardar,
-  divisiones,
-  form,
-  setForm,
-  guardando,
-  error,
+  visible, onClose, onGuardar, divisiones, form, setForm, guardando, error,
 }: {
-  visible:    boolean
-  onClose:    () => void
-  onGuardar:  () => Promise<void>
+  visible: boolean; onClose: () => void; onGuardar: () => Promise<void>
   divisiones: Array<{ id: string; nombre: string }>
-  form:       NuevoEventoForm
-  setForm:    (f: NuevoEventoForm) => void
-  guardando:  boolean
-  error:      string | null
+  form: NuevoEventoForm; setForm: (f: NuevoEventoForm) => void
+  guardando: boolean; error: string | null
 }) {
-  const { colors: tc } = useTheme()
   function setTipo(t: TipoEvento) {
     setForm({ ...form, tipo: t, divisionId: t === 'recaudacion' ? null : form.divisionId })
   }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <SafeAreaView style={[s.modalContainer, { backgroundColor: tc.fondo }]}>
-          {/* Header */}
+      <KeyboardAvoidingView style={s.kavFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <SafeAreaView style={s.modalContainer}>
           <View style={s.modalHeader}>
             <View>
               <Text style={s.modalSuper}>NUEVO</Text>
-              <Text style={[s.modalTitulo, { color: tc.tinta }]}>Evento</Text>
+              <Text style={s.modalTitulo}>Evento</Text>
             </View>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={{ padding: 4, marginTop: 4 }}>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalCloseBtn}>
               <Ionicons name="close" size={20} color={MUTED} />
             </TouchableOpacity>
           </View>
           <View style={s.separador} />
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
+          <ScrollView style={s.scrollFlex} contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
             {/* Tipo */}
             <View style={s.campo}>
               <Text style={s.campoLabel}>TIPO</Text>
@@ -428,12 +380,11 @@ function ModalNuevoEvento({
               </View>
             </View>
 
-            {/* División */}
             {form.tipo !== 'recaudacion' && (
               <View style={s.campo}>
                 <Text style={s.campoLabel}>DIVISIÓN</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={s.divRow}>
                     {divisiones.map(d => {
                       const activo = form.divisionId === d.id
                       return (
@@ -454,11 +405,10 @@ function ModalNuevoEvento({
               </View>
             )}
 
-            {/* Nombre */}
             <View style={s.campo}>
               <Text style={s.campoLabel}>NOMBRE DEL EVENTO</Text>
               <TextInput
-                style={[s.inputLinea, { color: tc.tinta }]}
+                style={s.inputLinea}
                 placeholder="ej. Viaje Mar del Plata, Asado M14…"
                 placeholderTextColor={MUTED}
                 value={form.nombre}
@@ -468,13 +418,12 @@ function ModalNuevoEvento({
               />
             </View>
 
-            {/* Monto sugerido */}
             <View style={s.campo}>
               <Text style={s.campoLabel}>MONTO POR JUGADOR (opcional)</Text>
               <View style={s.montoWrap}>
                 <Text style={s.montoSimbolo}>$</Text>
                 <TextInput
-                  style={[s.montoInput, { color: tc.tinta }]}
+                  style={s.montoInput}
                   placeholder="2500"
                   placeholderTextColor={MUTED}
                   value={form.montoSugerido}
@@ -485,7 +434,6 @@ function ModalNuevoEvento({
               </View>
             </View>
 
-            {/* Error */}
             {error && (
               <View style={s.bannerError}>
                 <Text style={s.bannerErrorTexto}>{error}</Text>
@@ -493,10 +441,9 @@ function ModalNuevoEvento({
             )}
           </ScrollView>
 
-          {/* Footer */}
-          <View style={[s.modalFooter, { backgroundColor: tc.fondo }]}>
+          <View style={s.modalFooter}>
             <TouchableOpacity
-              style={[s.botonPrincipal, guardando && { opacity: 0.6 }]}
+              style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
               onPress={onGuardar}
               disabled={guardando}
               activeOpacity={0.85}
@@ -517,33 +464,18 @@ function ModalNuevoEvento({
 
 export default function EventosScreen() {
   const {
-    loading,
-    divisiones,
-    eventosActivos,
-    eventosHistorial,
-    paso,
-    eventoDetalle,
-    cargandoDetalle,
-    cerrando,
-    cerrarEvento,
-    abrirDetalle,
-    volverALista,
-    modalVisible,
-    abrirModal,
-    cerrarModal,
-    form,
-    setForm,
-    guardando,
-    errorGuardado,
-    crearEvento,
+    loading, divisiones, eventosActivos, eventosHistorial,
+    paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
+    abrirDetalle, volverALista,
+    modalVisible, abrirModal, cerrarModal,
+    form, setForm, guardando, errorGuardado, crearEvento,
   } = useEventos()
-  const { colors: tc } = useTheme()
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
 
   if (loading) {
     return (
-      <View style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <View style={s.centrado}>
         <ActivityIndicator size="large" color={ORO} />
       </View>
     )
@@ -569,26 +501,23 @@ export default function EventosScreen() {
   const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial
 
   return (
-    <SafeAreaView style={[s.container, { backgroundColor: tc.fondo }]}>
-      {/* Header */}
+    <SafeAreaView style={s.container}>
       <View style={s.header}>
         <Text style={s.labelHeader}>SECCIÓN · DIRECTIVA</Text>
-        <Text style={[s.titulo, { color: tc.tinta }]}>Eventos</Text>
+        <Text style={s.titulo}>Eventos</Text>
       </View>
-      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.separador} />
 
-      {/* Tabs */}
       <TabSwitcher
         tab={tabActivo}
         onChange={setTabActivo}
         countActivos={eventosActivos.length}
         countHistorial={eventosHistorial.length}
       />
-      <View style={[s.separador, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.separador} />
 
-      {/* Lista */}
       <ScrollView
-        style={{ flex: 1 }}
+        style={s.scrollFlex}
         contentContainerStyle={s.lista}
         showsVerticalScrollIndicator={false}
       >
@@ -599,7 +528,7 @@ export default function EventosScreen() {
               : 'Sin eventos en el historial.'}
           </Text>
         ) : (
-          <View style={{ gap: 12 }}>
+          <View style={s.listaGap}>
             {listaActual.map(ev => (
               <EventoCard
                 key={ev.id}
@@ -612,7 +541,6 @@ export default function EventosScreen() {
         )}
       </ScrollView>
 
-      {/* FAB */}
       <View style={s.fabWrap}>
         <TouchableOpacity style={s.fab} onPress={abrirModal} activeOpacity={0.85}>
           <Text style={s.fabTexto}>+ NUEVO EVENTO</Text>
@@ -636,137 +564,145 @@ export default function EventosScreen() {
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PAPEL },
-  centrado:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: PAPEL },
+  container: { flex: 1, backgroundColor: FONDO },
+  centrado:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO },
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
-  titulo:      { fontSize: 32, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 38 },
+  labelHeader: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  // Tabs con línea dorada
+  // Tabs
   tabRow:         { flexDirection: 'row', paddingHorizontal: 20, gap: 24 },
   tabBtn:         { paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActivo:   { borderBottomColor: ORO },
-  tabTexto:       { fontSize: 10, letterSpacing: 2, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
-  tabTextoActivo: { color: TINTA },
+  tabTexto:       { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: MUTED, fontWeight: '700' },
+  tabTextoActivo: { color: TEXTO },
 
   // Lista
+  scrollFlex:  { flex: 1 },
   lista:       { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
-  emptyTexto:  { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
+  listaGap:    { gap: 12 },
+  emptyTexto:  { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, fontStyle: 'italic' },
   filaDiv:     { height: 1, backgroundColor: DIVIDER },
   seccionBlock:{ gap: 0 },
-  seccionLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 8 },
+  seccionBlockMt: { gap: 0, marginTop: 24 },
+  seccionLabel:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 8 },
+  seccionLabelMb: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 6 },
 
   // Evento card
-  eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: PAPEL, gap: 8 },
+  eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: CARD, gap: 8 },
   eventoCardMuted:{ opacity: 0.5 },
   eventoCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eventoNombre:   { fontSize: 16, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, lineHeight: 22 },
-  eventoFecha:    { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.3 },
-  eventoMontoSug: { fontSize: 10, color: MUTED, fontFamily: fonts.label },
-  eventoStats:    { fontSize: 10, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.3 },
+  eventoCardHeadLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eventoCardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO, lineHeight: 22 },
+  eventoNombreMuted: { color: MUTED },
+  eventoFecha:    { fontFamily: fonts.label, fontSize: 11, color: MUTED, letterSpacing: 0.3 },
+  eventoMontoSug: { fontFamily: fonts.label, fontSize: 10, color: MUTED },
+  eventoStats:    { fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 0.3 },
 
   // Badges
   tipoBadge:      { borderWidth: 1.5, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
-  tipoBadgeTexto: { fontSize: 9, fontWeight: '700', letterSpacing: 1.5, fontFamily: fonts.label },
+  tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 9, fontWeight: '700', letterSpacing: 1.5 },
   divBadge:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
-  divBadgeTexto:  { fontSize: 9, letterSpacing: 0.5, color: MUTED, fontFamily: fonts.label },
+  divBadgeTexto:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.5, color: MUTED },
 
   // Progress bar
-  progWrap: { height: 4, backgroundColor: GRIS, borderRadius: 2, overflow: 'hidden' },
+  progWrap: { height: 4, backgroundColor: DIVIDER, borderRadius: 2, overflow: 'hidden' },
   progFill: { height: 4, backgroundColor: ORO, borderRadius: 2 },
 
-  // FAB dorado
+  // FAB
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ color: TINTA, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
 
-  // Detalle — barra superior
+  // Detalle
   detalleTopBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
   backBtn:            { padding: 4 },
-  detalleLabelHeader: { flex: 1, fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  detalleLabelHeader: { flex: 1, fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
   cerradoBadge:       { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  cerradoTexto:       { fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label },
+  cerradoTexto:       { fontFamily: fonts.label, fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1 },
+  detalleNombreWrap:  { paddingHorizontal: 20, paddingBottom: 12, paddingTop: 4 },
+  detalleNombre:      { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO, lineHeight: 34 },
+  detalleMetaRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+  montoSugTexto:      { fontFamily: fonts.label, fontSize: 12, color: ORO_HONDO, paddingHorizontal: 20, marginBottom: 12 },
+  detalleScroll:      { padding: 20, paddingBottom: 48 },
 
-  detalleNombreWrap:{ paddingHorizontal: 20, paddingBottom: 12, paddingTop: 4 },
-  detalleNombre:    { fontSize: 28, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA, lineHeight: 34 },
-  detalleMetaRow:   { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
-  montoSugTexto:    { fontSize: 12, color: ORO_HONDO, fontFamily: fonts.label, paddingHorizontal: 20, marginBottom: 12 },
+  // Resumen financiero
+  resumenBar:    { flexDirection: 'row', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, overflow: 'hidden' },
+  resumenItem:   { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 4 },
+  resumenDiv:    { width: 1, backgroundColor: DIVIDER },
+  resumenLabel:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: MUTED },
+  resumenVal:    { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700' },
+  resumenValVerde:  { color: VERDE },
+  resumenValRojo:   { color: ROJO },
+  resumenValMuted:  { color: MUTED },
+  resumenValCobrado:{ fontFamily: fonts.cuerpo, fontSize: 15, fontWeight: '700', color: TEXTO },
 
-  detalleScroll: { padding: 20, paddingBottom: 48 },
-
-  // Resumen financiero (barra de 3 celdas)
-  resumenBar:   { flexDirection: 'row', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, overflow: 'hidden' },
-  resumenItem:  { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 4 },
-  resumenDiv:   { width: 1, backgroundColor: DIVIDER },
-  resumenLabel: { fontSize: 9, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label },
-  resumenVal:   { fontSize: 18, fontWeight: '700', fontFamily: fonts.cuerpo },
-
-  // Por división
-  divFila:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-  divFilaNombre:  { fontSize: 13, color: TINTA, fontFamily: fonts.cuerpo, flex: 1, marginRight: 8 },
-  divFilaDetalle: { fontSize: 11, color: MUTED, fontFamily: fonts.label },
+  porDivWrap:    { marginTop: 16 },
+  divFila:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
+  divFilaNombre: { fontFamily: fonts.cuerpo, fontSize: 13, color: TEXTO, flex: 1, marginRight: 8 },
+  divFilaDetalle:{ fontFamily: fonts.label, fontSize: 11, color: MUTED },
 
   // Pedidos
+  pedidosList:      { gap: 10, marginTop: 8 },
   pedidoCard:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, gap: 4 },
   pedidoHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  pedidoManager:    { fontSize: 14, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo },
-  pedidoItem:       { fontSize: 13, color: MUTED, fontFamily: fonts.cuerpo },
-  pedidoFecha:      { fontSize: 10, color: MUTED, fontFamily: fonts.label, marginTop: 4 },
+  pedidoManager:    { fontFamily: fonts.cuerpo, fontSize: 14, fontWeight: '700', color: TEXTO },
+  pedidoItem:       { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED },
+  pedidoFecha:      { fontFamily: fonts.label, fontSize: 10, color: MUTED, marginTop: 4 },
   estadoBadge:      { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
   estadoConfirmado: { borderColor: VERDE },
   estadoAbierto:    { borderColor: ORO_HONDO },
-  estadoTexto:      { fontSize: 9, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label },
+  estadoTexto:      { fontFamily: fonts.label, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  estadoTextoConfirmado: { color: VERDE },
+  estadoTextoAbierto:    { color: ORO_HONDO },
 
-  // Botón cerrar evento — negro ancho con texto rojo
-  botonCerrar:      { marginTop: 32, backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  botonCerrarTexto: { color: ROJO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  // Botón cerrar evento
+  botonCerrar:      { marginTop: 32, backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonCerrarOff:   { opacity: 0.6 },
+  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
 
   // Modal
-  modalContainer: { flex: 1, backgroundColor: PAPEL },
+  kavFlex:        { flex: 1 },
+  modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
-  modalTitulo:    { fontSize: 26, fontStyle: 'italic', fontFamily: fonts.titulo, color: TINTA },
+  modalSuper:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
+  modalCloseBtn:  { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20, gap: 24 },
-  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: PAPEL },
+  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: FONDO },
 
   // Campos
   campo:     { gap: 10 },
-  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  campoLabel:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
+  divRow:    { flexDirection: 'row', gap: 8 },
 
   inputLinea: {
-    borderBottomWidth: 1.5,
-    borderBottomColor: ORO,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: TINTA,
-    fontFamily: fonts.cuerpo,
+    borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10,
+    fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO,
   },
-
   montoWrap:   { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
-  montoSimbolo:{ fontSize: 18, color: MUTED, fontFamily: fonts.label, marginRight: 6, lineHeight: 30 },
-  montoInput:  { flex: 1, fontSize: 24, fontWeight: '700', color: TINTA, fontFamily: fonts.cuerpo, padding: 0 },
+  montoSimbolo:{ fontFamily: fonts.label, fontSize: 18, color: MUTED, marginRight: 6, lineHeight: 30 },
+  montoInput:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 24, fontWeight: '700', color: TEXTO, padding: 0 },
 
-  // Selector tipo (modal)
   tipoRow:            { flexDirection: 'row', gap: 8 },
   tipoBtn:            { flex: 1, paddingVertical: 13, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
-  tipoBtnActivo:      { backgroundColor: TINTA, borderColor: TINTA },
-  tipoBtnTexto:       { fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, fontFamily: fonts.label, textAlign: 'center', lineHeight: 14 },
+  tipoBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, textAlign: 'center', lineHeight: 14 },
   tipoBtnTextoActivo: { color: ORO },
 
-  // División pills
   divPill:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  divPillActiva:      { backgroundColor: TINTA, borderColor: TINTA },
-  divPillTexto:       { fontSize: 12, color: MUTED, fontFamily: fonts.label },
+  divPillActiva:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  divPillTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED },
   divPillTextoActivo: { color: ORO },
 
-  // Banner error
-  bannerError:      { backgroundColor: '#FEF2F2', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#991B1B', fontFamily: fonts.cuerpo },
+  bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#FFAAAA' },
 
-  // Botón principal
-  botonPrincipal:      { backgroundColor: TINTA, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  botonPrincipalTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipalOff:   { opacity: 0.6 },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
 })

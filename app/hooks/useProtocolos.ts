@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Linking, Alert } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 

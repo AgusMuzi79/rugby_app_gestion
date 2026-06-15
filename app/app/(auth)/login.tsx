@@ -15,16 +15,15 @@ import { Link, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useLogin } from '@/hooks/useLogin'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 const PLACEHOLDER = '#9B9A8F'
+const HITSOP = { top: 8, bottom: 8, left: 8, right: 8 }
 
 export default function LoginScreen() {
   const [email, setEmail]                     = useState('')
   const [password, setPassword]               = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
 
-  const { colors: tc } = useTheme()
   const {
     login,
     loginConBiometria,
@@ -38,52 +37,52 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: tc.fondo }}
+      style={s.kbView}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.container}>
+        <View style={s.container}>
 
           {/* Logo */}
-          <View style={styles.logoWrap}>
+          <View style={s.logoWrap}>
             <Image
               source={require('../../assets/images/logo.png')}
-              style={styles.logo}
+              style={s.logo}
               resizeMode="contain"
             />
           </View>
 
           {/* Club name */}
-          <Text style={styles.clubName}>
+          <Text style={s.clubName}>
             UNCAS RUGBY CLUB · EST. 1836
           </Text>
 
           {/* Título serif itálico */}
-          <Text style={[styles.title, { color: tc.tinta }]}>Uncas Rugby App</Text>
+          <Text style={s.title}>Uncas Rugby App</Text>
 
           {/* Línea divisoria */}
-          <View style={[styles.divider, { backgroundColor: tc.grisClaro }]} />
+          <View style={s.divider} />
 
           {/* Subtítulo */}
-          <Text style={styles.subtitle}>
+          <Text style={s.subtitle}>
             Diario operativo del cuerpo técnico y organizativo
           </Text>
 
           {/* Banner de éxito (ej. post reset-password) */}
           {!!mensaje && (
-            <View style={styles.successBanner}>
-              <Text style={styles.successText}>{mensaje}</Text>
+            <View style={s.successBanner}>
+              <Text style={s.successText}>{mensaje}</Text>
             </View>
           )}
 
           {/* Campo USUARIO */}
-          <View style={styles.fieldWrap}>
-            <Text style={[styles.label, { color: tc.tinta }]}>USUARIO</Text>
+          <View style={s.fieldWrap}>
+            <Text style={s.label}>USUARIO</Text>
             <TextInput
-              style={[styles.input, { color: tc.tinta }]}
+              style={s.input}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -96,11 +95,11 @@ export default function LoginScreen() {
           </View>
 
           {/* Campo CONTRASEÑA */}
-          <View style={[styles.fieldWrap, { marginBottom: 32 }]}>
-            <Text style={[styles.label, { color: tc.tinta }]}>CONTRASEÑA</Text>
-            <View style={styles.passwordRow}>
+          <View style={s.fieldWrapLast}>
+            <Text style={s.label}>CONTRASEÑA</Text>
+            <View style={s.passwordRow}>
               <TextInput
-                style={[styles.passwordInput, { color: tc.tinta }]}
+                style={s.passwordInput}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!mostrarPassword}
@@ -109,9 +108,9 @@ export default function LoginScreen() {
                 editable={!loading}
               />
               <TouchableOpacity
-                style={styles.eyeButton}
+                style={s.eyeButton}
                 onPress={() => setMostrarPassword(v => !v)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                hitSlop={HITSOP}
               >
                 <Ionicons
                   name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -124,14 +123,14 @@ export default function LoginScreen() {
 
           {/* Error banner */}
           {error !== null && (
-            <View style={[styles.errorBanner, { backgroundColor: tc.card }]}>
-              <Text style={[styles.errorText, { color: tc.tinta }]}>{error}</Text>
+            <View style={s.errorBanner}>
+              <Text style={s.errorText}>{error}</Text>
             </View>
           )}
 
           {/* Botón principal */}
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: tc.tinta }, loading && styles.buttonLoading]}
+            style={loading ? s.buttonLoading : s.button}
             onPress={() => login(email, password)}
             disabled={loading}
             activeOpacity={0.85}
@@ -139,14 +138,14 @@ export default function LoginScreen() {
             {loading ? (
               <ActivityIndicator color={colors.oro} size="small" />
             ) : (
-              <Text style={styles.buttonText}>INGRESAR AL DIARIO →</Text>
+              <Text style={s.buttonText}>INGRESAR AL DIARIO →</Text>
             )}
           </TouchableOpacity>
 
           {/* Botón biométrico */}
           {biometriaDisponible && credencialesGuardadas && !loading && (
             <TouchableOpacity
-              style={styles.biometriaButton}
+              style={s.biometriaButton}
               onPress={loginConBiometria}
               activeOpacity={0.8}
             >
@@ -154,9 +153,9 @@ export default function LoginScreen() {
                 name="finger-print-outline"
                 size={20}
                 color={colors.oro}
-                style={{ marginRight: 8 }}
+                style={s.biometriaIcon}
               />
-              <Text style={styles.biometriaText}>
+              <Text style={s.biometriaText}>
                 INGRESAR CON HUELLA / FACE ID
               </Text>
             </TouchableOpacity>
@@ -164,13 +163,13 @@ export default function LoginScreen() {
 
           {/* Olvidé contraseña */}
           <Link href="/(auth)/forgot-password" asChild>
-            <TouchableOpacity style={styles.forgotWrap} disabled={loading}>
-              <Text style={styles.forgotText}>Olvidé mi contraseña</Text>
+            <TouchableOpacity style={s.forgotWrap} disabled={loading}>
+              <Text style={s.forgotText}>Olvidé mi contraseña</Text>
             </TouchableOpacity>
           </Link>
 
           {/* Footer */}
-          <Text style={styles.footer}>UNCAS RUGBY APP · V1.0</Text>
+          <Text style={s.footer}>UNCAS RUGBY APP · V1.0</Text>
 
         </View>
       </ScrollView>
@@ -178,7 +177,14 @@ export default function LoginScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
+  kbView: {
+    flex: 1,
+    backgroundColor: '#15110A',
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -207,10 +213,12 @@ const styles = StyleSheet.create({
     fontSize: 52,
     marginBottom: 16,
     lineHeight: 58,
+    color: '#F3EFE4',
   },
   divider: {
     height: 1,
     marginBottom: 14,
+    backgroundColor: '#2C2418',
   },
   subtitle: {
     textAlign: 'center',
@@ -224,11 +232,15 @@ const styles = StyleSheet.create({
   fieldWrap: {
     marginBottom: 28,
   },
+  fieldWrapLast: {
+    marginBottom: 32,
+  },
   label: {
     fontFamily: fonts.label,
     fontSize: 10,
     letterSpacing: 2,
     marginBottom: 8,
+    color: '#F3EFE4',
   },
   input: {
     fontFamily: fonts.cuerpo,
@@ -237,6 +249,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
+    color: '#F3EFE4',
   },
   passwordRow: {
     flexDirection: 'row',
@@ -250,6 +263,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
+    color: '#F3EFE4',
   },
   eyeButton: {
     paddingBottom: 4,
@@ -259,8 +273,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
+    backgroundColor: '#F3EFE4',
   },
   buttonLoading: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderRadius: 4,
     backgroundColor: '#333',
   },
   buttonText: {
@@ -279,6 +297,9 @@ const styles = StyleSheet.create({
     borderColor: colors.oro,
     borderRadius: 4,
   },
+  biometriaIcon: {
+    marginRight: 8,
+  },
   biometriaText: {
     fontFamily: fonts.label,
     fontSize: 11,
@@ -292,11 +313,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 16,
+    backgroundColor: '#1C1710',
   },
   errorText: {
     fontFamily: fonts.cuerpo,
     fontSize: 13,
     textAlign: 'center',
+    color: '#F3EFE4',
   },
   successBanner: {
     backgroundColor: '#F0F9EC',

@@ -7,9 +7,10 @@ import {
   StyleSheet,
   SafeAreaView,
 } from 'react-native'
+import { useRef } from 'react'
+import { useScrollToTop } from '@react-navigation/native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado } from '@/hooks/useAsistencia'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,6 @@ function FilaJugador({
   alertas: string[]
   onMarca: (id: string, estado: EstadoAsistencia) => void
 }) {
-  const { colors: tc } = useTheme()
   const conAlerta = alertas.includes(item.nombre_completo)
   const numero    = String(index + 1).padStart(2, '0')
 
@@ -64,7 +64,7 @@ function FilaJugador({
     <View style={s.fila}>
       <Text style={s.numero}>{numero}</Text>
       <View style={s.infoCol}>
-        <Text style={[s.nombre, { color: tc.tinta }]} numberOfLines={1}>{item.nombre_completo}</Text>
+        <Text style={s.nombre} numberOfLines={1}>{item.nombre_completo}</Text>
         {conAlerta && <Text style={s.alertaInline}>⚠ 4 AUSENCIAS</Text>}
       </View>
       <View style={s.badgesRow}>
@@ -73,12 +73,8 @@ function FilaJugador({
           return (
             <TouchableOpacity
               key={badge.key}
-              style={[
-                s.badge,
-                activo
-                  ? { backgroundColor: badge.bg, borderColor: badge.bg }
-                  : s.badgeInactivo,
-              ]}
+              // badge.bg and badge.textColor are constants from the BADGES array — truly dynamic per item
+              style={[s.badge, activo ? { backgroundColor: badge.bg, borderColor: badge.bg } : s.badgeInactivo]}
               onPress={() => onMarca(item.id, badge.key)}
               activeOpacity={0.75}
             >
@@ -96,6 +92,8 @@ function FilaJugador({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function AsistenciaScreen() {
+  const scrollRef = useRef<FlatList>(null)
+  useScrollToTop(scrollRef)
   const {
     jugadores,
     loading,
@@ -112,14 +110,13 @@ export default function AsistenciaScreen() {
     guardarAsistencia,
   } = useAsistencia()
 
-  const { colors: tc } = useTheme()
   const presentes = jugadores.filter(j => j.estado === 'presente').length
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
   const justifs   = jugadores.filter(j => j.estado === 'justificado').length
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -127,7 +124,7 @@ export default function AsistenciaScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -135,17 +132,17 @@ export default function AsistenciaScreen() {
   }
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: tc.fondo }]}>
+    <SafeAreaView style={s.root}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>
         <View style={s.headerTop}>
           <View style={s.headerLeft}>
             <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
-            <Text style={[s.titulo, { color: tc.tinta }]}>Toma de asistencia</Text>
+            <Text style={s.titulo}>Toma de asistencia</Text>
           </View>
           <TouchableOpacity
-            style={[s.guardarBtn, guardando && { opacity: 0.55 }]}
+            style={[s.guardarBtn, guardando && s.guardarBtnGuardando]}
             onPress={guardarAsistencia}
             disabled={guardando}
             activeOpacity={0.8}
@@ -161,7 +158,7 @@ export default function AsistenciaScreen() {
         </Text>
       </View>
 
-      <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.divider} />
 
       {/* ── Contadores ─────────────────────────────────────────────────────── */}
       <View style={s.contadores}>
@@ -172,6 +169,7 @@ export default function AsistenciaScreen() {
 
       {/* ── Lista de jugadores ─────────────────────────────────────────────── */}
       <FlatList
+        ref={scrollRef}
         data={jugadores}
         keyExtractor={item => item.id}
         renderItem={({ item, index }) => (
@@ -182,13 +180,13 @@ export default function AsistenciaScreen() {
             onMarca={marcarEstado}
           />
         )}
-        ItemSeparatorComponent={() => <View style={[s.separator, { backgroundColor: tc.grisClaro }]} />}
-        contentContainerStyle={{ paddingBottom: 8 }}
+        ItemSeparatorComponent={() => <View style={s.separator} />}
+        contentContainerStyle={s.listContent}
       />
 
       {/* ── Estado ─────────────────────────────────────────────────────────── */}
       {(errorGuardado || (guardado && !guardando)) && (
-        <View style={[s.statusBar, { borderTopColor: tc.grisClaro }]}>
+        <View style={s.statusBar}>
           {errorGuardado && !guardando && (
             <Text style={s.statusError}>✕ {errorGuardado}</Text>
           )}
@@ -206,9 +204,12 @@ export default function AsistenciaScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+const FONDO   = '#15110A'
+const DIVIDER = '#2C2418'
+
 const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: colors.papel },
-  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.papel, gap: 8 },
+  root:     { flex: 1, backgroundColor: FONDO },
+  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
   mutedTexto: {
     fontFamily: fonts.titulo,
     fontSize: 16,
@@ -256,6 +257,7 @@ const s = StyleSheet.create({
     minWidth: 72,
     alignItems: 'center',
   },
+  guardarBtnGuardando: { opacity: 0.55 },
   guardarTexto: {
     fontFamily: fonts.label,
     fontSize: 11,
@@ -263,7 +265,7 @@ const s = StyleSheet.create({
     color: colors.oro,
   },
 
-  divider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20 },
+  divider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
   // Contadores
   contadores: {
@@ -293,6 +295,7 @@ const s = StyleSheet.create({
   },
 
   // Player rows
+  listContent: { paddingBottom: 8 },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -324,7 +327,7 @@ const s = StyleSheet.create({
   },
   separator: {
     height: 1,
-    backgroundColor: '#E0D9C8',
+    backgroundColor: DIVIDER,
     marginHorizontal: 20,
   },
 
@@ -336,10 +339,7 @@ const s = StyleSheet.create({
     borderRadius: 2,
     borderWidth: 1,
   },
-  badgeInactivo: {
-    borderColor: '#C5BEA8',
-    backgroundColor: 'transparent',
-  },
+  badgeInactivo: { borderColor: '#C5BEA8', backgroundColor: 'transparent' },
   badgeTexto: {
     fontFamily: fonts.label,
     fontSize: 9,
@@ -351,7 +351,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#D4CCBA',
+    borderTopColor: DIVIDER,
   },
   statusOk: {
     fontFamily: fonts.label,

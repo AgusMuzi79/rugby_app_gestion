@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioManager, type EventoProgreso, type UltimoFichaje } from '@/hooks/useDiarioManager'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,30 +34,29 @@ function tiempoRelativo(iso: string): string {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
-  const { colors: tc } = useTheme()
   return (
     <View style={s.secRow}>
       <Text style={s.secTitle}>{title}</Text>
-      <View style={[s.secLine, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.secLine} />
     </View>
   )
 }
 
 function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }) {
-  const { colors: tc } = useTheme()
   const tipoLabel = TIPO_LABEL[ev.tipo] ?? ev.tipo.toUpperCase()
   const pct       = ev.pct
 
   return (
-    <TouchableOpacity style={[s.cobranzaCard, { backgroundColor: tc.card, borderColor: tc.grisClaro }]} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity style={s.cobranzaCard} onPress={onPress} activeOpacity={0.8}>
       <View style={s.cobranzaHeader}>
-        <View style={[s.tipoBadge, { backgroundColor: tc.grisClaro }]}>
-          <Text style={[s.tipoBadgeText, { color: tc.texto }]}>{tipoLabel}</Text>
+        <View style={s.tipoBadge}>
+          <Text style={s.tipoBadgeText}>{tipoLabel}</Text>
         </View>
-        <Text style={[s.cobranzaNombre, { color: tc.texto }]} numberOfLines={1}>{ev.nombre}</Text>
+        <Text style={s.cobranzaNombre} numberOfLines={1}>{ev.nombre}</Text>
         <Text style={s.cobranzaPct}>{pct}%</Text>
       </View>
-      <View style={[s.barraFondo, { backgroundColor: tc.grisClaro }]}>
+      <View style={s.barraFondo}>
+        {/* flex: pct is truly dynamic — must remain inline */}
         <View style={{ flex: pct, height: 4, backgroundColor: colors.oro, borderRadius: 2 }} />
         <View style={{ flex: Math.max(0, 100 - pct) }} />
       </View>
@@ -100,11 +98,10 @@ function CardPedido({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }
 }
 
 function FilaFichaje({ fichaje, divisionNombre }: { fichaje: UltimoFichaje; divisionNombre: string }) {
-  const { colors: tc } = useTheme()
   return (
-    <View style={[s.fichajeRow, { borderBottomColor: tc.grisClaro }]}>
+    <View style={s.fichajeRow}>
       <View style={s.fichajeInfo}>
-        <Text style={[s.fichajeNombre, { color: tc.texto }]}>{fichaje.nombreCompleto}</Text>
+        <Text style={s.fichajeNombre}>{fichaje.nombreCompleto}</Text>
         <Text style={s.fichajeMeta}>
           {divisionNombre} · {tiempoRelativo(fichaje.createdAt)}
         </Text>
@@ -122,12 +119,11 @@ export default function DiarioManagerScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { loading, data } = useDiarioManager()
-  const { colors: tc } = useTheme()
 
   if (data.sinDivision && !loading) {
     return (
-      <View style={[s.root, s.centered, { backgroundColor: tc.fondo }]}>
-        <Text style={[s.sinDivTitle, { color: tc.texto }]}>Sin división asignada.</Text>
+      <View style={s.sinDivWrap}>
+        <Text style={s.sinDivTitle}>Sin división asignada.</Text>
         <Text style={s.sinDivSub}>Contactá a la Subcomisión.</Text>
       </View>
     )
@@ -139,8 +135,8 @@ export default function DiarioManagerScreen() {
 
   return (
     <ScrollView
-      style={[s.root, { backgroundColor: tc.fondo }]}
-      contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
+      style={s.root}
+      contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
     >
       <Header />
@@ -155,14 +151,14 @@ export default function DiarioManagerScreen() {
 
       {/* Título */}
       <View style={s.tituloContainer}>
-        <Text style={[s.tituloTexto, { color: tc.texto }]}>
+        <Text style={s.tituloTexto}>
           {data.divisionNombre || '—'} · Cobranzas y fichajes.
         </Text>
-        <View style={[s.tituloDivider, { backgroundColor: tc.grisClaro }]} />
+        <View style={s.tituloDivider} />
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={{ marginTop: 40 }} />
+        <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : (
         <>
           {/* ── COBRANZAS ACTIVAS ── */}
@@ -216,11 +212,11 @@ export default function DiarioManagerScreen() {
               </View>
             )}
             <TouchableOpacity
-              style={[s.verTodosBtn, { borderColor: tc.texto }]}
+              style={s.verTodosBtn}
               onPress={() => router.navigate('/(manager)/fichajes')}
               activeOpacity={0.75}
             >
-              <Text style={[s.verTodosBtnText, { color: tc.texto }]}>VER TODOS LOS FICHAJES →</Text>
+              <Text style={s.verTodosBtnText}>VER TODOS LOS FICHAJES →</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -232,8 +228,14 @@ export default function DiarioManagerScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: colors.papel },
-  centered:{ justifyContent: 'center', alignItems: 'center' },
+  root:          { flex: 1, backgroundColor: '#15110A' },
+  scrollContent: { paddingBottom: 48 },
+  activityIndicator: { marginTop: 40 },
+
+  sinDivWrap: {
+    flex: 1, backgroundColor: '#15110A',
+    justifyContent: 'center', alignItems: 'center',
+  },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -265,7 +267,7 @@ const s = StyleSheet.create({
 
   // Cobranza card
   cobranzaCard: {
-    backgroundColor: colors.blanco, borderWidth: 1, borderColor: colors.grisClaro,
+    backgroundColor: '#1C1710', borderWidth: 1, borderColor: colors.grisClaro,
     borderRadius: 4, padding: 14, gap: 10,
   },
   cobranzaHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -289,7 +291,7 @@ const s = StyleSheet.create({
 
   // Pedido de subcomisión
   pedidoCard: {
-    backgroundColor: colors.papel,
+    backgroundColor: '#15110A',
     borderWidth: 1, borderColor: colors.grisClaro,
     borderLeftWidth: 3, borderLeftColor: colors.oroHondo,
     borderRadius: 4, padding: 16, gap: 6,

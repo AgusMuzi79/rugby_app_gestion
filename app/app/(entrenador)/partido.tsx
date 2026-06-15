@@ -17,12 +17,16 @@ import {
   Equipo,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
-import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const VERDE = '#4A7C59'
-const ROJO  = colors.rojoUrgente
+const FONDO     = '#15110A'
+const CARD      = '#1C1710'
+const TEXTO     = '#F3EFE4'
+const MUTED     = '#8E8574'
+const DIVIDER   = '#2C2418'
+const VERDE     = '#4A7C59'
+const ROJO      = colors.rojoUrgente
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,14 +42,14 @@ function formatFecha(iso: string) {
 function ConteoBar({ conteo }: { conteo: ConteoMesa }) {
   return (
     <View style={s.conteoRow}>
-      <View style={[s.conteoBox, { borderColor: colors.oro }]}>
-        <Text style={[s.conteoNum, { color: conteo.titular > 15 ? ROJO : colors.oro }]}>
+      <View style={s.conteoBox}>
+        <Text style={[s.conteoNum, conteo.titular > 15 ? s.conteoNumRojo : s.conteoNumOro]}>
           {conteo.titular}/15
         </Text>
         <Text style={s.conteoLabel}>TITULARES</Text>
       </View>
-      <View style={[s.conteoBox, { borderColor: colors.oro }]}>
-        <Text style={[s.conteoNum, { color: conteo.suplente > 8 ? ROJO : colors.oro }]}>
+      <View style={s.conteoBox}>
+        <Text style={[s.conteoNum, conteo.suplente > 8 ? s.conteoNumRojo : s.conteoNumOro]}>
           {conteo.suplente}/8
         </Text>
         <Text style={s.conteoLabel}>SUPLENTES</Text>
@@ -76,7 +80,7 @@ function FilaAsistencia({
           onPress={() => { if (!jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
         >
-          <Text style={[s.badgeTexto, { color: jugador.presente ? '#fff' : '#A09880' }]}>
+          <Text style={[s.badgeTexto, jugador.presente ? s.badgeTextoPres : s.badgeTextoInactivo]}>
             PRES
           </Text>
         </TouchableOpacity>
@@ -85,7 +89,7 @@ function FilaAsistencia({
           onPress={() => { if (jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
         >
-          <Text style={[s.badgeTexto, { color: !jugador.presente ? '#fff' : '#A09880' }]}>
+          <Text style={[s.badgeTexto, !jugador.presente ? s.badgeTextoAus : s.badgeTextoInactivo]}>
             AUS
           </Text>
         </TouchableOpacity>
@@ -130,7 +134,7 @@ function FilaMesa({
           disabled={titularLleno}
           activeOpacity={0.75}
         >
-          <Text style={[s.mesaRolBtnTxt, titularLleno && { color: '#C5BEA8' }]}>T</Text>
+          <Text style={[s.mesaRolBtnTxt, titularLleno && s.mesaRolBtnTxtOff]}>T</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[s.mesaRolBtn, suplenteLleno && s.mesaRolBtnOff]}
@@ -138,7 +142,7 @@ function FilaMesa({
           disabled={suplenteLleno}
           activeOpacity={0.75}
         >
-          <Text style={[s.mesaRolBtnTxt, suplenteLleno && { color: '#C5BEA8' }]}>S</Text>
+          <Text style={[s.mesaRolBtnTxt, suplenteLleno && s.mesaRolBtnTxtOff]}>S</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -156,29 +160,28 @@ function SelectorPartidos({
   seleccionado: PartidoEvento | null
   onSelect: (p: PartidoEvento) => void
 }) {
-  const { colors: tc } = useTheme()
   if (partidos.length === 0) {
     return (
-      <View style={{ gap: 4 }}>
+      <View style={s.emptyGap}>
         <Text style={s.emptyTexto}>Sin partidos programados en los próximos 14 días.</Text>
         <Text style={s.emptySubtexto}>El Coordinador debe cargarlos en el calendario.</Text>
       </View>
     )
   }
   return (
-    <View style={{ gap: 8 }}>
+    <View style={s.gap8}>
       {partidos.map(p => {
         const activo = seleccionado?.id === p.id
         return (
           <TouchableOpacity
             key={p.id}
-            style={[s.card, activo && s.cardActivo, { borderColor: tc.tinta, backgroundColor: tc.fondo }]}
+            style={[s.card, activo && s.cardActivo]}
             onPress={() => onSelect(p)}
             activeOpacity={0.8}
           >
             <View style={s.cardRow}>
               <View style={s.cardInfo}>
-                <Text style={[s.cardTitle, { color: tc.tinta }, activo && { color: colors.oro }]}>
+                <Text style={[s.cardTitle, activo && s.cardTitleActivo]}>
                   vs {p.rival ?? 'Rival por confirmar'}
                 </Text>
                 <Text style={s.cardSub}>
@@ -211,7 +214,7 @@ function SelectorEquipos({
     return <Text style={s.emptyTexto}>Preparando equipos...</Text>
   }
   return (
-    <View style={{ gap: 8 }}>
+    <View style={s.gap8}>
       {equipos.map(e => {
         const activo       = seleccionado?.id === e.id
         const esObligatorio = e.id === equipoObligatorio?.id
@@ -223,15 +226,15 @@ function SelectorEquipos({
             activeOpacity={0.8}
           >
             <View style={s.cardRow}>
-              <Text style={[s.cardTitle, { flex: 1 }, activo && { color: colors.oro }]}>
+              <Text style={[s.cardTitle, s.cardTitleFlex, activo && s.cardTitleActivo]}>
                 {e.nombre}
               </Text>
               <View style={[s.equipoBadge, esObligatorio ? s.equipoBadgeOblig : s.equipoBadgeOpc]}>
-                <Text style={[s.equipoBadgeTexto, { color: esObligatorio ? colors.blanco : colors.oroHondo }]}>
+                <Text style={[s.equipoBadgeTexto, esObligatorio ? s.equipoBadgeTextoOblig : s.equipoBadgeTextoOpc]}>
                   {esObligatorio ? 'OBLIGATORIO' : 'OPCIONAL'}
                 </Text>
               </View>
-              {activo && <Text style={[s.checkOro, { marginLeft: 8 }]}>✓</Text>}
+              {activo && <Text style={[s.checkOro, s.checkOroMl]}>✓</Text>}
             </View>
           </TouchableOpacity>
         )
@@ -266,7 +269,7 @@ function PasoEquipo({
   const puedeAvanzar = equipoSeleccionado !== null && partidoSeleccionado !== null
 
   return (
-    <View style={{ paddingBottom: 16 }}>
+    <View style={s.pasoWrap}>
       <View style={s.bloque}>
         <Text style={s.seccionLabel}>SELECCIONAR PARTIDO</Text>
         <SelectorPartidos
@@ -288,9 +291,9 @@ function PasoEquipo({
         />
       </View>
 
-      <View style={[s.bloque, { marginTop: 8 }]}>
+      <View style={s.bloqueMt}>
         <TouchableOpacity
-          style={[s.botonPrimario, (!puedeAvanzar || cargandoTransicion) && { opacity: 0.4 }]}
+          style={[s.botonPrimario, (!puedeAvanzar || cargandoTransicion) && s.botonOff]}
           onPress={onContinuar}
           disabled={!puedeAvanzar || cargandoTransicion}
           activeOpacity={0.85}
@@ -325,7 +328,6 @@ function PasoAsistencia({
   onGuardar: () => Promise<void>
   onVolver: () => void
 }) {
-  const { colors: tc } = useTheme()
   const presentes  = jugadores.filter(j => j.presente).length
   const ausentes   = jugadores.length - presentes
   const puedeGuardar = esInfantil || presentes > 0
@@ -336,29 +338,27 @@ function PasoAsistencia({
         <Text style={s.volverTexto}>← VOLVER</Text>
       </TouchableOpacity>
 
-      {/* Contadores */}
       <View style={s.contadores}>
-        <View style={[s.contadorBox, { borderColor: VERDE }]}>
-          <Text style={[s.contadorNum, { color: VERDE }]}>{presentes}</Text>
+        <View style={[s.contadorBox, s.contadorBoxVerde]}>
+          <Text style={[s.contadorNum, s.contadorNumVerde]}>{presentes}</Text>
           <Text style={s.contadorLabel}>PRESENTES</Text>
         </View>
-        <View style={[s.contadorBox, { borderColor: ROJO }]}>
-          <Text style={[s.contadorNum, { color: ROJO }]}>{ausentes}</Text>
+        <View style={[s.contadorBox, s.contadorBoxRojo]}>
+          <Text style={[s.contadorNum, s.contadorNumRojo]}>{ausentes}</Text>
           <Text style={s.contadorLabel}>AUSENTES</Text>
         </View>
       </View>
 
       <View style={s.divider} />
 
-      {/* Lista numerada */}
       {jugadores.map((j, i) => (
         <View key={j.id}>
-          {i > 0 && <View style={[s.separator, { backgroundColor: tc.grisClaro }]} />}
+          {i > 0 && <View style={s.separator} />}
           <FilaAsistencia jugador={j} index={i} onToggle={onToggle} />
         </View>
       ))}
 
-      <View style={[s.bloque, { marginTop: 16 }]}>
+      <View style={s.bloqueMt2}>
         {errorAsistencia && (
           <View style={s.bannerError}>
             <Text style={s.bannerErrorTexto}>{errorAsistencia}</Text>
@@ -368,7 +368,7 @@ function PasoAsistencia({
           <Text style={s.bannerOkTexto}>✓ Asistencia guardada</Text>
         )}
         <TouchableOpacity
-          style={[s.botonPrimario, (!puedeGuardar || guardandoAsistencia) && { opacity: 0.4 }]}
+          style={[s.botonPrimario, (!puedeGuardar || guardandoAsistencia) && s.botonOff]}
           onPress={onGuardar}
           disabled={!puedeGuardar || guardandoAsistencia}
           activeOpacity={0.85}
@@ -422,7 +422,6 @@ function PasoMesa({
         <Text style={s.volverTexto}>← VOLVER A ASISTENCIA</Text>
       </TouchableOpacity>
 
-      {/* Contadores */}
       <View style={s.conteoRow}>
         <ConteoBar conteo={conteoMesa} />
       </View>
@@ -430,21 +429,18 @@ function PasoMesa({
       <View style={s.divider} />
 
       {jugadoresPresentes.length === 0 && (
-        <Text style={[s.emptyTexto, { marginHorizontal: 20, marginTop: 16 }]}>
+        <Text style={s.emptyTextoMx}>
           No hay jugadores presentes.
         </Text>
       )}
 
-      {/* ── Titulares ── */}
       {titulares.length > 0 && (
         <>
-          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
-            TITULARES
-          </Text>
+          <Text style={s.seccionLabelMx}>TITULARES</Text>
           {titulares.map((j, i) => (
             <View key={j.id}>
               {i > 0 && <View style={s.separator} />}
-              <View style={{ paddingHorizontal: 20 }}>
+              <View style={s.mesaPadding}>
                 <FilaMesa
                   jugador={j}
                   onAsignar={onAsignar}
@@ -457,16 +453,13 @@ function PasoMesa({
         </>
       )}
 
-      {/* ── Suplentes ── */}
       {suplentes.length > 0 && (
         <>
-          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
-            SUPLENTES
-          </Text>
+          <Text style={s.seccionLabelMx}>SUPLENTES</Text>
           {suplentes.map((j, i) => (
             <View key={j.id}>
               {i > 0 && <View style={s.separator} />}
-              <View style={{ paddingHorizontal: 20 }}>
+              <View style={s.mesaPadding}>
                 <FilaMesa
                   jugador={j}
                   onAsignar={onAsignar}
@@ -479,16 +472,13 @@ function PasoMesa({
         </>
       )}
 
-      {/* ── Disponibles ── */}
       {disponibles.length > 0 && (
         <>
-          <Text style={[s.seccionLabel, { marginHorizontal: 20, marginTop: 20, marginBottom: 8 }]}>
-            DISPONIBLES
-          </Text>
+          <Text style={s.seccionLabelMx}>DISPONIBLES</Text>
           {disponibles.map((j, i) => (
             <View key={j.id}>
               {i > 0 && <View style={s.separator} />}
-              <View style={{ paddingHorizontal: 20 }}>
+              <View style={s.mesaPadding}>
                 <FilaMesa
                   jugador={j}
                   onAsignar={onAsignar}
@@ -501,7 +491,7 @@ function PasoMesa({
         </>
       )}
 
-      <View style={[s.bloque, { marginTop: 20 }]}>
+      <View style={s.bloqueMt3}>
         {errorMesa && (
           <View style={s.bannerError}>
             <Text style={s.bannerErrorTexto}>{errorMesa}</Text>
@@ -511,7 +501,7 @@ function PasoMesa({
           <Text style={s.bannerOkTexto}>✓ Mesa guardada</Text>
         )}
         <TouchableOpacity
-          style={[s.botonGuardarMesa, guardandoMesa && { opacity: 0.6 }]}
+          style={[s.botonGuardarMesa, guardandoMesa && s.botonOff]}
           onPress={onGuardar}
           disabled={guardandoMesa}
           activeOpacity={0.85}
@@ -562,7 +552,6 @@ function PasoResultado({
   onGuardar: () => Promise<void>
   onVolver: () => void
 }) {
-  const { colors: tc } = useTheme()
   return (
     <View>
       <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
@@ -571,41 +560,41 @@ function PasoResultado({
 
       <View style={s.bloque}>
         <View style={s.resultadoRow}>
-          <View style={{ flex: 1, gap: 8 }}>
+          <View style={s.resultadoCol}>
             <Text style={s.seccionLabel}>NOSOTROS</Text>
             <TextInput
-              style={[s.inputNumero, { color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
+              style={s.inputNumero}
               value={puntosPropios}
               onChangeText={onChangePropios}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor="#C5BEA8"
+              placeholderTextColor={MUTED}
               maxLength={3}
             />
           </View>
           <Text style={s.vsTexto}>vs</Text>
-          <View style={{ flex: 1, gap: 8 }}>
-            <Text style={[s.seccionLabel, { textAlign: 'right' }]}>RIVAL</Text>
+          <View style={s.resultadoColRight}>
+            <Text style={s.seccionLabelRight}>RIVAL</Text>
             <TextInput
-              style={[s.inputNumero, { textAlign: 'right', color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
+              style={[s.inputNumero, s.inputNumeroRight]}
               value={puntosRival}
               onChangeText={onChangeRival}
               keyboardType="number-pad"
               placeholder="0"
-              placeholderTextColor="#C5BEA8"
+              placeholderTextColor={MUTED}
               maxLength={3}
             />
           </View>
         </View>
 
-        <View style={{ gap: 8, marginTop: 16 }}>
+        <View style={s.rivalRow}>
           <Text style={s.seccionLabel}>NOMBRE DEL RIVAL</Text>
           <TextInput
-            style={[s.inputTexto, { color: tc.tinta, backgroundColor: tc.fondo, borderColor: tc.tinta }]}
+            style={s.inputTexto}
             value={rivalNombre}
             onChangeText={onChangeRivalNombre}
             placeholder="Nombre del rival"
-            placeholderTextColor="#A89E8C"
+            placeholderTextColor={MUTED}
           />
         </View>
 
@@ -619,7 +608,7 @@ function PasoResultado({
         )}
 
         <TouchableOpacity
-          style={[s.botonPrimario, { marginTop: 8 }, guardandoResultado && { opacity: 0.6 }]}
+          style={[s.botonPrimarioMt, guardandoResultado && s.botonOff]}
           onPress={onGuardar}
           disabled={guardandoResultado}
           activeOpacity={0.85}
@@ -652,7 +641,6 @@ export default function PartidoScreen() {
     guardandoResultado, resultadoGuardado, errorResultado, guardarResultado,
   } = usePartido()
 
-  const { colors: tc } = useTheme()
   const pasoTitulo: Record<typeof paso, string> = {
     equipo:     'Equipo · Partido',
     asistencia: equipoSeleccionado ? `Asistencia · ${equipoSeleccionado.nombre}` : 'Asistencia',
@@ -662,7 +650,7 @@ export default function PartidoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -670,7 +658,7 @@ export default function PartidoScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={[s.centrado, { backgroundColor: tc.fondo }]}>
+      <SafeAreaView style={s.centrado}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -680,18 +668,15 @@ export default function PartidoScreen() {
   const jugadoresPresentes = jugadores.filter(j => j.presente)
 
   return (
-    <SafeAreaView style={[s.root, { backgroundColor: tc.fondo }]}>
-
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+    <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <Text style={s.bloque}>SECCIÓN · CANCHA</Text>
-        <Text style={[s.titulo, { color: tc.tinta }]}>{pasoTitulo[paso]}</Text>
+        <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
+        <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
         <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
       </View>
-      <View style={[s.divider, { backgroundColor: tc.grisClaro }]} />
+      <View style={s.divider} />
 
-      {/* ── Contenido por paso ─────────────────────────────────────────────── */}
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={s.scrollContent}>
         {paso === 'equipo' && (
           <PasoEquipo
             partidos={partidos}
@@ -757,224 +742,153 @@ export default function PartidoScreen() {
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: colors.papel },
-  centrado:{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.papel, gap: 8 },
-  mutedTexto: { fontFamily: fonts.titulo, fontSize: 16, color: '#9A9080', textAlign: 'center' },
+  root:        { flex: 1, backgroundColor: FONDO },
+  centrado:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
+  mutedTexto:  { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, textAlign: 'center' },
+  scrollContent: { paddingBottom: 40 },
 
   // Header
-  header: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
-  seccion: {
-    fontFamily: fonts.label,
-    fontSize: 9,
-    letterSpacing: 3,
-    color: colors.oro,
-    marginBottom: 6,
-  },
-  titulo: {
-    fontFamily: fonts.titulo,
-    fontSize: 26,
-    color: colors.tinta,
-    lineHeight: 32,
-  },
-  headerMeta: {
-    fontFamily: fonts.label,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: '#7A7060',
-    marginTop: 4,
-  },
-  divider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20 },
+  header:    { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+  seccion:   { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro, marginBottom: 6 },
+  titulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, lineHeight: 32 },
+  headerMeta:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: MUTED, marginTop: 4 },
+  divider:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
+  separator: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
-  // Sections inside steps
-  bloque: { paddingHorizontal: 20, marginTop: 16, gap: 10 },
-  seccionLabel: {
-    fontFamily: fonts.label,
-    fontSize: 9,
-    letterSpacing: 3,
-    color: colors.oro,
+  // Sections
+  bloque:      { paddingHorizontal: 20, marginTop: 16, gap: 10 },
+  bloqueMt:    { paddingHorizontal: 20, marginTop: 8, gap: 10 },
+  bloqueMt2:   { paddingHorizontal: 20, marginTop: 16, gap: 10 },
+  bloqueMt3:   { paddingHorizontal: 20, marginTop: 20, gap: 10 },
+  pasoWrap:    { paddingBottom: 16 },
+  gap8:        { gap: 8 },
+  emptyGap:    { gap: 4 },
+
+  seccionLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro },
+  seccionLabelMx: {
+    fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro,
+    marginHorizontal: 20, marginTop: 20, marginBottom: 8,
   },
-  seccionDivider: { height: 1, backgroundColor: '#D4CCBA', marginHorizontal: 20, marginVertical: 16 },
+  seccionDivider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20, marginVertical: 16 },
 
   // Cards (paso 1)
-  card: {
-    borderWidth: 1,
-    borderColor: colors.tinta,
-    borderRadius: 2,
-    padding: 14,
-    backgroundColor: colors.papel,
-  },
-  cardActivo: { borderColor: colors.oro, borderWidth: 2 },
-  cardRow:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardInfo:   { flex: 1 },
-  cardTitle:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
-  cardSub:    { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#7A7060', marginTop: 3 },
-  checkOro:   { fontFamily: fonts.label, fontSize: 14, color: colors.oro },
+  card:            { borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, padding: 14, backgroundColor: CARD },
+  cardActivo:      { borderColor: colors.oro, borderWidth: 2 },
+  cardRow:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  cardInfo:        { flex: 1 },
+  cardTitle:       { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
+  cardTitleActivo: { color: colors.oro },
+  cardTitleFlex:   { flex: 1 },
+  cardSub:         { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: MUTED, marginTop: 3 },
+  checkOro:        { fontFamily: fonts.label, fontSize: 14, color: colors.oro },
+  checkOroMl:      { marginLeft: 8 },
 
-  emptyTexto:    { fontFamily: fonts.titulo, fontSize: 14, color: '#9A9080', fontStyle: 'italic' },
-  emptySubtexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#9A9080', marginTop: 4 },
+  emptyTexto:    { fontFamily: fonts.titulo, fontSize: 14, color: MUTED, fontStyle: 'italic' },
+  emptyTextoMx:  { fontFamily: fonts.titulo, fontSize: 14, color: MUTED, fontStyle: 'italic', marginHorizontal: 20, marginTop: 16 },
+  emptySubtexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: MUTED, marginTop: 4 },
 
   // Equipo badges
-  equipoBadge: { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  equipoBadgeOblig: { backgroundColor: colors.tinta },
-  equipoBadgeOpc:   { borderWidth: 1, borderColor: colors.oro, backgroundColor: 'transparent' },
-  equipoBadgeTexto: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  equipoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
+  equipoBadgeOblig:     { backgroundColor: TEXTO },
+  equipoBadgeOpc:       { borderWidth: 1, borderColor: colors.oro, backgroundColor: 'transparent' },
+  equipoBadgeTexto:     { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  equipoBadgeTextoOblig:{ color: FONDO },
+  equipoBadgeTextoOpc:  { color: colors.oroHondo },
 
   // Fila asistencia
-  fila:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
-  numero:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#A89E8C', width: 28 },
-  nombre:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta, flex: 1, marginRight: 10 },
-  separator: { height: 1, backgroundColor: '#E0D9C8', marginHorizontal: 20 },
+  fila:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
+  numero:     { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED, width: 28 },
+  nombre:     { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, flex: 1, marginRight: 10 },
+  mesaPadding:{ paddingHorizontal: 20 },
 
   // Badges asistencia
-  badgesRow:   { flexDirection: 'row', gap: 5 },
-  badge:       { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 2, borderWidth: 1 },
-  badgeInactivo: { borderColor: '#C5BEA8', backgroundColor: 'transparent' },
-  badgePres:   { backgroundColor: VERDE, borderColor: VERDE },
-  badgeAus:    { backgroundColor: ROJO, borderColor: ROJO },
-  badgeTexto:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  badgesRow:          { flexDirection: 'row', gap: 5 },
+  badge:              { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 2, borderWidth: 1 },
+  badgeInactivo:      { borderColor: DIVIDER, backgroundColor: 'transparent' },
+  badgePres:          { backgroundColor: VERDE, borderColor: VERDE },
+  badgeAus:           { backgroundColor: ROJO, borderColor: ROJO },
+  badgeTexto:         { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  badgeTextoPres:     { color: '#fff' },
+  badgeTextoAus:      { color: '#fff' },
+  badgeTextoInactivo: { color: MUTED },
 
   // Contadores (asistencia)
-  contadores:   { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
-  contadorBox:  { flex: 1, borderWidth: 1.5, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
-  contadorNum:  { fontFamily: fonts.titulo, fontSize: 28, lineHeight: 34 },
-  contadorLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: '#8A8070', marginTop: 2 },
+  contadores:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+  contadorBox:      { flex: 1, borderWidth: 1.5, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
+  contadorBoxVerde: { borderColor: VERDE },
+  contadorBoxRojo:  { borderColor: ROJO },
+  contadorNum:      { fontFamily: fonts.titulo, fontSize: 28, lineHeight: 34 },
+  contadorNumVerde: { color: VERDE },
+  contadorNumRojo:  { color: ROJO },
+  contadorLabel:    { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Conteo mesa
-  conteoRow:  { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
-  conteoBox:  { flex: 1, borderWidth: 1.5, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
-  conteoNum:  { fontFamily: fonts.titulo, fontSize: 24, lineHeight: 30 },
-  conteoLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: '#8A8070', marginTop: 2 },
+  conteoRow:    { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
+  conteoBox:    { flex: 1, borderWidth: 1.5, borderColor: colors.oro, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
+  conteoNum:    { fontFamily: fonts.titulo, fontSize: 24, lineHeight: 30 },
+  conteoNumOro: { color: colors.oro },
+  conteoNumRojo:{ color: ROJO },
+  conteoLabel:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Fila mesa — asignada (dark)
   mesaCardDark: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.tinta,
-    borderRadius: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: TEXTO, borderRadius: 2,
+    paddingHorizontal: 14, paddingVertical: 14,
   },
-  mesaNombreDark: {
-    flex: 1,
-    fontFamily: fonts.cuerpo,
-    fontSize: 15,
-    color: colors.oro,
-  },
-  mesaQuitarTexto: {
-    fontFamily: fonts.label,
-    fontSize: 14,
-    color: colors.oroHondo,
-  },
+  mesaNombreDark: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.oro },
+  mesaQuitarTexto:{ fontFamily: fonts.label, fontSize: 14, color: colors.oroHondo },
 
-  // Fila mesa — disponible (light)
+  // Fila mesa — disponible
   mesaCardLight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.papel,
-    borderWidth: 1,
-    borderColor: '#C5BEA8',
-    borderRadius: 2,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
+    borderRadius: 2, paddingHorizontal: 14, paddingVertical: 12,
   },
-  mesaNombreLight: {
-    flex: 1,
-    fontFamily: fonts.cuerpo,
-    fontSize: 15,
-    color: colors.tinta,
-    marginRight: 10,
-  },
-  mesaBotones:   { flexDirection: 'row', gap: 6 },
-  mesaRolBtn:    {
-    width: 34,
-    height: 34,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: colors.tinta,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  mesaRolBtnOff: { borderColor: '#C5BEA8', opacity: 0.4 },
-  mesaRolBtnTxt: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.tinta },
+  mesaNombreLight: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, marginRight: 10 },
+  mesaBotones:     { flexDirection: 'row', gap: 6 },
+  mesaRolBtn:      { width: 34, height: 34, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
+  mesaRolBtnOff:   { borderColor: DIVIDER, opacity: 0.4 },
+  mesaRolBtnTxt:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: TEXTO },
+  mesaRolBtnTxtOff:{ color: MUTED },
 
   // Botones
-  botonPrimario: {
-    backgroundColor: colors.tinta,
-    paddingVertical: 16,
-    borderRadius: 2,
-    alignItems: 'center',
-  },
-  botonPrimarioTexto: {
-    fontFamily: fonts.label,
-    fontSize: 11,
-    letterSpacing: 2.5,
-    color: colors.oro,
-  },
-  botonGuardarMesa: {
-    backgroundColor: colors.tinta,
-    paddingVertical: 18,
-    borderRadius: 2,
-    alignItems: 'center',
-  },
-  botonSecundario: {
-    borderWidth: 1,
-    borderColor: colors.oro,
-    paddingVertical: 14,
-    borderRadius: 2,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  botonSecundarioTexto: {
-    fontFamily: fonts.label,
-    fontSize: 11,
-    letterSpacing: 2,
-    color: colors.oro,
-  },
+  botonPrimario:      { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center' },
+  botonPrimarioMt:    { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center', marginTop: 8 },
+  botonPrimarioTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5, color: colors.oro },
+  botonGuardarMesa:   { backgroundColor: TEXTO, paddingVertical: 18, borderRadius: 2, alignItems: 'center' },
+  botonSecundario:    { borderWidth: 1, borderColor: colors.oro, paddingVertical: 14, borderRadius: 2, alignItems: 'center', marginTop: 8 },
+  botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.oro },
+  botonOff:           { opacity: 0.4 },
 
-  volverBtn:   { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
-  volverTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
+  volverBtn:  { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  volverTexto:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
 
   // Banners
-  bannerError: {
-    borderLeftWidth: 3,
-    borderLeftColor: ROJO,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 2,
-    padding: 12,
-    marginBottom: 8,
-  },
-  bannerErrorTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#991B1B' },
+  bannerError:      { borderLeftWidth: 3, borderLeftColor: ROJO, backgroundColor: '#2A1010', borderRadius: 2, padding: 12, marginBottom: 8 },
+  bannerErrorTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#FFAAAA' },
   bannerOkTexto:    { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: VERDE, marginBottom: 8 },
 
   // Resultado
-  resultadoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  resultadoRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  resultadoCol:   { flex: 1, gap: 8 },
+  resultadoColRight: { flex: 1, gap: 8 },
+  rivalRow:       { gap: 8, marginTop: 16 },
+  seccionLabelRight: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro, textAlign: 'right' },
   vsTexto: {
-    fontFamily: fonts.titulo,
-    fontSize: 24,
-    color: '#9A9080',
-    alignSelf: 'flex-end',
-    paddingBottom: 12,
+    fontFamily: fonts.titulo, fontSize: 24, color: MUTED,
+    alignSelf: 'flex-end', paddingBottom: 12,
   },
   inputNumero: {
-    borderWidth: 1.5,
-    borderColor: colors.tinta,
-    borderRadius: 2,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    fontFamily: fonts.titulo,
-    fontSize: 40,
-    color: colors.tinta,
-    textAlign: 'center',
-    backgroundColor: colors.papel,
+    borderWidth: 1.5, borderColor: TEXTO, borderRadius: 2,
+    paddingVertical: 14, paddingHorizontal: 8,
+    fontFamily: fonts.titulo, fontSize: 40, color: TEXTO,
+    textAlign: 'center', backgroundColor: CARD,
   },
+  inputNumeroRight: { textAlign: 'right' },
   inputTexto: {
-    borderWidth: 1.5,
-    borderColor: colors.tinta,
-    borderRadius: 2,
-    padding: 14,
-    fontFamily: fonts.cuerpo,
-    fontSize: 15,
-    color: colors.tinta,
-    backgroundColor: colors.papel,
+    borderWidth: 1.5, borderColor: TEXTO, borderRadius: 2,
+    padding: 14, fontFamily: fonts.cuerpo, fontSize: 15,
+    color: TEXTO, backgroundColor: CARD,
   },
 })

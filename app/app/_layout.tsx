@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
-import { Linking } from 'react-native'
-import { Slot, useRouter, useRootNavigationState } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Linking, StyleSheet, View } from 'react-native'
+import { Slot, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import {
   useFonts,
@@ -18,9 +18,7 @@ import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
-import { View } from 'react-native'
 import { ThemeProvider } from '@/contexts/ThemeContext'
-import { StripeBackground } from '@/components/shared/StripeBackground'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -47,12 +45,16 @@ export default function RootLayout() {
     JetBrainsMono_400Regular,
   })
 
+  // Flag simple de mounted — evita suscribirse a useRootNavigationState()
+  // que usa useNavigation() internamente y genera re-renders en loop con RN v7
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync()
   }, [fontsLoaded])
 
-  const router   = useRouter()
-  const navState = useRootNavigationState()
+  const router = useRouter()
   const {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
     setSession, setRol, clearAuth, setPasswordRecovery, setNuevoUsuario,
@@ -61,7 +63,6 @@ export default function RootLayout() {
   // Parsear deep links de recovery/invite
   useEffect(() => {
     async function handleUrl(url: string) {
-      // PKCE flow: ?code=...
       const codeMatch = url.match(/[?&]code=([^&#]+)/)
       if (codeMatch) {
         const queryType = url.match(/[?&]type=([^&#]+)/)?.[1]
@@ -71,7 +72,6 @@ export default function RootLayout() {
         await supabase.auth.exchangeCodeForSession(decodeURIComponent(codeMatch[1]))
         return
       }
-      // Implicit flow: #access_token=...
       const fragment = url.split('#')[1]
       if (!fragment) return
       const params       = new URLSearchParams(fragment)
@@ -115,9 +115,9 @@ export default function RootLayout() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Guard de navegación
+  // Guard de navegación — espera a que el layout esté montado y auth resuelto
   useEffect(() => {
-    if (!navState?.key || loading) return
+    if (!mounted || loading) return
     if (isNuevoUsuario && session) {
       router.replace('/(auth)/registro')
       return
@@ -131,16 +131,20 @@ export default function RootLayout() {
     } else if (rol) {
       router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
-  }, [navState?.key, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario])
+  }, [mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario])
 
-  if (!fontsLoaded) return null
-
+  // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que
+  // fontsLoaded=true. Retornar null aquí desmontaría la navegación y causaría
+  // re-suscripciones en loop en React Navigation v7 + New Architecture.
   return (
     <ThemeProvider>
-      <View style={{ flex: 1, backgroundColor: '#15110A' }}>
-        <StripeBackground />
+      <View style={s.root}>
         <Slot />
       </View>
     </ThemeProvider>
   )
 }
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#15110A' },
+})

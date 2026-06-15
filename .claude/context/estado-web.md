@@ -4,7 +4,7 @@
 
 - Carpeta: `web/` en la raíz del repo
 - Stack: Next.js 16.2.6 + TypeScript + Tailwind v4 + `@supabase/supabase-js`
-- `web/.env.local` apunta actualmente a Supabase **local** — cambiar a cloud si es necesario (ver `stack.md`)
+- `web/.env.local` apunta a Supabase **cloud** (`tlexvbattnzpmdftjsao`)
 - Deploy pendiente en Vercel ⏳
 
 ```bash
@@ -12,22 +12,50 @@ cd web
 npm run dev   # http://localhost:3000
 ```
 
-## Páginas implementadas
+## Estructura de paneles
+
+Dos route groups en `web/app/`, cada uno con su propio layout + sidebar + guard de rol:
+
+| Route group | Roles | Sidebar |
+|---|---|---|
+| `(subcomision)/` | `subcomision`, `admin` | `Sidebar.tsx` — TABLERO, USUARIOS, DIVISIONES, INFORMES |
+| `(secretaria)/` | `secretaria`, `admin` | `SidebarSecretaria.tsx` — SOCIOS, NOTICIAS, SERVICIOS |
+
+Login (`/login`) es compartido — redirige a `/secretaria/socios` o `/dashboard` según rol.
+
+## Páginas implementadas — Subcomisión
 
 | Ruta | Descripción |
 |---|---|
 | `/` | Redirect a `/dashboard` |
-| `/login` | Formulario con identidad La Bitácora, auth Supabase, guard por rol |
+| `/login` | Formulario auth Supabase, guard por rol, redirección inteligente |
 | `/dashboard` | 4 stat cards: asistencia global, fichados, lesiones activas, cobranzas |
 | `/usuarios` | Lista profiles, expande detalle, edita rol y divisiones, desactiva/reactiva via Edge Function |
 | `/divisiones` | Lista activas/inactivas, toggle activo, crear nueva división (con campo `categoria`) |
-| `/informes` | 4 tabs: Asistencia (% per-jugador, badge 4 ausencias), Resultados (W/L/D), Fichajes (count+últimos 20), Financiero (por evento, formas de pago) — selector de división arriba |
+| `/informes` | 4 tabs: Asistencia, Resultados, Fichajes, Financiero — selector de división arriba |
+
+## Páginas implementadas — Secretaría
+
+| Ruta | Descripción |
+|---|---|
+| `/secretaria/socios` | Tabla con búsqueda + filtro por estado, detalle completo, alta via `admin-socios`, pago manual, asociar/quitar/cobrar tarjeta, servicios opcionales, validar foto, desactivar/reactivar |
+| `/secretaria/noticias` | Lista con filtro por deporte, publicar/despublicar, eliminar, modal nueva noticia (se guarda como borrador) |
+| `/secretaria/servicios` | Tabla CRUD completa: crear, editar nombre/descripción/monto, toggle activo/inactivo, eliminar |
+
+### Notas de implementación — Secretaría
+
+- Las páginas están en `(secretaria)/secretaria/{socios,noticias,servicios}/page.tsx` — el segmento `secretaria/` es necesario para que las rutas resuelvan a `/secretaria/*` (el route group `(secretaria)` no agrega segmento de URL).
+- `socios/page.tsx` llama a `admin-socios` y `socios-pagos` directamente desde el browser via fetch con el JWT de sesión.
+- El join de `socios` con `profiles` usa la FK explícita: `profiles!socios_profile_id_fkey(nombre)`.
+- El join de `noticias` con `profiles` usa: `profiles!noticias_autor_id_fkey(nombre)`.
 
 ## Arquitectura
 
 - `web/lib/supabase.ts` — cliente browser (`NEXT_PUBLIC_*` vars)
-- `web/app/(protected)/layout.tsx` — auth guard client-side: verifica sesión + rol (`subcomision`/`admin`), redirige a `/login`
-- `web/components/Sidebar.tsx` — navegación lateral oscura con acento dorado (TABLERO, USUARIOS, DIVISIONES, INFORMES)
+- `web/app/(subcomision)/layout.tsx` — guard: `subcomision`/`admin`
+- `web/app/(secretaria)/layout.tsx` — guard: `secretaria`/`admin`
+- `web/components/Sidebar.tsx` — sidebar subcomisión
+- `web/components/SidebarSecretaria.tsx` — sidebar secretaría
 
 ## Notas de framework
 

@@ -16,12 +16,12 @@ export interface ThemeColors {
 }
 
 const THEME: ThemeColors = {
-  fondo:       'transparent',
+  fondo:       '#15110A',
   texto:       '#F3EFE4',
   acento:      '#F5B41C',
   card:        '#1C1710',
   tinta:       '#F3EFE4',
-  papel:       'transparent',
+  papel:       '#15110A',
   oro:         '#F5B41C',
   oroHondo:    '#C9890A',
   blanco:      '#FFFFFF',
@@ -40,9 +40,11 @@ const ThemeContext = createContext<ThemeContextValue>({
   isDark: true,
 })
 
+const THEME_VALUE = { colors: THEME, isDark: true } as const
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeContext.Provider value={{ colors: THEME, isDark: true }}>
+    <ThemeContext.Provider value={THEME_VALUE}>
       {children}
     </ThemeContext.Provider>
   )
