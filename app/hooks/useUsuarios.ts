@@ -55,6 +55,7 @@ export function useUsuarios() {
 
   // Modal nuevo usuario
   const [modalVisible, setModalVisible]                 = useState(false)
+  const [modoModal, setModoModal]                       = useState<'crear' | 'asignar'>('crear')
   const [nombre, setNombre]                             = useState('')
   const [email, setEmail]                               = useState('')
   const [dni, setDni]                                   = useState('')
@@ -63,6 +64,17 @@ export function useUsuarios() {
   const [creando, setCreando]                           = useState(false)
   const [creadoOk, setCreadoOk]                         = useState(false)
   const [errorForm, setErrorForm]                       = useState<string | null>(null)
+
+  // Assign-role flow
+  const [dniAsignacion, setDniAsignacion]               = useState('')
+  const [buscandoSocio, setBuscandoSocio]               = useState(false)
+  const [socioEncontrado, setSocioEncontrado]           = useState<{ id: string; nombre: string; email?: string } | null>(null)
+  const [errorBusqueda, setErrorBusqueda]               = useState<string | null>(null)
+  const [rolAsignacion, setRolAsignacion]               = useState<RolCreable | null>(null)
+  const [divisionesAsignacion, setDivisionesAsignacion] = useState<string[]>([])
+  const [asignando, setAsignando]                       = useState(false)
+  const [asignadoOk, setAsignadoOk]                     = useState(false)
+  const [errorAsignacion, setErrorAsignacion]           = useState<string | null>(null)
 
   useEffect(() => {
     fetchTodo()
@@ -131,6 +143,7 @@ export function useUsuarios() {
   // ─── Modal ───────────────────────────────────────────────────────────────
 
   function abrirModal() {
+    setModoModal('crear')
     setNombre('')
     setEmail('')
     setDni('')
@@ -138,6 +151,14 @@ export function useUsuarios() {
     setDivisionesSeleccionadas([])
     setErrorForm(null)
     setCreadoOk(false)
+    setDniAsignacion('')
+    setSocioEncontrado(null)
+    setErrorBusqueda(null)
+    setRolAsignacion(null)
+    setDivisionesAsignacion([])
+    setAsignando(false)
+    setAsignadoOk(false)
+    setErrorAsignacion(null)
     setModalVisible(true)
   }
 
@@ -145,12 +166,73 @@ export function useUsuarios() {
     setModalVisible(false)
     setCreadoOk(false)
     setErrorForm(null)
+    setAsignadoOk(false)
+    setErrorAsignacion(null)
   }
 
   function toggleDivision(divId: string) {
     setDivisionesSeleccionadas(prev =>
       prev.includes(divId) ? prev.filter(id => id !== divId) : [...prev, divId],
     )
+  }
+
+  function toggleDivisionAsignacion(divId: string) {
+    setDivisionesAsignacion(prev =>
+      prev.includes(divId) ? prev.filter(id => id !== divId) : [...prev, divId],
+    )
+  }
+
+  // ─── Buscar socio por DNI ────────────────────────────────────────────────────
+
+  async function buscarSocioPorDni() {
+    const dniTrim = dniAsignacion.trim()
+    if (!dniTrim) { setErrorBusqueda('Ingresá el DNI.'); return }
+    setBuscandoSocio(true)
+    setErrorBusqueda(null)
+    setSocioEncontrado(null)
+
+    const { data, error } = await supabase
+      .from('socios')
+      .select('id, nombre, email')
+      .eq('dni', dniTrim)
+      .maybeSingle()
+
+    if (error) {
+      setErrorBusqueda('Error al buscar el socio.')
+    } else if (!data) {
+      setErrorBusqueda('No se encontró ningún socio con ese DNI.')
+    } else {
+      setSocioEncontrado(data as { id: string; nombre: string; email?: string })
+    }
+    setBuscandoSocio(false)
+  }
+
+  // ─── Asignar rol de staff ─────────────────────────────────────────────────
+
+  async function asignarRol() {
+    if (!socioEncontrado) { setErrorAsignacion('Buscá el socio primero.'); return }
+    if (!rolAsignacion)   { setErrorAsignacion('Seleccioná un rol.'); return }
+    setAsignando(true)
+    setErrorAsignacion(null)
+
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+      body: {
+        action:     'assign-role',
+        socioId:    socioEncontrado.id,
+        nuevoRol:   rolAsignacion,
+        divisiones: divisionesAsignacion,
+      },
+    })
+
+    if (error || data?.error) {
+      setErrorAsignacion(data?.error ?? error?.message ?? 'Error al asignar el rol.')
+      setAsignando(false)
+      return
+    }
+
+    await fetchUsuarios()
+    setAsignadoOk(true)
+    setAsignando(false)
   }
 
   // ─── Crear usuario ────────────────────────────────────────────────────────
@@ -295,6 +377,7 @@ export function useUsuarios() {
     modalVisible,
     abrirModal,
     cerrarModal,
+    modoModal,          setModoModal,
     nombre,             setNombre,
     email,              setEmail,
     dni,                setDni,
@@ -305,5 +388,18 @@ export function useUsuarios() {
     creadoOk,
     errorForm,
     crearUsuario,
+    // Assign-role
+    dniAsignacion,      setDniAsignacion,
+    buscandoSocio,
+    socioEncontrado,
+    errorBusqueda,
+    buscarSocioPorDni,
+    rolAsignacion,      setRolAsignacion,
+    divisionesAsignacion,
+    toggleDivisionAsignacion,
+    asignando,
+    asignadoOk,
+    errorAsignacion,
+    asignarRol,
   }
 }

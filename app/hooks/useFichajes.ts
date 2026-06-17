@@ -229,6 +229,16 @@ export function useFichajes() {
       return
     }
 
+    // Vincular con socio si existe el mismo DNI
+    const { data: socio } = await supabase
+      .from('socios')
+      .select('id')
+      .eq('dni', dniTrim)
+      .maybeSingle()
+    if (socio) {
+      await supabase.from('jugadores').update({ socio_id: socio.id }).eq('id', jugData.id)
+    }
+
     const { error: fichErr } = await supabase
       .from('fichajes')
       .insert({ jugador_id: jugData.id, registrado_por: session.user.id })

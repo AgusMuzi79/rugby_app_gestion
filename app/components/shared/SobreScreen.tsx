@@ -3,10 +3,14 @@ import {
   ActivityIndicator, StyleSheet, TextInput, Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useTheme } from '@/contexts/ThemeContext'
 import { fonts } from '@/constants/theme'
+import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/lib/supabase'
+import { ROL_LABELS, ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
 
 const GOLD      = '#F5B41C'
 const GOLD_DEEP = '#C9890A'
@@ -15,6 +19,7 @@ const VERDE     = '#22C55E'
 
 export function SobreScreen() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const {
     perfil, loading,
     nombre, setNombre, guardandoNombre, nombreGuardado, guardarNombre,
@@ -23,6 +28,14 @@ export function SobreScreen() {
   } = useSobre()
   const { signOut }              = useSignOut()
   const { colors } = useTheme()
+  const { rol, roles, setRolActivo } = useAuthStore()
+
+  async function cambiarRol(nuevoRol: Rol) {
+    if (nuevoRol === rol) return
+    await supabase.from('profiles').update({ rol: nuevoRol }).eq('id', (await supabase.auth.getUser()).data.user!.id)
+    setRolActivo(nuevoRol)
+    router.replace(ROL_RUTA_INICIAL[nuevoRol] as any)
+  }
 
   if (loading) {
     return (
@@ -88,6 +101,31 @@ export function SobreScreen() {
             </Text>
           )}
         </View>
+
+        {/* ── Selector de rol (solo si hay más de un rol) ─────────── */}
+        {roles.length > 1 && (
+          <View style={s.section}>
+            <Text style={[s.sectionTitle, { color: GOLD }]}>VISTA ACTIVA</Text>
+            <View style={s.rolesRow}>
+              {roles.map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[
+                    s.rolBtn,
+                    { borderColor: r === rol ? GOLD : colors.grisClaro },
+                    r === rol && { backgroundColor: GOLD },
+                  ]}
+                  onPress={() => cambiarRol(r)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.rolBtnTexto, { color: r === rol ? '#0E0E0E' : colors.muted }]}>
+                    {ROL_LABELS[r].toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* ── Nombre ──────────────────────────────────────────────── */}
         <View style={s.section}>
@@ -195,6 +233,11 @@ const s = StyleSheet.create({
   // Cuenta
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },
   signOutTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3 },
+
+  // Selector de rol
+  rolesRow:    { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  rolBtn:      { borderWidth: 1.5, borderRadius: 2, paddingVertical: 10, paddingHorizontal: 16 },
+  rolBtnTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2 },
 
   // Footer
   version: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textAlign: 'center', marginTop: 40 },

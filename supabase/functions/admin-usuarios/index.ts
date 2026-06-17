@@ -42,6 +42,7 @@ Deno.serve(async (req: Request) => {
   const { action } = body
 
   if (action === 'create') return handleCreate(body, callerProfile.rol)
+  if (action === 'assign-role') return handleAssignRole(body, callerProfile.rol)
   if (action === 'deactivate') return handleDesactivar(body)
   if (action === 'reactivate') return handleReactivar(body)
   if (action === 'delete') return handleEliminar(body)
@@ -105,6 +106,97 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   EdgeRuntime.waitUntil(enviarEmailBienvenida(nombre, email))
 
   return jsonOk({ id: userId, email, nombre, rol })
+}
+
+// ─── Asignar rol de staff a socio existente ───────────────────────────────────
+
+async function handleAssignRole(body: Record<string, unknown>, callerRol: string): Promise<Response> {
+  const socioId    = body.socioId  as string | undefined
+  const nuevoRol   = body.nuevoRol as RolCreable | undefined
+  const divisiones = body.divisiones as string[] | undefined
+
+  if (!socioId) return jsonError(400, 'socioId es requerido')
+
+  const rolesPermitidos = ROLES_POR_CALLER[callerRol] ?? []
+  if (!nuevoRol || !rolesPermitidos.includes(nuevoRol)) {
+    return jsonError(403, `No tenés permiso para asignar el rol "${nuevoRol}"`)
+  }
+
+  const { data: socio, error: socioErr } = await supabaseAdmin
+    .from('socios')
+    .select('id, nombre, email, dni, profile_id')
+    .eq('id', socioId)
+    .single()
+
+  if (socioErr || !socio) return jsonError(404, 'Socio no encontrado')
+  if (!socio.email) return jsonError(400, 'El socio no tiene email registrado')
+  if (!socio.dni)   return jsonError(400, 'El socio no tiene DNI registrado')
+
+  const divisionesVal = divisiones && divisiones.length > 0 ? divisiones : null
+
+  if (socio.profile_id) {
+    // Perfil existente — agregar rol al array
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('roles')
+      .eq('id', socio.profile_id)
+      .single()
+
+    const rolesActuales = (profile?.roles as string[]) ?? []
+    if (rolesActuales.includes(nuevoRol)) {
+      return jsonError(409, 'El socio ya tiene ese rol asignado')
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        roles:      [...rolesActuales, nuevoRol],
+        rol:        nuevoRol,
+        divisiones: divisionesVal,
+      })
+      .eq('id', socio.profile_id)
+
+    if (updateErr) return jsonError(500, 'Error al actualizar perfil: ' + updateErr.message)
+    return jsonOk({ ok: true, profileId: socio.profile_id, nombre: socio.nombre })
+  }
+
+  // Sin perfil — crear auth user con DNI como contraseña inicial
+  const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+    email:         socio.email,
+    password:      socio.dni,
+    email_confirm: true,
+    user_metadata: { nombre: socio.nombre },
+  })
+
+  if (createErr || !userData.user) {
+    const msg = createErr?.message ?? 'Error al crear el usuario'
+    if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exists')) {
+      return jsonError(409, 'Ya existe un usuario con ese email')
+    }
+    return jsonError(500, msg)
+  }
+
+  const userId = userData.user.id
+
+  const { error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .insert({
+      id:         userId,
+      nombre:     socio.nombre,
+      rol:        nuevoRol,
+      roles:      ['socio', nuevoRol],
+      divisiones: divisionesVal,
+    })
+
+  if (profileErr) {
+    await supabaseAdmin.auth.admin.deleteUser(userId)
+    return jsonError(500, 'Error al crear perfil: ' + profileErr.message)
+  }
+
+  await supabaseAdmin.from('socios').update({ profile_id: userId }).eq('id', socioId)
+
+  EdgeRuntime.waitUntil(enviarEmailBienvenida(socio.nombre, socio.email))
+  return jsonOk({ ok: true, profileId: userId, nombre: socio.nombre })
 }
 
 // ─── Email de bienvenida ──────────────────────────────────────────────────────

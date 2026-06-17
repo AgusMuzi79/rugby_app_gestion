@@ -67,6 +67,8 @@ rugby_app_gestion/
 
 **v2 — Módulo Socios:** funcionalidad mobile completa ✅ — panel web secretaría completo ✅
 
+**v3 — Multi-rol, Calendario y Comunicaciones:** completo ✅
+
 | Ítem | Estado |
 |---|---|
 | Pantallas Expo (secretaria, portería, socio) | ✅ |
@@ -105,10 +107,8 @@ rugby_app_gestion/
 | Fix QR carnet — color negro sobre blanco para máximo contraste y escaneo | ✅ |
 | EAS env vars `EXPO_PUBLIC_SUPABASE_URL` + `ANON_KEY` seteadas en environment `preview` | ✅ |
 | `supabase.ts` — reemplazado `!` por `?? ''` para evitar crash si faltan env vars | ✅ |
-| Portería: test carnet QR end-to-end | ⏳ pendiente (rebuild preview con todos los fixes) |
-| Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 | Limpiar duplicados `servicios_opcionales` (seed corrido 2 veces) | ✅ |
-| Deploy web en Vercel | ⏳ pendiente |
+| Deploy web en Vercel | ✅ https://web-chi-nine-26.vercel.app |
 | Web secretaría — foto socio: signed URL + display en detalle | ✅ |
 | Web secretaría — fix `socioId` → `socio_id` en todos los callEdgeFunction | ✅ |
 | Web secretaría — fix `formaPago` → `forma_pago` en pago manual | ✅ |
@@ -120,19 +120,43 @@ rugby_app_gestion/
 | `admin-usuarios` — roles creables por subco vs admin (secretaría/portería solo admin) | ✅ |
 | `admin-usuarios` — email de bienvenida genérico vía Resend (fire & forget) | ✅ |
 | `usuarios.tsx` — campo DNI, selector de roles por rol del caller, colores secretaria/portería | ✅ |
-| `CLUB_EMAIL_FROM` — email del club pendiente de confirmar | ⏳ pendiente |
+| `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets | ✅ |
+| Migration `20260616000000` — `profiles.roles[]`, `jugadores.socio_id`, `divisiones.deporte` | ✅ |
+| Migration `20260616000001` — `noticias.audiencia` + `division_id` + `generada_automaticamente` + RLS | ✅ |
+| Migration `20260616000002` — RLS socios leen `eventos` y `resultados` | ✅ |
+| `profiles.roles[]` — multi-rol: socio como base, staff agrega rol sobre la base socio | ✅ |
+| `authStore` — `roles[]` + `rolActivo` + `setRolActivo()` (UPDATE DB + navigate) | ✅ |
+| `sobre.tsx` (socio) — selector "VISTA ACTIVA" visible si `roles.length > 1` | ✅ |
+| `admin-usuarios` — acción `assign-role`: asigna rol a socio existente por DNI | ✅ |
+| `usuarios.tsx` — modal con tabs "Desde socio existente" / "Nuevo usuario" | ✅ |
+| `useFichajes` — link `jugadores.socio_id` al fichar si el DNI existe en socios | ✅ |
+| `divisiones.deporte` — selector rugby/hockey/tenis en web `/divisiones` | ✅ |
+| Cancelación con mensaje — coordinador marca cancelado + inserta noticia + push jugadores | ✅ |
+| `notifications` Edge Function — tipo `cancelacion_entrenamiento` + `getTokensJugadoresDivision` | ✅ |
+| `useCalendario` — `cancelarEvento()` con mensaje + modal en `calendario.tsx` | ✅ |
+| `useCalendarioSocio` — detecta si es jugador, lista partidos/resultados filtrables por deporte | ✅ |
+| `(socio)/calendario.tsx` — chips deporte, badge "MI EQUIPO", score coloreado | ✅ |
+| Tab calendario en `(socio)/_layout.tsx` | ✅ |
+| `noticias.audiencia` — selector `todos`/`cuerpo_tecnico` en subcomisión (push) y web secretaría | ✅ |
+| `useNotificaciones` — publica en `noticias` con `audiencia` al enviar push | ✅ |
+| RLS noticias por audiencia — socios solo ven `audiencia='todos'`, cuerpo técnico ve ambas | ✅ |
+| `database.types.ts` — regenerado (incluye todos los nuevos campos) | ✅ |
+| Portería: test carnet QR end-to-end | ⏳ pendiente (rebuild preview) |
+| Rebuild preview APK con v3 | ⏳ pendiente |
+| Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 
 **Notas de comportamiento actual:**
 - `validate-photo` corre sin Rekognition si `AWS_ACCESS_KEY_ID` no está seteado (valida manualmente directo en DB).
 - Migraciones v2 se aplicaron manualmente en cloud — historial reparado con `migration repair`.
 - `20260608` y `20260609000000` se aplicaron vía `supabase db query --linked`.
 - `20260610000000` aplicada en cloud vía `supabase db push`.
+- Migraciones v3 (`20260616000000`, `20260616000001`, `20260616000002`) aplicadas vía `supabase db push`.
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
 - `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes.
 - `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al pagar.
 - `push_tokens` usa DELETE + INSERT en lugar de upsert para evitar conflictos de RLS entre usuarios del mismo dispositivo.
 - Secretaría tiene panel web propio en `web/app/(secretaria)/` — separado de subcomisión.
-- Las páginas de secretaría están en `(secretaria)/secretaria/{socios,noticias,servicios}/page.tsx` — el segmento `secretaria/` es necesario para que las rutas resuelvan a `/secretaria/*` (el route group no agrega segmento de URL).
+- Las páginas de secretaría están en `(secretaria)/secretaria/{socios,noticias,servicios,categorias}/page.tsx` — el segmento `secretaria/` es necesario para que las rutas resuelvan a `/secretaria/*` (el route group no agrega segmento de URL).
 - Login web detecta el rol y redirige: `secretaria` → `/secretaria/socios`, resto → `/dashboard`.
 - `web/.env.local` apunta a Supabase cloud (`tlexvbattnzpmdftjsao`).
 - `useScrollToTop` de `@react-navigation/native` aplicado en todas las tabs principales — tocar el ícono activo scrollea al tope.
@@ -142,8 +166,12 @@ rugby_app_gestion/
 - **NativeWind eliminado del app móvil:** `nativewind` fue removido de `metro.config.js` (`withNativeWind`) y de `babel.config.js` (`jsxImportSource`). La app usa `StyleSheet.create` en todas partes — no hay ningún `className` en el código. NativeWind solo aplica al panel web (`web/`).
 - **React Navigation v7 + New Architecture — loop infinito:** nunca retornar `null` desde el root layout (`_layout.tsx`) ni usar `useRootNavigationState()`. Retornar `null` desmonta/remonta el árbol de navegación y `useRootNavigationState` usa `useNavigation()` internamente, ambos generan cascadas de `useSyncExternalStore` → `forceStoreRerender` en loop. Patrón correcto: siempre renderizar el árbol (el `SplashScreen.preventAutoHideAsync()` oculta la UI), y usar un flag `useState(false)` + `useEffect(() => setMounted(true), [])` en lugar de `navState?.key`.
 - **EAS env vars:** `.env.local` está en `.gitignore` — EAS no lo lee. Las variables `EXPO_PUBLIC_*` deben setearse con `eas env:create --environment preview`. Ya configuradas: `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en environment `preview`.
-- Panel web secretaría — rutas: `(secretaria)/secretaria/{socios,noticias,servicios,categorias}/page.tsx`.
 - `suppressHydrationWarning` en `<html>` del layout web — evita falso error por Dark Reader extension.
+- **Multi-rol:** `profiles.roles TEXT[]` contiene todos los roles disponibles del usuario; `profiles.rol` es el activo (usado por RLS `get_rol()`). Todo usuario staff es socio primero — `assign-role` agrega un rol sobre la base socio existente. El socio puede cambiar su vista activa desde "Mi Perfil" si tiene más de un rol.
+- **noticias.audiencia:** `'todos'` (socios + staff) o `'cuerpo_tecnico'` (solo coordinador/entrenador/manager). RLS aplica el filtro automáticamente — el hook `useNoticias` no necesita cambios.
+- **Calendario socio:** `useCalendarioSocio` detecta si el socio es jugador (por DNI → `jugadores.socio_id`) y filtra partidos/resultados con badge "MI EQUIPO". Filtrable por deporte (rugby/hockey/tenis).
+- **Cancelación de eventos:** coordinador marca `cancelado=true` + inserta noticia automática (audiencia='todos', `generada_automaticamente=true`) + push a jugadores de la división via `jugadores → socios → push_tokens`.
+- **`divisiones.deporte`:** campo en schema, seed ruby por default. Selector en web `/divisiones` al crear división.
 
 **Débito automático con tarjeta — diseño implementado:**
 - `associate-card`: secretaria o socio asocian tarjeta → tokeniza con CVV → guarda en MP customer → sin cobro al momento
@@ -157,15 +185,17 @@ rugby_app_gestion/
 - Socios del club: **1000+** personas (los ~60 usuarios son el cuerpo técnico/organizativo).
 - `useUsuarios` filtra `rol = 'socio'` — los socios no aparecen en la gestión de usuarios de subcomisión.
 - Creación de usuarios staff: nombre + email + DNI. Contraseña inicial = DNI. Sin invite email.
+- También se puede asignar rol a un socio existente (buscar por DNI en el modal "Desde socio existente").
 - Roles creables por subcomisión: coordinador, entrenador, manager, subcomisión. Secretaría y portería solo admin.
 - Email de bienvenida: se envía vía Resend al crear usuario. Si `RESEND_API_KEY` no está seteado, se omite sin fallar.
-- `CLUB_EMAIL_FROM` — pendiente de confirmar el email oficial del club.
+- `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets.
 
 **Próximo paso:**
-- Confirmar email del club → `supabase secrets set CLUB_EMAIL_FROM=...`
-- Rebuild preview APK (`eas build --profile preview --platform android`) — incluye todos los fixes
-- Deploy web en Vercel
+- Rebuild preview APK (`eas build --profile preview --platform android`) — incluye v3 (multi-rol, calendario socio, cancelación, audiencia noticias)
+- Test end-to-end portería carnet QR con nuevo build
 - Setear secrets de MercadoPago, Resend y AWS cuando estén disponibles
+
+**Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel.
 
 Pendiente cuando lleguen los secrets:
 ```bash

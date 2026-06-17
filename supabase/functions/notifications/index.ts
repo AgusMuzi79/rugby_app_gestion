@@ -3,7 +3,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/expo-push-notification-service/push/send'
 
-type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual' | 'noticia_publicada'
+type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual' | 'noticia_publicada' | 'cancelacion_entrenamiento'
 type TipoReferencia   = 'lesion' | 'fichaje' | 'asistencia'
 
 interface NotifPayload {
@@ -23,6 +23,13 @@ interface ManualPayload {
 interface NoticiaPayload {
   titulo:    string
   noticiaId: string
+}
+
+interface CancelacionPayload {
+  divisionId:     string
+  divisionNombre: string
+  mensaje:        string
+  fecha:          string
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -73,6 +80,12 @@ Deno.serve(async (req: Request) => {
           return jsonError(400, 'Payload noticia incompleto')
         }
         await notificarNoticiaPublicada(np)
+      } else if (type === 'cancelacion_entrenamiento') {
+        const cp = payload as CancelacionPayload
+        if (!cp?.divisionId || !cp?.mensaje) {
+          return jsonError(400, 'Payload cancelacion incompleto')
+        }
+        await notificarCancelacion(cp)
       } else {
         return jsonError(400, `Tipo desconocido: ${type}`)
       }
@@ -127,6 +140,16 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<void> {
   })
 }
 
+async function notificarCancelacion(p: CancelacionPayload): Promise<void> {
+  const titulo  = `Entrenamiento cancelado — ${p.divisionNombre}`
+  const mensaje = p.mensaje
+  const tokens  = await getTokensJugadoresDivision(p.divisionId)
+  await enviarExpoPush(tokens, titulo, mensaje, {
+    type:       'cancelacion_entrenamiento',
+    divisionId: p.divisionId,
+  })
+}
+
 async function notificarAusencias(p: NotifPayload): Promise<void> {
   const titulo  = `Ausencias — ${p.divisionNombre}`
   const mensaje = `${p.jugadorNombre} acumula 4 ausencias consecutivas.`
@@ -157,6 +180,36 @@ async function getDestinatariosRol(
     .in('usuario_id', ids)
 
   return { ids, tokens: (pushRows ?? []).map(r => r.token) }
+}
+
+async function getTokensJugadoresDivision(divisionId: string): Promise<string[]> {
+  // Jugadores activos en la división que tienen socio vinculado
+  const { data: jugadores } = await supabaseAdmin
+    .from('jugadores')
+    .select('socio_id')
+    .eq('division_id', divisionId)
+    .eq('activo', true)
+    .not('socio_id', 'is', null)
+
+  const socioIds = (jugadores ?? []).map(j => j.socio_id as string).filter(Boolean)
+  if (!socioIds.length) return []
+
+  // Profile ids de esos socios
+  const { data: socios } = await supabaseAdmin
+    .from('socios')
+    .select('profile_id')
+    .in('id', socioIds)
+    .not('profile_id', 'is', null)
+
+  const profileIds = (socios ?? []).map(s => s.profile_id as string).filter(Boolean)
+  if (!profileIds.length) return []
+
+  const { data: pushRows } = await supabaseAdmin
+    .from('push_tokens')
+    .select('token')
+    .in('usuario_id', profileIds)
+
+  return (pushRows ?? []).map(r => r.token)
 }
 
 async function getDestinatariosCoordinador(

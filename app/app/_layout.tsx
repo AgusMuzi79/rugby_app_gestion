@@ -57,7 +57,7 @@ export default function RootLayout() {
   const router = useRouter()
   const {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
-    setSession, setRol, clearAuth, setPasswordRecovery, setNuevoUsuario,
+    setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario,
   } = useAuthStore()
 
   // Parsear deep links de recovery/invite
@@ -102,11 +102,12 @@ export default function RootLayout() {
         if (newSession) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('rol')
+            .select('rol, roles')
             .eq('id', newSession.user.id)
             .single()
           setSession(newSession)
           setRol((profile?.rol as Rol) ?? null)
+          setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
         } else {
           clearAuth()
         }

@@ -278,105 +278,221 @@ const ROLES_CREABLES_ADMIN: { value: RolCreable; label: string }[] = [
 function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   const { rol } = useAuthStore()
   const rolesCreables = rol === 'admin' ? ROLES_CREABLES_ADMIN : ROLES_CREABLES_SUBCO
+  const titulo = hook.modoModal === 'crear' ? 'Nuevo usuario' : 'Asignar rol de staff'
 
   return (
     <Modal visible={hook.modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={hook.cerrarModal}>
       <KeyboardAvoidingView style={s.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.modalHeader}>
-          <Text style={s.modalTitulo}>Nuevo usuario</Text>
+          <Text style={s.modalTitulo}>{titulo}</Text>
           <TouchableOpacity onPress={hook.cerrarModal}>
             <Text style={s.modalCerrar}>✕</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Toggle de modo */}
+        <View style={s.modoToggle}>
+          <TouchableOpacity
+            style={[s.modoBtn, hook.modoModal === 'asignar' && s.modoBtnActivo]}
+            onPress={() => hook.setModoModal('asignar')}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.modoBtnTexto, hook.modoModal === 'asignar' && s.modoBtnTextoActivo]}>
+              Desde socio existente
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.modoBtn, hook.modoModal === 'crear' && s.modoBtnActivo]}
+            onPress={() => hook.setModoModal('crear')}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.modoBtnTexto, hook.modoModal === 'crear' && s.modoBtnTextoActivo]}>
+              Nuevo usuario
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         <ScrollView contentContainerStyle={s.modalBody} keyboardShouldPersistTaps="handled">
-          {hook.creadoOk ? (
-            <View style={s.bannerOk}>
-              <Text style={s.bannerTexto}>✓ Usuario creado. Puede ingresar con su email y DNI.</Text>
-            </View>
-          ) : (
-            <>
-              {/* Nombre */}
-              <Text style={s.inputLabel}>Nombre completo</Text>
-              <TextInput
-                style={s.input}
-                value={hook.nombre}
-                onChangeText={hook.setNombre}
-                placeholder="Ej: Juan Pérez"
-                placeholderTextColor={MUTED}
-                autoCapitalize="words"
-              />
-
-              {/* Email */}
-              <Text style={s.inputLabel}>Email</Text>
-              <TextInput
-                style={s.input}
-                value={hook.email}
-                onChangeText={hook.setEmail}
-                placeholder="correo@ejemplo.com"
-                placeholderTextColor={MUTED}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-
-              {/* DNI */}
-              <Text style={s.inputLabel}>DNI</Text>
-              <TextInput
-                style={s.input}
-                value={hook.dni}
-                onChangeText={hook.setDni}
-                placeholder="Ej: 12345678"
-                placeholderTextColor={MUTED}
-                keyboardType="numeric"
-              />
-
-              {/* Rol */}
-              <Text style={s.inputLabel}>Rol</Text>
-              <View style={s.rolSelector}>
-                {rolesCreables.map(r => (
-                  <TouchableOpacity
-                    key={r.value}
-                    style={[s.rolBtn, hook.rolSeleccionado === r.value && s.rolBtnActivo]}
-                    onPress={() => hook.setRolSeleccionado(r.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[s.rolBtnTexto, hook.rolSeleccionado === r.value && s.rolBtnTextoActivo]}>
-                      {r.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+          {hook.modoModal === 'asignar' ? (
+            /* ── Modo: asignar rol a socio ── */
+            hook.asignadoOk ? (
+              <View style={s.bannerOk}>
+                <Text style={s.bannerTexto}>
+                  ✓ Rol asignado a {hook.socioEncontrado?.nombre}. Ya puede ingresar con su email y DNI.
+                </Text>
               </View>
-
-              {/* Divisiones */}
-              <Text style={s.inputLabel}>Divisiones asignadas</Text>
-              <DivisionesMultiselect
-                divisiones={hook.divisiones}
-                seleccionadas={hook.divisionesSeleccionadas}
-                onToggle={hook.toggleDivision}
-              />
-
-              {/* Error */}
-              {hook.errorForm && (
-                <View style={s.bannerError}>
-                  <Text style={s.bannerTexto}>{hook.errorForm}</Text>
+            ) : (
+              <>
+                {/* DNI del socio */}
+                <Text style={s.inputLabel}>DNI del socio</Text>
+                <View style={s.buscarRow}>
+                  <TextInput
+                    style={[s.input, s.buscarInput]}
+                    value={hook.dniAsignacion}
+                    onChangeText={hook.setDniAsignacion}
+                    placeholder="Ej: 12345678"
+                    placeholderTextColor={MUTED}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity
+                    style={[s.buscarBtn, hook.buscandoSocio && s.botonDesactivado]}
+                    onPress={hook.buscarSocioPorDni}
+                    disabled={hook.buscandoSocio}
+                    activeOpacity={0.8}
+                  >
+                    {hook.buscandoSocio
+                      ? <ActivityIndicator color={colors.tinta} size="small" />
+                      : <Text style={s.buscarBtnTexto}>Buscar</Text>
+                    }
+                  </TouchableOpacity>
                 </View>
-              )}
 
-              {/* Botón crear */}
-              <TouchableOpacity
-                style={[s.botonPrimario, hook.creando && s.botonDesactivado]}
-                onPress={hook.crearUsuario}
-                disabled={hook.creando}
-                activeOpacity={0.8}
-              >
-                {hook.creando ? (
-                  <ActivityIndicator color={colors.tinta} />
-                ) : (
-                  <Text style={s.botonPrimarioTexto}>Crear usuario</Text>
+                {hook.errorBusqueda && (
+                  <View style={s.bannerError}>
+                    <Text style={s.bannerTexto}>{hook.errorBusqueda}</Text>
+                  </View>
                 )}
-              </TouchableOpacity>
-            </>
+
+                {hook.socioEncontrado && (
+                  <>
+                    <View style={s.bannerOk}>
+                      <Text style={s.bannerTexto}>✓ {hook.socioEncontrado.nombre}</Text>
+                    </View>
+
+                    {/* Rol */}
+                    <Text style={s.inputLabel}>Rol a asignar</Text>
+                    <View style={s.rolSelector}>
+                      {rolesCreables.map(r => (
+                        <TouchableOpacity
+                          key={r.value}
+                          style={[s.rolBtn, hook.rolAsignacion === r.value && s.rolBtnActivo]}
+                          onPress={() => hook.setRolAsignacion(r.value)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.rolBtnTexto, hook.rolAsignacion === r.value && s.rolBtnTextoActivo]}>
+                            {r.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Divisiones */}
+                    <Text style={s.inputLabel}>Divisiones asignadas</Text>
+                    <DivisionesMultiselect
+                      divisiones={hook.divisiones}
+                      seleccionadas={hook.divisionesAsignacion}
+                      onToggle={hook.toggleDivisionAsignacion}
+                    />
+
+                    {hook.errorAsignacion && (
+                      <View style={s.bannerError}>
+                        <Text style={s.bannerTexto}>{hook.errorAsignacion}</Text>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={[s.botonPrimario, hook.asignando && s.botonDesactivado]}
+                      onPress={hook.asignarRol}
+                      disabled={hook.asignando}
+                      activeOpacity={0.8}
+                    >
+                      {hook.asignando
+                        ? <ActivityIndicator color={colors.tinta} />
+                        : <Text style={s.botonPrimarioTexto}>Asignar rol de staff</Text>
+                      }
+                    </TouchableOpacity>
+                  </>
+                )}
+              </>
+            )
+          ) : (
+            /* ── Modo: crear nuevo usuario ── */
+            hook.creadoOk ? (
+              <View style={s.bannerOk}>
+                <Text style={s.bannerTexto}>✓ Usuario creado. Puede ingresar con su email y DNI.</Text>
+              </View>
+            ) : (
+              <>
+                {/* Nombre */}
+                <Text style={s.inputLabel}>Nombre completo</Text>
+                <TextInput
+                  style={s.input}
+                  value={hook.nombre}
+                  onChangeText={hook.setNombre}
+                  placeholder="Ej: Juan Pérez"
+                  placeholderTextColor={MUTED}
+                  autoCapitalize="words"
+                />
+
+                {/* Email */}
+                <Text style={s.inputLabel}>Email</Text>
+                <TextInput
+                  style={s.input}
+                  value={hook.email}
+                  onChangeText={hook.setEmail}
+                  placeholder="correo@ejemplo.com"
+                  placeholderTextColor={MUTED}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                {/* DNI */}
+                <Text style={s.inputLabel}>DNI</Text>
+                <TextInput
+                  style={s.input}
+                  value={hook.dni}
+                  onChangeText={hook.setDni}
+                  placeholder="Ej: 12345678"
+                  placeholderTextColor={MUTED}
+                  keyboardType="numeric"
+                />
+
+                {/* Rol */}
+                <Text style={s.inputLabel}>Rol</Text>
+                <View style={s.rolSelector}>
+                  {rolesCreables.map(r => (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={[s.rolBtn, hook.rolSeleccionado === r.value && s.rolBtnActivo]}
+                      onPress={() => hook.setRolSeleccionado(r.value)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.rolBtnTexto, hook.rolSeleccionado === r.value && s.rolBtnTextoActivo]}>
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Divisiones */}
+                <Text style={s.inputLabel}>Divisiones asignadas</Text>
+                <DivisionesMultiselect
+                  divisiones={hook.divisiones}
+                  seleccionadas={hook.divisionesSeleccionadas}
+                  onToggle={hook.toggleDivision}
+                />
+
+                {hook.errorForm && (
+                  <View style={s.bannerError}>
+                    <Text style={s.bannerTexto}>{hook.errorForm}</Text>
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={[s.botonPrimario, hook.creando && s.botonDesactivado]}
+                  onPress={hook.crearUsuario}
+                  disabled={hook.creando}
+                  activeOpacity={0.8}
+                >
+                  {hook.creando ? (
+                    <ActivityIndicator color={colors.tinta} />
+                  ) : (
+                    <Text style={s.botonPrimarioTexto}>Crear usuario</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -493,6 +609,19 @@ const s = StyleSheet.create({
   modalTitulo: { fontFamily: fonts.titulo, fontSize: 18, fontWeight: '700', color: colors.blanco },
   modalCerrar: { fontFamily: fonts.titulo, fontSize: 20, color: colors.oro, fontWeight: '600' },
   modalBody:   { padding: 20, gap: 12, paddingBottom: 48 },
+
+  // Modo toggle
+  modoToggle:       { flexDirection: 'row', backgroundColor: '#1C1710', borderBottomWidth: 1, borderBottomColor: '#2C2418' },
+  modoBtn:          { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  modoBtnActivo:    { borderBottomWidth: 2, borderBottomColor: colors.oro },
+  modoBtnTexto:     { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED },
+  modoBtnTextoActivo: { color: colors.oro },
+
+  // Buscar socio
+  buscarRow:    { flexDirection: 'row', gap: 8 },
+  buscarInput:  { flex: 1 },
+  buscarBtn:    { backgroundColor: colors.oro, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', minWidth: 72 },
+  buscarBtnTexto: { fontFamily: fonts.label, fontSize: 12, color: colors.tinta, fontWeight: '700' },
 
   // Inputs
   inputLabel: { fontFamily: fonts.label, fontSize: 12, fontWeight: '600', color: colors.tinta, letterSpacing: 0.5, textTransform: 'uppercase' },

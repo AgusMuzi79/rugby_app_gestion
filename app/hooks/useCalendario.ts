@@ -48,6 +48,9 @@ export interface UseCalendarioReturn {
   setForm: (form: NuevoEventoForm) => void
   resetForm: () => void
   crearEvento: () => Promise<boolean>
+  cancelarEvento: (id: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
+  cancelando: boolean
+  errorCancelacion: string | null
   recargar: () => void
 }
 
@@ -58,6 +61,8 @@ export function useCalendario(): UseCalendarioReturn {
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const [cancelando, setCancelando] = useState(false)
+  const [errorCancelacion, setErrorCancelacion] = useState<string | null>(null)
   const [sinDivisiones, setSinDivisiones] = useState(false)
   const [form, setForm] = useState<NuevoEventoForm>(FORM_VACIO)
 
@@ -199,17 +204,69 @@ export function useCalendario(): UseCalendarioReturn {
     return true
   }
 
+  async function cancelarEvento(
+    id: string,
+    divisionId: string,
+    divisionNombre: string,
+    fecha: string,
+    mensaje: string,
+  ): Promise<boolean> {
+    if (!session) return false
+    setCancelando(true)
+    setErrorCancelacion(null)
+
+    // Marcar como cancelado
+    const { error: cancelErr } = await supabase
+      .from('eventos')
+      .update({ cancelado: true })
+      .eq('id', id)
+
+    if (cancelErr) {
+      setErrorCancelacion('Error al cancelar: ' + cancelErr.message)
+      setCancelando(false)
+      return false
+    }
+
+    // Quitar de lista local
+    setEventos(prev => prev.filter(e => e.id !== id))
+
+    // Publicar noticia automática
+    await supabase.from('noticias').insert({
+      titulo:                  `Entrenamiento cancelado — ${divisionNombre}`,
+      cuerpo:                  mensaje,
+      autor_id:                session.user.id,
+      publicada:               true,
+      audiencia:               'todos',
+      division_id:             divisionId,
+      generada_automaticamente: true,
+    })
+
+    // Push a jugadores-socios de la división (fire & forget)
+    void supabase.functions.invoke('notifications', {
+      body: {
+        type: 'cancelacion_entrenamiento',
+        payload: { divisionId, divisionNombre, mensaje, fecha },
+      },
+    })
+
+    setCancelando(false)
+    return true
+  }
+
   return {
     eventos,
     divisiones,
     loading,
     guardando,
     errorGuardado,
+    cancelando,
+    errorCancelacion,
     sinDivisiones,
     form,
     setForm,
     resetForm,
     crearEvento,
+    cancelarEvento,
     recargar: fetchDatos,
   }
 }

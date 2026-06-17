@@ -39,9 +39,10 @@ export default function NoticiasPage() {
   const [showModal, setShowModal] = useState(false)
 
   // form
-  const [titulo, setTitulo]   = useState('')
-  const [cuerpo, setCuerpo]   = useState('')
-  const [deporte, setDeporte] = useState<string | null>(null)
+  const [titulo, setTitulo]     = useState('')
+  const [cuerpo, setCuerpo]     = useState('')
+  const [deporte, setDeporte]   = useState<string | null>(null)
+  const [audiencia, setAudiencia] = useState<'todos' | 'cuerpo_tecnico'>('todos')
   const [guardando, setGuardando] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -105,18 +106,19 @@ export default function NoticiasPage() {
       etiquetas: deporte ? [deporte] : [],
       autor_id:  user.id,
       publicada: false,
+      audiencia,
     })
 
     if (error) { setFormError(error.message); setGuardando(false); return }
     await fetchNoticias()
     setGuardando(false)
     setShowModal(false)
-    setTitulo(''); setCuerpo(''); setDeporte(null)
+    setTitulo(''); setCuerpo(''); setDeporte(null); setAudiencia('todos')
   }
 
   const closeModal = () => {
     setShowModal(false)
-    setTitulo(''); setCuerpo(''); setDeporte(null); setFormError('')
+    setTitulo(''); setCuerpo(''); setDeporte(null); setAudiencia('todos'); setFormError('')
   }
 
   return (
@@ -252,6 +254,32 @@ export default function NoticiasPage() {
                 </div>
               </div>
             </div>
+
+              <div>
+                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">VISIBILIDAD</label>
+                <div className="flex gap-2">
+                  {([
+                    { value: 'todos',          label: 'TODOS' },
+                    { value: 'cuerpo_tecnico', label: 'CUERPO TÉCNICO' },
+                  ] as const).map(a => (
+                    <button
+                      key={a.value}
+                      type="button"
+                      onClick={() => setAudiencia(a.value)}
+                      className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
+                        audiencia === a.value
+                          ? 'bg-oro border-oro text-papel'
+                          : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
+                      }`}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="font-lora text-xs text-tinta/30 mt-1">
+                  {audiencia === 'todos' ? 'Visible para socios y cuerpo técnico.' : 'Solo visible para cuerpo técnico (coordinadores, entrenadores, managers).'}
+                </p>
+              </div>
 
             {formError && <p className="font-lora text-rojo text-sm mt-4">{formError}</p>}
 

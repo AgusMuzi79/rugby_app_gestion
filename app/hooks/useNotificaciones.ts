@@ -4,10 +4,13 @@ import { useAuthStore } from '@/stores/authStore'
 
 export type RolDestinatario = 'coordinador' | 'entrenador' | 'manager' | 'todos'
 
+export type AudienciaNoticia = 'todos' | 'cuerpo_tecnico'
+
 export interface NotifForm {
   titulo:          string
   mensaje:         string
   rolDestinatario: RolDestinatario
+  audiencia:       AudienciaNoticia
 }
 
 export interface NotifEnviada {
@@ -22,6 +25,7 @@ const FORM_INICIAL: NotifForm = {
   titulo:          '',
   mensaje:         '',
   rolDestinatario: 'todos',
+  audiencia:       'todos',
 }
 
 export function useNotificaciones() {
@@ -111,7 +115,16 @@ export function useNotificaciones() {
           })))
       }
 
-      // 4. Push notification (fire-and-forget)
+      // 4. Publicar como noticia en el feed
+      void supabase.from('noticias').insert({
+        titulo:    form.titulo.trim(),
+        cuerpo:    form.mensaje.trim(),
+        autor_id:  userId,
+        publicada: true,
+        audiencia: form.audiencia,
+      })
+
+      // 5. Push notification (fire-and-forget)
       void supabase.functions.invoke('notifications', {
         body: {
           type:    'manual',
@@ -123,7 +136,7 @@ export function useNotificaciones() {
         },
       })
 
-      // 5. Actualizar historial localmente
+      // 6. Actualizar historial localmente
       setHistorial(prev => [
         {
           id:                notif.id,

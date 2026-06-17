@@ -7,6 +7,13 @@ interface Division {
   id: string
   nombre: string
   activa: boolean
+  deporte: string
+}
+
+const DEPORTE_LABEL: Record<string, string> = {
+  rugby:  'Rugby',
+  hockey: 'Hockey',
+  tenis:  'Tenis',
 }
 
 export default function DivisionesPage() {
@@ -14,13 +21,14 @@ export default function DivisionesPage() {
   const [loading, setLoading] = useState(true)
   const [nuevaNombre, setNuevaNombre] = useState('')
   const [nuevaCategoria, setNuevaCategoria] = useState('')
+  const [nuevaDeporte, setNuevaDeporte] = useState('rugby')
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
 
   const fetchDivisiones = async () => {
     const { data } = await supabase
       .from('divisiones')
-      .select('id, nombre, activa')
+      .select('id, nombre, activa, deporte')
       .order('nombre')
     setDivisiones(data ?? [])
     setLoading(false)
@@ -46,13 +54,14 @@ export default function DivisionesPage() {
 
     const { error: err } = await supabase
       .from('divisiones')
-      .insert({ nombre: nuevaNombre.trim(), categoria: nuevaCategoria, activa: true })
+      .insert({ nombre: nuevaNombre.trim(), categoria: nuevaCategoria, deporte: nuevaDeporte, activa: true })
 
     if (err) {
       setError(`Error al crear la división: ${err.message}`)
     } else {
       setNuevaNombre('')
       setNuevaCategoria('')
+      setNuevaDeporte('rugby')
       await fetchDivisiones()
     }
     setCreando(false)
@@ -88,7 +97,10 @@ export default function DivisionesPage() {
             <div className="flex flex-col gap-1">
               {activas.map(div => (
                 <div key={div.id} className="bg-card border border-gris-claro flex items-center justify-between px-5 py-4">
-                  <span className="font-lora text-sm text-tinta">{div.nombre}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-lora text-sm text-tinta">{div.nombre}</span>
+                    <span className="font-lora text-xs text-tinta/40 tracking-widest">{DEPORTE_LABEL[div.deporte] ?? div.deporte}</span>
+                  </div>
                   <button
                     onClick={() => toggleActivo(div)}
                     className="font-lora text-xs tracking-widest text-rojo border border-rojo px-3 py-1 hover:bg-rojo hover:text-papel transition-colors"
@@ -150,6 +162,19 @@ export default function DivisionesPage() {
                 <option value="plantel_superior">Plantel Superior</option>
                 <option value="femenino">Femenino</option>
                 <option value="rugby_mixed">Rugby Mixed</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="font-lora text-xs tracking-widest text-tinta/60">DEPORTE</label>
+              <select
+                value={nuevaDeporte}
+                onChange={e => setNuevaDeporte(e.target.value)}
+                className="font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors appearance-none"
+              >
+                <option value="rugby">Rugby</option>
+                <option value="hockey">Hockey</option>
+                <option value="tenis">Tenis</option>
               </select>
             </div>
 

@@ -46,7 +46,7 @@ function esPasado(iso: string) {
 
 // ─── FilaEvento ───────────────────────────────────────────────────────────────
 
-function FilaEvento({ evento }: { evento: EventoCalendario }) {
+function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancelar?: (e: EventoCalendario) => void }) {
   const pasado    = esPasado(evento.fecha)
   const hoy       = esHoy(evento.fecha)
   const esPartido = evento.tipo === 'partido'
@@ -70,6 +70,11 @@ function FilaEvento({ evento }: { evento: EventoCalendario }) {
         </Text>
         <Text style={styles.eventoDiv}>{evento.division_nombre}</Text>
       </View>
+      {!pasado && onCancelar && (
+        <TouchableOpacity onPress={() => onCancelar(evento)} activeOpacity={0.7} style={styles.cancelarBtn}>
+          <Text style={styles.cancelarBtnTexto}>✕</Text>
+        </TouchableOpacity>
+      )}
     </View>
   )
 }
@@ -208,20 +213,116 @@ function ModalNuevoEvento({
   )
 }
 
+// ─── ModalCancelarEvento ──────────────────────────────────────────────────────
+
+interface ModalCancelarProps {
+  evento: EventoCalendario | null
+  onClose: () => void
+  onConfirmar: (mensaje: string) => Promise<void>
+  cancelando: boolean
+  errorCancelacion: string | null
+}
+
+function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCancelacion }: ModalCancelarProps) {
+  const [mensaje, setMensaje] = useState('')
+
+  if (!evento) return null
+
+  async function handleConfirmar() {
+    if (!mensaje.trim()) return
+    await onConfirmar(mensaje.trim())
+  }
+
+  return (
+    <Modal visible={!!evento} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={styles.kavFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitulo}>Cancelar evento</Text>
+            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+              <Text style={styles.modalCerrar}>Volver</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.modalBody}>
+            <Text style={styles.cancelarInfo}>
+              {evento.tipo === 'partido' ? `Partido vs. ${evento.rival ?? 'Rival'}` : 'Entrenamiento'}
+              {' — '}
+              {fechaCorta(evento.fecha)}
+            </Text>
+            <Text style={[styles.cancelarInfo, { color: colors.oro, marginBottom: 20 }]}>
+              {evento.division_nombre}
+            </Text>
+
+            <Text style={styles.inputLabel}>MOTIVO DE CANCELACIÓN</Text>
+            <TextInput
+              style={[styles.input, styles.inputMultiline]}
+              placeholder="Ej: Lluvia intensa, cancha no disponible..."
+              placeholderTextColor={MUTED}
+              value={mensaje}
+              onChangeText={setMensaje}
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+
+            <Text style={styles.cancelarAviso}>
+              Se publicará automáticamente una noticia y se enviará un push a los jugadores del plantel que estén registrados como socios.
+            </Text>
+
+            {errorCancelacion && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorTexto}>{errorCancelacion}</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={[styles.botonCancelarConfirmar, (!mensaje.trim() || cancelando) && styles.botonGuardandoOff]}
+              onPress={handleConfirmar}
+              disabled={!mensaje.trim() || cancelando}
+              activeOpacity={0.85}
+            >
+              {cancelando
+                ? <ActivityIndicator color={ROJO} size="small" />
+                : <Text style={styles.botonCancelarConfirmarTexto}>CANCELAR EVENTO</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Modal>
+  )
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CalendarioScreen() {
   const {
     eventos, divisiones, loading, guardando, errorGuardado,
     sinDivisiones, form, setForm, resetForm, crearEvento, recargar,
+    cancelarEvento, cancelando, errorCancelacion,
   } = useCalendario()
 
   const [modalVisible, setModalVisible] = useState(false)
+  const [eventoCancelar, setEventoCancelar] = useState<EventoCalendario | null>(null)
 
   function abrirModal() { resetForm(); setModalVisible(true) }
   async function handleGuardar() {
     const ok = await crearEvento()
     if (ok) setModalVisible(false)
+  }
+  async function handleConfirmarCancelacion(mensaje: string) {
+    if (!eventoCancelar) return
+    const ok = await cancelarEvento(
+      eventoCancelar.id,
+      eventoCancelar.division_id,
+      eventoCancelar.division_nombre,
+      eventoCancelar.fecha,
+      mensaje,
+    )
+    if (ok) setEventoCancelar(null)
   }
 
   if (loading) {
@@ -261,7 +362,7 @@ export default function CalendarioScreen() {
       <FlatList
         data={eventos}
         keyExtractor={item => item.id}
-        renderItem={({ item }) => <FilaEvento evento={item} />}
+        renderItem={({ item }) => <FilaEvento evento={item} onCancelar={setEventoCancelar} />}
         ItemSeparatorComponent={() => <View style={styles.divider} />}
         contentContainerStyle={eventos.length === 0 ? styles.listaVacia : styles.listaContent}
         ListEmptyComponent={
@@ -285,6 +386,14 @@ export default function CalendarioScreen() {
         setForm={setForm}
         guardando={guardando}
         errorGuardado={errorGuardado}
+      />
+
+      <ModalCancelarEvento
+        evento={eventoCancelar}
+        onClose={() => setEventoCancelar(null)}
+        onConfirmar={handleConfirmarCancelacion}
+        cancelando={cancelando}
+        errorCancelacion={errorCancelacion}
       />
     </SafeAreaView>
   )
@@ -353,4 +462,13 @@ const styles = StyleSheet.create({
   botonGuardar:    { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonGuardandoOff: { opacity: 0.6 },
   botonGuardarTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 12, letterSpacing: 2.5, fontWeight: '600' },
+
+  // Cancelar evento
+  cancelarBtn:      { padding: 8, marginLeft: 4 },
+  cancelarBtnTexto: { fontFamily: fonts.label, fontSize: 14, color: ROJO, fontWeight: '700' },
+  cancelarInfo:     { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO, marginBottom: 4 },
+  cancelarAviso:    { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED, marginTop: 12, lineHeight: 18 },
+  inputMultiline:   { height: 90, textAlignVertical: 'top', paddingTop: 12 },
+  botonCancelarConfirmar:      { borderWidth: 1.5, borderColor: ROJO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
+  botonCancelarConfirmarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 12, letterSpacing: 2.5, fontWeight: '600' },
 })

@@ -15,7 +15,7 @@ export function useLogin() {
   const [error, setError]                           = useState<string | null>(null)
   const [biometriaDisponible, setBiometriaDisponible] = useState(false)
   const [credencialesGuardadas, setCredencialesGuardadas] = useState(false)
-  const { setSession, setRol } = useAuthStore()
+  const { setSession, setRol, setRoles } = useAuthStore()
 
   useEffect(() => {
     void verificarBiometria()
@@ -48,7 +48,7 @@ export function useLogin() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('rol')
+        .select('rol, roles')
         .eq('id', data.user.id)
         .single()
 
@@ -76,6 +76,7 @@ export function useLogin() {
 
       setSession(data.session)
       setRol((profile?.rol as Rol) ?? null)
+      setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
       console.log('[login] Sesión establecida, disparando registerPushToken()')
       void registerPushToken()
     } catch {
@@ -124,12 +125,13 @@ export function useLogin() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('rol')
+        .select('rol, roles')
         .eq('id', data.user.id)
         .single()
 
       setSession(data.session)
       setRol((profile?.rol as Rol) ?? null)
+      setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
       void registerPushToken()
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')

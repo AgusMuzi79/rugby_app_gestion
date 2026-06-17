@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons'
 import {
   useNotificaciones,
   type RolDestinatario,
+  type AudienciaNoticia,
   type NotifForm,
 } from '@/hooks/useNotificaciones'
 import { colors, fonts } from '@/constants/theme'
@@ -78,6 +79,10 @@ function ModalNuevoNotif({
   error:     string | null
 }) {
   const roles: RolDestinatario[] = ['todos', 'coordinador', 'entrenador', 'manager']
+  const audiencias: { value: AudienciaNoticia; label: string }[] = [
+    { value: 'todos',          label: 'TODOS' },
+    { value: 'cuerpo_tecnico', label: 'CUERPO TÉCNICO' },
+  ]
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -115,7 +120,7 @@ function ModalNuevoNotif({
               textAlignVertical="top"
             />
 
-            <Text style={s.inputLabel}>DESTINATARIOS</Text>
+            <Text style={s.inputLabel}>DESTINATARIOS (PUSH)</Text>
             <View style={s.rolRow}>
               {roles.map(rol => (
                 <TouchableOpacity
@@ -126,6 +131,22 @@ function ModalNuevoNotif({
                 >
                   <Text style={[s.rolBtnTexto, form.rolDestinatario === rol && s.rolBtnTextoActivo]}>
                     {ROL_LABEL[rol].toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={s.inputLabel}>VISIBILIDAD EN EL FEED</Text>
+            <View style={s.rolRow}>
+              {audiencias.map(a => (
+                <TouchableOpacity
+                  key={a.value}
+                  style={[s.rolBtn, form.audiencia === a.value && s.rolBtnActivo]}
+                  onPress={() => setForm({ ...form, audiencia: a.value })}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.rolBtnTexto, form.audiencia === a.value && s.rolBtnTextoActivo]}>
+                    {a.label}
                   </Text>
                 </TouchableOpacity>
               ))}
