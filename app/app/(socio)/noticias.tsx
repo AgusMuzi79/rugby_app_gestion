@@ -196,8 +196,9 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#2C2418',
   },
   filtroChip: {
-    borderWidth: 1, borderRadius: 3,
+    flex: 1, borderWidth: 1, borderRadius: 3,
     paddingHorizontal: 12, paddingVertical: 6,
+    alignItems: 'center',
   },
   filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
   filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: '#2C2418' },

@@ -56,6 +56,17 @@ export function useNoticias(soloPublicadas: boolean) {
 
   useEffect(() => { fetch() }, [fetch])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel(`noticias-rt-${soloPublicadas ? 'pub' : 'all'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'noticias' }, () => {
+        void fetch()
+      })
+      .subscribe()
+
+    return () => { void supabase.removeChannel(channel) }
+  }, [fetch, soloPublicadas])
+
   const crear = useCallback(async (datos: NuevosDatos): Promise<boolean> => {
     if (!session?.user.id) return false
     setGuardando(true)
