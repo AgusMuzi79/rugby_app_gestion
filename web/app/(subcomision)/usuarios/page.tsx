@@ -37,7 +37,7 @@ export default function UsuariosPage() {
   useEffect(() => {
     const fetchData = async () => {
       const [{ data: profs }, { data: divs }] = await Promise.all([
-        supabase.from('profiles').select('id, nombre, rol, divisiones').order('nombre'),
+        supabase.from('profiles').select('id, nombre, rol, divisiones').neq('rol', 'socio').neq('rol', 'admin').order('nombre'),
         supabase.from('divisiones').select('id, nombre').order('nombre'),
       ])
       setProfiles(profs ?? [])
@@ -103,10 +103,10 @@ export default function UsuariosPage() {
 
   const eliminar = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return
-    const { error } = await supabase.functions.invoke('admin-usuarios', {
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
       body: { action: 'delete', userId: id },
     })
-    if (error) { alert('Error al eliminar el usuario.'); return }
+    if (error || data?.error) { alert(data?.error ?? 'Error al eliminar el usuario.'); return }
     setProfiles(ps => ps.filter(p => p.id !== id))
   }
 

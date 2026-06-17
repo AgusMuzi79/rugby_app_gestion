@@ -66,8 +66,9 @@ export function useUsuarios() {
   const [errorForm, setErrorForm]                       = useState<string | null>(null)
 
   // Assign-role flow
-  const [dniAsignacion, setDniAsignacion]               = useState('')
+  const [busquedaSocio, setBusquedaSocio]               = useState('')
   const [buscandoSocio, setBuscandoSocio]               = useState(false)
+  const [resultadosBusqueda, setResultadosBusqueda]     = useState<{ id: string; nombre: string; email?: string }[]>([])
   const [socioEncontrado, setSocioEncontrado]           = useState<{ id: string; nombre: string; email?: string } | null>(null)
   const [errorBusqueda, setErrorBusqueda]               = useState<string | null>(null)
   const [rolAsignacion, setRolAsignacion]               = useState<RolCreable | null>(null)
@@ -151,8 +152,9 @@ export function useUsuarios() {
     setDivisionesSeleccionadas([])
     setErrorForm(null)
     setCreadoOk(false)
-    setDniAsignacion('')
+    setBusquedaSocio('')
     setSocioEncontrado(null)
+    setResultadosBusqueda([])
     setErrorBusqueda(null)
     setRolAsignacion(null)
     setDivisionesAsignacion([])
@@ -168,6 +170,7 @@ export function useUsuarios() {
     setErrorForm(null)
     setAsignadoOk(false)
     setErrorAsignacion(null)
+    setResultadosBusqueda([])
   }
 
   function toggleDivision(divId: string) {
@@ -182,29 +185,40 @@ export function useUsuarios() {
     )
   }
 
-  // ─── Buscar socio por DNI ────────────────────────────────────────────────────
+  // ─── Buscar socio por DNI o nombre ──────────────────────────────────────────
 
-  async function buscarSocioPorDni() {
-    const dniTrim = dniAsignacion.trim()
-    if (!dniTrim) { setErrorBusqueda('Ingresá el DNI.'); return }
+  async function buscarSocio() {
+    const q = busquedaSocio.trim()
+    if (!q) { setErrorBusqueda('Ingresá un DNI o nombre.'); return }
     setBuscandoSocio(true)
     setErrorBusqueda(null)
     setSocioEncontrado(null)
+    setResultadosBusqueda([])
 
-    const { data, error } = await supabase
-      .from('socios')
-      .select('id, nombre, email')
-      .eq('dni', dniTrim)
-      .maybeSingle()
+    const esDni = /^\d+$/.test(q)
 
-    if (error) {
-      setErrorBusqueda('Error al buscar el socio.')
-    } else if (!data) {
-      setErrorBusqueda('No se encontró ningún socio con ese DNI.')
+    if (esDni) {
+      const { data, error } = await supabase
+        .from('socios').select('id, nombre, email').eq('dni', q).maybeSingle()
+      if (error || !data) setErrorBusqueda('No se encontró ningún socio con ese DNI.')
+      else setSocioEncontrado(data as { id: string; nombre: string; email?: string })
     } else {
-      setSocioEncontrado(data as { id: string; nombre: string; email?: string })
+      const { data, error } = await supabase
+        .from('socios').select('id, nombre, email').ilike('nombre', `%${q}%`).limit(5)
+      if (error || !data || data.length === 0) {
+        setErrorBusqueda('No se encontraron socios con ese nombre.')
+      } else if (data.length === 1) {
+        setSocioEncontrado(data[0] as { id: string; nombre: string; email?: string })
+      } else {
+        setResultadosBusqueda(data as { id: string; nombre: string; email?: string }[])
+      }
     }
     setBuscandoSocio(false)
+  }
+
+  function elegirSocioDeResultados(socio: { id: string; nombre: string; email?: string }) {
+    setSocioEncontrado(socio)
+    setResultadosBusqueda([])
   }
 
   // ─── Asignar rol de staff ─────────────────────────────────────────────────
@@ -389,11 +403,13 @@ export function useUsuarios() {
     errorForm,
     crearUsuario,
     // Assign-role
-    dniAsignacion,      setDniAsignacion,
+    busquedaSocio,      setBusquedaSocio,
     buscandoSocio,
+    resultadosBusqueda,
     socioEncontrado,
     errorBusqueda,
-    buscarSocioPorDni,
+    buscarSocio,
+    elegirSocioDeResultados,
     rolAsignacion,      setRolAsignacion,
     divisionesAsignacion,
     toggleDivisionAsignacion,

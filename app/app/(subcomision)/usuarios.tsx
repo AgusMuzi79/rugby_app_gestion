@@ -323,20 +323,20 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
               </View>
             ) : (
               <>
-                {/* DNI del socio */}
-                <Text style={s.inputLabel}>DNI del socio</Text>
+                {/* Búsqueda por DNI o nombre */}
+                <Text style={s.inputLabel}>DNI o nombre del socio</Text>
                 <View style={s.buscarRow}>
                   <TextInput
                     style={[s.input, s.buscarInput]}
-                    value={hook.dniAsignacion}
-                    onChangeText={hook.setDniAsignacion}
-                    placeholder="Ej: 12345678"
+                    value={hook.busquedaSocio}
+                    onChangeText={hook.setBusquedaSocio}
+                    placeholder="Ej: 12345678 o Juan Pérez"
                     placeholderTextColor={MUTED}
-                    keyboardType="numeric"
+                    autoCapitalize="words"
                   />
                   <TouchableOpacity
                     style={[s.buscarBtn, hook.buscandoSocio && s.botonDesactivado]}
-                    onPress={hook.buscarSocioPorDni}
+                    onPress={hook.buscarSocio}
                     disabled={hook.buscandoSocio}
                     activeOpacity={0.8}
                   >
@@ -350,6 +350,23 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                 {hook.errorBusqueda && (
                   <View style={s.bannerError}>
                     <Text style={s.bannerTexto}>{hook.errorBusqueda}</Text>
+                  </View>
+                )}
+
+                {/* Lista de resultados cuando hay varios */}
+                {hook.resultadosBusqueda.length > 1 && (
+                  <View style={s.resultadosList}>
+                    {hook.resultadosBusqueda.map(r => (
+                      <TouchableOpacity
+                        key={r.id}
+                        style={s.resultadoItem}
+                        onPress={() => hook.elegirSocioDeResultados(r)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={s.resultadoNombre}>{r.nombre}</Text>
+                        <Text style={s.resultadoChevron}>›</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
 
@@ -622,6 +639,10 @@ const s = StyleSheet.create({
   buscarInput:  { flex: 1 },
   buscarBtn:    { backgroundColor: colors.oro, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', minWidth: 72 },
   buscarBtnTexto: { fontFamily: fonts.label, fontSize: 12, color: colors.tinta, fontWeight: '700' },
+  resultadosList:  { borderRadius: 8, borderWidth: 1, borderColor: '#2C2418', overflow: 'hidden' },
+  resultadoItem:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, backgroundColor: '#1C1710', borderBottomWidth: 1, borderBottomColor: '#2C2418' },
+  resultadoNombre: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta },
+  resultadoChevron:{ fontFamily: fonts.titulo, color: MUTED, fontSize: 20 },
 
   // Inputs
   inputLabel: { fontFamily: fonts.label, fontSize: 12, fontWeight: '600', color: colors.tinta, letterSpacing: 0.5, textTransform: 'uppercase' },
