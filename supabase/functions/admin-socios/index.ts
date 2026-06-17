@@ -118,7 +118,18 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
     return jsonError(500, 'Error al crear socio: ' + (socioErr?.message ?? 'unknown'))
   }
 
-  // 4. Generar y guardar TOTP secret (en socios_secrets — sin RLS, solo service role)
+  // 4. Vincular jugadores con el mismo DNI (si los hay)
+  const { error: jugadorErr } = await supabaseAdmin
+    .from('jugadores')
+    .update({ socio_id: socioData.id })
+    .eq('dni', dni)
+    .is('socio_id', null)
+
+  if (jugadorErr) {
+    console.error('Error al vincular jugadores por DNI:', jugadorErr.message)
+  }
+
+  // 5. Generar y guardar TOTP secret (en socios_secrets — sin RLS, solo service role)
   const totpSecret = generateSecret()
   const { error: secretErr } = await supabaseAdmin
     .from('socios_secrets')
