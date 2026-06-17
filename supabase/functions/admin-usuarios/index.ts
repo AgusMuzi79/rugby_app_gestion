@@ -147,10 +147,13 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
       return jsonError(409, 'El socio ya tiene ese rol asignado')
     }
 
+    // 'socio' siempre en el array — assign-role opera sobre un registro de socios
+    const rolesNuevos = [...new Set(['socio', ...rolesActuales, nuevoRol])]
+
     const { error: updateErr } = await supabaseAdmin
       .from('profiles')
       .update({
-        roles:      [...rolesActuales, nuevoRol],
+        roles:      rolesNuevos,
         rol:        nuevoRol,
         divisiones: divisionesVal,
       })
