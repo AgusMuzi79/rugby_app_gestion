@@ -29,11 +29,15 @@ async function callEdgeFunction(name: string, body: Record<string, unknown>) {
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token ?? ''}` },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
       body: JSON.stringify(body),
     }
   )
-  return res.json()
+  const text = await res.text()
+  try { return JSON.parse(text) } catch { return { error: text } }
 }
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -293,15 +297,45 @@ function ModalNuevoUsuario({
     if (!q) { setErrorBusqueda('Ingresá un DNI o nombre.'); return }
     setBuscando(true); setErrorBusqueda(''); setSocioElegido(null); setResultados([])
     const esDni = /^\d+$/.test(q)
-    let query = supabase.from('socios').select('id, nombre')
-    query = esDni ? query.eq('dni', q) : query.ilike('nombre', `%${q}%`).limit(5)
-    const { data } = await query
-    if (!data || data.length === 0) {
-      setErrorBusqueda(esDni ? 'No se encontró ningún socio con ese DNI.' : 'No se encontraron socios con ese nombre.')
-    } else if (data.length === 1) {
-      setSocioElegido(data[0] as { id: string; nombre: string })
+
+    if (esDni) {
+      const { data, error } = await supabase
+        .from('socios')
+        .select('id, profiles!socios_profile_id_fkey(nombre)')
+        .eq('dni', q)
+        .maybeSingle()
+      const nombre = (data?.profiles as { nombre?: string } | null)?.nombre
+      if (!data || !nombre) {
+        setErrorBusqueda('No se encontró ningún socio con ese DNI.')
+      } else {
+        setSocioElegido({ id: data.id, nombre })
+      }
     } else {
-      setResultados(data as { id: string; nombre: string }[])
+      // Buscar en profiles por nombre, luego cruzar con socios
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, nombre')
+        .ilike('nombre', `%${q}%`)
+        .limit(10)
+      if (!profs || profs.length === 0) {
+        setErrorBusqueda('No se encontraron socios con ese nombre.')
+        setBuscando(false)
+        return
+      }
+      const { data: sociosData } = await supabase
+        .from('socios')
+        .select('id, profile_id')
+        .in('profile_id', profs.map(p => p.id))
+      if (!sociosData || sociosData.length === 0) {
+        setErrorBusqueda('No se encontraron socios con ese nombre.')
+      } else {
+        const results = sociosData.map(s => ({
+          id: s.id,
+          nombre: profs.find(p => p.id === s.profile_id)?.nombre ?? '—',
+        }))
+        if (results.length === 1) setSocioElegido(results[0])
+        else setResultados(results)
+      }
     }
     setBuscando(false)
   }

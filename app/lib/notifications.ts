@@ -77,11 +77,10 @@ export async function registerPushToken(): Promise<void> {
     }
 
     console.log('[push] Guardando token en push_tokens...')
-    // Eliminar entrada previa del token (puede pertenecer a otro usuario/sesión)
-    await supabase.from('push_tokens').delete().eq('token', pushToken)
-    const { error } = await supabase
-      .from('push_tokens')
-      .insert({ usuario_id: user.id, token: pushToken, plataforma: Platform.OS })
+    const { error } = await supabase.rpc('register_push_token', {
+      p_token:      pushToken,
+      p_plataforma: Platform.OS,
+    })
     if (error) {
       console.log('[push] Error al guardar token:', error.message)
     } else {

@@ -87,13 +87,14 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
 
   const userId = userData.user.id
 
-  // Insertar perfil
+  // Insertar perfil — roles[] debe incluir el rol activo desde el inicio
   const { error: profileErr } = await supabaseAdmin
     .from('profiles')
     .insert({
       id:         userId,
       nombre,
       rol,
+      roles:      [rol],
       divisiones: divisiones && divisiones.length > 0 ? divisiones : null,
     })
 
@@ -124,82 +125,42 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
 
   const { data: socio, error: socioErr } = await supabaseAdmin
     .from('socios')
-    .select('id, nombre, email, dni, profile_id')
+    .select('id, dni, profile_id, profiles!socios_profile_id_fkey(nombre)')
     .eq('id', socioId)
     .single()
 
   if (socioErr || !socio) return jsonError(404, 'Socio no encontrado')
-  if (!socio.email) return jsonError(400, 'El socio no tiene email registrado')
-  if (!socio.dni)   return jsonError(400, 'El socio no tiene DNI registrado')
+  if (!socio.profile_id) return jsonError(400, 'El socio no tiene cuenta de usuario asociada')
+  if (!socio.dni)        return jsonError(400, 'El socio no tiene DNI registrado')
 
+  const nombre = (socio.profiles as { nombre: string } | null)?.nombre ?? ''
   const divisionesVal = divisiones && divisiones.length > 0 ? divisiones : null
 
-  if (socio.profile_id) {
-    // Perfil existente — agregar rol al array
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('roles')
-      .eq('id', socio.profile_id)
-      .single()
-
-    const rolesActuales = (profile?.roles as string[]) ?? []
-    if (rolesActuales.includes(nuevoRol)) {
-      return jsonError(409, 'El socio ya tiene ese rol asignado')
-    }
-
-    // 'socio' siempre en el array — assign-role opera sobre un registro de socios
-    const rolesNuevos = [...new Set(['socio', ...rolesActuales, nuevoRol])]
-
-    const { error: updateErr } = await supabaseAdmin
-      .from('profiles')
-      .update({
-        roles:      rolesNuevos,
-        rol:        nuevoRol,
-        divisiones: divisionesVal,
-      })
-      .eq('id', socio.profile_id)
-
-    if (updateErr) return jsonError(500, 'Error al actualizar perfil: ' + updateErr.message)
-    return jsonOk({ ok: true, profileId: socio.profile_id, nombre: socio.nombre })
-  }
-
-  // Sin perfil — crear auth user con DNI como contraseña inicial
-  const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-    email:         socio.email,
-    password:      socio.dni,
-    email_confirm: true,
-    user_metadata: { nombre: socio.nombre },
-  })
-
-  if (createErr || !userData.user) {
-    const msg = createErr?.message ?? 'Error al crear el usuario'
-    if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exists')) {
-      return jsonError(409, 'Ya existe un usuario con ese email')
-    }
-    return jsonError(500, msg)
-  }
-
-  const userId = userData.user.id
-
-  const { error: profileErr } = await supabaseAdmin
+  // Perfil existente — agregar rol al array
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .insert({
-      id:         userId,
-      nombre:     socio.nombre,
+    .select('roles')
+    .eq('id', socio.profile_id)
+    .single()
+
+  const rolesActuales = (profile?.roles as string[]) ?? []
+  if (rolesActuales.includes(nuevoRol)) {
+    return jsonError(409, 'El socio ya tiene ese rol asignado')
+  }
+
+  const rolesNuevos = [...new Set(['socio', ...rolesActuales, nuevoRol])]
+
+  const { error: updateErr } = await supabaseAdmin
+    .from('profiles')
+    .update({
+      roles:      rolesNuevos,
       rol:        nuevoRol,
-      roles:      ['socio', nuevoRol],
       divisiones: divisionesVal,
     })
+    .eq('id', socio.profile_id)
 
-  if (profileErr) {
-    await supabaseAdmin.auth.admin.deleteUser(userId)
-    return jsonError(500, 'Error al crear perfil: ' + profileErr.message)
-  }
-
-  await supabaseAdmin.from('socios').update({ profile_id: userId }).eq('id', socioId)
-
-  EdgeRuntime.waitUntil(enviarEmailBienvenida(socio.nombre, socio.email))
-  return jsonOk({ ok: true, profileId: userId, nombre: socio.nombre })
+  if (updateErr) return jsonError(500, 'Error al actualizar perfil: ' + updateErr.message)
+  return jsonOk({ ok: true, profileId: socio.profile_id, nombre })
 }
 
 // ─── Email de bienvenida ──────────────────────────────────────────────────────

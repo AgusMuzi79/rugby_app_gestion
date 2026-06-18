@@ -27,19 +27,29 @@ export default function LoginPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('rol')
+      .select('rol, roles')
       .eq('id', data.user.id)
       .single()
 
     const rolesPermitidos = ['subcomision', 'admin', 'secretaria']
-    if (!profile || !rolesPermitidos.includes(profile.rol)) {
+    const rolesArray = (profile?.roles as string[]) ?? []
+
+    // Determinar el rol web activo: puede que profiles.rol esté en 'manager' u otro
+    // rol móvil si el usuario toggleó en la app. Buscar el primer rol de web en roles[].
+    const rolWeb = rolesPermitidos.find(r => rolesArray.includes(r)) ?? profile?.rol ?? ''
+
+    if (!rolWeb || !rolesPermitidos.includes(rolWeb)) {
       await supabase.auth.signOut()
       setError('No tenés acceso al panel de gestión.')
       setLoading(false)
       return
     }
 
-    if (profile.rol === 'secretaria') {
+    if (profile?.rol !== rolWeb) {
+      await supabase.from('profiles').update({ rol: rolWeb }).eq('id', data.user.id)
+    }
+
+    if (rolWeb === 'secretaria') {
       router.replace('/secretaria/socios')
     } else {
       router.replace('/dashboard')

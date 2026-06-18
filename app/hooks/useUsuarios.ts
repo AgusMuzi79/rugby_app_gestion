@@ -199,18 +199,41 @@ export function useUsuarios() {
 
     if (esDni) {
       const { data, error } = await supabase
-        .from('socios').select('id, nombre, email').eq('dni', q).maybeSingle()
-      if (error || !data) setErrorBusqueda('No se encontró ningún socio con ese DNI.')
-      else setSocioEncontrado(data as { id: string; nombre: string; email?: string })
-    } else {
-      const { data, error } = await supabase
-        .from('socios').select('id, nombre, email').ilike('nombre', `%${q}%`).limit(5)
-      if (error || !data || data.length === 0) {
-        setErrorBusqueda('No se encontraron socios con ese nombre.')
-      } else if (data.length === 1) {
-        setSocioEncontrado(data[0] as { id: string; nombre: string; email?: string })
+        .from('socios')
+        .select('id, profiles!socios_profile_id_fkey(nombre, email)')
+        .eq('dni', q)
+        .maybeSingle()
+      const prof = data?.profiles as { nombre?: string; email?: string } | null
+      if (error || !data || !prof?.nombre) {
+        setErrorBusqueda('No se encontró ningún socio con ese DNI.')
       } else {
-        setResultadosBusqueda(data as { id: string; nombre: string; email?: string }[])
+        setSocioEncontrado({ id: data.id, nombre: prof.nombre, email: prof.email })
+      }
+    } else {
+      // Buscar en profiles por nombre, luego cruzar con socios
+      const { data: profs, error: profErr } = await supabase
+        .from('profiles')
+        .select('id, nombre')
+        .ilike('nombre', `%${q}%`)
+        .limit(10)
+      if (profErr || !profs || profs.length === 0) {
+        setErrorBusqueda('No se encontraron socios con ese nombre.')
+        setBuscandoSocio(false)
+        return
+      }
+      const { data: sociosData } = await supabase
+        .from('socios')
+        .select('id, profile_id')
+        .in('profile_id', profs.map(p => p.id))
+      if (!sociosData || sociosData.length === 0) {
+        setErrorBusqueda('No se encontraron socios con ese nombre.')
+      } else {
+        const results = sociosData.map(s => ({
+          id:     s.id,
+          nombre: profs.find(p => p.id === s.profile_id)?.nombre ?? '—',
+        }))
+        if (results.length === 1) setSocioEncontrado(results[0])
+        else setResultadosBusqueda(results)
       }
     }
     setBuscandoSocio(false)
