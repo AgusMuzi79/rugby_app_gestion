@@ -65,6 +65,14 @@ Login (`/login`) es compartido — redirige a `/secretaria/socios` o `/dashboard
 
 ## Bugs conocidos y corregidos
 
+### `/login`
+- Si el usuario switcheó el rol activo en la app móvil (ej: manager), el login web detecta que `profiles.rol` no es un rol web y lo restaura buscando en `profiles.roles[]` el primer rol web válido (`subcomision`, `admin`, `secretaria`). Actualiza la DB antes de redirigir para que RLS funcione.
+
+### `/usuarios` — `callEdgeFunction` + `buscarSocio`
+- `callEdgeFunction` usa `fetch` manual con el JWT de sesión (no `supabase.functions.invoke()`). `cors.ts` incluye `x-client-info, apikey` en `Access-Control-Allow-Headers`.
+- `buscarSocio` obtiene `nombre` del socio via join `profiles!socios_profile_id_fkey` — la tabla `socios` NO tiene columna `nombre` ni `email`. Mismo patrón en mobile `useUsuarios.ts`.
+- `handleAssignRole` en `admin-usuarios`: idem, selecciona `profiles!socios_profile_id_fkey(nombre)` en lugar de `nombre, email` directamente de `socios`.
+
 ### `/divisiones`
 - Columna es `activa` (boolean), NO `activo` — afecta SELECT, UPDATE e INSERT.
 - Handler de crear: botón usa `type="button"` + `onClick` directo (no depende del `onSubmit` del form).

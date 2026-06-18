@@ -151,6 +151,13 @@ rugby_app_gestion/
 | Web subcomisión `/usuarios` — filtra socios/admin, fix delete, modal "+ NUEVO USUARIO" con tabs | ✅ |
 | Dev build Android generado (incluye v3 completo) | ✅ |
 | Repo GitHub conectado a Vercel — auto-deploy en push a main | ✅ |
+| Migration `20260618000000` — repara `profiles` donde `rol` activo no estaba en `roles[]` | ✅ |
+| Migration `20260618000001` — función `register_push_token` SECURITY DEFINER (fix RLS upsert) | ✅ |
+| `push_tokens` — registra via RPC `register_push_token` (SECURITY DEFINER, evita conflicto RLS) | ✅ |
+| `cors.ts` — `Access-Control-Allow-Headers` incluye `x-client-info, apikey` (fix Supabase SDK) | ✅ |
+| `admin-usuarios` `handleAssignRole` — join `profiles` para `nombre` (socios no tiene nombre/email) | ✅ |
+| `buscarSocio` web + mobile — join `profiles!socios_profile_id_fkey` para obtener nombre | ✅ |
+| Web login — restaura `rol` activo a rol web si el usuario switcheó a rol móvil desde la app | ✅ |
 | Portería: test carnet QR end-to-end | ⏳ pendiente |
 | Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 
@@ -160,10 +167,11 @@ rugby_app_gestion/
 - `20260608` y `20260609000000` se aplicaron vía `supabase db query --linked`.
 - `20260610000000` aplicada en cloud vía `supabase db push`.
 - Migraciones v3 (`20260616000000`, `20260616000001`, `20260616000002`) aplicadas vía `supabase db push`.
+- Migraciones `20260617000000`, `20260617000001`, `20260618000000`, `20260618000001` aplicadas vía `supabase db push`.
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
 - `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes.
 - `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al pagar.
-- `push_tokens` usa DELETE + INSERT en lugar de upsert para evitar conflictos de RLS entre usuarios del mismo dispositivo.
+- `push_tokens` usa RPC `register_push_token` (SECURITY DEFINER) — hace DELETE + INSERT bypasseando RLS. Las policies de UPDATE/INSERT bloqueaban tanto upsert como delete+insert directo cuando el token pertenecía a otro usuario.
 - Secretaría tiene panel web propio en `web/app/(secretaria)/` — separado de subcomisión.
 - Las páginas de secretaría están en `(secretaria)/secretaria/{socios,noticias,servicios,categorias}/page.tsx` — el segmento `secretaria/` es necesario para que las rutas resuelvan a `/secretaria/*` (el route group no agrega segmento de URL).
 - Login web detecta el rol y redirige: `secretaria` → `/secretaria/socios`, resto → `/dashboard`.

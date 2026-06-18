@@ -22,7 +22,11 @@
 | `20260608000000_fix_push_tokens_update_policy.sql` | Fix RLS UPDATE en `push_tokens`: USING(true) para upsert entre usuarios | ✅ aplicada vía `db query --linked` |
 | `20260609000000_servicios_opcionales.sql` | Tablas `servicios_opcionales` + `socio_servicios`, RLS, seed | ✅ aplicada vía `db query --linked` |
 | `20260609000002_mp_card_fields.sql` | Columnas MP en `socios`, `'tarjeta'` en CHECK de `pagos_socios` | ✅ aplicada |
-| `20260610000000_fix_push_tokens_delete_policy.sql` | DELETE policy `push_tokens` → `USING (true)` para fix de re-asignación entre usuarios | ⏳ pendiente `db push` |
+| `20260610000000_fix_push_tokens_delete_policy.sql` | DELETE policy `push_tokens` → `USING (true)` para fix de re-asignación entre usuarios | ✅ aplicada |
+| `20260617000000_profiles_rls_secretaria_porteria.sql` | RLS SELECT en `profiles` para rol `secretaria` y `porteria` | ✅ aplicada |
+| `20260617000001_fix_roles_array.sql` | Repara `profiles.roles[]` para socios sin `'socio'` en el array | ✅ aplicada |
+| `20260618000000_fix_roles_includes_active_rol.sql` | Repara `profiles` donde el `rol` activo no estaba en `roles[]` | ✅ aplicada |
+| `20260618000001_push_token_upsert_fn.sql` | Función `register_push_token(TEXT, TEXT)` SECURITY DEFINER — DELETE+INSERT bypasseando RLS | ✅ aplicada |
 
 Las migraciones v2 (`20260601000000/01/02`) fueron aplicadas al cloud **manualmente via SQL editor** y marcadas con `migration repair`. Las migraciones `20260608` y `20260609000000` se aplicaron vía `supabase db query --linked` (estaban en el historial pero el SQL nunca se había ejecutado).
 
@@ -46,7 +50,7 @@ INSERT INTO categorias_socio (nombre, descripcion, monto_mensual) VALUES
 
 | Función | Estado | Descripción |
 |---|---|---|
-| `supabase/functions/admin-usuarios/` | ✅ completo | `create` / `deactivate` / `reactivate` / `getUser` |
+| `supabase/functions/admin-usuarios/` | ✅ completo | `create` / `assign-role` / `deactivate` / `reactivate` / `delete` / `getUser` |
 | `supabase/functions/notifications/` | ✅ completo | lesión→Subcomisión, fichaje→Subcomisión, 4 ausencias consecutivas→Coordinador via Expo Push API |
 | `supabase/functions/admin-socios/` | ✅ deployada | `create` / `deactivate` / `reactivate` / `validate-photo` (Rekognition con fallback manual si AWS no configurado) |
 | `supabase/functions/socios-qr/` | ✅ deployada | `get-secret` (socio) / `validate` (portería) — TOTP server-side |
@@ -65,9 +69,30 @@ supabase secrets set CRON_SECRET=...   # para autorizar cobro-mensual desde pg_c
 
 ### `admin-usuarios` — detalle de acciones
 
-- **`create`**: `inviteUserByEmail(email, { data: { nombre }, redirectTo: 'uncasrugby://reset-password' })` — Supabase envía email de invite via SMTP Gmail + template Dashboard. Sin Resend.
+- **`create`**: crea auth user con DNI como contraseña inicial + inserta `profiles` con `rol` y `roles:[rol]`. Email de bienvenida via Resend (fire & forget). Sin invite email.
+- **`assign-role`**: busca socio por `socioId`, obtiene `nombre` via join `profiles!socios_profile_id_fkey`. Agrega `nuevoRol` a `roles[]` del perfil existente. **`socios` no tiene columnas `nombre` ni `email` — siempre se obtienen de `profiles`.**
 - **`deactivate` / `reactivate`**: ban/unban usuario (876000h).
+- **`delete`**: `supabaseAdmin.auth.admin.deleteUser(userId)` — cascade borra perfil y socio si existe.
 - **`getUser`**: `supabaseAdmin.auth.admin.getUserById(userId)` → retorna `{ email }`. El email vive en `auth.users`, no en `profiles`.
+
+### `_shared/cors.ts` — headers CORS
+
+```ts
+'Access-Control-Allow-Headers': 'authorization, content-type, x-client-info, apikey'
+```
+`x-client-info` y `apikey` son necesarios cuando se llama via `supabase.functions.invoke()` (el SDK los agrega automáticamente).
+
+### `register_push_token` — función SECURITY DEFINER
+
+```sql
+CREATE OR REPLACE FUNCTION register_push_token(p_token TEXT, p_plataforma TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER ...
+BEGIN
+  DELETE FROM push_tokens WHERE token = p_token;
+  INSERT INTO push_tokens (usuario_id, token, plataforma) VALUES (auth.uid(), p_token, p_plataforma);
+END;
+```
+Llamada desde `app/lib/notifications.ts` via `supabase.rpc('register_push_token', {...})`. Bypass de RLS necesario porque las policies de UPDATE e INSERT bloqueaban tanto upsert como delete+insert directo cuando el token pertenecía a otro usuario en el mismo dispositivo.
 
 ### `notifications` — tipos soportados
 
