@@ -141,8 +141,17 @@ rugby_app_gestion/
 | `useNotificaciones` — publica en `noticias` con `audiencia` al enviar push | ✅ |
 | RLS noticias por audiencia — socios solo ven `audiencia='todos'`, cuerpo técnico ve ambas | ✅ |
 | `database.types.ts` — regenerado (incluye todos los nuevos campos) | ✅ |
-| Portería: test carnet QR end-to-end | ⏳ pendiente (rebuild preview) |
-| Rebuild preview APK con v3 | ⏳ pendiente |
+| Migration `20260617000000` — RLS SELECT en `profiles` para rol `secretaria` y `porteria` (fix nombres en blanco en panel web) | ✅ |
+| Migration `20260617000001` — repara `profiles.roles[]` para perfiles con socios sin `'socio'` en el array | ✅ |
+| `useNoticias` — suscripción Supabase Realtime: refetch automático ante INSERT/UPDATE en `noticias` | ✅ |
+| `(socio)/noticias.tsx` — chips de filtro por deporte con `flex: 1` (ancho completo) | ✅ |
+| `admin-socios` — link `jugadores.socio_id` al crear socio si el DNI existe en jugadores | ✅ |
+| `assign-role` — siempre incluye `'socio'` en `roles[]` al asignar rol staff a un socio | ✅ |
+| `useUsuarios` — búsqueda de socio por DNI o nombre (auto-detecta, lista de resultados si hay varios) | ✅ |
+| Web subcomisión `/usuarios` — filtra socios/admin, fix delete, modal "+ NUEVO USUARIO" con tabs | ✅ |
+| Dev build Android generado (incluye v3 completo) | ✅ |
+| Repo GitHub conectado a Vercel — auto-deploy en push a main | ✅ |
+| Portería: test carnet QR end-to-end | ⏳ pendiente |
 | Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 
 **Notas de comportamiento actual:**
@@ -185,17 +194,17 @@ rugby_app_gestion/
 - Socios del club: **1000+** personas (los ~60 usuarios son el cuerpo técnico/organizativo).
 - `useUsuarios` filtra `rol = 'socio'` — los socios no aparecen en la gestión de usuarios de subcomisión.
 - Creación de usuarios staff: nombre + email + DNI. Contraseña inicial = DNI. Sin invite email.
-- También se puede asignar rol a un socio existente (buscar por DNI en el modal "Desde socio existente").
+- También se puede asignar rol a un socio existente buscando por DNI (exacto) o nombre (ilike, hasta 5 resultados).
+- `assign-role` siempre garantiza `'socio'` en `roles[]` — todo staff es socio primero.
 - Roles creables por subcomisión: coordinador, entrenador, manager, subcomisión. Secretaría y portería solo admin.
 - Email de bienvenida: se envía vía Resend al crear usuario. Si `RESEND_API_KEY` no está seteado, se omite sin fallar.
 - `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets.
 
 **Próximo paso:**
-- Rebuild preview APK (`eas build --profile preview --platform android`) — incluye v3 (multi-rol, calendario socio, cancelación, audiencia noticias)
-- Test end-to-end portería carnet QR con nuevo build
+- Test end-to-end portería carnet QR con dev build
 - Setear secrets de MercadoPago, Resend y AWS cuando estén disponibles
 
-**Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel.
+**Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel. Repo GitHub conectado — auto-deploy en push a `main`. Para deploy manual desde `web/`: `vercel --prod --yes`.
 
 Pendiente cuando lleguen los secrets:
 ```bash
