@@ -5,10 +5,12 @@ import { supabase } from '@/lib/supabase'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-const ROLES_STAFF = ['coordinador', 'entrenador', 'manager', 'subcomision']
+const ROLES_SUBCO  = ['coordinador', 'entrenador', 'manager', 'subcomision']
+const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', manager: 'Manager',
+  secretaria: 'Secretaría', porteria: 'Portería',
 }
 
 interface Division { id: string; nombre: string }
@@ -48,10 +50,18 @@ export default function UsuariosPage() {
   const [loading, setLoading]       = useState(true)
   const [busqueda, setBusqueda]     = useState('')
   const [modalOpen, setModalOpen]   = useState(false)
+  const [isAdmin, setIsAdmin]       = useState(false)
 
-  const fetchData = useCallback(async () => {
+  const rolesDisponibles = isAdmin ? ROLES_ADMIN : ROLES_SUBCO
+
+  const fetchData = useCallback(async (admin: boolean) => {
+    let query = supabase.from('profiles').select('id, nombre, rol, divisiones')
+      .neq('rol', 'socio').neq('rol', 'admin').order('nombre')
+    if (!admin) {
+      query = query.neq('rol', 'secretaria').neq('rol', 'porteria')
+    }
     const [{ data: profs }, { data: divs }] = await Promise.all([
-      supabase.from('profiles').select('id, nombre, rol, divisiones').neq('rol', 'socio').neq('rol', 'admin').order('nombre'),
+      query,
       supabase.from('divisiones').select('id, nombre').order('nombre'),
     ])
     setProfiles(profs ?? [])
@@ -59,7 +69,15 @@ export default function UsuariosPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { fetchData(false); return }
+      const { data: prof } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
+      const admin = prof?.rol === 'admin'
+      setIsAdmin(admin)
+      fetchData(admin)
+    })
+  }, [fetchData])
 
   const getEmail = async (id: string) => {
     setProfiles(ps => ps.map(p => p.id === id ? { ...p, loadingEmail: true } : p))
@@ -188,7 +206,7 @@ export default function UsuariosPage() {
                           onChange={e => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, tempRol: e.target.value } : r))}
                           className="font-lora text-sm text-tinta bg-papel border border-tinta/30 px-2 py-1 outline-none"
                         >
-                          {ROLES_STAFF.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
+                          {rolesDisponibles.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
                         </select>
                         <button onClick={() => saveRol(p)} className="font-lora text-xs bg-oro text-papel px-3 py-1 tracking-widest">GUARDAR</button>
                         <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: false } : r))} className="font-lora text-xs text-tinta/40 px-2 py-1">CANCELAR</button>
@@ -251,8 +269,9 @@ export default function UsuariosPage() {
       {modalOpen && (
         <ModalNuevoUsuario
           divisiones={divisiones}
+          isAdmin={isAdmin}
           onClose={() => setModalOpen(false)}
-          onSuccess={() => { setModalOpen(false); void fetchData() }}
+          onSuccess={() => { setModalOpen(false); void fetchData(isAdmin) }}
         />
       )}
     </div>
@@ -262,12 +281,15 @@ export default function UsuariosPage() {
 // ─── Modal nuevo usuario ──────────────────────────────────────────────────────
 
 function ModalNuevoUsuario({
-  divisiones, onClose, onSuccess,
+  divisiones, isAdmin, onClose, onSuccess,
 }: {
   divisiones: Division[]
+  isAdmin: boolean
   onClose: () => void
   onSuccess: () => void
 }) {
+  const rolesDisponibles = isAdmin ? ROLES_ADMIN : ROLES_SUBCO
+
   const [modo, setModo] = useState<ModoModal>('asignar')
 
   // Asignar rol a socio existente
@@ -380,22 +402,24 @@ function ModalNuevoUsuario({
           <button onClick={onClose} className="text-tinta/40 hover:text-tinta text-xl">×</button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-gris-claro">
-          {(['asignar', 'crear'] as ModoModal[]).map(m => (
-            <button
-              key={m}
-              onClick={() => setModo(m)}
-              className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
-                modo === m
-                  ? 'text-oro border-b-2 border-oro'
-                  : 'text-tinta/40 hover:text-tinta/60'
-              }`}
-            >
-              {m === 'asignar' ? 'DESDE SOCIO EXISTENTE' : 'NUEVO USUARIO'}
-            </button>
-          ))}
-        </div>
+        {/* Tabs — solo admin puede crear usuarios nuevos */}
+        {isAdmin && (
+          <div className="flex border-b border-gris-claro">
+            {(['asignar', 'crear'] as ModoModal[]).map(m => (
+              <button
+                key={m}
+                onClick={() => setModo(m)}
+                className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
+                  modo === m
+                    ? 'text-oro border-b-2 border-oro'
+                    : 'text-tinta/40 hover:text-tinta/60'
+                }`}
+              >
+                {m === 'asignar' ? 'DESDE SOCIO EXISTENTE' : 'NUEVO USUARIO'}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="p-8 flex flex-col gap-4">
           {modo === 'asignar' ? (
@@ -458,7 +482,7 @@ function ModalNuevoUsuario({
                     <div>
                       <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</label>
                       <div className="flex flex-wrap gap-2">
-                        {ROLES_STAFF.map(r => (
+                        {rolesDisponibles.map(r => (
                           <button
                             key={r}
                             onClick={() => setRolAsignacion(r)}
@@ -533,7 +557,7 @@ function ModalNuevoUsuario({
                 <div>
                   <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</label>
                   <div className="flex flex-wrap gap-2">
-                    {ROLES_STAFF.map(r => (
+                    {rolesDisponibles.map(r => (
                       <button
                         key={r}
                         onClick={() => setRolNuevo(r)}
