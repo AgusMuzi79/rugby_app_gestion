@@ -1,8 +1,8 @@
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  TouchableOpacity, Modal, Image, Dimensions, StatusBar,
+  TouchableOpacity, Modal, Image, Dimensions, StatusBar, RefreshControl,
 } from 'react-native'
-import { useRef, useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { Feather } from '@expo/vector-icons'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -127,8 +127,15 @@ export default function CarnetScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, error, data } = useCarnet()
-  const [verTarjeta, setVerTarjeta] = useState(false)
+  const { loading, error, data, refresh } = useCarnet()
+  const [verTarjeta,  setVerTarjeta]  = useState(false)
+  const [refreshing,  setRefreshing]  = useState(false)
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }, [refresh])
 
   return (
     <ScrollView
@@ -136,6 +143,14 @@ export default function CarnetScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          tintColor={colors.oro}
+          colors={[colors.oro]}
+        />
+      }
     >
       <Header />
 
@@ -189,7 +204,7 @@ export default function CarnetScreen() {
               <View style={s.progressTrack}>
                 {/* width is truly dynamic (secondsLeft changes every tick) — must remain inline */}
                 <View
-                  style={[s.progressFill, { width: `${(data.secondsLeft / 30) * 100}%` }]}
+                  style={[s.progressFill, { width: `${(data.secondsLeft / 60) * 100}%` }]}
                 />
               </View>
 

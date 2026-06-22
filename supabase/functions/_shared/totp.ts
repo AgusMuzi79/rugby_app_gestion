@@ -1,6 +1,8 @@
 // TOTP (RFC 6238) — generación y verificación de códigos de 6 dígitos.
 // Secreto: 20 bytes aleatorios en base32 (160 bits, estándar de la industria).
-// Ventana: 30 segundos. Deriva admitida: ±1 step para compensar desfase de reloj.
+// Ventana: 60 segundos. Deriva admitida: ±1 step para compensar desfase de reloj.
+
+const STEP = 60
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -61,7 +63,7 @@ async function compute(secret: string, step: number): Promise<string> {
 }
 
 export async function verifyTOTP(secret: string, code: string, drift = 1): Promise<boolean> {
-  const step = Math.floor(Date.now() / 1000 / 30)
+  const step = Math.floor(Date.now() / 1000 / STEP)
   for (let i = -drift; i <= drift; i++) {
     if (await compute(secret, step + i) === code) return true
   }

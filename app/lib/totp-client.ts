@@ -83,10 +83,12 @@ function compute(secret: string, step: number): string {
   return code.toString().padStart(6, '0')
 }
 
+const STEP = 60
+
 export function generateTOTP(secret: string): string {
-  return compute(secret, Math.floor(Date.now() / 1000 / 30))
+  return compute(secret, Math.floor(Date.now() / 1000 / STEP))
 }
 
 export function secondsUntilRefresh(): number {
-  return 30 - (Math.floor(Date.now() / 1000) % 30)
+  return STEP - (Math.floor(Date.now() / 1000) % STEP)
 }

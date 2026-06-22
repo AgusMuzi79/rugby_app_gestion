@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { generateTOTP, secondsUntilRefresh } from '@/lib/totp-client'
 
 const TOTP_SECRET_KEY = 'totp_secret'
+const TOTP_STEP       = 60
 
 export interface CarnetData {
   numero_socio: string
@@ -88,7 +89,7 @@ export function useCarnet() {
     const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
     const nombre    = profile?.nombre ?? '—'
 
-    lastStepRef.current = Math.floor(Date.now() / 1000 / 30)
+    lastStepRef.current = Math.floor(Date.now() / 1000 / TOTP_STEP)
 
     setData({
       numero_socio: socio.numero_socio,
@@ -110,7 +111,7 @@ export function useCarnet() {
   useEffect(() => {
     const timer = setInterval(async () => {
       const sLeft   = secondsUntilRefresh()
-      const nowStep = Math.floor(Date.now() / 1000 / 30)
+      const nowStep = Math.floor(Date.now() / 1000 / TOTP_STEP)
 
       if (nowStep !== lastStepRef.current) {
         await buildCarnet()
@@ -121,5 +122,10 @@ export function useCarnet() {
     return () => clearInterval(timer)
   }, [buildCarnet])
 
-  return { loading, error, data }
+  const refresh = useCallback(async () => {
+    fotoUrlRef.current = undefined  // fuerza re-fetch de la foto
+    await buildCarnet()
+  }, [buildCarnet])
+
+  return { loading, error, data, refresh }
 }
