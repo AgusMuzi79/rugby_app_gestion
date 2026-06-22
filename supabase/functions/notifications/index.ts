@@ -63,6 +63,18 @@ Deno.serve(async (req: Request) => {
         return jsonError(400, 'Payload manual incompleto')
       }
       await notificarManual(mp)
+    } else if (type === 'noticia_publicada') {
+      const np = payload as NoticiaPayload
+      if (!np?.titulo || !np?.noticiaId) {
+        return jsonError(400, 'Payload noticia incompleto')
+      }
+      await notificarNoticiaPublicada(np)
+    } else if (type === 'cancelacion_entrenamiento') {
+      const cp = payload as CancelacionPayload
+      if (!cp?.divisionId || !cp?.mensaje) {
+        return jsonError(400, 'Payload cancelacion incompleto')
+      }
+      await notificarCancelacion(cp)
     } else {
       const np = payload as NotifPayload
       if (!np?.jugadorNombre || !np?.divisionNombre || !np?.divisionId) {
@@ -74,18 +86,6 @@ Deno.serve(async (req: Request) => {
         await notificarFichaje(np)
       } else if (type === 'ausencias_consecutivas') {
         await notificarAusencias(np)
-      } else if (type === 'noticia_publicada') {
-        const np = payload as NoticiaPayload
-        if (!np?.titulo || !np?.noticiaId) {
-          return jsonError(400, 'Payload noticia incompleto')
-        }
-        await notificarNoticiaPublicada(np)
-      } else if (type === 'cancelacion_entrenamiento') {
-        const cp = payload as CancelacionPayload
-        if (!cp?.divisionId || !cp?.mensaje) {
-          return jsonError(400, 'Payload cancelacion incompleto')
-        }
-        await notificarCancelacion(cp)
       } else {
         return jsonError(400, `Tipo desconocido: ${type}`)
       }
