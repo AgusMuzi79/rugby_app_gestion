@@ -21,8 +21,9 @@ interface ManualPayload {
 }
 
 interface NoticiaPayload {
-  titulo:    string
-  noticiaId: string
+  titulo:     string
+  noticiaId:  string
+  audiencia?: 'todos' | 'cuerpo_tecnico'
 }
 
 interface CancelacionPayload {
@@ -133,7 +134,24 @@ async function notificarManual(p: ManualPayload): Promise<void> {
 }
 
 async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<void> {
-  const { tokens } = await getDestinatariosRol('socio')
+  const audiencia = p.audiencia ?? 'todos'
+  let tokens: string[]
+
+  if (audiencia === 'cuerpo_tecnico') {
+    // Solo staff: coordinador + entrenador + manager
+    const roles = ['coordinador', 'entrenador', 'manager']
+    const allTokens: string[] = []
+    for (const rol of roles) {
+      const { tokens: t } = await getDestinatariosRol(rol)
+      allTokens.push(...t)
+    }
+    tokens = allTokens
+  } else {
+    // todos: cualquier usuario que tenga el rol 'socio' en su array de roles
+    const { tokens: t } = await getDestinatariosSocio()
+    tokens = t
+  }
+
   await enviarExpoPush(tokens, 'Nueva Noticia', p.titulo, {
     type: 'noticia_publicada',
     noticiaId: p.noticiaId,
@@ -169,6 +187,26 @@ async function getDestinatariosRol(
     .from('profiles')
     .select('id')
     .eq('rol', rol)
+    .eq('activo', true)
+
+  if (!profiles?.length) return { ids: [], tokens: [] }
+
+  const ids = profiles.map(p => p.id)
+  const { data: pushRows } = await supabaseAdmin
+    .from('push_tokens')
+    .select('token')
+    .in('usuario_id', ids)
+
+  return { ids, tokens: (pushRows ?? []).map(r => r.token) }
+}
+
+// Para noticias de audiencia 'todos': busca por el array roles[] en vez de rol activo,
+// así llega a socios cuyo rol activo es staff (entrenador, coordinador, etc.)
+async function getDestinatariosSocio(): Promise<{ ids: string[]; tokens: string[] }> {
+  const { data: profiles } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .contains('roles', ['socio'])
     .eq('activo', true)
 
   if (!profiles?.length) return { ids: [], tokens: [] }

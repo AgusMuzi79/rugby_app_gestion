@@ -11,6 +11,7 @@ interface Noticia {
   etiquetas: string[]
   created_at: string
   autor: string
+  audiencia: 'todos' | 'cuerpo_tecnico'
 }
 
 type Filtro = 'todas' | 'rugby' | 'hockey' | 'tenis'
@@ -50,7 +51,7 @@ export default function NoticiasPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
       .from('noticias')
-      .select('id, titulo, cuerpo, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)')
+      .select('id, titulo, cuerpo, publicada, etiquetas, audiencia, created_at, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
 
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => ({
@@ -59,6 +60,7 @@ export default function NoticiasPage() {
       cuerpo:     n.cuerpo as string,
       publicada:  n.publicada as boolean,
       etiquetas:  (n.etiquetas as string[]) ?? [],
+      audiencia:  (n.audiencia as 'todos' | 'cuerpo_tecnico') ?? 'todos',
       created_at: n.created_at as string,
       autor:      (n.profiles as { nombre: string } | null)?.nombre ?? '—',
     }))
@@ -80,7 +82,7 @@ export default function NoticiasPage() {
       const noticia = noticias.find(n => n.id === id)
       if (noticia) {
         supabase.functions.invoke('notifications', {
-          body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: id } },
+          body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: id, audiencia: noticia.audiencia } },
         }).catch(() => {})
       }
     }

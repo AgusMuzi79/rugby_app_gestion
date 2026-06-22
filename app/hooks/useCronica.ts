@@ -167,7 +167,7 @@ export function useCronica() {
     try {
       await supabase.from('notificaciones').insert({ titulo, mensaje, tipo: 'manual' })
       await supabase.functions.invoke('notifications', {
-        body: { tipo: 'manual', titulo, mensaje },
+        body: { type: 'manual', payload: { titulo, mensaje, rolDestinatario: 'todos' } },
       })
       void fetchTodo()
       return true
