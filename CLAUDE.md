@@ -150,7 +150,9 @@ rugby_app_gestion/
 | `useUsuarios` — búsqueda de socio por DNI o nombre (auto-detecta, lista de resultados si hay varios) | ✅ |
 | Web subcomisión `/usuarios` — filtra socios/admin, fix delete, modal "+ NUEVO USUARIO" con tabs | ✅ |
 | Dev build Android generado (incluye v3 completo) | ✅ |
+| Preview build Android generada — `dda1831f` (2026-06-18) | ✅ |
 | Repo GitHub conectado a Vercel — auto-deploy en push a main | ✅ |
+| Fix deploy Vercel: `rootDirectory` corregido a `web/` en project settings (Vercel buildaba desde root y escaneaba `app/` de Expo) | ✅ |
 | Migration `20260618000000` — repara `profiles` donde `rol` activo no estaba en `roles[]` | ✅ |
 | Migration `20260618000001` — función `register_push_token` SECURITY DEFINER (fix RLS upsert) | ✅ |
 | `push_tokens` — registra via RPC `register_push_token` (SECURITY DEFINER, evita conflicto RLS) | ✅ |
@@ -212,7 +214,7 @@ rugby_app_gestion/
 - Test end-to-end portería carnet QR con dev build
 - Setear secrets de MercadoPago, Resend y AWS cuando estén disponibles
 
-**Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel. Repo GitHub conectado — auto-deploy en push a `main`. Para deploy manual desde `web/`: `vercel --prod --yes`.
+**Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel. Repo GitHub conectado — auto-deploy en push a `main`. Para deploy manual: `vercel --prod --yes` desde la **raíz del repo** (no desde `web/`) — el `rootDirectory=web` en Vercel settings lo resuelve internamente.
 
 Pendiente cuando lleguen los secrets:
 ```bash
