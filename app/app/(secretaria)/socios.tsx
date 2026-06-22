@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional, type CardFormData } from '@/hooks/useSociosSecretaria'
+import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -44,23 +45,27 @@ function ModalNuevoSocio({
   categorias: CategoriaSocio[]
   creando:    boolean
   onClose:    () => void
-  onCreate:   (email: string, nombre: string, dni: string, categoria_id: string) => void
+  onCreate:   (email: string, nombre: string, dni: string, categoria_id: string, fecha_nacimiento?: string) => void
 }) {
-  const [email, setEmail]   = useState('')
-  const [nombre, setNombre] = useState('')
-  const [dni, setDni]       = useState('')
-  const [catId, setCatId]   = useState('')
+  const [email,           setEmail]           = useState('')
+  const [nombre,          setNombre]          = useState('')
+  const [dni,             setDni]             = useState('')
+  const [catId,           setCatId]           = useState('')
+  const [fechaNacimiento, setFechaNacimiento] = useState<Date | null>(null)
 
   const handleCrear = () => {
     if (!email.trim())  { Alert.alert('Requerido', 'Email obligatorio.'); return }
     if (!nombre.trim()) { Alert.alert('Requerido', 'Nombre obligatorio.'); return }
     if (!dni.trim())    { Alert.alert('Requerido', 'DNI obligatorio.'); return }
     if (!catId)         { Alert.alert('Requerido', 'Seleccioná una categoría.'); return }
-    onCreate(email.trim().toLowerCase(), nombre.trim(), dni.trim(), catId)
+    const fechaStr = fechaNacimiento
+      ? fechaNacimiento.toISOString().split('T')[0]
+      : undefined
+    onCreate(email.trim().toLowerCase(), nombre.trim(), dni.trim(), catId, fechaStr)
   }
 
   const handleClose = () => {
-    setEmail(''); setNombre(''); setDni(''); setCatId('')
+    setEmail(''); setNombre(''); setDni(''); setCatId(''); setFechaNacimiento(null)
     onClose()
   }
 
@@ -101,6 +106,15 @@ function ModalNuevoSocio({
                 />
               </View>
             ))}
+
+            <DatePickerField
+              label="FECHA DE NACIMIENTO"
+              value={fechaNacimiento}
+              onChange={setFechaNacimiento}
+              mode="date"
+              maximumDate={new Date()}
+              onClear={() => setFechaNacimiento(null)}
+            />
 
             <Text style={ss.inputLabelMt}>CATEGORÍA</Text>
             {categoriasActivas.length === 0 ? (
@@ -787,8 +801,8 @@ export default function SociosScreen() {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [detalle, setDetalle]       = useState<SocioItem | null>(null)
 
-  const handleCrear = async (email: string, nombre: string, dni: string, categoria_id: string) => {
-    const ok = await crearSocio({ email, nombre, dni, categoria_id })
+  const handleCrear = async (email: string, nombre: string, dni: string, categoria_id: string, fecha_nacimiento?: string) => {
+    const ok = await crearSocio({ email, nombre, dni, categoria_id, fecha_nacimiento })
     if (ok) setModalNuevo(false)
   }
 

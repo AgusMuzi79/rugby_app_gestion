@@ -529,12 +529,13 @@ function ModalNuevoSocio({
   onClose: () => void
   onSuccess: () => void
 }) {
-  const [nombre,   setNombre]   = useState('')
-  const [email,    setEmail]    = useState('')
-  const [dni,      setDni]      = useState('')
-  const [catId,    setCatId]    = useState('')
-  const [creando,  setCreando]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [nombre,          setNombre]          = useState('')
+  const [email,           setEmail]           = useState('')
+  const [dni,             setDni]             = useState('')
+  const [catId,           setCatId]           = useState('')
+  const [fechaNacimiento, setFechaNacimiento] = useState('')
+  const [creando,         setCreando]         = useState(false)
+  const [error,           setError]           = useState('')
 
   const handleCrear = async () => {
     if (!nombre.trim()) { setError('Nombre obligatorio.'); return }
@@ -544,6 +545,7 @@ function ModalNuevoSocio({
     setCreando(true); setError('')
     const json = await callEdgeFunction('admin-socios', {
       action: 'create', email: email.trim().toLowerCase(), nombre: nombre.trim(), dni: dni.trim(), categoria_id: catId,
+      ...(fechaNacimiento ? { fecha_nacimiento: fechaNacimiento } : {}),
     })
     setCreando(false)
     if (json.error) { setError(json.error); return }
@@ -558,6 +560,7 @@ function ModalNuevoSocio({
         <FormField label="NOMBRE COMPLETO" value={nombre} onChange={setNombre} placeholder="Juan Pérez" />
         <FormField label="EMAIL" value={email} onChange={setEmail} placeholder="juan@ejemplo.com" type="email" />
         <FormField label="DNI" value={dni} onChange={setDni} placeholder="12345678" />
+        <FormField label="FECHA DE NACIMIENTO" value={fechaNacimiento} onChange={setFechaNacimiento} type="date" />
         <div>
           <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">CATEGORÍA</label>
           <div className="flex flex-wrap gap-2">
