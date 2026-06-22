@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface Noticia {
@@ -55,6 +56,7 @@ export function useNoticias(soloPublicadas: boolean) {
   }, [soloPublicadas])
 
   useEffect(() => { fetch() }, [fetch])
+  useRefreshOnFocus(fetch)
 
   useEffect(() => {
     const channel = supabase

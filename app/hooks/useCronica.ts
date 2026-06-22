@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type FeedTipo = 'LESIÓN' | 'ASISTENCIA' | 'FICHAJE' | 'RESULTADO' | 'INFO'
 
@@ -51,6 +52,7 @@ export function useCronica() {
   const [items, setItems]     = useState<FeedItem[]>([])
 
   useEffect(() => { if (session && rol) void fetchTodo() }, [session, rol])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     if (!session || !rol) return

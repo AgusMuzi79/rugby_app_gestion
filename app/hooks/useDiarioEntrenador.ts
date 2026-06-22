@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export interface ProximoEvento {
   id:    string
@@ -42,6 +43,7 @@ export function useDiarioEntrenador() {
   const [data, setData]       = useState<DiarioEntrenadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     if (!session) return

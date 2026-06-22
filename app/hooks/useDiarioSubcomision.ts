@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type CronicaTipo = 'urgente' | 'alerta' | 'info'
 
@@ -55,6 +56,7 @@ export function useDiarioSubcomision() {
   const [data, setData]       = useState<DiarioSubcomisionData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     if (!session) return

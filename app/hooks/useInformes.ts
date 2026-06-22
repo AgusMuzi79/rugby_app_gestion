@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export interface JugadorAsistencia {
   jugadorId:            string
@@ -76,6 +77,7 @@ export function useInformes() {
   useEffect(() => {
     if (session) fetchTodo()
   }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     setLoading(true)

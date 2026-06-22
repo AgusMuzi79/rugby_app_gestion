@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 interface EstadosSocios {
   activos:   number
@@ -81,6 +82,7 @@ export function useDiarioSecretaria() {
   }, [])
 
   useEffect(() => { fetch() }, [fetch])
+  useRefreshOnFocus(fetch)
 
   return { loading, data, refetch: fetch }
 }

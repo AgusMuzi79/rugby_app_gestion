@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Linking, Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface Cuota {
@@ -112,6 +113,7 @@ export function useCuotas() {
   }, [session])
 
   useEffect(() => { fetch() }, [fetch])
+  useRefreshOnFocus(fetch)
 
   const iniciarPago = useCallback(async (cuotaId: string) => {
     const cuota = cuotas.find(c => c.id === cuotaId)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Linking, Alert } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -51,6 +52,7 @@ export function useProtocolos() {
   const [abriendo,     setAbriendo]     = useState<string | null>(null)
 
   useEffect(() => { cargarProtocolos() }, [])
+  useRefreshOnFocus(cargarProtocolos)
 
   async function cargarProtocolos() {
     setLoading(true)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -73,6 +74,7 @@ export function useEventos() {
   useEffect(() => {
     if (session) fetchTodo()
   }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     setLoading(true)

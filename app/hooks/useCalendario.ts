@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type TipoEvento = 'entrenamiento' | 'partido'
 
@@ -155,6 +156,7 @@ export function useCalendario(): UseCalendarioReturn {
   useEffect(() => {
     fetchDatos()
   }, [fetchDatos])
+  useRefreshOnFocus(fetchDatos)
 
   function resetForm() {
     setForm({

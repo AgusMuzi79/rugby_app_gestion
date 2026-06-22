@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export interface JugadorAsistencia {
   id: string
@@ -35,6 +36,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
   useEffect(() => {
     if (session) fetchDivisiones()
   }, [session])
+  useRefreshOnFocus(fetchDivisiones)
 
   const fetchJugadores = useCallback(async (divisionId: string) => {
     setLoading(true)

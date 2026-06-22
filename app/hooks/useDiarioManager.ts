@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export interface EventoProgreso {
   id:           string
@@ -42,6 +43,7 @@ export function useDiarioManager() {
   const [data, setData]       = useState<DiarioManagerData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     if (!session) return

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
@@ -143,6 +144,13 @@ export function useSociosSecretaria() {
     fetchServicios()
     fetchSocios()
   }, [fetchCategorias, fetchServicios, fetchSocios])
+
+  const refreshAll = useCallback(() => {
+    fetchCategorias()
+    fetchServicios()
+    fetchSocios()
+  }, [fetchCategorias, fetchServicios, fetchSocios])
+  useRefreshOnFocus(refreshAll)
 
   const sociosFiltrados = socios.filter(s =>
     filtro === 'todos' ? true : s.estado === filtro

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type RolDestinatario = 'coordinador' | 'entrenador' | 'manager' | 'todos'
 
@@ -64,6 +65,7 @@ export function useNotificaciones() {
   useEffect(() => {
     cargarHistorial()
   }, [cargarHistorial])
+  useRefreshOnFocus(cargarHistorial)
 
   function abrirModal()  { setForm(FORM_INICIAL); setErrorEnvio(null); setModalVisible(true) }
   function cerrarModal() { setModalVisible(false) }

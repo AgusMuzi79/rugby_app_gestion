@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export interface EventoSemana {
   id:             string
@@ -51,6 +52,7 @@ export function useDiarioCoordinador() {
   const [data, setData]       = useState<DiarioCoordinadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
+  useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
     if (!session) return
