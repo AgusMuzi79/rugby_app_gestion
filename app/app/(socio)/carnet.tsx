@@ -1,7 +1,9 @@
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator,
+  TouchableOpacity, Modal, Image, Dimensions, StatusBar,
 } from 'react-native'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
+import { Feather } from '@expo/vector-icons'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
@@ -37,6 +39,88 @@ const ESTADO_LABEL: Record<string, string> = {
   inactivo:  'INACTIVO',
 }
 
+// ─── Tarjeta física ───────────────────────────────────────────────────────────
+
+const CARD_WIDTH  = Dimensions.get('window').width - 48
+const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.63) // proporción ID card 85.6×54mm
+
+const ESTADO_BG: Record<string, string> = {
+  activo:    '#2ECC71',
+  moroso:    colors.oro,
+  pendiente: '#E67E22',
+  inactivo:  colors.rojoUrgente,
+}
+
+function TarjetaFisicaModal({
+  visible,
+  data,
+  onClose,
+}: {
+  visible: boolean
+  data: import('@/hooks/useCarnet').CarnetData
+  onClose: () => void
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <StatusBar backgroundColor="rgba(0,0,0,0.88)" />
+      <View style={tm.overlay}>
+        <TouchableOpacity style={tm.overlayBg} activeOpacity={1} onPress={onClose} />
+
+        <View style={tm.sheet}>
+          {/* Tarjeta */}
+          <View style={[tm.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
+
+            {/* Franja superior */}
+            <View style={tm.cardHeader}>
+              <Text style={tm.cardClub}>UNCAS RUGBY CLUB</Text>
+              <Text style={tm.cardYear}>{new Date().getFullYear()}</Text>
+            </View>
+
+            {/* Cuerpo: foto + datos */}
+            <View style={tm.cardBody}>
+              {/* Foto */}
+              {data.fotoUrl ? (
+                <Image source={{ uri: data.fotoUrl }} style={tm.foto} />
+              ) : (
+                <View style={[tm.foto, tm.fotoPlaceholder]}>
+                  <Feather name="user" size={28} color={colors.oroHondo} />
+                </View>
+              )}
+
+              {/* Datos */}
+              <View style={tm.datosCol}>
+                <Text style={tm.nombre} numberOfLines={2} adjustsFontSizeToFit>
+                  {data.nombre}
+                </Text>
+                <View style={tm.numRow}>
+                  <Text style={tm.numLabel}>Nº </Text>
+                  <Text style={tm.numValue}>{data.numero_socio}</Text>
+                </View>
+                <View style={tm.dividerLine} />
+                <Text style={tm.categoriaText}>{data.categoria.toUpperCase()}</Text>
+                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[data.estado] ?? '#555' }]}>
+                  <Text style={tm.estadoChipText}>
+                    {ESTADO_LABEL[data.estado] ?? data.estado.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Franja inferior */}
+            <View style={tm.cardFooter}>
+              <Text style={tm.cardFooterText}>CARNET DE SOCIO</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={tm.cerrarBtn} onPress={onClose} activeOpacity={0.75}>
+            <Text style={tm.cerrarText}>CERRAR</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CarnetScreen() {
@@ -44,6 +128,7 @@ export default function CarnetScreen() {
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
   const { loading, error, data } = useCarnet()
+  const [verTarjeta, setVerTarjeta] = useState(false)
 
   return (
     <ScrollView
@@ -121,6 +206,16 @@ export default function CarnetScreen() {
             </View>
           </View>
 
+          {/* ── VER CARNET FÍSICO ── */}
+          <TouchableOpacity
+            style={s.verCarnetBtn}
+            onPress={() => setVerTarjeta(true)}
+            activeOpacity={0.8}
+          >
+            <Feather name="credit-card" size={14} color={colors.oro} />
+            <Text style={s.verCarnetText}>VER CARNET</Text>
+          </TouchableOpacity>
+
           {/* ── CÓDIGO MANUAL ── */}
           <View style={s.sectionCodigo}>
             <View style={s.secRow}>
@@ -134,6 +229,11 @@ export default function CarnetScreen() {
               {formatCodigo(data.code)}
             </Text>
           </View>
+          <TarjetaFisicaModal
+            visible={verTarjeta}
+            data={data}
+            onClose={() => setVerTarjeta(false)}
+          />
         </>
       ) : null}
     </ScrollView>
@@ -208,4 +308,110 @@ const s = StyleSheet.create({
 
   errorContainer: { padding: 40, alignItems: 'center' },
   errorText:      { fontFamily: fonts.cuerpo, fontSize: 14, textAlign: 'center', color: colors.rojoUrgente },
+
+  verCarnetBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 8,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4,
+    paddingVertical: 12,
+  },
+  verCarnetText: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    textTransform: 'uppercase', color: colors.oro,
+  },
+})
+
+// ─── Estilos tarjeta física ───────────────────────────────────────────────────
+
+const tm = StyleSheet.create({
+  overlay: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+  },
+  overlayBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+  },
+  sheet: {
+    alignItems: 'center', gap: 20,
+  },
+
+  // Tarjeta
+  card: {
+    borderRadius: 10, overflow: 'hidden',
+    backgroundColor: '#1C1710',
+    borderWidth: 1, borderColor: '#3A2E1E',
+  },
+  cardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: colors.tinta,
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderBottomWidth: 1, borderBottomColor: colors.oroHondo + '40',
+  },
+  cardClub: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2.5,
+    textTransform: 'uppercase', color: colors.oro,
+  },
+  cardYear: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1,
+    color: colors.oroHondo,
+  },
+  cardBody: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 10, gap: 14,
+  },
+  foto: {
+    width: 72, height: 88, borderRadius: 4,
+    borderWidth: 1, borderColor: '#3A2E1E',
+  },
+  fotoPlaceholder: {
+    backgroundColor: '#0E0B07', alignItems: 'center', justifyContent: 'center',
+  },
+  datosCol: {
+    flex: 1, gap: 4,
+  },
+  nombre: {
+    fontFamily: fonts.titulo, fontSize: 17, color: '#F3EFE4', lineHeight: 22,
+  },
+  numRow: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2,
+  },
+  numLabel: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1, color: '#8E8574',
+  },
+  numValue: {
+    fontFamily: fonts.titulo, fontSize: 18, color: colors.oro,
+  },
+  dividerLine: {
+    height: 1, backgroundColor: '#2C2418', marginVertical: 4,
+  },
+  categoriaText: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574',
+  },
+  estadoChip: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3, marginTop: 2,
+  },
+  estadoChipText: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5,
+    textTransform: 'uppercase', color: colors.blanco,
+  },
+  cardFooter: {
+    alignItems: 'center', paddingVertical: 6,
+    borderTopWidth: 1, borderTopColor: colors.oroHondo + '30',
+    backgroundColor: colors.tinta,
+  },
+  cardFooterText: {
+    fontFamily: fonts.label, fontSize: 7, letterSpacing: 3,
+    textTransform: 'uppercase', color: colors.oroHondo,
+  },
+
+  // Botón cerrar
+  cerrarBtn: {
+    paddingHorizontal: 32, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#3A2E1E', borderRadius: 4,
+  },
+  cerrarText: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    textTransform: 'uppercase', color: '#8E8574',
+  },
 })

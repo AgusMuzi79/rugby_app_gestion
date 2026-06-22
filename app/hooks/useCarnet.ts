@@ -14,6 +14,7 @@ export interface CarnetData {
   estado:       string
   categoria:    string
   secondsLeft:  number
+  fotoUrl:      string | null
 }
 
 export function useCarnet() {
@@ -23,6 +24,7 @@ export function useCarnet() {
   const [error, setError]     = useState<string | null>(null)
   const [data, setData]       = useState<CarnetData | null>(null)
   const lastStepRef           = useRef(-1)
+  const fotoUrlRef            = useRef<string | null | undefined>(undefined)
 
   const getSecret = useCallback(async (): Promise<string | null> => {
     const cached = await SecureStore.getItemAsync(TOTP_SECRET_KEY)
@@ -53,7 +55,7 @@ export function useCarnet() {
     const [{ data: socio }, { data: profile }] = await Promise.all([
       db
         .from('socios')
-        .select('id, numero_socio, estado, categorias_socio ( nombre )')
+        .select('id, numero_socio, estado, foto_path, categorias_socio ( nombre )')
         .eq('profile_id', userId)
         .single(),
       supabase
@@ -67,6 +69,18 @@ export function useCarnet() {
       setError('No se encontró tu registro de socio.')
       setLoading(false)
       return
+    }
+
+    // Generar signed URL de foto solo una vez por sesión (expira en 1h)
+    if (fotoUrlRef.current === undefined) {
+      if (socio.foto_path) {
+        const { data: urlData } = await supabase.storage
+          .from('socios-fotos')
+          .createSignedUrl(socio.foto_path, 3600)
+        fotoUrlRef.current = urlData?.signedUrl ?? null
+      } else {
+        fotoUrlRef.current = null
+      }
     }
 
     const code      = generateTOTP(secret)
@@ -84,6 +98,7 @@ export function useCarnet() {
       estado:       socio.estado,
       categoria,
       secondsLeft:  sLeft,
+      fotoUrl:      fotoUrlRef.current,
     })
     setError(null)
     setLoading(false)
