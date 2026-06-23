@@ -160,6 +160,16 @@ rugby_app_gestion/
 | `admin-usuarios` `handleAssignRole` — join `profiles` para `nombre` (socios no tiene nombre/email) | ✅ |
 | `buscarSocio` web + mobile — join `profiles!socios_profile_id_fkey` para obtener nombre | ✅ |
 | Web login — restaura `rol` activo a rol web si el usuario switcheó a rol móvil desde la app | ✅ |
+| `fecha_nacimiento` en creación de socio — formulario web secretaría + modal mobile | ✅ |
+| Carnet físico — botón "VER CARNET" en `(socio)/carnet.tsx` abre modal con vista tipo DNI | ✅ |
+| QR TOTP — paso cambiado de 30s a 60s (cliente + servidor + Edge Function `socios-qr`) | ✅ |
+| Pull-to-refresh en pantalla carnet + `refresh` en `useCarnet` (resetea foto URL cacheada) | ✅ |
+| `useRefreshOnFocus` — hook helper con `useFocusEffect` + ref pattern (callback estable) | ✅ |
+| Refresh automático al volver al foco — aplicado en 16 hooks de datos (diarios, calendario, noticias, cuotas, socios, protocolos, notificaciones, eventos, informes, crónica, asistencia) | ✅ |
+| Fix `notifications` Edge Function — `noticia_publicada` y `cancelacion_entrenamiento` bloqueadas por validación genérica de `NotifPayload` | ✅ |
+| Fix `useCronica` — payload con `tipo` en vez de `type`, sin wrapper `payload`, sin `rolDestinatario` | ✅ |
+| Fix `notifications` — `getDestinatariosSocio()` con `.contains('roles', ['socio'])` en vez de `.eq('rol', 'socio')` (multi-rol) | ✅ |
+| Fix noticias web — pasa `audiencia` al Edge Function; `cuerpo_tecnico` pushea a staff, `todos` pushea a socios | ✅ |
 | Portería: test carnet QR end-to-end | ⏳ pendiente |
 | Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
 
@@ -171,7 +181,7 @@ rugby_app_gestion/
 - Migraciones v3 (`20260616000000`, `20260616000001`, `20260616000002`) aplicadas vía `supabase db push`.
 - Migraciones `20260617000000`, `20260617000001`, `20260618000000`, `20260618000001` aplicadas vía `supabase db push`.
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
-- `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes.
+- `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes. Paso TOTP = **60 segundos** (cambiado de 30s) — sincronizado en `totp-client.ts`, `_shared/totp.ts` y `useCarnet.ts`.
 - `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al pagar.
 - `push_tokens` usa RPC `register_push_token` (SECURITY DEFINER) — hace DELETE + INSERT bypasseando RLS. Las policies de UPDATE/INSERT bloqueaban tanto upsert como delete+insert directo cuando el token pertenecía a otro usuario.
 - Secretaría tiene panel web propio en `web/app/(secretaria)/` — separado de subcomisión.
@@ -187,7 +197,8 @@ rugby_app_gestion/
 - **EAS env vars:** `.env.local` está en `.gitignore` — EAS no lo lee. Las variables `EXPO_PUBLIC_*` deben setearse con `eas env:create --environment preview`. Ya configuradas: `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en environment `preview`.
 - `suppressHydrationWarning` en `<html>` del layout web — evita falso error por Dark Reader extension.
 - **Multi-rol:** `profiles.roles TEXT[]` contiene todos los roles disponibles del usuario; `profiles.rol` es el activo (usado por RLS `get_rol()`). Todo usuario staff es socio primero — `assign-role` agrega un rol sobre la base socio existente. El socio puede cambiar su vista activa desde "Mi Perfil" si tiene más de un rol.
-- **noticias.audiencia:** `'todos'` (socios + staff) o `'cuerpo_tecnico'` (solo coordinador/entrenador/manager). RLS aplica el filtro automáticamente — el hook `useNoticias` no necesita cambios.
+- **noticias.audiencia:** `'todos'` (socios + staff) o `'cuerpo_tecnico'` (solo coordinador/entrenador/manager). RLS aplica el filtro automáticamente — el hook `useNoticias` no necesita cambios. El push respeta la audiencia: `todos` → `getDestinatariosSocio()` (contains 'socio' en `roles[]`); `cuerpo_tecnico` → coordinador+entrenador+manager.
+- **`useRefreshOnFocus`:** hook helper en `app/hooks/useRefreshOnFocus.ts`. Usa `useFocusEffect` con un ref interno para mantener el callback estable (evita re-ejecución en cada render aunque el fetch no sea `useCallback`). Se aplica en todos los hooks de datos — no aplicar en `useAsistencia` (flujo puntual) ni en hooks que ya tienen `useFocusEffect` propio.
 - **Calendario socio:** `useCalendarioSocio` detecta si el socio es jugador (por DNI → `jugadores.socio_id`) y filtra partidos/resultados con badge "MI EQUIPO". Filtrable por deporte (rugby/hockey/tenis).
 - **Cancelación de eventos:** coordinador marca `cancelado=true` + inserta noticia automática (audiencia='todos', `generada_automaticamente=true`) + push a jugadores de la división via `jugadores → socios → push_tokens`.
 - **`divisiones.deporte`:** campo en schema, seed ruby por default. Selector en web `/divisiones` al crear división.
