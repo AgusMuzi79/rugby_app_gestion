@@ -3,7 +3,8 @@
 ## Reglas de negocio fijas
 
 - **Escala de lesiones:** fija del 1 al 5, definida por el club. No configurable desde la app.
-- **Cobranzas:** sin integración con sistemas de pago. Registro manual: estado (Pagado/Pendiente), monto y forma de pago (efectivo, transferencia, otro).
+- **Cobranzas (staff):** sin integración con sistemas de pago. Registro manual: estado (Pagado/Pendiente), monto y forma de pago (efectivo, transferencia, otro).
+- **Cuotas de socios:** pago por alias bancario `cuenta.uncas.rugby`. El socio sube foto del comprobante desde la app → estado pasa a `en_revision`. Secretaría aprueba manualmente desde el panel web. Sin integración bancaria en MVP; Banco Macro previsto para el futuro.
 - **Fichajes:** el Manager tiene autoridad directa. Sin flujo de aprobación.
 - **Eventos de recaudación:** los crea la Subcomisión y los cierra manualmente. Sin vencimiento automático.
 - **Resultados deportivos:** solo disponibles para divisiones juveniles en adelante. Infantiles no tienen marcador.
@@ -36,7 +37,9 @@ Los specs viven en `openspec/specs/` (37 user stories en 7 dominios):
 ## Backlog — Pendientes prioritarios
 
 - [ ] Build iOS (requiere Apple Developer Program, $99/año)
-- [ ] Deploy web en Vercel (`cd web && vercel`)
-- [ ] Dark mode modo `system` en la web (ThemeContext no aplica a Next.js)
-- [ ] Deep link de registro (`type=invite`) — completar flujo email → `registro.tsx` ← parcialmente implementado, falta testing
-- [ ] Volver `.env.local` de app y web a Supabase Cloud al terminar testing local
+
+## Descartados
+
+- ~~Dark mode `system` en la web~~ — la visual ya usa tonos oscuros fijos; toggle no aplica
+- ~~Deep link registro `type=invite`~~ — flujo reemplazado: secretaría crea socio con email + DNI como contraseña inicial
+- ~~Volver `.env.local` a Supabase Cloud~~ — ya apunta a cloud (`tlexvbattnzpmdftjsao`)

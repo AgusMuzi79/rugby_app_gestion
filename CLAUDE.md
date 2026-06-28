@@ -170,8 +170,18 @@ rugby_app_gestion/
 | Fix `useCronica` — payload con `tipo` en vez de `type`, sin wrapper `payload`, sin `rolDestinatario` | ✅ |
 | Fix `notifications` — `getDestinatariosSocio()` con `.contains('roles', ['socio'])` en vez de `.eq('rol', 'socio')` (multi-rol) | ✅ |
 | Fix noticias web — pasa `audiencia` al Edge Function; `cuerpo_tecnico` pushea a staff, `todos` pushea a socios | ✅ |
+| `app.config.js` + `eas.json` — dev build usa package `com.uncas.rugbyapp.dev` para coexistir con preview build en el mismo teléfono | ✅ |
+| `(socio)/calendario.tsx` — header igualado al resto de tabs (`<Header />` + barra edición), "Fixture" renombrado a "CALENDARIO" | ✅ |
+| Carnet físico — agrega logo del club (esquina), deporte + división (si es jugador), chips de roles | ✅ |
+| `useCarnet` — agrega `roles`, `division`, `deporte` a `CarnetData` (query a `jugadores → divisiones`) | ✅ |
+| `useSobre` — foto busca siempre en `socios` (no solo si `rol === 'socio'`); staff con doble rol ve su foto de socio | ✅ |
+| Migration `20260624000000` — fix RLS `socios` y `socios-fotos`: elimina `get_rol() = 'socio'` de policies de propiedad (bloqueaba staff multi-rol) | ✅ |
+| Migration `20260624000001` — `cuotas.estado` agrega `'en_revision'`, `cuotas.comprobante_path TEXT`, RLS UPDATE propio por socio | ✅ |
+| `useCuotas` — sin MercadoPago; `subirComprobante()` sube foto al bucket `comprobantes`, pone cuota en `en_revision` | ✅ |
+| `(socio)/cuotas.tsx` — rediseño completo: cards expandibles, modal con alias `cuenta.uncas.rugby`, subida de comprobante, estados verde/oro/pendiente | ✅ |
 | Portería: test carnet QR end-to-end | ⏳ pendiente |
-| Secrets AWS (Rekognition) + MercadoPago + Resend | ⏳ cuando estén disponibles |
+| Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
+| Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
 
 **Notas de comportamiento actual:**
 - `validate-photo` corre sin Rekognition si `AWS_ACCESS_KEY_ID` no está seteado (valida manualmente directo en DB).
@@ -182,7 +192,7 @@ rugby_app_gestion/
 - Migraciones `20260617000000`, `20260617000001`, `20260618000000`, `20260618000001` aplicadas vía `supabase db push`.
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
 - `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes. Paso TOTP = **60 segundos** (cambiado de 30s) — sincronizado en `totp-client.ts`, `_shared/totp.ts` y `useCarnet.ts`.
-- `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al pagar.
+- `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al confirmar pago.
 - `push_tokens` usa RPC `register_push_token` (SECURITY DEFINER) — hace DELETE + INSERT bypasseando RLS. Las policies de UPDATE/INSERT bloqueaban tanto upsert como delete+insert directo cuando el token pertenecía a otro usuario.
 - Secretaría tiene panel web propio en `web/app/(secretaria)/` — separado de subcomisión.
 - Las páginas de secretaría están en `(secretaria)/secretaria/{socios,noticias,servicios,categorias}/page.tsx` — el segmento `secretaria/` es necesario para que las rutas resuelvan a `/secretaria/*` (el route group no agrega segmento de URL).
@@ -202,14 +212,18 @@ rugby_app_gestion/
 - **Calendario socio:** `useCalendarioSocio` detecta si el socio es jugador (por DNI → `jugadores.socio_id`) y filtra partidos/resultados con badge "MI EQUIPO". Filtrable por deporte (rugby/hockey/tenis).
 - **Cancelación de eventos:** coordinador marca `cancelado=true` + inserta noticia automática (audiencia='todos', `generada_automaticamente=true`) + push a jugadores de la división via `jugadores → socios → push_tokens`.
 - **`divisiones.deporte`:** campo en schema, seed ruby por default. Selector en web `/divisiones` al crear división.
+- **Push notifications — dev build:** el dev build (`com.uncas.rugbyapp.dev`) NO recibe notificaciones push. La Edge Function `notifications` corre correctamente y entrega los tokens a Expo, pero FCM los descarta porque `com.uncas.rugbyapp.dev` no está registrado en Firebase. Testear push siempre con el **preview build** (`com.uncas.rugbyapp`). Para habilitar en dev: registrar el package en Firebase Console y regenerar `google-services.json`.
 
-**Débito automático con tarjeta — diseño implementado:**
-- `associate-card`: secretaria o socio asocian tarjeta → tokeniza con CVV → guarda en MP customer → sin cobro al momento
-- `remove-card`: elimina tarjeta de MP y limpia campos en `socios`
-- `charge-card`: cobro manual por secretaria con tarjeta guardada (para pagos extra o reintento)
-- `cobro-mensual`: cron diario 9am — cobra socios con tarjeta, reintentos días +1/+2/+3, al 4to fallo notifica secretaria por push + marca moroso
-- Cambio de tarjeta por el socio: **no dispara cobro** aunque el período esté impago
-- `forma_pago = 'tarjeta'` agregado al CHECK constraint en `pagos_socios`
+**Flujo de pago de cuotas (actual):**
+- Socio ve sus cuotas con cards expandibles (pendiente / en revisión / pagada)
+- Cuota pendiente → "VER CÓMO PAGAR" → modal con alias `cuenta.uncas.rugby` + monto + botón subir comprobante
+- Socio sube foto del comprobante → se guarda en bucket `comprobantes/{socio_id}/{periodo}.jpg` → estado pasa a `en_revision`
+- Secretaría confirma manualmente desde el panel web (pendiente de implementar en web)
+- Integración Banco Macro prevista para futuro — reemplazaría el alias manual
+
+**Débito automático con tarjeta (código legacy — MercadoPago descartado por el club):**
+- Edge Functions `associate-card`, `remove-card`, `charge-card`, `cobro-mensual` existen en el repo pero ya no se usan desde la UI
+- `mp_card_last_four`, `mp_card_brand` siguen en la tabla `socios` pero la UI de cuotas ya no los muestra
 
 **Notas adicionales:**
 - Socios del club: **1000+** personas (los ~60 usuarios son el cuerpo técnico/organizativo).
@@ -222,14 +236,15 @@ rugby_app_gestion/
 - `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets.
 
 **Próximo paso:**
-- Test end-to-end portería carnet QR con dev build
-- Setear secrets de MercadoPago, Resend y AWS cuando estén disponibles
+- Test end-to-end portería carnet QR — usar **preview build** (dev build no recibe push/FCM)
+- Web secretaría: revisar y aprobar comprobantes subidos por socios (página pendiente)
+- Preview build nueva para testear push end-to-end una vez todo pulido
+- Setear secrets de Resend y AWS cuando estén disponibles
 
 **Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel. Repo GitHub conectado — auto-deploy en push a `main`. Para deploy manual: `vercel --prod --yes` desde la **raíz del repo** (no desde `web/`) — el `rootDirectory=web` en Vercel settings lo resuelve internamente.
 
 Pendiente cuando lleguen los secrets:
 ```bash
-supabase secrets set MERCADOPAGO_ACCESS_TOKEN=...
 supabase secrets set RESEND_API_KEY=... CLUB_EMAIL_FROM=...
 supabase secrets set AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1
 ```

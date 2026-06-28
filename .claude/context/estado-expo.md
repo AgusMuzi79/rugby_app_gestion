@@ -123,15 +123,15 @@ fetch `profiles` + join `divisiones`. `cambiarFoto()`: expo-image-picker → bas
 
 | Pantalla | Hook | Notas clave |
 |---|---|---|
-| `(socio)/carnet.tsx` | `useCarnet.ts` | QR con `react-native-qrcode-svg`. Contenido: `{numero_socio}:{totp_6_digits}`. Countdown 30s con barra de progreso. TOTP secret en `expo-secure-store` (`totp_secret` key), se obtiene una vez de `socios-qr` Edge Function. Sin sección de foto — la foto se gestiona desde "Mi perfil" (`useSobre`). |
-| `(socio)/cuotas.tsx` | `useCuotas.ts` | Lista cuotas. `iniciarPago()` → `socios-pagos` action=checkout → abre `checkout_url` con `Linking.openURL` |
+| `(socio)/carnet.tsx` | `useCarnet.ts` | QR con `react-native-qrcode-svg`. Countdown 60s con barra de progreso. Botón "VER CARNET" abre `TarjetaFisicaModal` con: logo del club, foto, nombre, Nº socio, categoría, deporte+división (si es jugador), chips de roles, estado. |
+| `(socio)/cuotas.tsx` | `useCuotas.ts` | Cards expandibles por cuota. Estados: pendiente/en_revision/pagado. Pendiente → modal con alias `cuenta.uncas.rugby` + subir comprobante (foto). Sin MercadoPago. |
 | `(socio)/noticias.tsx` | `useNoticias(true)` | Solo noticias publicadas |
 | `(socio)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
 
 ## Hooks v2
 
-- `useCarnet` — secret SecureStore → socios-qr → TOTP cada 30s. Retorna solo `{ loading, error, data }`. La foto ya no se maneja aquí — se gestiona en `useSobre` (para rol `socio`, carga desde bucket `socios-fotos` y sube al mismo path).
-- `useCuotas` — lista + iniciarPago via socios-pagos
+- `useCarnet` — secret SecureStore → socios-qr → TOTP cada 60s. `CarnetData` incluye `roles[]`, `division`, `deporte` (query a `jugadores → divisiones`). Foto gestionada en `useSobre`.
+- `useCuotas` — lista cuotas + `subirComprobante()` (ImagePicker → bucket `comprobantes` → estado `en_revision`). Sin MercadoPago.
 - `useNoticias(soloPublicadas)` — CRUD o solo lectura según param
 - `useDiarioSecretaria` — stats socios + pagos recientes
 - `useSociosSecretaria` — CRUD socios via admin-socios + fotoSignedUrl
@@ -141,7 +141,8 @@ fetch `profiles` + join `divisiones`. `cambiarFoto()`: expo-image-picker → bas
 
 - `registerPushToken()` llamado en `useLogin` (fire-and-forget)
 - `useLesiones`, `useFichajes`, `useAsistencia` invocan la Edge Function `notifications`
-- **Dev build**: requiere `google-services.json` en `app/` + `android.googleServicesFile` en `app.json`. Archivo excluido de git (`.gitignore`).
+- **Dev build** (`com.uncas.rugbyapp.dev`): FCM **no está configurado** para este package — el token se registra en `push_tokens` pero las notificaciones nunca llegan. La Edge Function corre OK y entrega los tokens a Expo, pero FCM los descarta porque el package no está en Firebase. **Push solo funciona con el preview build** (`com.uncas.rugbyapp`). Para agregar soporte dev: registrar el package en Firebase Console y regenerar `google-services.json`.
+- `google-services.json` en `app/` excluido de git (`.gitignore`). En EAS Build se pasa como file env var (`GOOGLE_SERVICES_JSON`).
 - En Expo Go SDK 53: detectar con `Constants.appOwnership === 'expo'` y saltear push
 
 ## Deep Linking — Flujo completo
@@ -154,6 +155,13 @@ fetch `profiles` + join `divisiones`. `cambiarFoto()`: expo-image-picker → bas
 6. `useResetPassword` → `updateUser({ password })` → signOut → redirect login con banner
 
 **Flujo invite**: link con `type=invite` → `setNuevoUsuario(true)` → `/(auth)/registro.tsx` → al completar, redirige al diario del rol y limpia flag.
+
+## Notas de comportamiento (2026-06-24)
+
+- `useSobre` — foto busca siempre en `socios` (no solo `rol === 'socio'`). Staff con doble rol ve su foto del carnet. `socioIdRef` determina si subir al bucket o AsyncStorage.
+- **EAS builds coexisten:** `eas.json` perfil `development` setea `APP_VARIANT=development` → `app.config.js` usa package `com.uncas.rugbyapp.dev` y name `"Uncas (Dev)"`. Preview usa `com.uncas.rugbyapp`. Ambos instalables en el mismo teléfono.
+- **Cuotas sin MercadoPago:** flujo de pago es alias bancario `cuenta.uncas.rugby` + subida de comprobante. Estado `en_revision` intermedio hasta que secretaría apruebe.
+- **`(socio)/calendario.tsx`** usa `<Header />` + barra de edición igual al resto de tabs. Tab renombrada de "fixture" a "calendario".
 
 ## Dark Mode — Arquitectura (COMPLETO)
 

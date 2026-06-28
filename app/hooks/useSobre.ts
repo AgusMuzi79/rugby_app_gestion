@@ -53,25 +53,24 @@ export function useSobre() {
 
     rolRef.current = profile.rol
 
-    // Para socios: foto desde Supabase Storage (la misma que el carnet)
-    if (profile.rol === 'socio') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: socio } = await (supabase as any)
-        .from('socios')
-        .select('id, foto_path')
-        .eq('profile_id', session.user.id)
-        .single()
+    // Siempre buscar registro en socios (todo staff es socio como base)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: socio } = await (supabase as any)
+      .from('socios')
+      .select('id, foto_path')
+      .eq('profile_id', session.user.id)
+      .maybeSingle()
 
-      socioIdRef.current = socio?.id ?? null
+    socioIdRef.current = socio?.id ?? null
 
-      if (socio?.foto_path) {
-        const { data: signed } = await supabase.storage
-          .from('socios-fotos')
-          .createSignedUrl(socio.foto_path as string, 3600)
-        if (signed?.signedUrl) setFoto(signed.signedUrl)
-      }
+    if (socio?.foto_path) {
+      // Tiene registro de socio con foto → usar bucket (misma foto que el carnet)
+      const { data: signed } = await supabase.storage
+        .from('socios-fotos')
+        .createSignedUrl(socio.foto_path as string, 3600)
+      if (signed?.signedUrl) setFoto(signed.signedUrl)
     } else {
-      // Otros roles: foto local guardada en AsyncStorage
+      // Sin socio o sin foto en bucket → fallback a AsyncStorage
       const fotoGuardada = await AsyncStorage.getItem(`@perfil_foto_${session.user.id}`)
       if (fotoGuardada) setFoto(fotoGuardada)
     }
@@ -145,17 +144,17 @@ export function useSobre() {
       return
     }
 
-    const isSocio = rolRef.current === 'socio'
+    const tieneSocio = socioIdRef.current !== null
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
-      aspect: isSocio ? [3, 4] as [number, number] : [1, 1] as [number, number],
+      aspect: tieneSocio ? [3, 4] as [number, number] : [1, 1] as [number, number],
       quality: 0.8,
     })
     if (result.canceled || !result.assets[0]) return
 
-    if (isSocio) {
-      // Socios: subir al bucket socios-fotos (misma foto que el carnet)
+    if (tieneSocio) {
+      // Tiene socio: subir al bucket socios-fotos (misma foto que el carnet)
       const socioId = socioIdRef.current
       if (!socioId) { Alert.alert('Error', 'No se encontró tu registro de socio.'); return }
 

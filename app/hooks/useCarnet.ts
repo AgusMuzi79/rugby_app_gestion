@@ -16,6 +16,9 @@ export interface CarnetData {
   categoria:    string
   secondsLeft:  number
   fotoUrl:      string | null
+  roles:        string[]
+  division:     string | null
+  deporte:      string | null
 }
 
 export function useCarnet() {
@@ -61,7 +64,7 @@ export function useCarnet() {
         .single(),
       supabase
         .from('profiles')
-        .select('nombre')
+        .select('nombre, roles')
         .eq('id', userId)
         .single(),
     ])
@@ -84,10 +87,19 @@ export function useCarnet() {
       }
     }
 
+    // Buscar división del jugador si el socio está linkeado a un jugador
+    const { data: jugador } = await db
+      .from('jugadores')
+      .select('divisiones ( nombre, deporte )')
+      .eq('socio_id', socio.id)
+      .maybeSingle()
+
     const code      = generateTOTP(secret)
     const sLeft     = secondsUntilRefresh()
     const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
     const nombre    = profile?.nombre ?? '—'
+    const roles     = (profile?.roles as string[] | null) ?? ['socio']
+    const divData   = jugador?.divisiones as { nombre: string; deporte: string } | null
 
     lastStepRef.current = Math.floor(Date.now() / 1000 / TOTP_STEP)
 
@@ -100,6 +112,9 @@ export function useCarnet() {
       categoria,
       secondsLeft:  sLeft,
       fotoUrl:      fotoUrlRef.current,
+      roles,
+      division:     divData?.nombre ?? null,
+      deporte:      divData?.deporte ?? null,
     })
     setError(null)
     setLoading(false)

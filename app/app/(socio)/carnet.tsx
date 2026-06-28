@@ -4,6 +4,7 @@ import {
 } from 'react-native'
 import { useRef, useState, useCallback } from 'react'
 import { Feather } from '@expo/vector-icons'
+const LOGO = require('@/assets/images/logo.png')
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
@@ -49,6 +50,31 @@ const ESTADO_BG: Record<string, string> = {
   moroso:    colors.oro,
   pendiente: '#E67E22',
   inactivo:  colors.rojoUrgente,
+}
+
+const ROL_LABEL: Record<string, string> = {
+  socio:        'SOCIO',
+  entrenador:   'ENTRENADOR',
+  coordinador:  'COORDINADOR',
+  manager:      'MANAGER',
+  secretaria:   'SECRETARÍA',
+  porteria:     'PORTERÍA',
+  subcomision:  'SUBCOMISIÓN',
+  admin:        'ADMIN',
+}
+
+function RolesChips({ roles }: { roles: string[] }) {
+  const visibles = roles.filter(r => r !== 'socio')
+  if (visibles.length === 0) return <Text style={tm.rolText}>SOCIO</Text>
+  return (
+    <View style={tm.rolesRow}>
+      {visibles.map(r => (
+        <View key={r} style={tm.rolChip}>
+          <Text style={tm.rolChipText}>{ROL_LABEL[r] ?? r.toUpperCase()}</Text>
+        </View>
+      ))}
+    </View>
+  )
 }
 
 function TarjetaFisicaModal({
@@ -98,6 +124,17 @@ function TarjetaFisicaModal({
                 </View>
                 <View style={tm.dividerLine} />
                 <Text style={tm.categoriaText}>{data.categoria.toUpperCase()}</Text>
+
+                {/* División y deporte */}
+                {data.division && (
+                  <Text style={tm.divisionText}>
+                    {data.deporte ? `${data.deporte.toUpperCase()} · ` : ''}{data.division.toUpperCase()}
+                  </Text>
+                )}
+
+                {/* Roles */}
+                <RolesChips roles={data.roles} />
+
                 <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[data.estado] ?? '#555' }]}>
                   <Text style={tm.estadoChipText}>
                     {ESTADO_LABEL[data.estado] ?? data.estado.toUpperCase()}
@@ -105,6 +142,9 @@ function TarjetaFisicaModal({
                 </View>
               </View>
             </View>
+
+            {/* Logo esquina inferior derecha */}
+            <Image source={LOGO} style={tm.logoEsquina} resizeMode="contain" />
 
             {/* Franja inferior */}
             <View style={tm.cardFooter}>
@@ -402,6 +442,22 @@ const tm = StyleSheet.create({
   categoriaText: {
     fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574',
   },
+  divisionText: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.2, color: colors.oro,
+  },
+  rolesRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2,
+  },
+  rolChip: {
+    backgroundColor: colors.oroHondo + '33', borderRadius: 3,
+    paddingHorizontal: 5, paddingVertical: 2,
+  },
+  rolChipText: {
+    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1, color: colors.oro,
+  },
+  rolText: {
+    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574', marginTop: 2,
+  },
   estadoChip: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3, marginTop: 2,
@@ -409,6 +465,10 @@ const tm = StyleSheet.create({
   estadoChipText: {
     fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
+  },
+  logoEsquina: {
+    position: 'absolute', bottom: 28, right: 10,
+    width: 28, height: 28, opacity: 0.35,
   },
   cardFooter: {
     alignItems: 'center', paddingVertical: 6,

@@ -1,6 +1,8 @@
 /** @type {import('expo/config').ExpoConfig} */
+const IS_DEV = process.env.APP_VARIANT === 'development'
+
 const config = {
-  name: 'Uncas Rugby App',
+  name: IS_DEV ? 'Uncas (Dev)' : 'Uncas Rugby App',
   slug: 'uncas-rugby-app',
   scheme: 'uncasrugby',
   version: '1.0.0',
@@ -24,7 +26,7 @@ const config = {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    package: 'com.uncas.rugbyapp',
+    package: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
     usesCleartextTraffic: true,
     // En EAS Build, GOOGLE_SERVICES_JSON es el path al archivo subido como file env var.
     // En local, cae al archivo del repo (excluido de git, presente en la máquina de dev).

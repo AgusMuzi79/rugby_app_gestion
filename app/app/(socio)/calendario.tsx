@@ -11,7 +11,8 @@ import {
   type PartidoCalendario,
   type ResultadoCalendario,
 } from '@/hooks/useCalendarioSocio'
-import { fonts } from '@/constants/theme'
+import { Header } from '@/components/shared/Header'
+import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,17 @@ const DIVIDER = '#2C2418'
 const ORO     = '#F5B41C'
 const VERDE   = '#22C55E'
 const ROJO    = '#EF4444'
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function fechaEdicion(): string {
+  const d    = new Date()
+  const dias = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
+  const dd   = String(d.getDate()).padStart(2, '0')
+  const mm   = String(d.getMonth() + 1).padStart(2, '0')
+  const yy   = String(d.getFullYear()).slice(2)
+  return `${dias[d.getDay()]} ${dd}.${mm}.${yy}`
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -178,50 +190,41 @@ export default function CalendarioSocioScreen() {
     return null
   }
 
-  if (loading) {
-    return (
-      <View style={[s.root, s.centrado, { paddingTop: insets.top }]}>
-        <ActivityIndicator color={ORO} size="large" />
-      </View>
-    )
-  }
-
-  if (error) {
-    return (
-      <View style={[s.root, s.centrado, { paddingTop: insets.top }]}>
-        <Text style={s.errorTexto}>{error}</Text>
-        <TouchableOpacity onPress={recargar} style={s.reintentarBtn} activeOpacity={0.8}>
-          <Text style={s.reintentarTexto}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    )
-  }
-
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={s.header}>
-        <Text style={s.headerLabel}>SOCIO · CALENDARIO</Text>
-        <Text style={s.headerTitle}>Fixture</Text>
+    <View style={s.root}>
+      <View style={{ paddingTop: insets.top }}>
+        <Header />
+        <View style={s.edicionBar}>
+          <Text style={s.edicionLabel}>SECCIÓN · CALENDARIO</Text>
+          <Text style={s.edicionFecha}>{fechaEdicion()}</Text>
+        </View>
+        <FiltroBar filtro={filtroDeporte} onChange={setFiltroDeporte} />
       </View>
 
-      {/* Filtro por deporte */}
-      <FiltroBar filtro={filtroDeporte} onChange={setFiltroDeporte} />
-
-      {/* Lista */}
-      <FlatList
-        ref={listRef}
-        data={items}
-        keyExtractor={(item, idx) =>
-          item.kind === 'partido'   ? item.data.id :
-          item.kind === 'resultado' ? item.data.id :
-          `${item.kind}-${idx}`
-        }
-        renderItem={renderItem}
-        contentContainerStyle={s.listaContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={recargar} tintColor={ORO} />}
-      />
+      {loading ? (
+        <ActivityIndicator color={ORO} size="large" style={{ marginTop: 60 }} />
+      ) : error ? (
+        <View style={s.centrado}>
+          <Text style={s.errorTexto}>{error}</Text>
+          <TouchableOpacity onPress={recargar} style={s.reintentarBtn} activeOpacity={0.8}>
+            <Text style={s.reintentarTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={items}
+          keyExtractor={(item, idx) =>
+            item.kind === 'partido'   ? item.data.id :
+            item.kind === 'resultado' ? item.data.id :
+            `${item.kind}-${idx}`
+          }
+          renderItem={renderItem}
+          contentContainerStyle={s.listaContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={recargar} tintColor={ORO} />}
+        />
+      )}
     </View>
   )
 }
@@ -229,12 +232,15 @@ export default function CalendarioSocioScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:   { flex: 1, backgroundColor: FONDO },
-  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  root:     { flex: 1, backgroundColor: FONDO },
+  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
 
-  header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
-  headerLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: ORO, marginBottom: 4 },
-  headerTitle: { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO },
+  edicionBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
+  },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionFecha: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   filtroBar: {
     flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 16, gap: 8,

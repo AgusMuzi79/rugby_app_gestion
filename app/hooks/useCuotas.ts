@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Linking, Alert } from 'react-native'
+import { Alert } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
+import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface Cuota {
-  id:         string
-  periodo:    string   // YYYY-MM
-  monto:      number
-  estado:     'pendiente' | 'pagado'
-  fecha_pago: string | null
+  id:                string
+  periodo:           string   // YYYY-MM
+  monto:             number
+  estado:            'pendiente' | 'en_revision' | 'pagado'
+  fecha_pago:        string | null
+  comprobante_path:  string | null
 }
 
 export interface ServicioActivo {
@@ -23,6 +26,13 @@ function periodoHoy(): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 }
 
+function decodeBase64(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes  = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
 export function useCuotas() {
   const { session } = useAuthStore()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,9 +41,7 @@ export function useCuotas() {
   const [socioId,          setSocioId]          = useState<string | null>(null)
   const [cuotas,           setCuotas]           = useState<Cuota[]>([])
   const [loading,          setLoading]          = useState(true)
-  const [pagando,          setPagando]          = useState<string | null>(null)
-  const [cardLastFour,     setCardLastFour]     = useState<string | null>(null)
-  const [cardBrand,        setCardBrand]        = useState<string | null>(null)
+  const [subiendo,         setSubiendo]         = useState<string | null>(null)
   const [serviciosActivos, setServiciosActivos] = useState<ServicioActivo[]>([])
   const [totalMensual,     setTotalMensual]     = useState(0)
   const [categoriaLabel,   setCategoriaLabel]   = useState<string>('')
@@ -43,25 +51,21 @@ export function useCuotas() {
     if (!session?.user.id) return
     setLoading(true)
 
-    // Socio + categoría en un solo query
     const { data: socio } = await db
       .from('socios')
-      .select('id, mp_card_last_four, mp_card_brand, categorias_socio(nombre, monto_mensual)')
+      .select('id, categorias_socio(nombre, monto_mensual)')
       .eq('profile_id', session.user.id)
       .single()
 
     if (!socio) { setLoading(false); return }
 
     setSocioId(socio.id)
-    setCardLastFour(socio.mp_card_last_four ?? null)
-    setCardBrand(socio.mp_card_brand ?? null)
 
     const cat = socio.categorias_socio as { nombre: string; monto_mensual: number } | null
     const montoCategoria: number = cat?.monto_mensual ?? 0
     setCategoriaLabel(cat?.nombre ?? '')
     setMontoCategoria(montoCategoria)
 
-    // Servicios opcionales del socio
     const { data: socioServiciosData } = await db
       .from('socio_servicios')
       .select('servicios_opcionales(id, nombre, monto_mensual)')
@@ -78,33 +82,33 @@ export function useCuotas() {
     setServiciosActivos(servicios)
     setTotalMensual(total)
 
-    // Cuotas históricas
     const { data } = await db
       .from('cuotas')
-      .select('id, periodo, monto, estado, fecha_pago:pagos_socios(created_at)')
+      .select('id, periodo, monto, estado, comprobante_path, fecha_pago:pagos_socios(created_at)')
       .eq('socio_id', socio.id)
       .order('periodo', { ascending: false })
 
     const normalized: Cuota[] = (data ?? []).map((c: Record<string, unknown>) => {
       const pagos = c.fecha_pago as { created_at: string }[] | null
       return {
-        id:         c.id as string,
-        periodo:    c.periodo as string,
-        monto:      c.monto as number,
-        estado:     c.estado as 'pendiente' | 'pagado',
-        fecha_pago: pagos?.[0]?.created_at ?? null,
+        id:               c.id as string,
+        periodo:          c.periodo as string,
+        monto:            c.monto as number,
+        estado:           c.estado as Cuota['estado'],
+        fecha_pago:       pagos?.[0]?.created_at ?? null,
+        comprobante_path: c.comprobante_path as string | null,
       }
     })
 
-    // Inyectar cuota del mes actual si no existe todavía
     const hoy = periodoHoy()
     if (!normalized.some(c => c.periodo === hoy)) {
       normalized.unshift({
-        id:         `virtual-${hoy}`,
-        periodo:    hoy,
-        monto:      total,
-        estado:     'pendiente',
-        fecha_pago: null,
+        id:               `virtual-${hoy}`,
+        periodo:          hoy,
+        monto:            total,
+        estado:           'pendiente',
+        fecha_pago:       null,
+        comprobante_path: null,
       })
     }
 
@@ -115,35 +119,65 @@ export function useCuotas() {
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
-  const iniciarPago = useCallback(async (cuotaId: string) => {
-    const cuota = cuotas.find(c => c.id === cuotaId)
-    if (!cuota) return
+  const subirComprobante = useCallback(async (cuotaId: string) => {
+    if (!socioId) return
 
-    setPagando(cuotaId)
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitás permitir acceso a la galería.')
+      return
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: false,
+      quality: 0.85,
+    })
+    if (result.canceled || !result.assets[0]) return
+
+    const isVirtual = cuotaId.startsWith('virtual-')
+    setSubiendo(cuotaId)
+
     try {
-      const res = await supabase.functions.invoke('socios-pagos', {
-        body: { action: 'checkout', periodo: cuota.periodo },
-      })
-      if (res.error || !res.data?.checkout_url) {
-        Alert.alert('Error', 'No se pudo iniciar el pago. Intentá de nuevo.')
+      const asset    = result.assets[0]
+      const base64   = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' })
+      const filePath = `${socioId}/${cuotaId.replace('virtual-', '')}.jpg`
+
+      const { error: uploadErr } = await supabase.storage
+        .from('comprobantes')
+        .upload(filePath, decodeBase64(base64), { contentType: 'image/jpeg', upsert: true })
+
+      if (uploadErr) {
+        Alert.alert('Error', 'No se pudo subir el comprobante.')
         return
       }
-      await Linking.openURL(res.data.checkout_url)
+
+      if (!isVirtual) {
+        await db
+          .from('cuotas')
+          .update({ estado: 'en_revision', comprobante_path: filePath })
+          .eq('id', cuotaId)
+      }
+
+      // Actualizar estado local sin refetch
+      setCuotas(prev => prev.map(c =>
+        c.id === cuotaId
+          ? { ...c, estado: 'en_revision', comprobante_path: filePath }
+          : c
+      ))
     } catch {
-      Alert.alert('Error', 'No se pudo abrir Mercado Pago.')
+      Alert.alert('Error', 'Ocurrió un error al subir el comprobante.')
     } finally {
-      setPagando(null)
+      setSubiendo(null)
     }
-  }, [cuotas])
+  }, [socioId, db])
 
   return {
     cuotas,
     loading,
-    pagando,
-    iniciarPago,
+    subiendo,
+    subirComprobante,
     refetch: fetch,
-    cardLastFour,
-    cardBrand,
     serviciosActivos,
     totalMensual,
     categoriaLabel,
