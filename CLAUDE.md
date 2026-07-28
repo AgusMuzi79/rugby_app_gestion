@@ -179,6 +179,7 @@ rugby_app_gestion/
 | Migration `20260624000001` — `cuotas.estado` agrega `'en_revision'`, `cuotas.comprobante_path TEXT`, RLS UPDATE propio por socio | ✅ |
 | `useCuotas` — sin MercadoPago; `subirComprobante()` sube foto al bucket `comprobantes`, pone cuota en `en_revision` | ✅ |
 | `(socio)/cuotas.tsx` — rediseño completo: cards expandibles, modal con alias `cuenta.uncas.rugby`, subida de comprobante, estados verde/oro/pendiente | ✅ |
+| Migration `20260714000000` — precios reales de `categorias_socio` y `servicios_opcionales` (Abril 2026, reemplaza placeholders) | ✅ |
 | Portería: test carnet QR end-to-end | ⏳ pendiente |
 | Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
 | Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
@@ -190,6 +191,7 @@ rugby_app_gestion/
 - `20260610000000` aplicada en cloud vía `supabase db push`.
 - Migraciones v3 (`20260616000000`, `20260616000001`, `20260616000002`) aplicadas vía `supabase db push`.
 - Migraciones `20260617000000`, `20260617000001`, `20260618000000`, `20260618000001` aplicadas vía `supabase db push`.
+- `20260714000000` aplicada en cloud vía `supabase db push`. `categorias_socio` (Abril 2026): Titular de Grupo $60.000, Activo Mayor $50.000, Activo Menor $25.000, Activo Unquitas $12.500, Dependiente Grupo Familiar $0, Vitalicio $0, Becado Rugby/Hockey/Tenis $0. `servicios_opcionales`: Hockey $31.250, Rugby $25.000, Tenis $25.000, Gimnasio $18.750 (tarifa única — el schema no distingue Gym Mayor/Menor por edad todavía). Falta categoría "Cliente" (sin precio confirmado, 6 socios activos).
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
 - `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes. Paso TOTP = **60 segundos** (cambiado de 30s) — sincronizado en `totp-client.ts`, `_shared/totp.ts` y `useCarnet.ts`.
 - `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al confirmar pago.
@@ -214,12 +216,66 @@ rugby_app_gestion/
 - **`divisiones.deporte`:** campo en schema, seed ruby por default. Selector en web `/divisiones` al crear división.
 - **Push notifications — dev build:** el dev build (`com.uncas.rugbyapp.dev`) NO recibe notificaciones push. La Edge Function `notifications` corre correctamente y entrega los tokens a Expo, pero FCM los descarta porque `com.uncas.rugbyapp.dev` no está registrado en Firebase. Testear push siempre con el **preview build** (`com.uncas.rugbyapp`). Para habilitar en dev: registrar el package en Firebase Console y regenerar `google-services.json`.
 
-**Flujo de pago de cuotas (actual):**
+**Alcance definido por comisión directiva (2026-07-03):** la app es un **complemento** al sistema de gestión existente del club, pensada principalmente para visualizar socios morosos (semáforo). El pago real dentro de la app se implementaría **solo si se concreta la integración con Banco Macro** — hasta entonces, el flujo de alias + comprobante es una solución interina, no el objetivo final. No priorizar pulido adicional de ese flujo (ej. página de aprobación de comprobantes) sin confirmar con directiva que vale la pena vs. esperar a Macro.
+
+**Flujo de pago de cuotas (actual — interino, ver nota de alcance arriba):**
 - Socio ve sus cuotas con cards expandibles (pendiente / en revisión / pagada)
 - Cuota pendiente → "VER CÓMO PAGAR" → modal con alias `cuenta.uncas.rugby` + monto + botón subir comprobante
 - Socio sube foto del comprobante → se guarda en bucket `comprobantes/{socio_id}/{periodo}.jpg` → estado pasa a `en_revision`
 - Secretaría confirma manualmente desde el panel web (pendiente de implementar en web)
 - Integración Banco Macro prevista para futuro — reemplazaría el alias manual
+
+**Semáforo de morosidad — prioridad actual (2026-07-03):**
+- Objetivo: verde (al día) / amarillo (debe 1 mes) / rojo (debe 2+ meses) por socio en el panel web secretaría.
+- Como el pago no pasa (todavía) por la app, la morosidad real vive en el sistema del club — probablemente requiera **re-importación periódica**, no una carga única.
+- No implementado: carga masiva/importación de socios (Excel/CSV) en el panel web — no hay UI ni Edge Function para esto todavía.
+
+**Export real del sistema del club — obtenido 2026-07-06:** `Tabla de datos.txt` (TSV, encoding ISO-8859-1, 3098 filas, 52 columnas). Es el padrón completo de socios del sistema comercial/ERP que usa el club (no un sistema pensado para clubes — reusa vocabulario de ventas: "Vendedor", "Lista", "Condición Venta").
+
+Columnas relevantes:
+- `Número Documento` — DNI, match key contra `socios.dni`. Calidad: 71 filas (2.3%) sin DNI o DNI=0, 9 DNIs duplicados — hay que decidir cómo resolverlos.
+- `Razón Social` / `Nombre Fantasía` — nombre completo (idénticos en la muestra revisada).
+- `Estado` — SOCIO (1535) / BAJA (1420) / CESANTES (96) / CLIENTE GYM (44) / PROVEEDORES (3). Filtro de activo/inactivo.
+- `Categoría Comercial` — deporte practicado: Rugby (554) / Hockey (617) / Tenis (567) / Gym (386) / Tenis Carnet (195) / Rugby Femenino (22) / Hockey Inclusivo (14) / Rugby Inclusivo (6) / Carece (724) / Cliente (6).
+- `Categoría` — ACTIVO MAYOR / ACTIVO MENOR / DEPENDIENTES GRUPO / TITULARES GRUPO / VITALICIO / CLIENTE GYM / ACTIVO UNQUITAS / BECADO RUGBY/HOCKEY/TENNIS.
+- `Socio Cabecera` — nombre del titular del grupo familiar (agrupación de facturación).
+- `FechaNacimiento`, `Sexo`, `Mail1` — datos de perfil.
+- `FechaInicioLiquidacion` — fecha (siempre día 1 de mes) que por el patrón de datos observado **parece** indicar "pagado hasta acá, se liquida desde esta fecha en adelante" → candidato a proxy directo de meses adeudados, sin necesitar otro export. **Sin confirmar con quien maneja el sistema del club todavía** — no construir el semáforo sobre este supuesto sin esa confirmación.
+- Con esa interpretación (no confirmada), sobre socios activos ("Estado"="SOCIO") y fecha de referencia 2026-07: al día 871 / debe 1 mes 27 / debe 2-3 meses 43 / debe 4-12 meses 85 / debe 12+ meses 509 (este último grupo llama la atención, puede tratarse de registros desactualizados en vez de deuda real).
+
+Próximo paso concreto: confirmar con quien maneja el sistema del club el significado real de `FechaInicioLiquidacion`. Si se confirma, el archivo ya alcanza para diseñar el importador y el semáforo sin pedir otro export. **Al 2026-07-19 sigue sin confirmar** — Agus no volvió con la respuesta del club todavía.
+
+**Decisiones de scope y mapeo confirmadas (2026-07-14), pendientes de implementar hasta tener el OK de `FechaInicioLiquidacion`:**
+- **Scope de la carga masiva: solo socios activos** (`Estado=SOCIO`, 1535 de las 3098 filas). Sobre ese subconjunto, la calidad mejora bastante: **0 DNIs duplicados** (los 9 duplicados detectados antes estaban todos entre inactivos/`BAJA`), 43 sin DNI válido (2.8%), 112 sin email (7.3%).
+- **La app aplica a TODOS los deportes del club, no solo rugby** — confirmado por Agus. Desglose real por `Categoría Comercial` entre activos: Carece 414, Hockey 298, Rugby 265 (sumando variantes), Tenis 250, Tenis Carnet 155, Gym 114, Rugby Femenino 19, Hockey Inclusivo 8, Rugby Inclusivo 6, Cliente 4.
+- **Mapeo `Categoría Comercial` → schema:** "Carece" = socio sin deporte asociado (válido, no es dato faltante). Rugby Femenino → `divisiones.categoria='femenino'` (ya existe en el constraint). Rugby/Hockey Inclusivo → `divisiones.categoria='mixed'` (ya existe, no hace falta agregar valor nuevo). "Tenis Carnet" (155 activos) → **sin definir, Agus no recuerda cómo funciona esta modalidad**. Gym: `Estado="CLIENTE GYM"` (44, sin ser socio) queda fuera del scope; `Categoría Comercial="Gym"` dentro de `Estado=SOCIO` (114) es servicio opcional sobre la membresía → mapea a `servicios_opcionales`.
+- **División específica de cada jugador de rugby (M6...M22, Mayores):** resuelta con un segundo export, ver `Jugadores.xls` (padrón UAR) más abajo — ya no hace falta consultar managers uno por uno.
+- **Login para socios/dependientes sin email individual (~892 casos: 112 sin email + 780 con email compartido dentro de la familia):** decisión final **email sintético** (ej. `dni@uncas.local`) para poder crear la cuenta de Auth de todos; login sigue siendo por DNI como ya funciona hoy. `socios.profile_id` se mantiene `NOT NULL` (no hace falta volverlo nullable). Secretaría se contactará más adelante con los casos que correspondan para cargar el email real — sin plan concreto todavía de cómo/cuándo. Se probó cruzar por DNI contra el padrón UAR para conseguir emails individuales reales, pero solo mejora ~10.6% de los casos (UAR solo cubre jugadores de rugby fichados).
+- **`cabecera_id` (grupos familiares) — sigue sin implementar.** Propuesta de schema no cambia: `ALTER TABLE socios ADD COLUMN cabecera_id uuid REFERENCES socios(id)` (nullable). Resolver `Socio Cabecera` (nombre en texto libre) contra socios ya importados va a necesitar lógica de matching con posible ambigüedad.
+
+**`Jugadores.xls` (padrón UAR de jugadores fichados, 2026-07-14) — segundo export, dejado por Agus en Descargas.** Archivo binario `.xls` real (OLE2/BIFF, "Subject: BD.UAR - Jugadores"), no un Excel armado a mano. `xlrd` no lo pudo abrir (compdoc corruption) — se leyó con **SheetJS (`xlsx` npm package) vía Node**, sin problemas.
+
+1255 jugadores de UNCAS. Columnas: `Documento (DNI), Apellido, Nombre, Fecha Nac., Jug/Ref, Categoria, Sexo, Puesto, Email, Celular, Ult.fichaje`.
+- **`Categoria`** trae la división real de cada jugador: M6 a M22, Mayores, Infantil (19 valores — calza con los "17 planteles" del club). Cruzando por DNI contra los socios "Rugby" del otro export, resuelve el gap de división específica sin consultar managers.
+- Calidad muy limpia: 1 DNI en blanco, **0 DNIs duplicados**.
+- `Jug/Ref`: 1240 "Jugador", 14 "Jugador / Referee" (doble rol), 1 blanco.
+- `Ult.fichaje` (año del último fichaje UAR): 270 con `2026` (vigente), resto 2012-2025, 97 en blanco (nunca fichados).
+- **Regla de negocio confirmada:** matching por DNI contra `socios`. "Fichaje vigente" = `Ult.fichaje` == año de temporada actual. Sin fichaje vigente → **no disponible para figurar en partidos** (mesa de juego) pero **sí puede entrenar** y usar el resto de la app con normalidad.
+- **Pendiente de schema:** `jugadores` (`supabase/migrations/20260506000000_init_schema.sql:120`) no tiene ningún campo para trackear fichaje/temporada, solo `activo boolean`. Va a hacer falta algo tipo `fichado_temporada_actual boolean` o guardar el año de `Ult.fichaje`, usado para bloquear la carga en `mesa_jugadores` sin bloquear asistencia. **No implementado a propósito** — Agus quiere definir los cambios de schema recién cuando tenga toda la data sobre la mesa (socios + UAR + confirmación de `FechaInicioLiquidacion`).
+
+**Investigación adicional (2026-07-06):**
+- Evidencia a favor de la hipótesis: en socios `Estado=BAJA` con `Fecha Baja` real, `FechaInicioLiquidacion` queda congelada muy cerca de esa fecha (mismo mes o el siguiente) — consistente con "cursor de facturación que se detiene al dejar de ser socio". No es confirmación oficial del club, pero refuerza la hipótesis.
+- Los 509 casos de "12+ meses adeudados" tienen TODOS `Fecha Baja` = sentinel `01/01/1980` (nunca dados de baja formalmente) — probablemente registros abandonados que el club nunca marcó como BAJA, no morosos reales. Puede requerir una regla tipo "si debe 12+ meses, tratar como inactivo" en vez de mostrarlo en rojo.
+- DNIs placeholder para menores sin documento: `11`, `111`, `1111` se repiten en decenas de registros `ACTIVO MENOR`/`DEPENDIENTES GRUPO` — no son DNIs reales, hay que excluirlos del matching.
+- 39 socios activos (`Estado=SOCIO`) no tienen DNI cargado — no van a poder matchear por DNI.
+- `Fecha Alta`: 1422 de 3098 registros tienen `01/01/2022` — es fecha de migración al sistema actual, no la fecha real de ingreso al club.
+- Sentinels del sistema: `Fecha Baja`=`01/01/1980` → nunca dado de baja; `FechaNacimiento`=`02/01/1900` → sin dato.
+- 48 becados en `Categoría` (BECADO RUGBY 33, BECADO HOCKEY 12, BECADO TENNIS 3). 36 tienen `% Beca`=100 (deberían excluirse del cálculo de morosidad, no pagan). Los 12 restantes tienen `% Beca` vacío — falta confirmar con el club qué porcentaje pagan realmente. De los 33 becados de rugby, **16 ya son mayores de edad (18+)** — el club nunca revisó si corresponde mantenerles la beca al cumplir 18.
+- Sentinel adicional en `FechaInicioLiquidacion`: años `1900` (37 casos) y `1980` (4 casos) son "sin dato", no deuda real de decenas de años. También hay 1 caso con año `2099` (probablemente vitalicio, fecha puesta a propósito en el futuro para que nunca aparezca como moroso).
+- **Cluster de 168 `DEPENDIENTES GRUPO`** comparten exactamente `FechaInicioLiquidacion = 01/03/2022` — no es deuda real acumulada, es un artefacto de la migración al sistema (probablemente porque los dependientes se facturan a través del titular, no individualmente). No usar este valor tal cual para el semáforo de esos casos.
+- Se generó un ranking completo de morosidad (borrador, no oficial) en `Descargas/morosos_ranking.csv` — 1534 socios activos ordenados de más a menos meses adeudados (estimado desde `FechaInicioLiquidacion`), con columna de notas marcando becados 100%, DNIs placeholder/faltantes, posibles artefactos de migración y fechas centinela. Sirve como insumo para mostrarle al club, no como dato definitivo.
+
+**Grupos familiares — requisito nuevo (2026-07-06):** la app debe reflejar los grupos familiares del club y marcar quién es la cabecera. El export trae `Socio Cabecera` (nombre en texto libre del titular, no DNI/ID — requiere matching por nombre al importar, con posible ambigüedad). Diseño propuesto (no implementado): `ALTER TABLE socios ADD COLUMN cabecera_id uuid REFERENCES socios(id)` (nullable — titular no tiene cabecera, dependientes apuntan al `id` del titular). Habilitaría mostrar el grupo familiar en el perfil del socio y calcular el semáforo de morosidad a nivel de grupo. **Problema destapado por esto — RESUELTO 2026-07-14:** `socios.profile_id` es `NOT NULL REFERENCES profiles(id)` — se decidió mantenerlo así (no hacerlo nullable). Con 601 `DEPENDIENTES GRUPO` que probablemente nunca se loguean, la carga masiva sí va a crear un usuario de Auth para cada uno igual, usando **email sintético** cuando no haya uno individual real (ver detalle en la sección de decisiones de scope, arriba).
 
 **Débito automático con tarjeta (código legacy — MercadoPago descartado por el club):**
 - Edge Functions `associate-card`, `remove-card`, `charge-card`, `cobro-mensual` existen en el repo pero ya no se usan desde la UI
@@ -236,8 +292,9 @@ rugby_app_gestion/
 - `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets.
 
 **Próximo paso:**
+- **Prioridad actual: semáforo de morosidad** — conseguir export del sistema del club, definir columnas mínimas necesarias, diseñar importador (probablemente recurrente) en panel web secretaría
 - Test end-to-end portería carnet QR — usar **preview build** (dev build no recibe push/FCM)
-- Web secretaría: revisar y aprobar comprobantes subidos por socios (página pendiente)
+- Web secretaría: revisar y aprobar comprobantes subidos por socios — en pausa, evaluar si vale la pena vs. esperar integración Banco Macro
 - Preview build nueva para testear push end-to-end una vez todo pulido
 - Setear secrets de Resend y AWS cuando estén disponibles
 
