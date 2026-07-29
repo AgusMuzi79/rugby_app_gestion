@@ -1,1 +1,6 @@
 .vercel
+
+# Datos reales de socios (PII) para la carga masiva - nunca al repo
+data/import/
+
+node_modules/
