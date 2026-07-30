@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, selectAllRows } from '@/lib/supabase'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -660,35 +660,41 @@ export default function SociosPage() {
   const [modalNuevo,   setModalNuevo]   = useState(false)
 
   const fetchAll = useCallback(async () => {
-    const [{ data: sociosData }, { data: catsData }, { data: srvsData }] = await Promise.all([
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from('socios')
-        .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, mp_card_last_four, mp_card_brand, categoria_id, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
-        .order('numero_socio'),
-      supabase.from('categorias_socio').select('id, nombre, monto_mensual, activa').order('nombre'),
-      supabase.from('servicios_opcionales').select('id, nombre, monto_mensual, activo').order('nombre'),
-    ])
+    try {
+      const [sociosData, { data: catsData }, { data: srvsData }] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        selectAllRows<Record<string, unknown>>((from, to) =>
+          (supabase as any)
+            .from('socios')
+            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, mp_card_last_four, mp_card_brand, categoria_id, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .order('numero_socio')
+            .range(from, to)
+        ),
+        supabase.from('categorias_socio').select('id, nombre, monto_mensual, activa').order('nombre'),
+        supabase.from('servicios_opcionales').select('id, nombre, monto_mensual, activo').order('nombre'),
+      ])
 
-    const normalized: SocioItem[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
-      id:               s.id as string,
-      numero_socio:     s.numero_socio as string,
-      dni:              s.dni as string,
-      estado:           s.estado as string,
-      foto_path:        s.foto_path as string | null,
-      foto_validada:    s.foto_validada as boolean,
-      created_at:       s.created_at as string,
-      mp_card_last_four: s.mp_card_last_four as string | null,
-      mp_card_brand:    s.mp_card_brand as string | null,
-      categoria_id:     s.categoria_id as string,
-      nombre:           (s.profiles as { nombre: string } | null)?.nombre ?? '—',
-      categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
-    }))
+      const normalized: SocioItem[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
+        id:               s.id as string,
+        numero_socio:     s.numero_socio as string,
+        dni:              s.dni as string,
+        estado:           s.estado as string,
+        foto_path:        s.foto_path as string | null,
+        foto_validada:    s.foto_validada as boolean,
+        created_at:       s.created_at as string,
+        mp_card_last_four: s.mp_card_last_four as string | null,
+        mp_card_brand:    s.mp_card_brand as string | null,
+        categoria_id:     s.categoria_id as string,
+        nombre:           (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+        categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
+      }))
 
-    setSocios(normalized)
-    setCategorias(catsData ?? [])
-    setServicios(srvsData ?? [])
-    setLoading(false)
+      setSocios(normalized)
+      setCategorias(catsData ?? [])
+      setServicios(srvsData ?? [])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])

@@ -203,13 +203,23 @@ async function getDestinatariosRol(
 // Para noticias de audiencia 'todos': busca por el array roles[] en vez de rol activo,
 // así llega a socios cuyo rol activo es staff (entrenador, coordinador, etc.)
 async function getDestinatariosSocio(): Promise<{ ids: string[]; tokens: string[] }> {
-  const { data: profiles } = await supabaseAdmin
-    .from('profiles')
-    .select('id')
-    .contains('roles', ['socio'])
-    .eq('activo', true)
+  // PostgREST devuelve máximo 1000 filas por default — con 1500+ socios hay que paginar.
+  let profiles: { id: string }[] = []
+  let from = 0
+  const pageSize = 1000
+  for (;;) {
+    const { data } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .contains('roles', ['socio'])
+      .eq('activo', true)
+      .range(from, from + pageSize - 1)
+    profiles = profiles.concat(data ?? [])
+    if (!data || data.length < pageSize) break
+    from += pageSize
+  }
 
-  if (!profiles?.length) return { ids: [], tokens: [] }
+  if (!profiles.length) return { ids: [], tokens: [] }
 
   const ids = profiles.map(p => p.id)
   const { data: pushRows } = await supabaseAdmin

@@ -41,8 +41,16 @@ export function useDiarioSecretaria() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
 
-    const [sociosRes, pagosRes] = await Promise.all([
-      db.from('socios').select('estado'),
+    // Conteos exactos vía count/head — evita traer las filas (y el tope de 1000 de PostgREST)
+    const countByEstado = (estado: string) =>
+      db.from('socios').select('*', { count: 'exact', head: true }).eq('estado', estado)
+
+    const [activosRes, morososRes, pendientesRes, inactivosRes, totalRes, pagosRes] = await Promise.all([
+      countByEstado('activo'),
+      countByEstado('moroso'),
+      countByEstado('pendiente'),
+      countByEstado('inactivo'),
+      db.from('socios').select('*', { count: 'exact', head: true }),
       db
         .from('pagos_socios')
         .select(`
@@ -55,12 +63,11 @@ export function useDiarioSecretaria() {
         .limit(6),
     ])
 
-    const socios = (sociosRes.data ?? []) as { estado: string }[]
     const estados: EstadosSocios = {
-      activos:    socios.filter(x => x.estado === 'activo').length,
-      morosos:    socios.filter(x => x.estado === 'moroso').length,
-      pendientes: socios.filter(x => x.estado === 'pendiente').length,
-      inactivos:  socios.filter(x => x.estado === 'inactivo').length,
+      activos:    activosRes.count    ?? 0,
+      morosos:    morososRes.count    ?? 0,
+      pendientes: pendientesRes.count ?? 0,
+      inactivos:  inactivosRes.count  ?? 0,
     }
 
     const pagosRecientes: PagoReciente[] = (pagosRes.data ?? []).map((p: Record<string, unknown>) => {
@@ -77,7 +84,7 @@ export function useDiarioSecretaria() {
       }
     })
 
-    setData({ estados, pagosRecientes, totalSocios: socios.length })
+    setData({ estados, pagosRecientes, totalSocios: totalRes.count ?? 0 })
     setLoading(false)
   }, [])
 

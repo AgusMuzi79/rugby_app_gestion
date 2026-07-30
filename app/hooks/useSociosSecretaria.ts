@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
-import { supabase } from '@/lib/supabase'
+import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,34 +109,40 @@ export function useSociosSecretaria() {
 
   const fetchSocios = useCallback(async () => {
     setLoading(true)
-    const { data } = await db
-      .from('socios')
-      .select(`
-        id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id,
-        mp_card_last_four, mp_card_brand,
-        categorias_socio ( nombre ),
-        profiles!socios_profile_id_fkey ( nombre )
-      `)
-      .order('numero_socio')
+    try {
+      const data = await selectAllRows<Record<string, unknown>>((from, to) =>
+        db
+          .from('socios')
+          .select(`
+            id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id,
+            mp_card_last_four, mp_card_brand,
+            categorias_socio ( nombre ),
+            profiles!socios_profile_id_fkey ( nombre )
+          `)
+          .order('numero_socio')
+          .range(from, to)
+      )
 
-    const normalized: SocioItem[] = (data ?? []).map((s: Record<string, unknown>) => ({
-      id:            s.id as string,
-      numero_socio:  s.numero_socio as string,
-      dni:           s.dni as string,
-      estado:        s.estado as string,
-      foto_path:     s.foto_path as string | null,
-      foto_validada: s.foto_validada as boolean,
-      created_at:    s.created_at as string,
-      nombre:            (s.profiles as { nombre: string } | null)?.nombre ?? '—',
-      email:             '',
-      categoria:         (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
-      categoria_id:      s.categoria_id as string,
-      mp_card_last_four: s.mp_card_last_four as string | null,
-      mp_card_brand:     s.mp_card_brand as string | null,
-    }))
+      const normalized: SocioItem[] = (data ?? []).map((s: Record<string, unknown>) => ({
+        id:            s.id as string,
+        numero_socio:  s.numero_socio as string,
+        dni:           s.dni as string,
+        estado:        s.estado as string,
+        foto_path:     s.foto_path as string | null,
+        foto_validada: s.foto_validada as boolean,
+        created_at:    s.created_at as string,
+        nombre:            (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+        email:             '',
+        categoria:         (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
+        categoria_id:      s.categoria_id as string,
+        mp_card_last_four: s.mp_card_last_four as string | null,
+        mp_card_brand:     s.mp_card_brand as string | null,
+      }))
 
-    setSocios(normalized)
-    setLoading(false)
+      setSocios(normalized)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
