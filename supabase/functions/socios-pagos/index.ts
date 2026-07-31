@@ -2,9 +2,10 @@
 // Gestión de pagos de cuotas — Mercado Pago + pagos manuales + generación de PDF.
 //
 // Actions:
-//   checkout  — Crea una preferencia de pago en Mercado Pago (llamada por el socio)
-//   webhook   — Webhook de Mercado Pago al confirmar pago (sin JWT — MP lo llama directamente)
-//   manual    — Registro de pago en ventanilla por Secretaría
+//   checkout              — Crea una preferencia de pago en Mercado Pago (llamada por el socio)
+//   webhook               — Webhook de Mercado Pago al confirmar pago (sin JWT — MP lo llama directamente)
+//   manual                — Registro de pago en ventanilla por Secretaría
+//   declarar-comprobante  — Socio declara su comprobante de transferencia (flujo alias manual)
 //
 // Deploy: supabase functions deploy socios-pagos --no-verify-jwt
 //   (necesario para que el webhook de MP funcione sin JWT)
@@ -64,11 +65,12 @@ Deno.serve(async (req: Request) => {
 
   const bodyAction = body.action as string | undefined
 
-  if (bodyAction === 'checkout')        return handleCheckout(body, callerRol, caller.id)
-  if (bodyAction === 'manual')          return handleManual(body, callerRol, caller.id)
-  if (bodyAction === 'associate-card')  return handleAssociateCard(body, callerRol, caller.id)
-  if (bodyAction === 'remove-card')     return handleRemoveCard(body, callerRol, caller.id)
-  if (bodyAction === 'charge-card')     return handleChargeCard(body, callerRol, caller.id)
+  if (bodyAction === 'checkout')              return handleCheckout(body, callerRol, caller.id)
+  if (bodyAction === 'manual')                return handleManual(body, callerRol, caller.id)
+  if (bodyAction === 'associate-card')        return handleAssociateCard(body, callerRol, caller.id)
+  if (bodyAction === 'remove-card')           return handleRemoveCard(body, callerRol, caller.id)
+  if (bodyAction === 'charge-card')           return handleChargeCard(body, callerRol, caller.id)
+  if (bodyAction === 'declarar-comprobante')  return handleDeclararComprobante(body, callerRol, caller.id)
 
   return jsonError(400, `Acción desconocida: ${bodyAction}`)
 })
@@ -182,6 +184,91 @@ async function handleCheckout(
 
   const mpData = await mpRes.json()
   return jsonOk({ checkout_url: mpData.init_point, cuota_id: cuotaId })
+}
+
+// ─── Declarar comprobante de transferencia (flujo alias manual) ─────────────────
+// El socio ya subió el archivo a Storage (bucket comprobantes, carpeta propia);
+// acá solo resolvemos/creamos la fila de cuotas con el monto correcto — el
+// cliente nunca escribe monto directo. Mismo patrón que handleCheckout, sin
+// tocar Mercado Pago.
+
+async function handleDeclararComprobante(
+  body: Record<string, unknown>,
+  callerRol: string,
+  callerId: string
+): Promise<Response> {
+  if (callerRol !== 'socio') return jsonError(403, 'Solo el socio puede declarar su comprobante')
+
+  const periodo          = (body.periodo as string | undefined)?.trim()
+  const comprobante_path = (body.comprobante_path as string | undefined)?.trim()
+
+  if (!periodo || !/^\d{4}-\d{2}$/.test(periodo)) {
+    return jsonError(400, 'periodo inválido. Formato: YYYY-MM')
+  }
+  if (!comprobante_path) return jsonError(400, 'comprobante_path es requerido')
+
+  const { data: socio, error: socioErr } = await supabaseAdmin
+    .from('socios')
+    .select('id, categorias_socio ( monto_mensual )')
+    .eq('profile_id', callerId)
+    .single()
+
+  if (socioErr || !socio) return jsonError(404, 'Socio no encontrado')
+
+  // el comprobante tiene que estar en la carpeta del propio socio
+  if (!comprobante_path.startsWith(`${socio.id}/`)) {
+    return jsonError(403, 'comprobante_path inválido')
+  }
+
+  const categoria = socio.categorias_socio as { monto_mensual: number } | null
+
+  const { data: serviciosActivos } = await supabaseAdmin
+    .from('socio_servicios')
+    .select('servicios_opcionales ( monto_mensual )')
+    .eq('socio_id', socio.id)
+
+  const montoServicios = (serviciosActivos ?? []).reduce((sum, s) => {
+    const srv = s.servicios_opcionales as { monto_mensual: number } | null
+    return sum + (srv?.monto_mensual ?? 0)
+  }, 0)
+
+  const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
+
+  const { data: cuotaExistente } = await supabaseAdmin
+    .from('cuotas')
+    .select('id, estado')
+    .eq('socio_id', socio.id)
+    .eq('periodo', periodo)
+    .single()
+
+  if (cuotaExistente?.estado === 'pagado') {
+    return jsonError(409, `La cuota de ${periodo} ya está pagada`)
+  }
+
+  if (cuotaExistente) {
+    const { error: updErr } = await supabaseAdmin
+      .from('cuotas')
+      .update({ estado: 'en_revision', comprobante_path })
+      .eq('id', cuotaExistente.id)
+
+    if (updErr) return jsonError(500, 'Error al actualizar la cuota: ' + updErr.message)
+    return jsonOk({ ok: true, cuota_id: cuotaExistente.id })
+  }
+
+  const { data: nuevaCuota, error: cuotaErr } = await supabaseAdmin
+    .from('cuotas')
+    .insert({
+      socio_id: socio.id,
+      periodo,
+      monto:    montoTotal,
+      estado:   'en_revision',
+      comprobante_path,
+    })
+    .select('id')
+    .single()
+
+  if (cuotaErr || !nuevaCuota) return jsonError(500, 'Error al crear la cuota: ' + cuotaErr?.message)
+  return jsonOk({ ok: true, cuota_id: nuevaCuota.id })
 }
 
 // ─── Webhook de Mercado Pago ──────────────────────────────────────────────────

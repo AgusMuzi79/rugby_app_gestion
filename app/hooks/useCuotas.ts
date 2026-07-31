@@ -135,13 +135,15 @@ export function useCuotas() {
     })
     if (result.canceled || !result.assets[0]) return
 
-    const isVirtual = cuotaId.startsWith('virtual-')
+    const cuota = cuotas.find(c => c.id === cuotaId)
+    if (!cuota) return
+
     setSubiendo(cuotaId)
 
     try {
       const asset    = result.assets[0]
       const base64   = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' })
-      const filePath = `${socioId}/${cuotaId.replace('virtual-', '')}.jpg`
+      const filePath = `${socioId}/${cuota.periodo}.jpg`
 
       const { error: uploadErr } = await supabase.storage
         .from('comprobantes')
@@ -152,25 +154,23 @@ export function useCuotas() {
         return
       }
 
-      if (!isVirtual) {
-        await db
-          .from('cuotas')
-          .update({ estado: 'en_revision', comprobante_path: filePath })
-          .eq('id', cuotaId)
+      // Resuelve/crea la fila de cuotas con el monto correcto — nunca lo escribe el cliente
+      const { error: fnError } = await supabase.functions.invoke('socios-pagos', {
+        body: { action: 'declarar-comprobante', periodo: cuota.periodo, comprobante_path: filePath },
+      })
+
+      if (fnError) {
+        Alert.alert('Error', 'El comprobante se subió pero no se pudo registrar. Contactá a Secretaría.')
+        return
       }
 
-      // Actualizar estado local sin refetch
-      setCuotas(prev => prev.map(c =>
-        c.id === cuotaId
-          ? { ...c, estado: 'en_revision', comprobante_path: filePath }
-          : c
-      ))
+      await fetch()
     } catch {
       Alert.alert('Error', 'Ocurrió un error al subir el comprobante.')
     } finally {
       setSubiendo(null)
     }
-  }, [socioId, db])
+  }, [socioId, cuotas, fetch])
 
   return {
     cuotas,
