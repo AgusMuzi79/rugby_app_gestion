@@ -181,12 +181,12 @@ rugby_app_gestion/
 | `(socio)/cuotas.tsx` — rediseño completo: cards expandibles, modal con alias `cuenta.uncas.rugby`, subida de comprobante, estados verde/oro/pendiente | ✅ |
 | Migration `20260714000000` — precios reales de `categorias_socio` y `servicios_opcionales` (Abril 2026, reemplaza placeholders) | ✅ |
 | Migration `20260729000000` — `socios.cabecera_id`, `jugadores.fichado_temporada_actual`, servicio "Tenis Carnet" | ✅ |
+| Migration `20260731000000` — trigger `guard_profiles_role_update`: bloquea que un usuario autoescale `rol`/`roles`/`divisiones`/`activo` en su propio `profiles` (hallazgo #1 de auditoría pre-producción) | ✅ |
 | Limpieza de datos de prueba en cloud (8 socios test + división M15 + dependencias) | ✅ |
 | **Carga masiva de socios reales** — 1528 socios, 322 jugadores UAR, 27 divisiones, 1115 servicios opcionales, 588 grupos familiares | ✅ |
 | Backfill TOTP (`socios_secrets`) para los 1528 socios importados — habilita el carnet QR | ✅ |
 | Fix paginación PostgREST (tope 1000 filas) — panel web socios, `useSociosSecretaria`, `useDiarioSecretaria`, `notifications` (deployada) | ✅ |
 | `scripts/import-socios-masivo.mjs` + `scripts/backfill-totp-secrets.mjs` — reutilizables para próximas cargas | ✅ |
-| Portería: test carnet QR end-to-end | ⏳ pendiente (ahora sí testeable, hay socios reales con TOTP) |
 | Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
 | Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
 | Semáforo de morosidad | ⏳ pendiente — nuevo export real de deuda en análisis (otro chat) |
@@ -216,6 +216,7 @@ rugby_app_gestion/
 - **EAS env vars:** `.env.local` está en `.gitignore` — EAS no lo lee. Las variables `EXPO_PUBLIC_*` deben setearse con `eas env:create --environment preview`. Ya configuradas: `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` en environment `preview`.
 - `suppressHydrationWarning` en `<html>` del layout web — evita falso error por Dark Reader extension.
 - **Multi-rol:** `profiles.roles TEXT[]` contiene todos los roles disponibles del usuario; `profiles.rol` es el activo (usado por RLS `get_rol()`). Todo usuario staff es socio primero — `assign-role` agrega un rol sobre la base socio existente. El socio puede cambiar su vista activa desde "Mi Perfil" si tiene más de un rol.
+- **Guard anti-escalada en `profiles`:** trigger `guard_profiles_role_update` (migration `20260731000000`) bloquea, para cualquier caller que no sea admin/subcomisión, cambios a `roles[]`, `divisiones` y `activo`, y solo permite cambiar `rol` a un valor ya presente en `roles[]` propio (switcheo multi-rol legítimo). Conexiones con `service_role` (`auth.uid() IS NULL`, todas las Edge Functions) quedan exentas. Antes de este fix, `profiles_update_own` no tenía `WITH CHECK` ni restricción de columnas — cualquier socio podía hacer `UPDATE profiles SET rol='admin'` desde el cliente.
 - **noticias.audiencia:** `'todos'` (socios + staff) o `'cuerpo_tecnico'` (solo coordinador/entrenador/manager). RLS aplica el filtro automáticamente — el hook `useNoticias` no necesita cambios. El push respeta la audiencia: `todos` → `getDestinatariosSocio()` (contains 'socio' en `roles[]`); `cuerpo_tecnico` → coordinador+entrenador+manager.
 - **`useRefreshOnFocus`:** hook helper en `app/hooks/useRefreshOnFocus.ts`. Usa `useFocusEffect` con un ref interno para mantener el callback estable (evita re-ejecución en cada render aunque el fetch no sea `useCallback`). Se aplica en todos los hooks de datos — no aplicar en `useAsistencia` (flujo puntual) ni en hooks que ya tienen `useFocusEffect` propio.
 - **Calendario socio:** `useCalendarioSocio` detecta si el socio es jugador (por DNI → `jugadores.socio_id`) y filtra partidos/resultados con badge "MI EQUIPO". Filtrable por deporte (rugby/hockey/tenis).
@@ -276,8 +277,6 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
 
 **Próximo paso:**
 - **Prioridad actual: semáforo de morosidad** — analizar el export real de `Vencimientos - Clientes` (obtenido 2026-07-28, en otra sesión) y diseñar el importador (probablemente recurrente) en panel web secretaría
-- **Regenerar la `service_role` key de Supabase** — quedó expuesta en el chat durante la carga masiva, todavía no se rotó
-- Test end-to-end portería carnet QR — ahora sí es posible (socios reales con TOTP); usar **preview build** (dev build no recibe push/FCM)
 - Nueva build/OTA del mobile para que lleguen los fixes de paginación de `useSociosSecretaria`/`useDiarioSecretaria` (el fix de `notifications` ya está en cloud, no requiere build)
 - Secretaría: repasar los ~42 socios con DNI sintético (`SD{código}`) y las filas marcadas "a revisar" del padrón importado — no bloquea nada, es prolijidad de datos
 - Definir precio de categoría "Cliente" (6 socios) para sumarlos a la carga
