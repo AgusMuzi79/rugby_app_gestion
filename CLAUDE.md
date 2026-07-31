@@ -286,10 +286,9 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
 - Email de bienvenida: se envía vía Resend al crear usuario. Si `RESEND_API_KEY` no está seteado, se omite sin fallar.
 - `CLUB_EMAIL_FROM=uncasrclub@gmail.com` — seteado en Supabase secrets.
 
-**Auditoría pre-producción (2026-07-31, Opus):** hallazgos #1-#6 resueltos y deployados/commiteados (ver detalle en las notas de cada uno más arriba). Solo queda **#7 — rotar la `service_role` key de Supabase**: acción manual en el Dashboard (Project Settings → API → regenerar) + reponer la env var en `SUPABASE_SERVICE_ROLE_KEY` local, en cualquier CI/CD y en donde más se use (el repo/historial de git está limpio, no hace falta reescribir historia). Sin este paso, la auditoría no da luz verde completa para salir a producción — es el único bloqueante que queda abierto.
+**Auditoría pre-producción (2026-07-31, Opus):** los 7 hallazgos bloqueantes resueltos — #1-#6 vía código (deployados/commiteados) y #7 (rotar `service_role` key) hecho manualmente por Agus en el Dashboard de Supabase. No quedan bloqueantes abiertos de la auditoría; los hallazgos 🟡/🟢 (importantes/menores) siguen documentados en memoria de proyecto para retomar cuando corresponda.
 
 **Próximo paso:**
-- **Rotar la `service_role` key** (hallazgo #7 de la auditoría — pendiente, acción manual del dueño del proyecto)
 - **Prioridad de producto: semáforo de morosidad** — analizar el export real de `Vencimientos - Clientes` (obtenido 2026-07-28, en otra sesión) y diseñar el importador (probablemente recurrente) en panel web secretaría
 - Nueva build/OTA del mobile para que lleguen los fixes de paginación de `useSociosSecretaria`/`useDiarioSecretaria`, el fix de `useCuotas.ts` (`declarar-comprobante`, hallazgo #5) y el fix de TOTP/biometría namespaceados (hallazgo #6) — los fixes de backend (`notifications`, `socios-pagos`, RLS) ya están en cloud, no requieren build
 - Secretaría: repasar los ~42 socios con DNI sintético (`SD{código}`) y las filas marcadas "a revisar" del padrón importado — no bloquea nada, es prolijidad de datos
