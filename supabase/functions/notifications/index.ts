@@ -33,6 +33,21 @@ interface CancelacionPayload {
   fecha:          string
 }
 
+// ─── Caller autorizado por tipo de notificación ─────────────────────────────────
+// 'admin' siempre puede todo (equivalente a subcomisión en el resto de las
+// Edge Functions). 'manual' con rolDestinatario != 'todos' queda reservado
+// a subcomisión/admin — manager/entrenador/coordinador (crónica) solo envían
+// con 'todos'.
+
+const ROLES_POR_TIPO: Record<NotificationType, string[]> = {
+  lesion:                    ['entrenador'],
+  fichaje:                   ['manager'],
+  ausencias_consecutivas:    ['entrenador'],
+  cancelacion_entrenamiento: ['coordinador'],
+  noticia_publicada:         ['secretaria'],
+  manual:                    ['subcomision', 'manager', 'entrenador', 'coordinador'],
+}
+
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -43,10 +58,18 @@ Deno.serve(async (req: Request) => {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader) return jsonError(401, 'Sin autorización')
 
-  const { error: authErr } = await supabaseAdmin.auth.getUser(
+  const { data: { user: caller }, error: authErr } = await supabaseAdmin.auth.getUser(
     authHeader.replace('Bearer ', ''),
   )
-  if (authErr) return jsonError(401, 'Token inválido')
+  if (authErr || !caller) return jsonError(401, 'Token inválido')
+
+  const { data: callerProfile } = await supabaseAdmin
+    .from('profiles')
+    .select('rol')
+    .eq('id', caller.id)
+    .single()
+
+  const callerRol = callerProfile?.rol ?? ''
 
   let body: { type: NotificationType; payload: NotifPayload | ManualPayload | NoticiaPayload }
   try {
@@ -57,11 +80,19 @@ Deno.serve(async (req: Request) => {
 
   const { type, payload } = body
 
+  const rolesPermitidos = ROLES_POR_TIPO[type] ?? []
+  if (callerRol !== 'admin' && !rolesPermitidos.includes(callerRol)) {
+    return jsonError(403, `Sin permiso para enviar notificaciones de tipo "${type}"`)
+  }
+
   try {
     if (type === 'manual') {
       const mp = payload as ManualPayload
       if (!mp?.titulo || !mp?.mensaje || !mp?.rolDestinatario) {
         return jsonError(400, 'Payload manual incompleto')
+      }
+      if (mp.rolDestinatario !== 'todos' && callerRol !== 'subcomision' && callerRol !== 'admin') {
+        return jsonError(403, 'Solo Subcomisión puede elegir el destinatario')
       }
       await notificarManual(mp)
     } else if (type === 'noticia_publicada') {
