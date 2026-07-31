@@ -1,7 +1,8 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 
-const EXPO_PUSH_URL = 'https://exp.host/--/expo-push-notification-service/push/send'
+const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_PUSH_CHUNK_SIZE = 100
 
 type NotificationType = 'lesion' | 'fichaje' | 'ausencias_consecutivas' | 'manual' | 'noticia_publicada' | 'cancelacion_entrenamiento'
 type TipoReferencia   = 'lesion' | 'fichaje' | 'asistencia'
@@ -334,15 +335,26 @@ async function enviarExpoPush(
     sound: 'default',
   }))
 
-  await fetch(EXPO_PUSH_URL, {
-    method:  'POST',
-    headers: {
-      'Content-Type':    'application/json',
-      'Accept':          'application/json',
-      'Accept-Encoding': 'gzip, deflate',
-    },
-    body: JSON.stringify(messages),
-  })
+  // Expo rechaza requests con más de 100 mensajes
+  for (let i = 0; i < messages.length; i += EXPO_PUSH_CHUNK_SIZE) {
+    const chunk = messages.slice(i, i + EXPO_PUSH_CHUNK_SIZE)
+    try {
+      const res = await fetch(EXPO_PUSH_URL, {
+        method:  'POST',
+        headers: {
+          'Content-Type':    'application/json',
+          'Accept':          'application/json',
+          'Accept-Encoding': 'gzip, deflate',
+        },
+        body: JSON.stringify(chunk),
+      })
+      if (!res.ok) {
+        console.error(`Expo push falló (${res.status}):`, await res.text())
+      }
+    } catch (e) {
+      console.error('Error de red enviando push a Expo:', (e as Error).message)
+    }
+  }
 }
 
 // ─── Persistencia en DB ───────────────────────────────────────────────────────

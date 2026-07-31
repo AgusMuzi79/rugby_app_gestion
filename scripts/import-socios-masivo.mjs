@@ -288,7 +288,7 @@ async function run() {
 
       const { error: profileErr } = await supabase
         .from('profiles')
-        .insert({ id: userId, nombre: row.nombre, rol: 'socio', divisiones: null })
+        .insert({ id: userId, nombre: row.nombre, rol: 'socio', roles: ['socio'], divisiones: null })
       if (profileErr) { await supabase.auth.admin.deleteUser(userId); throw new Error(`Profile: ${profileErr.message}`) }
 
       const { data: socioData, error: socioErr } = await supabase
