@@ -4,8 +4,13 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { generateTOTP, secondsUntilRefresh } from '@/lib/totp-client'
 
-const TOTP_SECRET_KEY = 'totp_secret'
-const TOTP_STEP       = 60
+const TOTP_STEP = 60
+
+// Namespaceada por usuario — un dispositivo compartido entre familia (588 grupos
+// familiares) no puede pisar el secreto TOTP de la sesión anterior con una clave global.
+export function totpSecretKey(userId: string): string {
+  return `totp_secret_${userId}`
+}
 
 export interface CarnetData {
   numero_socio: string
@@ -30,8 +35,9 @@ export function useCarnet() {
   const lastStepRef           = useRef(-1)
   const fotoUrlRef            = useRef<string | null | undefined>(undefined)
 
-  const getSecret = useCallback(async (): Promise<string | null> => {
-    const cached = await SecureStore.getItemAsync(TOTP_SECRET_KEY)
+  const getSecret = useCallback(async (uid: string): Promise<string | null> => {
+    const key    = totpSecretKey(uid)
+    const cached = await SecureStore.getItemAsync(key)
     if (cached) return cached
 
     const res = await supabase.functions.invoke('socios-qr', {
@@ -39,14 +45,14 @@ export function useCarnet() {
     })
     if (res.error || !res.data?.secret) return null
 
-    await SecureStore.setItemAsync(TOTP_SECRET_KEY, res.data.secret)
+    await SecureStore.setItemAsync(key, res.data.secret)
     return res.data.secret as string
   }, [])
 
   const buildCarnet = useCallback(async () => {
     if (!userId) return
 
-    const secret = await getSecret()
+    const secret = await getSecret(userId)
     if (!secret) {
       setError('Carnet no disponible. Contactá a Secretaría.')
       setLoading(false)

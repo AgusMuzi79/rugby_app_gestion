@@ -7,8 +7,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { Rol } from '@/constants/roles'
 import { registerPushToken } from '@/lib/notifications'
 
-const EMAIL_KEY    = 'biometria_email'
-const PASSWORD_KEY = 'biometria_password'
+export const EMAIL_KEY    = 'biometria_email'
+export const PASSWORD_KEY = 'biometria_password'
 
 export function useLogin() {
   const [loading, setLoading]                       = useState(false)
