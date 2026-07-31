@@ -235,9 +235,13 @@ async function handleValidatePhoto(
   if (fetchErr || !socio) return jsonError(404, 'Socio no encontrado')
   if (!socio.foto_path)   return jsonError(400, 'El socio no tiene foto cargada')
 
-  // Sin AWS configurado: validación manual directa
+  // Sin AWS configurado: validación manual directa — pero nunca por el propio socio,
+  // eso sería autoaprobarse. Queda pendiente de revisión visual por Secretaría/admin.
   const awsKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
   if (!awsKeyId) {
+    if (callerRol === 'socio') {
+      return jsonOk({ validada: false, mensaje: 'Tu foto quedó pendiente de revisión por Secretaría.' })
+    }
     const nuevoEstado = socio.estado === 'pendiente' ? 'activo' : socio.estado
     const { error: updateErr } = await supabaseAdmin
       .from('socios')
