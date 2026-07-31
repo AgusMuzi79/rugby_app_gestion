@@ -243,7 +243,7 @@ const s = StyleSheet.create({
   edicionFecha: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   filtroBar: {
-    flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 16, gap: 8,
+    flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 8,
   },
   filtroChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
