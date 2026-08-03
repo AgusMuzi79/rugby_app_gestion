@@ -11,6 +11,7 @@ import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
 import { useCarnet } from '@/hooks/useCarnet'
 import { colors, fonts } from '@/constants/theme'
+import { SOCIOS_BADGE_J } from '@/constants/carnetBadge'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,13 @@ function TarjetaFisicaModal({
 
             {/* Logo esquina inferior derecha */}
             <Image source={LOGO} style={tm.logoEsquina} resizeMode="contain" />
+
+            {/* Guiño interno */}
+            {SOCIOS_BADGE_J.has(data.numero_socio) && (
+              <View style={tm.badgeJ}>
+                <Text style={tm.badgeJText}>J</Text>
+              </View>
+            )}
 
             {/* Franja inferior */}
             <View style={tm.cardFooter}>
@@ -469,6 +477,16 @@ const tm = StyleSheet.create({
   logoEsquina: {
     position: 'absolute', bottom: 28, right: 10,
     width: 28, height: 28, opacity: 0.35,
+  },
+  badgeJ: {
+    position: 'absolute', top: 8, right: 8,
+    width: 18, height: 18, borderRadius: 4,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.oro,
+  },
+  badgeJText: {
+    fontFamily: fonts.titulo, fontSize: 11, lineHeight: 13,
+    color: colors.tinta,
   },
   cardFooter: {
     alignItems: 'center', paddingVertical: 6,
