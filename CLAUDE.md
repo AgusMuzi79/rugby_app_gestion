@@ -152,7 +152,8 @@ rugby_app_gestion/
 | Dev build Android generado (incluye v3 completo) | ✅ |
 | Preview build Android generada — `dda1831f` (2026-06-18) | ✅ superada |
 | Preview build Android — `a678ac11` (2026-07-31, incluye toda la auditoría pre-producción hasta el commit `c82bfb3`) | ✅ [APK](https://expo.dev/artifacts/eas/mI7SC2hkMjXiY736BDQ_lM9wGIZ_mv3__Qn6CNfn4Bw.apk) |
-| Preview build Android — `2c3505c0` (2026-08-03, agrega el fix de espaciado de `(socio)/calendario.tsx`, commit `4d15ae0`) | ⏳ en cola/compilando |
+| Preview build Android — `2c3505c0` (2026-08-03, agrega el fix de espaciado de `(socio)/calendario.tsx`, commit `4d15ae0`) | ✅ superada |
+| Preview build Android — `fd404c00` (2026-08-03, incluye badge "J" guiño interno en carnet físico para un grupo de socios, commit `eaec70b`) | ✅ [APK](https://expo.dev/artifacts/eas/d_WsIxkNVST6J4hXaQsxzPpXmNN6AUjb30Qzg45aCi8.apk) |
 | Repo GitHub conectado a Vercel — auto-deploy en push a main | ✅ |
 | Fix deploy Vercel: `rootDirectory` corregido a `web/` en project settings (Vercel buildaba desde root y escaneaba `app/` de Expo) | ✅ |
 | Migration `20260618000000` — repara `profiles` donde `rol` activo no estaba en `roles[]` | ✅ |
