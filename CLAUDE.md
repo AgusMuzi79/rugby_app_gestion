@@ -196,6 +196,7 @@ rugby_app_gestion/
 | Limpieza de datos de prueba en cloud (8 socios test + división M15 + dependencias) | ✅ |
 | **Carga masiva de socios reales** — 1528 socios, 322 jugadores UAR, 27 divisiones, 1115 servicios opcionales, 588 grupos familiares | ✅ |
 | Backfill TOTP (`socios_secrets`) para los 1528 socios importados — habilita el carnet QR | ✅ |
+| Migration `20260804000003` — activa en bloque (`estado='activo'`) a los 1528 socios de la carga masiva, sin foto validada (ver nota abajo) | ✅ |
 | Fix paginación PostgREST (tope 1000 filas) — panel web socios, `useSociosSecretaria`, `useDiarioSecretaria`, `notifications` (deployada) | ✅ |
 | `scripts/import-socios-masivo.mjs` + `scripts/backfill-totp-secrets.mjs` — reutilizables para próximas cargas | ✅ |
 | **Semáforo de morosidad** — importador recurrente del reporte NUVIX (`RPT_Vencimientos`), calcula verde/amarillo/rojo/exento por socio | ✅ |
@@ -217,6 +218,7 @@ rugby_app_gestion/
 - Migraciones `20260617000000`, `20260617000001`, `20260618000000`, `20260618000001` aplicadas vía `supabase db push`.
 - `20260714000000` aplicada en cloud vía `supabase db push`. `categorias_socio` (Abril 2026): Titular de Grupo $60.000, Activo Mayor $50.000, Activo Menor $25.000, Activo Unquitas $12.500, Dependiente Grupo Familiar $0, Vitalicio $0, Becado Rugby/Hockey/Tenis $0. `servicios_opcionales`: Hockey $31.250, Rugby $25.000, Tenis $25.000, Gimnasio $18.750 (tarifa única — el schema no distingue Gym Mayor/Menor por edad todavía). Falta categoría "Cliente" (sin precio confirmado, 6 socios activos).
 - Foto del socio se gestiona desde "Mi Perfil" (useSobre), no desde el carnet. Al cambiar la foto, `foto_validada` se resetea a `false`.
+- **Los 1528 socios de la carga masiva están `estado='activo'` sin foto validada (migration `20260804000003`, 2026-08-04).** La carga masiva no trajo `foto_path` desde NUVIX, así que el botón "VALIDAR FOTO" de secretaría nunca iba a aparecer para ellos (`web/.../socios/page.tsx` solo lo muestra si `foto_path` no es null) — la única forma de resolverlo sería que cada socio suba su propia foto desde "Mi Perfil", algo que no iba a pasar para 1528 personas en un plazo razonable. Decisión de Agus: son socios reales verificados desde el sistema del club (no altas orgánicas sin verificar), se activan en bloque. El gate de foto sigue estricto para altas nuevas — `admin-socios`/`validate-photo` sin cambios, un alta manual nueva sigue arrancando en `pendiente` hasta que secretaría valide una foto real.
 - `totp-client.ts` usa SHA-1 + HMAC puro en JS (sin `crypto.subtle`) — compatible con todas las versiones de Hermes. Paso TOTP = **60 segundos** (cambiado de 30s) — sincronizado en `totp-client.ts`, `_shared/totp.ts` y `useCarnet.ts`.
 - `useCuotas` inyecta una cuota virtual para el mes actual si no existe en DB — se reemplaza por la real al confirmar pago.
 - `push_tokens` usa RPC `register_push_token` (SECURITY DEFINER) — hace DELETE + INSERT bypasseando RLS. Las policies de UPDATE/INSERT bloqueaban tanto upsert como delete+insert directo cuando el token pertenecía a otro usuario.
