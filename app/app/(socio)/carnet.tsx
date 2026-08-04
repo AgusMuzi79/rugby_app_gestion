@@ -479,13 +479,13 @@ const tm = StyleSheet.create({
     width: 28, height: 28, opacity: 0.35,
   },
   badgeJ: {
-    position: 'absolute', top: 8, right: 8,
-    width: 18, height: 18, borderRadius: 4,
+    position: 'absolute', bottom: 3, right: 8,
+    width: 15, height: 15, borderRadius: 3,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.oro,
   },
   badgeJText: {
-    fontFamily: fonts.titulo, fontSize: 11, lineHeight: 13,
+    fontFamily: fonts.titulo, fontSize: 10, lineHeight: 12,
     color: colors.tinta,
   },
   cardFooter: {
