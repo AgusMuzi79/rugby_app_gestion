@@ -350,6 +350,29 @@ async function enviarExpoPush(
       })
       if (!res.ok) {
         console.error(`Expo push falló (${res.status}):`, await res.text())
+        continue
+      }
+
+      // Expo devuelve 200 general aunque un mensaje puntual haya fallado —
+      // el detalle real está en cada "ticket" del array `data`. Sin esto,
+      // un token inválido (DeviceNotRegistered) o credenciales FCM mal
+      // configuradas (InvalidCredentials) quedaban invisibles.
+      const json = await res.json().catch(() => null)
+      const tickets = json?.data as Array<{ status: string; id?: string; message?: string; details?: { error?: string } }> | undefined
+      if (!tickets) {
+        console.error('Respuesta de Expo sin `data`:', JSON.stringify(json))
+        continue
+      }
+      const fallidos = tickets
+        .map((t, idx) => ({ t, to: chunk[idx]?.to }))
+        .filter(({ t }) => t.status === 'error')
+      if (fallidos.length > 0) {
+        console.error(
+          `${fallidos.length}/${tickets.length} tickets con error:`,
+          JSON.stringify(fallidos.map(({ t, to }) => ({ to, error: t.details?.error, message: t.message }))),
+        )
+      } else {
+        console.log(`${tickets.length} tickets OK`)
       }
     } catch (e) {
       console.error('Error de red enviando push a Expo:', (e as Error).message)
