@@ -87,6 +87,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    let resumen: PushResumen | undefined
     if (type === 'manual') {
       const mp = payload as ManualPayload
       if (!mp?.titulo || !mp?.mensaje || !mp?.rolDestinatario) {
@@ -101,7 +102,7 @@ Deno.serve(async (req: Request) => {
       if (!np?.titulo || !np?.noticiaId) {
         return jsonError(400, 'Payload noticia incompleto')
       }
-      await notificarNoticiaPublicada(np)
+      resumen = await notificarNoticiaPublicada(np)
     } else if (type === 'cancelacion_entrenamiento') {
       const cp = payload as CancelacionPayload
       if (!cp?.divisionId || !cp?.mensaje) {
@@ -123,7 +124,7 @@ Deno.serve(async (req: Request) => {
         return jsonError(400, `Tipo desconocido: ${type}`)
       }
     }
-    return jsonOk({ ok: true })
+    return jsonOk({ ok: true, resumen })
   } catch (e) {
     return jsonError(500, (e as Error).message)
   }
@@ -165,7 +166,7 @@ async function notificarManual(p: ManualPayload): Promise<void> {
   await enviarExpoPush(allTokens, p.titulo, p.mensaje, { type: 'manual' })
 }
 
-async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<void> {
+async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen> {
   const audiencia = p.audiencia ?? 'todos'
   let tokens: string[]
 
@@ -184,7 +185,7 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<void> {
     tokens = t
   }
 
-  await enviarExpoPush(tokens, 'Nueva Noticia', p.titulo, {
+  return await enviarExpoPush(tokens, 'Nueva Noticia', p.titulo, {
     type: 'noticia_publicada',
     noticiaId: p.noticiaId,
   })
@@ -212,6 +213,31 @@ async function notificarAusencias(p: NotifPayload): Promise<void> {
 
 // ─── Destinatarios ────────────────────────────────────────────────────────────
 
+// PostgREST arma la URL del filtro .in() con todos los ids en la query string.
+// Con 1528 socios activados (2026-08-04) esa URL supera los ~56.000 caracteres
+// y el request vuelve "Bad Request" — el código no revisaba el `error` de la
+// respuesta, así que devolvía silenciosamente cero tokens. Ningún push de
+// audiencia 'todos' llegó a nadie desde entonces (probablemente desde antes)
+// por este motivo. Fix: traer los tokens en lotes chicos.
+const PUSH_TOKENS_IN_CHUNK_SIZE = 100
+
+async function fetchPushTokens(usuarioIds: string[]): Promise<string[]> {
+  const tokens: string[] = []
+  for (let i = 0; i < usuarioIds.length; i += PUSH_TOKENS_IN_CHUNK_SIZE) {
+    const chunk = usuarioIds.slice(i, i + PUSH_TOKENS_IN_CHUNK_SIZE)
+    const { data, error } = await supabaseAdmin
+      .from('push_tokens')
+      .select('token')
+      .in('usuario_id', chunk)
+    if (error) {
+      console.error(`Error trayendo push_tokens (lote de ${chunk.length}):`, error.message)
+      continue
+    }
+    tokens.push(...(data ?? []).map(r => r.token))
+  }
+  return tokens
+}
+
 async function getDestinatariosRol(
   rol: string,
 ): Promise<{ ids: string[]; tokens: string[] }> {
@@ -224,12 +250,7 @@ async function getDestinatariosRol(
   if (!profiles?.length) return { ids: [], tokens: [] }
 
   const ids = profiles.map(p => p.id)
-  const { data: pushRows } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .in('usuario_id', ids)
-
-  return { ids, tokens: (pushRows ?? []).map(r => r.token) }
+  return { ids, tokens: await fetchPushTokens(ids) }
 }
 
 // Para noticias de audiencia 'todos': busca por el array roles[] en vez de rol activo,
@@ -254,12 +275,7 @@ async function getDestinatariosSocio(): Promise<{ ids: string[]; tokens: string[
   if (!profiles.length) return { ids: [], tokens: [] }
 
   const ids = profiles.map(p => p.id)
-  const { data: pushRows } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .in('usuario_id', ids)
-
-  return { ids, tokens: (pushRows ?? []).map(r => r.token) }
+  return { ids, tokens: await fetchPushTokens(ids) }
 }
 
 async function getTokensJugadoresDivision(divisionId: string): Promise<string[]> {
@@ -284,12 +300,7 @@ async function getTokensJugadoresDivision(divisionId: string): Promise<string[]>
   const profileIds = (socios ?? []).map(s => s.profile_id as string).filter(Boolean)
   if (!profileIds.length) return []
 
-  const { data: pushRows } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .in('usuario_id', profileIds)
-
-  return (pushRows ?? []).map(r => r.token)
+  return await fetchPushTokens(profileIds)
 }
 
 async function getDestinatariosCoordinador(
@@ -305,27 +316,31 @@ async function getDestinatariosCoordinador(
   if (!profiles?.length) return { ids: [], tokens: [] }
 
   const ids = profiles.map(p => p.id)
-  const { data: pushRows } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .in('usuario_id', ids)
+  const tokens = await fetchPushTokens(ids)
 
-  return { ids, tokens: (pushRows ?? []).map(r => r.token) }
+  return { ids, tokens }
 }
 
 // ─── Expo Push ────────────────────────────────────────────────────────────────
+
+interface PushResumen {
+  tokensValidos: number
+  ok:            number
+  errores:       { to: string; error?: string; message?: string }[]
+}
 
 async function enviarExpoPush(
   tokens:  string[],
   title:   string,
   body:    string,
   data?:   Record<string, unknown>,
-): Promise<void> {
+): Promise<PushResumen> {
   // Solo tokens válidos de Expo
   const validos = tokens.filter(t =>
     t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['),
   )
-  if (validos.length === 0) return
+  const resumen: PushResumen = { tokensValidos: validos.length, ok: 0, errores: [] }
+  if (validos.length === 0) return resumen
 
   const messages = validos.map(to => ({
     to,
@@ -349,7 +364,9 @@ async function enviarExpoPush(
         body: JSON.stringify(chunk),
       })
       if (!res.ok) {
-        console.error(`Expo push falló (${res.status}):`, await res.text())
+        const text = await res.text()
+        console.error(`Expo push falló (${res.status}):`, text)
+        resumen.errores.push({ to: 'batch', error: `http_${res.status}`, message: text })
         continue
       }
 
@@ -361,23 +378,28 @@ async function enviarExpoPush(
       const tickets = json?.data as Array<{ status: string; id?: string; message?: string; details?: { error?: string } }> | undefined
       if (!tickets) {
         console.error('Respuesta de Expo sin `data`:', JSON.stringify(json))
+        resumen.errores.push({ to: 'batch', error: 'sin_data', message: JSON.stringify(json) })
         continue
       }
-      const fallidos = tickets
-        .map((t, idx) => ({ t, to: chunk[idx]?.to }))
-        .filter(({ t }) => t.status === 'error')
-      if (fallidos.length > 0) {
-        console.error(
-          `${fallidos.length}/${tickets.length} tickets con error:`,
-          JSON.stringify(fallidos.map(({ t, to }) => ({ to, error: t.details?.error, message: t.message }))),
-        )
+      tickets.forEach((t, idx) => {
+        const to = chunk[idx]?.to ?? '?'
+        if (t.status === 'error') {
+          resumen.errores.push({ to, error: t.details?.error, message: t.message })
+        } else {
+          resumen.ok++
+        }
+      })
+      if (resumen.errores.length > 0) {
+        console.error(`Tickets con error:`, JSON.stringify(resumen.errores))
       } else {
         console.log(`${tickets.length} tickets OK`)
       }
     } catch (e) {
       console.error('Error de red enviando push a Expo:', (e as Error).message)
+      resumen.errores.push({ to: 'batch', error: 'network', message: (e as Error).message })
     }
   }
+  return resumen
 }
 
 // ─── Persistencia en DB ───────────────────────────────────────────────────────
