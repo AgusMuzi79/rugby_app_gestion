@@ -1,10 +1,3 @@
-﻿supabase : Initialising login role...
-At line:1 char:85
-+ ... ; $output = supabase gen types typescript --linked --schema public 2> ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (Initialising login role...:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
 export type Json =
   | string
   | number
@@ -174,8 +167,84 @@ export type Database = {
           },
         ]
       }
+      comprobantes_deuda: {
+        Row: {
+          a_vencer: number
+          cod_cliente: string
+          concepto: string | null
+          descripcion: string | null
+          es_saldo_anterior: boolean
+          fecha: string | null
+          id: string
+          importacion_id: string
+          mora_dias: number | null
+          nombre_origen: string | null
+          numero: string | null
+          periodo: string | null
+          prefijo: string | null
+          socio_id: string | null
+          tipo: string | null
+          vencido: number
+          vencimiento: string | null
+        }
+        Insert: {
+          a_vencer?: number
+          cod_cliente: string
+          concepto?: string | null
+          descripcion?: string | null
+          es_saldo_anterior?: boolean
+          fecha?: string | null
+          id?: string
+          importacion_id: string
+          mora_dias?: number | null
+          nombre_origen?: string | null
+          numero?: string | null
+          periodo?: string | null
+          prefijo?: string | null
+          socio_id?: string | null
+          tipo?: string | null
+          vencido?: number
+          vencimiento?: string | null
+        }
+        Update: {
+          a_vencer?: number
+          cod_cliente?: string
+          concepto?: string | null
+          descripcion?: string | null
+          es_saldo_anterior?: boolean
+          fecha?: string | null
+          id?: string
+          importacion_id?: string
+          mora_dias?: number | null
+          nombre_origen?: string | null
+          numero?: string | null
+          periodo?: string | null
+          prefijo?: string | null
+          socio_id?: string | null
+          tipo?: string | null
+          vencido?: number
+          vencimiento?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comprobantes_deuda_importacion_id_fkey"
+            columns: ["importacion_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones_deuda"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comprobantes_deuda_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cuotas: {
         Row: {
+          comprobante_path: string | null
           created_at: string
           estado: string
           id: string
@@ -185,6 +254,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          comprobante_path?: string | null
           created_at?: string
           estado?: string
           id?: string
@@ -194,6 +264,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          comprobante_path?: string | null
           created_at?: string
           estado?: string
           id?: string
@@ -500,6 +571,68 @@ export type Database = {
         }
         Relationships: []
       }
+      importaciones_deuda: {
+        Row: {
+          archivo_nombre: string | null
+          comprobantes: number | null
+          created_at: string
+          fecha_corte: string
+          id: string
+          importado_por: string | null
+          periodo_desde: string | null
+          periodo_hasta: string | null
+          personas: number | null
+          reconcilia: boolean
+          sin_match: number | null
+          socios_matcheados: number | null
+          total_a_vencer: number | null
+          total_general: number | null
+          total_vencido: number | null
+        }
+        Insert: {
+          archivo_nombre?: string | null
+          comprobantes?: number | null
+          created_at?: string
+          fecha_corte: string
+          id?: string
+          importado_por?: string | null
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          personas?: number | null
+          reconcilia: boolean
+          sin_match?: number | null
+          socios_matcheados?: number | null
+          total_a_vencer?: number | null
+          total_general?: number | null
+          total_vencido?: number | null
+        }
+        Update: {
+          archivo_nombre?: string | null
+          comprobantes?: number | null
+          created_at?: string
+          fecha_corte?: string
+          id?: string
+          importado_por?: string | null
+          periodo_desde?: string | null
+          periodo_hasta?: string | null
+          personas?: number | null
+          reconcilia?: boolean
+          sin_match?: number | null
+          socios_matcheados?: number | null
+          total_a_vencer?: number | null
+          total_general?: number | null
+          total_vencido?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importaciones_deuda_importado_por_fkey"
+            columns: ["importado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items_pedido: {
         Row: {
           cantidad: number
@@ -539,6 +672,7 @@ export type Database = {
           division_id: string
           dni: string
           fecha_nacimiento: string
+          fichado_temporada_actual: boolean
           id: string
           nombre_completo: string
           posicion: string | null
@@ -551,6 +685,7 @@ export type Database = {
           division_id: string
           dni: string
           fecha_nacimiento: string
+          fichado_temporada_actual?: boolean
           id?: string
           nombre_completo: string
           posicion?: string | null
@@ -563,6 +698,7 @@ export type Database = {
           division_id?: string
           dni?: string
           fecha_nacimiento?: string
+          fichado_temporada_actual?: boolean
           id?: string
           nombre_completo?: string
           posicion?: string | null
@@ -1303,14 +1439,19 @@ export type Database = {
       }
       socios: {
         Row: {
+          cabecera_id: string | null
           categoria_id: string
           created_at: string
+          deuda_actualizada_at: string | null
+          deuda_vencida: number
           dni: string
           estado: string
           fecha_nacimiento: string | null
           foto_path: string | null
           foto_validada: boolean
           id: string
+          meses_impagos: number
+          mora_max_dias: number
           mp_card_brand: string | null
           mp_card_id: string | null
           mp_card_last_four: string | null
@@ -1319,17 +1460,23 @@ export type Database = {
           mp_customer_id: string | null
           numero_socio: string
           profile_id: string
+          semaforo: string | null
           updated_at: string
         }
         Insert: {
+          cabecera_id?: string | null
           categoria_id: string
           created_at?: string
+          deuda_actualizada_at?: string | null
+          deuda_vencida?: number
           dni: string
           estado?: string
           fecha_nacimiento?: string | null
           foto_path?: string | null
           foto_validada?: boolean
           id?: string
+          meses_impagos?: number
+          mora_max_dias?: number
           mp_card_brand?: string | null
           mp_card_id?: string | null
           mp_card_last_four?: string | null
@@ -1338,17 +1485,23 @@ export type Database = {
           mp_customer_id?: string | null
           numero_socio?: string
           profile_id: string
+          semaforo?: string | null
           updated_at?: string
         }
         Update: {
+          cabecera_id?: string | null
           categoria_id?: string
           created_at?: string
+          deuda_actualizada_at?: string | null
+          deuda_vencida?: number
           dni?: string
           estado?: string
           fecha_nacimiento?: string | null
           foto_path?: string | null
           foto_validada?: boolean
           id?: string
+          meses_impagos?: number
+          mora_max_dias?: number
           mp_card_brand?: string | null
           mp_card_id?: string | null
           mp_card_last_four?: string | null
@@ -1357,9 +1510,17 @@ export type Database = {
           mp_customer_id?: string | null
           numero_socio?: string
           profile_id?: string
+          semaforo?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "socios_cabecera_id_fkey"
+            columns: ["cabecera_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "socios_categoria_id_fkey"
             columns: ["categoria_id"]
@@ -1409,6 +1570,11 @@ export type Database = {
     Functions: {
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
+      importar_deuda_nuvix: { Args: { p_payload: Json }; Returns: Json }
+      register_push_token: {
+        Args: { p_plataforma: string; p_token: string }
+        Returns: undefined
+      }
       tiene_acceso_division: {
         Args: { p_division_id: string }
         Returns: boolean
@@ -1545,6 +1711,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-A new version of Supabase CLI is available: v2.106.0 (currently installed v2.101.0)
-We recommend updating regularly for new features and bug fixes: 
-https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli

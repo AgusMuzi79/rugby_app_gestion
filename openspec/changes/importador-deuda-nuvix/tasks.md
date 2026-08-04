@@ -1,0 +1,54 @@
+# Tasks: Importador de deuda NUVIX — Semáforo de morosidad
+
+## T1 — Migración
+
+- [x] Crear migración `20260804000000_importador_deuda_nuvix.sql`
+- [x] `CREATE TABLE importaciones_deuda` (ver design.md §3)
+- [x] `CREATE TABLE comprobantes_deuda` (ver design.md §3), con `CHECK` de `periodo` y `concepto`
+- [x] Índices: `comprobantes_deuda (importacion_id)`, `comprobantes_deuda (socio_id)`, `socios (semaforo)`
+- [x] `ALTER TABLE socios` — agregar `semaforo`, `deuda_vencida`, `meses_impagos`, `mora_max_dias`, `deuda_actualizada_at`
+- [x] RLS: `secretaria_admin_all_importaciones`, `secretaria_admin_all_comprobantes`, `socio_select_own_comprobantes` (design.md §3)
+- [x] Función Postgres `SECURITY DEFINER` `importar_deuda_nuvix(jsonb)` para el paso transaccional del import (delete-por-fecha-corte + insert importación + insert comprobantes bulk + recálculo de semáforo de todos los socios activos) — misma migración, `EXECUTE` restringido a `service_role`
+- [x] Validación offline del parser contra el archivo real (`data/import/todos desde el 2022.xls`, sin tocar Supabase) — ver detalle en el ítem de T2 más abajo
+- [x] **Checkpoint superado (OK de Agus)** — `supabase db push` corrido, migración aplicada en cloud (`tlexvbattnzpmdftjsao`) sin errores
+- [x] `database.types.ts` regenerado (`app/lib/database.types.ts`) — de paso corrigió una corrupción preexistente del archivo (un `supabase gen types` anterior había volcado el log de PowerShell adentro en vez de redirigir sólo stdout)
+
+## T2 — Edge Function `importar-deuda`
+
+- [x] Scaffold `supabase/functions/importar-deuda/index.ts`, `verify_jwt` activo (default, no se pasó `--no-verify-jwt`)
+- [x] Validar rol del caller (`secretaria` | `admin`) contra `profiles`, no confiar en el body
+- [x] Parser NUVIX en `_shared/parse-deuda-nuvix.ts`: clasificación de filas por posición (design.md §1), máquina de estados "cuenta actual" abre/cierra
+- [x] Derivación de `periodo`/`concepto` desde `descripcion` — **reescrita tras probar contra el archivo real**: las 4 reglas literales originales dejaban 433/1792 comprobantes sin clasificar (mucha variedad de redacción que el spec no anticipaba: "Mes de" ausente, año duplicado en el medio del texto, meses sin año, medio-mes de gimnasio con otro orden de palabras). Generalizada a 3 señales por confiabilidad — código M-YYYY en cualquier parte del texto → nombre de mes en cualquier parte → fallback a vencimiento — sin tocar la prioridad absoluta de `REG. CESANTES`. Bajó a 57/1792 sin clasificar, y esos 57 resultaron ser genuinamente otra cosa (cuentas de Proveedores: "COBRO A CLIENTES", "Distribuidora Espora", "Publicidad" — no son cuota social)
+- [x] Validación de reconciliación (`Σ subtotales === Total General`) — aborta sin llamar al RPC si falla, devuelve el detalle del desbalance. **Verificado contra el archivo real: reconcilia exacto**
+- [x] Resolución de `cod_cliente` → `socio_id` vía `socios.numero_socio` (un solo `SELECT ... WHERE numero_socio IN (...)`, no N+1)
+- [x] Invocar la función Postgres transaccional (RPC `importar_deuda_nuvix`) con el payload parseado
+- [x] Response: `{ comprobantes, personas, socios_matcheados, sin_match, verde, amarillo, rojo, exento }` — `comprobantes` excluye las filas SALDO ANTERIOR (verificado: 1792 filas de detalle − 53 SALDO ANTERIOR = 1739, el número que dio el club)
+- [x] Validación offline (Node, sin tocar Supabase) contra `todos_desde_el_2022.xls`: reconcilia ✓, personas = 536 ✓ (exacto), comprobantes = 1739 ✓ (exacto)
+- [ ] **Todavía pendiente**: el conteo final verde/amarillo/rojo/exento y el monto en rojo ($12.995.950) — esto necesita el cruce contra `socios.numero_socio` real en la base, no se puede simular offline. Falta correrlo importando el archivo real desde la página ya deployada.
+- [x] **Checkpoint superado (OK de Agus)** — `supabase functions deploy importar-deuda` corrido, deployada en cloud (`tlexvbattnzpmdftjsao`)
+
+## T3 — Página web `secretaria/deuda`
+
+- [x] `web/app/(secretaria)/secretaria/deuda/page.tsx` — guard de rol ya lo resuelve `(secretaria)/layout.tsx` (mismo patrón que el resto de las páginas del grupo)
+- [x] Sección subida de archivo (`.xls`) + botón importar + loading state
+- [x] Sección resultado del import (resumen de la Edge Function; error prominente si `reconcilia = false`)
+- [x] Sección historial de importaciones (tabla de `importaciones_deuda`, orden desc por `fecha_corte`)
+- [x] Sección listado de socios filtrable por color (chips texto rojo/amarillo/verde/exento, mismo patrón visual que el filtro de estado en `secretaria/socios/page.tsx`)
+- [x] Identidad visual: tokens Tailwind ya definidos en `globals.css` (`bg-papel`, `text-tinta`, `bg-card`, `border-gris-claro`, `text-oro`, `text-oro-hondo`, `font-playfair`/`font-lora` — mapean a la paleta de CLAUDE.md, `--font-playfair`/`--font-lora` ya apuntan a Barlow pese al nombre de la clase)
+- [x] `npx tsc --noEmit` sobre `web/` — sin errores de tipos
+- [x] Link "Importar" agregado a `web/components/SidebarSecretaria.tsx` (confirmado por Agus — excepción puntual a "una página nueva, nada más")
+
+## T4 — Validación end-to-end
+
+Backend listo (migración + Edge Function en cloud). La página web todavía no se commiteó/pusheó — sin eso no hay deploy en Vercel para probarla en producción. Falta decidir cómo se corre esta validación: `next dev` local + login real de secretaría, o commit + push (dispara auto-deploy) y probar en `https://web-chi-nine-26.vercel.app/secretaria/deuda`.
+
+- [ ] Importar `todos_desde_el_2022.xls` desde la página real (no solo contra la Edge Function directo) y confirmar los números de aceptación en la UI: verde 1.273 / amarillo 100 / rojo 108 / $12.995.950 en rojo
+- [ ] Reimportar el mismo archivo (misma fecha de corte) y confirmar que no duplica (idempotencia)
+- [ ] Importar un archivo con fecha de corte distinta y confirmar que no borra la importación anterior
+- [ ] Confirmar que un socio con deuda saldada en el archivo nuevo (no aparece más) vuelve a verde
+
+## Fuera de esta change (no crear tasks todavía)
+
+- Semáforo binario en `(socio)/cuotas.tsx` / `useCuotas` — ver design.md §6
+- Pantalla mobile de detalle de deuda del socio (agrupada por período, sello de frescura, plan de regularización aparte, a_vencer informativo) — ver design.md §6
+- Resolver la inconsistencia con el filtro "Moroso" legacy en `secretaria/socios/page.tsx` — ver design.md §7.3
