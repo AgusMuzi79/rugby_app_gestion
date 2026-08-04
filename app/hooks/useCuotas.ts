@@ -46,6 +46,11 @@ export function useCuotas() {
   const [totalMensual,     setTotalMensual]     = useState(0)
   const [categoriaLabel,   setCategoriaLabel]   = useState<string>('')
   const [montoCategoria,   setMontoCategoria]   = useState<number>(0)
+  // Semáforo real de NUVIX (importador de deuda) — señal aparte de `cuotas`,
+  // que es el flujo interino de alias+comprobante de la app. Binario a
+  // propósito: el socio no ve colores ni se compara contra otros socios.
+  const [alDia,             setAlDia]             = useState(true)
+  const [deudaActualizadaAt, setDeudaActualizadaAt] = useState<string | null>(null)
 
   const fetch = useCallback(async () => {
     if (!session?.user.id) return
@@ -53,13 +58,15 @@ export function useCuotas() {
 
     const { data: socio } = await db
       .from('socios')
-      .select('id, categorias_socio(nombre, monto_mensual)')
+      .select('id, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at')
       .eq('profile_id', session.user.id)
       .single()
 
     if (!socio) { setLoading(false); return }
 
     setSocioId(socio.id)
+    setAlDia(!['amarillo', 'rojo'].includes(socio.semaforo))
+    setDeudaActualizadaAt(socio.deuda_actualizada_at ?? null)
 
     const cat = socio.categorias_socio as { nombre: string; monto_mensual: number } | null
     const montoCategoria: number = cat?.monto_mensual ?? 0
@@ -182,5 +189,7 @@ export function useCuotas() {
     totalMensual,
     categoriaLabel,
     montoCategoria,
+    alDia,
+    deudaActualizadaAt,
   }
 }

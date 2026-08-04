@@ -203,6 +203,7 @@ rugby_app_gestion/
 | Migration `20260804000002` — fix: `exento` por nombre de categoría (Vitalicio/Becado), no por `monto_mensual = 0` | ✅ |
 | Edge Function `importar-deuda` (verify_jwt activo, rol secretaria/admin) | ✅ |
 | Web `secretaria/deuda` — subida de archivo, historial, listado filtrable por color + link "Importar" en el sidebar | ✅ |
+| Semáforo binario en `(socio)/cuotas.tsx` — `useCuotas` lee `socios.semaforo`, banner sólo si hay deuda real | ✅ código — requiere build nueva del mobile |
 | Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
 | Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
 
@@ -289,7 +290,8 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
   1. El semáforo daba 0/0/0/0 — filtraba `estado='activo'`, pero los 1528 socios de la carga masiva quedaron en `'pendiente'` (falta validar foto en bulk). Fix: participa `estado IN ('activo', 'pendiente')`.
   2. `exento` explotó a 653 — estaba definido como categoría con `monto_mensual = 0`, que también agarra "Dependiente Grupo Familiar" (la categoría de la mayoría del club, $0 porque se factura al titular, no por exención). Fix: por nombre exacto de categoría.
 - Resultado final probado contra el archivo real (`todos_desde_el_2022.xls`, corte 28/07/2026): comprobantes 1.739 y personas 536 exactos; **rojo 102 / amarillo 96 / verde 1.278 / exento 52** vs. el número de referencia del club (rojo 108 / amarillo 100 / verde 1.273) — dentro de ~0.4%, sin cerrar exacto. Un diagnóstico de lectura contra producción no encontró ningún bug (el `meses_impagos` guardado coincide 100% con un recálculo independiente en JS); se decidió con Agus no seguir cazando ese margen por ahora.
-- Pantalla mobile de detalle de deuda del socio y semáforo binario en `(socio)/cuotas.tsx` — diseñados en `design.md §6` de la change, **no implementados** (fuera de alcance de esta pasada).
+- **Semáforo binario en `(socio)/cuotas.tsx` — implementado (2026-08-04, follow-up separado).** `useCuotas` lee `socios.semaforo` + `deuda_actualizada_at` de la propia fila (misma RLS que ya usa, sin cambios) y expone `alDia` (booleano — `false` sólo si `semaforo` es `amarillo`/`rojo`) y `deudaActualizadaAt`. La pantalla muestra un tercer banner (estilo tarjeta, borde izquierdo en `colors.rojoUrgente`, distinto de los dos banners dorados existentes que son del flujo interino de alias+comprobante) **sólo si `!alDia`**, con la fecha de corte del último import ("datos al DD/MM") para que quede claro que puede haber desfasaje con lo que el socio ya pagó. Si está al día no se muestra nada (decisión de Agus — silencio = todo bien). **Cambio 100% JS, no toma efecto hasta la próxima build/OTA del mobile** — no se pudo probar visualmente en un dispositivo real en esta sesión.
+- Pantalla mobile de detalle de deuda del socio (agrupada por período, sello de frescura, plan de regularización aparte, a_vencer informativo) — diseñada en `design.md §6` de la change, **no implementada** (sigue fuera de alcance).
 - Sigue pendiente el filtro "Moroso" legacy en `web/.../secretaria/socios/page.tsx` (basado en `socios.estado='moroso'`, seteado sólo por el flujo de tarjeta descartado) — va a quedar inconsistente con el semáforo nuevo, no se tocó en esta change.
 
 **Débito automático con tarjeta (código legacy — MercadoPago descartado por el club):**

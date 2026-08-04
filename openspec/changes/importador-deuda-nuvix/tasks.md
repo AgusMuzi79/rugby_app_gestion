@@ -53,6 +53,6 @@ Corrido en producción real (commit+push a Vercel, import real vía `/secretaria
 
 ## Fuera de esta change (no crear tasks todavía)
 
-- Semáforo binario en `(socio)/cuotas.tsx` / `useCuotas` — ver design.md §6
+- ~~Semáforo binario en `(socio)/cuotas.tsx` / `useCuotas`~~ — **implementado 2026-08-04** (follow-up separado, ver CLAUDE.md). `useCuotas` lee `socios.semaforo`/`deuda_actualizada_at`, expone `alDia` (booleano) + `deudaActualizadaAt`. `cuotas.tsx` muestra un tercer banner sólo si `!alDia`, con la fecha de corte; si está al día no muestra nada (decisión de Agus). Cambio 100% JS — requiere build/OTA nueva del mobile, no se pudo probar visualmente en un dispositivo real en esta sesión.
 - Pantalla mobile de detalle de deuda del socio (agrupada por período, sello de frescura, plan de regularización aparte, a_vencer informativo) — ver design.md §6
 - Resolver la inconsistencia con el filtro "Moroso" legacy en `secretaria/socios/page.tsx` — ver design.md §7.3

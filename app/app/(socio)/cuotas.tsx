@@ -235,6 +235,7 @@ export default function CuotasScreen() {
   const {
     cuotas, loading, subiendo, subirComprobante, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
+    alDia, deudaActualizadaAt,
   } = useCuotas()
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
@@ -308,6 +309,15 @@ export default function CuotasScreen() {
                     {enRevision === 1
                       ? '1 comprobante en revisión por Secretaría.'
                       : `${enRevision} comprobantes en revisión por Secretaría.`}
+                  </Text>
+                </View>
+              )}
+              {!alDia && (
+                <View style={[s.banner, s.bannerDeudaClub]}>
+                  <Feather name="info" size={14} color={colors.tinta} />
+                  <Text style={[s.bannerText, { color: colors.tinta }]}>
+                    Según los registros del club, tenés pagos pendientes
+                    {deudaActualizadaAt ? ` (datos al ${fechaCorta(deudaActualizadaAt)})` : ''}.
                   </Text>
                 </View>
               )}
@@ -398,6 +408,10 @@ const s = StyleSheet.create({
   },
   bannerPendiente: { backgroundColor: colors.oroHondo },
   bannerRevision:  { backgroundColor: colors.oro },
+  bannerDeudaClub: {
+    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
+    borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente,
+  },
   bannerText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
 
   // Cards de cuota
