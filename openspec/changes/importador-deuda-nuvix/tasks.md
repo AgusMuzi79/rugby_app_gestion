@@ -40,12 +40,16 @@
 
 ## T4 — Validación end-to-end
 
-Backend listo (migración + Edge Function en cloud). La página web todavía no se commiteó/pusheó — sin eso no hay deploy en Vercel para probarla en producción. Falta decidir cómo se corre esta validación: `next dev` local + login real de secretaría, o commit + push (dispara auto-deploy) y probar en `https://web-chi-nine-26.vercel.app/secretaria/deuda`.
+Corrido en producción real (commit+push a Vercel, import real vía `/secretaria/deuda` con el archivo `todos_desde_el_2022.xls`, usando la sesión de Agus ya logueada en el navegador). Encontró y corrigió 2 bugs reales que no aparecían en la validación offline (esa validación no cruza contra `socios` real):
 
-- [ ] Importar `todos_desde_el_2022.xls` desde la página real (no solo contra la Edge Function directo) y confirmar los números de aceptación en la UI: verde 1.273 / amarillo 100 / rojo 108 / $12.995.950 en rojo
-- [ ] Reimportar el mismo archivo (misma fecha de corte) y confirmar que no duplica (idempotencia)
-- [ ] Importar un archivo con fecha de corte distinta y confirmar que no borra la importación anterior
-- [ ] Confirmar que un socio con deuda saldada en el archivo nuevo (no aparece más) vuelve a verde
+- [x] **Bug 1 — semáforo vacío (0/0/0/0)**: `estado = 'activo'` no matcheaba a casi ningún socio real — los 1528 socios de la carga masiva quedaron en `pendiente` (falta validar foto en bulk, un paso manual separado). Fix: migración `20260804000001` — el semáforo participa para `estado IN ('activo', 'pendiente')`, decisión explícita de Agus.
+- [x] **Bug 2 — exento infló a 653**: "exento" estaba definido por `categorias_socio.monto_mensual = 0`, que también incluye "Dependiente Grupo Familiar" (la categoría de la mayoría de los socios — se factura a través del titular, no significa exento de deuda). Fix: migración `20260804000002` — exento ahora es por nombre de categoría (`Vitalicio`, `Becado Rugby`, `Becado Hockey`, `Becado Tenis`), no por monto.
+- [x] Importar `todos_desde_el_2022.xls` desde la página real: comprobantes 1739 ✓, personas 536 ✓ (exactos). **rojo 102 / amarillo 96 / verde 1278 / exento 52** — vs. target rojo 108 / amarillo 100 / verde 1273 (exento no tiene target explícito del club). Diferencia de ~5-6 por balde (~0.4% del total), suma exacta a 1528. No se investigó más a fondo — requeriría acceso de lectura directo a la base (no se usó `SUPABASE_SERVICE_ROLE_KEY` en esta sesión por decisión de no pedirla por chat).
+- [ ] Decidir con Agus si esta precisión es aceptable o si vale la pena seguir cerrando el ~0.4% de diferencia
+- [ ] Reimportar el mismo archivo (misma fecha de corte) y confirmar que no duplica (idempotencia) — implícitamente ya validado: se reimportó 3 veces durante este debugging y `comprobantes_deuda`/`importaciones_deuda` nunca duplicaron (siempre 1739 comprobantes, 1 fila en historial)
+- [ ] Importar un archivo con fecha de corte distinta y confirmar que no borra la importación anterior — no probado (sólo se tiene el archivo de referencia)
+- [ ] Confirmar que un socio con deuda saldada en el archivo nuevo (no aparece más) vuelve a verde — no probado (necesita un segundo archivo)
+- [ ] **Hallazgo colateral, sin resolver**: el botón "IMPORTAR" no respondía a clicks via automatización estándar de browser (`computer` tool) después de que `file_upload` seteara el archivo — el estado de React (`archivo`) sí se actualizaba correctamente (confirmado por JS), pero el clic no disparaba el handler hasta invocarlo directo con `element.click()` vía JS. Podría ser un artefacto específico de la automatización, no necesariamente un bug real para un click humano normal — no se pudo confirmar ninguna de las dos cosas.
 
 ## Fuera de esta change (no crear tasks todavía)
 

@@ -234,7 +234,7 @@ export default function DeudaPage() {
           (supabase as any)
             .from('socios')
             .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre)')
-            .eq('estado', 'activo')
+            .in('estado', ['activo', 'pendiente'])
             .not('semaforo', 'is', null)
             .range(from, to)
         ),
