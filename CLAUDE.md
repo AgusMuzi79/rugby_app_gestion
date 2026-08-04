@@ -197,9 +197,14 @@ rugby_app_gestion/
 | Backfill TOTP (`socios_secrets`) para los 1528 socios importados — habilita el carnet QR | ✅ |
 | Fix paginación PostgREST (tope 1000 filas) — panel web socios, `useSociosSecretaria`, `useDiarioSecretaria`, `notifications` (deployada) | ✅ |
 | `scripts/import-socios-masivo.mjs` + `scripts/backfill-totp-secrets.mjs` — reutilizables para próximas cargas | ✅ |
+| **Semáforo de morosidad** — importador recurrente del reporte NUVIX (`RPT_Vencimientos`), calcula verde/amarillo/rojo/exento por socio | ✅ |
+| Migration `20260804000000` — `importaciones_deuda`, `comprobantes_deuda`, columnas de semáforo en `socios`, RLS, función `importar_deuda_nuvix` | ✅ |
+| Migration `20260804000001` — fix: el semáforo participa para `estado IN ('activo', 'pendiente')`, no sólo `'activo'` | ✅ |
+| Migration `20260804000002` — fix: `exento` por nombre de categoría (Vitalicio/Becado), no por `monto_mensual = 0` | ✅ |
+| Edge Function `importar-deuda` (verify_jwt activo, rol secretaria/admin) | ✅ |
+| Web `secretaria/deuda` — subida de archivo, historial, listado filtrable por color + link "Importar" en el sidebar | ✅ |
 | Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
 | Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
-| Semáforo de morosidad | ⏳ pendiente — nuevo export real de deuda en análisis (otro chat) |
 
 **Notas de comportamiento actual:**
 - `validate-photo` corre sin Rekognition si `AWS_ACCESS_KEY_ID` no está seteado (valida manualmente directo en DB).
@@ -274,7 +279,18 @@ El cruce, mapeo de columnas y limpieza se resolvieron en un archivo maestro inte
 
 Scripts reutilizables para la próxima carga/actualización: `scripts/import-socios-masivo.mjs` (idempotente por DNI, `--dry-run` por default) y `scripts/backfill-totp-secrets.mjs`. Los datos fuente (`data/import/`) están en `.gitignore` — nunca se suben al repo por ser PII real.
 
-**Semáforo de morosidad — sigue pendiente, ahora en un track separado.** El enfoque original (interpretar `FechaInicioLiquidacion` como proxy de meses adeudados) nunca se confirmó con el club. El 2026-07-28 se obtuvo un export real de deuda del sistema (`Vencimientos - Clientes`, por cuenta corriente con mora/vencido/saldo por factura) que se está analizando en otra sesión — probablemente reemplace la hipótesis de `FechaInicioLiquidacion` en vez de complementarla. Todavía no hay diseño de importador para esto.
+**Semáforo de morosidad — COMPLETO (2026-08-04).** El enfoque original (interpretar `FechaInicioLiquidacion` como proxy de meses adeudados) se descartó — nunca se confirmó con el club y tenía 39% de falsos morosos. Reemplazado por un importador recurrente del reporte real de cuentas corrientes de NUVIX (`RPT_Vencimientos`, Crystal Reports `.xls` con bandas). Propuesta OpenSpec completa (proposal/design/tasks/specs) en `openspec/changes/importador-deuda-nuvix/`.
+
+- Secretaría sube el `.xls` desde `web/(secretaria)/secretaria/deuda`. Se parsea con SheetJS (`_shared/parse-deuda-nuvix.ts`), se valida que la suma de subtotales por cuenta cierre exacto contra el Total General del propio archivo (si no, aborta todo — no guarda nada a medias), y se persiste vía una función Postgres transaccional (`importar_deuda_nuvix`, SECURITY DEFINER, sólo invocable por `service_role`).
+- Semáforo por socio: cuenta **períodos distintos con `vencido > 0`** (derivados de la descripción del comprobante, no de la fecha de vencimiento) — 0 = verde, 1 = amarillo, 2+ = rojo. `reg_cesantes` (plan de regularización) se excluye del conteo. `exento` = categoría `Vitalicio`/`Becado Rugby`/`Becado Hockey`/`Becado Tenis`.
+- `socios.numero_socio` ya era el Cód. Cliente de NUVIX (poblado por la carga masiva) — no hizo falta columna nueva para el cruce.
+- Reimportar el mismo archivo (misma `fecha_corte`) reemplaza limpio, sin duplicar. El semáforo se recalcula para todos los socios `activo`/`pendiente` en cada import — uno que salda su deuda y no vuelve a aparecer en el archivo siguiente vuelve a verde solo.
+- **Dos bugs reales encontrados recién al probar contra producción** (la validación offline del parser, sin cruzar contra `socios`, no los detecta):
+  1. El semáforo daba 0/0/0/0 — filtraba `estado='activo'`, pero los 1528 socios de la carga masiva quedaron en `'pendiente'` (falta validar foto en bulk). Fix: participa `estado IN ('activo', 'pendiente')`.
+  2. `exento` explotó a 653 — estaba definido como categoría con `monto_mensual = 0`, que también agarra "Dependiente Grupo Familiar" (la categoría de la mayoría del club, $0 porque se factura al titular, no por exención). Fix: por nombre exacto de categoría.
+- Resultado final probado contra el archivo real (`todos_desde_el_2022.xls`, corte 28/07/2026): comprobantes 1.739 y personas 536 exactos; **rojo 102 / amarillo 96 / verde 1.278 / exento 52** vs. el número de referencia del club (rojo 108 / amarillo 100 / verde 1.273) — dentro de ~0.4%, sin cerrar exacto. Un diagnóstico de lectura contra producción no encontró ningún bug (el `meses_impagos` guardado coincide 100% con un recálculo independiente en JS); se decidió con Agus no seguir cazando ese margen por ahora.
+- Pantalla mobile de detalle de deuda del socio y semáforo binario en `(socio)/cuotas.tsx` — diseñados en `design.md §6` de la change, **no implementados** (fuera de alcance de esta pasada).
+- Sigue pendiente el filtro "Moroso" legacy en `web/.../secretaria/socios/page.tsx` (basado en `socios.estado='moroso'`, seteado sólo por el flujo de tarjeta descartado) — va a quedar inconsistente con el semáforo nuevo, no se tocó en esta change.
 
 **Débito automático con tarjeta (código legacy — MercadoPago descartado por el club):**
 - Edge Functions `associate-card`, `remove-card`, `charge-card`, `cobro-mensual` existen en el repo pero ya no se usan desde la UI
@@ -293,7 +309,7 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
 **Auditoría pre-producción (2026-07-31, Opus):** los 7 hallazgos bloqueantes resueltos — #1-#6 vía código (deployados/commiteados) y #7 (rotar `service_role` key) hecho manualmente por Agus en el Dashboard de Supabase. No quedan bloqueantes abiertos de la auditoría; los hallazgos 🟡/🟢 (importantes/menores) siguen documentados en memoria de proyecto para retomar cuando corresponda.
 
 **Próximo paso:**
-- **Prioridad de producto: semáforo de morosidad** — analizar el export real de `Vencimientos - Clientes` (obtenido 2026-07-28, en otra sesión) y diseñar el importador (probablemente recurrente) en panel web secretaría
+- Semáforo de morosidad: reimportar mensualmente el reporte NUVIX desde `secretaria/deuda` a medida que el club lo genere — no requiere trabajo adicional salvo que aparezca un patrón de descripción nuevo que el parser no reconozca (cae a `concepto='otro'`, se ve en el resumen del import)
 - Nueva build/OTA del mobile para que lleguen los fixes de paginación de `useSociosSecretaria`/`useDiarioSecretaria`, el fix de `useCuotas.ts` (`declarar-comprobante`, hallazgo #5) y el fix de TOTP/biometría namespaceados (hallazgo #6) — los fixes de backend (`notifications`, `socios-pagos`, RLS) ya están en cloud, no requieren build
 - Secretaría: repasar los ~42 socios con DNI sintético (`SD{código}`) y las filas marcadas "a revisar" del padrón importado — no bloquea nada, es prolijidad de datos
 - Definir precio de categoría "Cliente" (6 socios) para sumarlos a la carga
