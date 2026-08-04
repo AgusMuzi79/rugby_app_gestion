@@ -154,7 +154,8 @@ rugby_app_gestion/
 | Preview build Android — `a678ac11` (2026-07-31, incluye toda la auditoría pre-producción hasta el commit `c82bfb3`) | ✅ [APK](https://expo.dev/artifacts/eas/mI7SC2hkMjXiY736BDQ_lM9wGIZ_mv3__Qn6CNfn4Bw.apk) |
 | Preview build Android — `2c3505c0` (2026-08-03, agrega el fix de espaciado de `(socio)/calendario.tsx`, commit `4d15ae0`) | ✅ superada |
 | Preview build Android — `fd404c00` (2026-08-03, incluye badge "J" guiño interno en carnet físico para un grupo de socios, commit `eaec70b`) | ✅ superada |
-| Preview build Android — en cola (2026-08-04, corrige posición del badge "J" a esquina inferior derecha, commit `265c99a`) | ⏳ en cola/compilando |
+| Preview build Android — `c1464e5e` (2026-08-04, corrige posición del badge "J" a esquina inferior derecha, commit `265c99a`) | ✅ superada |
+| Preview build Android — `942188b3` (2026-08-04, junta los cambios JS pendientes: fix paginación `useSociosSecretaria`/`useDiarioSecretaria`, `declarar-comprobante` en `useCuotas`, TOTP/biometría namespaceados por usuario, semáforo binario de morosidad en `(socio)/cuotas.tsx`; hasta el commit `e913cc0`) | ✅ [APK](https://expo.dev/accounts/noisydev/projects/uncas-rugby-app/builds/942188b3-175d-4ce7-910f-8dfc496f9a70) |
 | Repo GitHub conectado a Vercel — auto-deploy en push a main | ✅ |
 | Fix deploy Vercel: `rootDirectory` corregido a `web/` en project settings (Vercel buildaba desde root y escaneaba `app/` de Expo) | ✅ |
 | Migration `20260618000000` — repara `profiles` donde `rol` activo no estaba en `roles[]` | ✅ |
@@ -190,8 +191,8 @@ rugby_app_gestion/
 | `admin-socios` `validate-photo` — sin AWS configurado, ya no autoaprueba si el caller es el propio socio (queda pendiente de revisión por Secretaría) | ✅ |
 | `notifications` — chequea rol del caller por tipo de notificación (antes cualquier autenticado, incluido un socio, podía mandar push a todo el club) (hallazgo #4) | ✅ |
 | Push a socios — corregida URL de Expo (faltaba `/api/v2/`), chunking de 100 mensajes/request, backfill `roles=['socio']` en los 1527 socios importados con `roles='{}'` (hallazgo #5, parte push) | ✅ |
-| Comprobantes de pago — bucket `comprobantes` acepta JPG/PNG + policies INSERT/UPDATE propias del socio; acción `declarar-comprobante` en `socios-pagos` resuelve/crea la cuota con monto server-side (soluciona el caso de la cuota del mes actual) (hallazgo #5, parte comprobantes) | ✅ backend — requiere build nueva del mobile para que el cliente lo use |
-| TOTP del carnet + credenciales de biometría namespaceadas por usuario y borradas en `signOut()`/reset de contraseña (hallazgo #6, teléfonos compartidos) | ✅ requiere build nueva del mobile |
+| Comprobantes de pago — bucket `comprobantes` acepta JPG/PNG + policies INSERT/UPDATE propias del socio; acción `declarar-comprobante` en `socios-pagos` resuelve/crea la cuota con monto server-side (soluciona el caso de la cuota del mes actual) (hallazgo #5, parte comprobantes) | ✅ incluido en preview build `942188b3` |
+| TOTP del carnet + credenciales de biometría namespaceadas por usuario y borradas en `signOut()`/reset de contraseña (hallazgo #6, teléfonos compartidos) | ✅ incluido en preview build `942188b3` |
 | Limpieza de datos de prueba en cloud (8 socios test + división M15 + dependencias) | ✅ |
 | **Carga masiva de socios reales** — 1528 socios, 322 jugadores UAR, 27 divisiones, 1115 servicios opcionales, 588 grupos familiares | ✅ |
 | Backfill TOTP (`socios_secrets`) para los 1528 socios importados — habilita el carnet QR | ✅ |
@@ -203,7 +204,7 @@ rugby_app_gestion/
 | Migration `20260804000002` — fix: `exento` por nombre de categoría (Vitalicio/Becado), no por `monto_mensual = 0` | ✅ |
 | Edge Function `importar-deuda` (verify_jwt activo, rol secretaria/admin) | ✅ |
 | Web `secretaria/deuda` — subida de archivo, historial, listado filtrable por color + link "Importar" en el sidebar | ✅ |
-| Semáforo binario en `(socio)/cuotas.tsx` — `useCuotas` lee `socios.semaforo`, banner sólo si hay deuda real | ✅ código — requiere build nueva del mobile |
+| Semáforo binario en `(socio)/cuotas.tsx` — `useCuotas` lee `socios.semaforo`, banner sólo si hay deuda real | ✅ incluido en preview build `942188b3` |
 | Secrets AWS (Rekognition) + Resend | ⏳ cuando estén disponibles |
 | Integración Banco Macro (pagos automáticos) | ⏳ pendiente — reemplazaría alias manual |
 
@@ -312,12 +313,10 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
 
 **Próximo paso:**
 - Semáforo de morosidad: reimportar mensualmente el reporte NUVIX desde `secretaria/deuda` a medida que el club lo genere — no requiere trabajo adicional salvo que aparezca un patrón de descripción nuevo que el parser no reconozca (cae a `concepto='otro'`, se ve en el resumen del import)
-- Nueva build/OTA del mobile para que lleguen los fixes de paginación de `useSociosSecretaria`/`useDiarioSecretaria`, el fix de `useCuotas.ts` (`declarar-comprobante`, hallazgo #5) y el fix de TOTP/biometría namespaceados (hallazgo #6) — los fixes de backend (`notifications`, `socios-pagos`, RLS) ya están en cloud, no requieren build
+- **Instalar la preview build `942188b3` (2026-08-04)** en los teléfonos, reemplazando `fd404c00`/versiones anteriores — junta paginación, `declarar-comprobante`, TOTP/biometría namespaceados y el semáforo binario de cuotas. Con esta build ya se puede: testear push end-to-end (fix del hallazgo #5), y testear end-to-end portería carnet QR sin el bug de teléfono compartido (hallazgo #6) — usar **esta preview build**, el dev build no recibe push/FCM
 - Secretaría: repasar los ~42 socios con DNI sintético (`SD{código}`) y las filas marcadas "a revisar" del padrón importado — no bloquea nada, es prolijidad de datos
 - Definir precio de categoría "Cliente" (6 socios) para sumarlos a la carga
 - Web secretaría: revisar y aprobar comprobantes subidos por socios — en pausa, evaluar si vale la pena vs. esperar integración Banco Macro
-- Preview build nueva para testear push end-to-end una vez todo pulido (ahora sí debería funcionar — ver fix de push en hallazgo #5)
-- Test end-to-end portería carnet QR — ahora sí es posible sin el bug de teléfono compartido (hallazgo #6), usar **preview build** (dev build no recibe push/FCM)
 - Setear secrets de Resend y AWS cuando estén disponibles
 
 **Deploy web:** https://web-chi-nine-26.vercel.app (prod) — proyecto `agusmuzi79-4892s-projects/web` en Vercel. Repo GitHub conectado — auto-deploy en push a `main`. Para deploy manual: `vercel --prod --yes` desde la **raíz del repo** (no desde `web/`) — el `rootDirectory=web` en Vercel settings lo resuelve internamente.
