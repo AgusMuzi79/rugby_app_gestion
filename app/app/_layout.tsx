@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { registerPushToken } from '@/lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -108,6 +109,11 @@ export default function RootLayout() {
           setSession(newSession)
           setRol((profile?.rol as Rol) ?? null)
           setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
+          // Cubre login fresco, login biométrico Y sesión restaurada al abrir
+          // la app — antes sólo se llamaba desde useLogin.ts, así que una
+          // sesión ya activa cuando se instala una build nueva nunca
+          // registraba el token nuevo.
+          void registerPushToken()
         } else {
           clearAuth()
         }

@@ -42,6 +42,13 @@ const config = {
     'expo-secure-store',
     'expo-image-picker',
     'expo-camera',
+    [
+      'expo-notifications',
+      {
+        icon: './assets/images/logo.png',
+        color: '#F5B41C',
+      },
+    ],
   ],
   extra: {
     router: {},

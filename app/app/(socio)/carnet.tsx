@@ -147,17 +147,19 @@ function TarjetaFisicaModal({
             {/* Logo esquina inferior derecha */}
             <Image source={LOGO} style={tm.logoEsquina} resizeMode="contain" />
 
-            {/* Guiño interno */}
+            {/* Franja inferior */}
+            <View style={tm.cardFooter}>
+              <Text style={tm.cardFooterText}>CARNET DE SOCIO</Text>
+            </View>
+
+            {/* Guiño interno — después de la franja inferior en el árbol para
+                pintarse encima: bottom:3 cae dentro de la zona de la franja,
+                que tiene fondo sólido y antes la tapaba por completo. */}
             {SOCIOS_BADGE_J.has(data.numero_socio) && (
               <View style={tm.badgeJ}>
                 <Text style={tm.badgeJText}>J</Text>
               </View>
             )}
-
-            {/* Franja inferior */}
-            <View style={tm.cardFooter}>
-              <Text style={tm.cardFooterText}>CARNET DE SOCIO</Text>
-            </View>
           </View>
 
           <TouchableOpacity style={tm.cerrarBtn} onPress={onClose} activeOpacity={0.75}>

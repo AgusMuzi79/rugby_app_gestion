@@ -64,8 +64,15 @@ export async function registerPushToken(): Promise<void> {
       console.log('[push] Canal Android configurado OK')
     }
 
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId
+    console.log('[push] projectId:', projectId)
+    if (!projectId) {
+      console.log('[push] Saliendo: no se encontró extra.eas.projectId en la config')
+      return
+    }
+
     console.log('[push] Obteniendo Expo push token...')
-    const tokenResult = await Notifications.getExpoPushTokenAsync()
+    const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId })
     const pushToken   = tokenResult.data
     console.log('[push] Token obtenido:', pushToken)
 

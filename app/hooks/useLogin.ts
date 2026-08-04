@@ -5,7 +5,6 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Rol } from '@/constants/roles'
-import { registerPushToken } from '@/lib/notifications'
 
 export const EMAIL_KEY    = 'biometria_email'
 export const PASSWORD_KEY = 'biometria_password'
@@ -74,11 +73,12 @@ export function useLogin() {
         }
       }
 
+      // setSession dispara onAuthStateChange en _layout.tsx, que setea rol/roles
+      // y registra el push token — centralizado ahí para cubrir también la
+      // sesión restaurada al abrir la app, no sólo el login explícito.
       setSession(data.session)
       setRol((profile?.rol as Rol) ?? null)
       setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
-      console.log('[login] Sesión establecida, disparando registerPushToken()')
-      void registerPushToken()
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')
     } finally {
@@ -132,7 +132,6 @@ export function useLogin() {
       setSession(data.session)
       setRol((profile?.rol as Rol) ?? null)
       setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
-      void registerPushToken()
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')
     } finally {
