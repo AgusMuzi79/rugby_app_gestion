@@ -1,21 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { supabase, selectAllRows } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'exento'
-
-interface SocioSemaforo {
-  id: string
-  numero_socio: string
-  nombre: string
-  semaforo: Semaforo | null
-  deuda_vencida: number
-  meses_impagos: number
-  mora_max_dias: number
-}
 
 interface ImportacionDeuda {
   id: string
@@ -44,23 +32,14 @@ interface ResultadoImport {
   exento: number
 }
 
-type FiltroSemaforo = 'todos' | Semaforo
+const SEMAFORO_LABEL = { verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento' } as const
 
-const FILTROS: FiltroSemaforo[] = ['todos', 'rojo', 'amarillo', 'verde', 'exento']
-
-const SEMAFORO_LABEL: Record<Semaforo, string> = {
-  verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento',
-}
-
-const SEMAFORO_COLOR: Record<Semaforo, string> = {
+const SEMAFORO_COLOR = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
   amarillo: 'text-[#E67E22] border-[#E67E22]',
   rojo: 'text-rojo border-rojo',
   exento: 'text-tinta/30 border-gris-claro',
-}
-
-// Prioridad de urgencia — a quién llamar primero.
-const SEMAFORO_ORDEN: Record<string, number> = { rojo: 0, amarillo: 1, verde: 2, exento: 3 }
+} as const
 
 function formatMoney(n: number | null | undefined): string {
   return `$${(n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
@@ -165,6 +144,9 @@ function SeccionImportar({
               </span>
             ))}
           </div>
+          <p className="font-lora text-xs text-tinta/30 italic mt-3">
+            Vé el detalle por socio en la sección "Deudas" del menú.
+          </p>
         </div>
       )}
     </div>
@@ -175,7 +157,7 @@ function SeccionImportar({
 
 function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
   return (
-    <div className="mb-8">
+    <div>
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES</p>
       {historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
@@ -219,45 +201,18 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
 
 // ─── Página principal ────────────────────────────────────────────────────────
 
-export default function DeudaPage() {
-  const [socios, setSocios] = useState<SocioSemaforo[]>([])
+export default function ImportarDeudaPage() {
   const [historial, setHistorial] = useState<ImportacionDeuda[]>([])
   const [loading, setLoading] = useState(true)
-  const [filtro, setFiltro] = useState<FiltroSemaforo>('rojo')
-  const [busqueda, setBusqueda] = useState('')
 
-  const fetchAll = useCallback(async () => {
+  const fetchHistorial = useCallback(async () => {
     try {
-      const [sociosData, { data: historialData }] = await Promise.all([
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        selectAllRows<Record<string, unknown>>((from, to) =>
-          (supabase as any)
-            .from('socios')
-            .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre)')
-            .in('estado', ['activo', 'pendiente'])
-            .not('semaforo', 'is', null)
-            .range(from, to)
-        ),
-        supabase
-          .from('importaciones_deuda')
-          .select('id, fecha_corte, archivo_nombre, total_vencido, total_a_vencer, total_general, comprobantes, personas, socios_matcheados, sin_match, reconcilia, created_at, profiles!importaciones_deuda_importado_por_fkey(nombre)')
-          .order('fecha_corte', { ascending: false }),
-      ])
+      const { data } = await supabase
+        .from('importaciones_deuda')
+        .select('id, fecha_corte, archivo_nombre, total_vencido, total_a_vencer, total_general, comprobantes, personas, socios_matcheados, sin_match, reconcilia, created_at, profiles!importaciones_deuda_importado_por_fkey(nombre)')
+        .order('fecha_corte', { ascending: false })
 
-      const normalizedSocios: SocioSemaforo[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id as string,
-        numero_socio: s.numero_socio as string,
-        semaforo: s.semaforo as Semaforo | null,
-        deuda_vencida: Number(s.deuda_vencida ?? 0),
-        meses_impagos: Number(s.meses_impagos ?? 0),
-        mora_max_dias: Number(s.mora_max_dias ?? 0),
-        nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
-      })).sort((a, b) => {
-        const orden = (SEMAFORO_ORDEN[a.semaforo ?? ''] ?? 9) - (SEMAFORO_ORDEN[b.semaforo ?? ''] ?? 9)
-        return orden !== 0 ? orden : b.deuda_vencida - a.deuda_vencida
-      })
-
-      const normalizedHistorial: ImportacionDeuda[] = (historialData ?? []).map((h: Record<string, unknown>) => ({
+      const normalized: ImportacionDeuda[] = (data ?? []).map((h: Record<string, unknown>) => ({
         id: h.id as string,
         fecha_corte: h.fecha_corte as string,
         archivo_nombre: h.archivo_nombre as string | null,
@@ -273,107 +228,30 @@ export default function DeudaPage() {
         importado_por_nombre: (h.profiles as { nombre: string } | null)?.nombre ?? null,
       }))
 
-      setSocios(normalizedSocios)
-      setHistorial(normalizedHistorial)
+      setHistorial(normalized)
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
-
-  const fechaCorteActual = historial[0]?.fecha_corte ?? null
-
-  const sociosFiltrados = socios
-    .filter(s => filtro === 'todos' || s.semaforo === filtro)
-    .filter(s => {
-      if (!busqueda.trim()) return true
-      const q = busqueda.toLowerCase()
-      return s.nombre.toLowerCase().includes(q) || s.numero_socio.includes(q)
-    })
+  useEffect(() => { fetchHistorial() }, [fetchHistorial])
 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-playfair italic text-4xl text-tinta mb-1">Deuda</h1>
+        <h1 className="font-playfair italic text-4xl text-tinta mb-1">Importar</h1>
         <p className="font-lora text-tinta/50 text-sm tracking-wide">
-          Semáforo de morosidad — deuda real de NUVIX, no se cobra desde la app
-          {fechaCorteActual && <> · datos al {formatFecha(fechaCorteActual)}</>}
+          Reporte de deuda NUVIX — recalcula el semáforo de morosidad de todos los socios
         </p>
       </div>
 
-      <SeccionImportar onImportado={fetchAll} />
-      <SeccionHistorial historial={historial} />
+      <SeccionImportar onImportado={fetchHistorial} />
 
-      <div>
-        <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">SOCIOS POR SEMÁFORO</p>
-
-        <div className="flex gap-4 mb-6 items-center">
-          <input
-            type="text"
-            value={busqueda}
-            onChange={e => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o Nº socio…"
-            className="flex-1 font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-oro transition-colors"
-          />
-          <div className="flex gap-1">
-            {FILTROS.map(f => (
-              <button
-                key={f}
-                onClick={() => setFiltro(f)}
-                className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
-                  filtro === f
-                    ? 'bg-oro border-oro text-papel'
-                    : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-                }`}
-              >
-                {f === 'todos' ? 'TODOS' : SEMAFORO_LABEL[f].toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading ? (
-          <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
-        ) : sociosFiltrados.length === 0 ? (
-          <div className="border border-gris-claro p-8 text-center">
-            <p className="font-lora text-tinta/40 text-sm tracking-widest">
-              {busqueda ? 'SIN RESULTADOS' : 'NO HAY SOCIOS EN ESTA VISTA'}
-            </p>
-          </div>
-        ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gris-claro">
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4 w-16">Nº</th>
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4">NOMBRE</th>
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3 pr-4">SEMÁFORO</th>
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-right py-3 pr-4">DEUDA VENCIDA</th>
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3 pr-4">MESES IMPAGOS</th>
-                <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3">MORA MÁX (DÍAS)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sociosFiltrados.map(s => (
-                <tr key={s.id} className="border-b border-gris-claro">
-                  <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{s.numero_socio}</td>
-                  <td className="font-lora text-sm text-tinta py-4 pr-4">{s.nombre}</td>
-                  <td className="text-center py-4 pr-4">
-                    <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${
-                      s.semaforo ? SEMAFORO_COLOR[s.semaforo] : 'border-gris-claro text-tinta/40'
-                    }`}>
-                      {s.semaforo ? SEMAFORO_LABEL[s.semaforo].toUpperCase() : '—'}
-                    </span>
-                  </td>
-                  <td className="font-lora text-sm text-tinta text-right py-4 pr-4">{formatMoney(s.deuda_vencida)}</td>
-                  <td className="font-lora text-sm text-tinta/60 text-center py-4 pr-4">{s.meses_impagos}</td>
-                  <td className="font-lora text-sm text-tinta/60 text-center py-4">{s.mora_max_dias}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : (
+        <SeccionHistorial historial={historial} />
+      )}
     </div>
   )
 }
