@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 google-services.json
+
+# Firebase service account keys (credenciales sensibles — FCM V1, etc.)
+*firebase-adminsdk*.json

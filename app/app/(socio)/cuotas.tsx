@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
+import { useDeudaDetalle } from '@/hooks/useDeudaDetalle'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Config club ──────────────────────────────────────────────────────────────
@@ -128,6 +129,110 @@ function PagoModal({
   )
 }
 
+// ─── Modal detalle de deuda (registros del club, vía NUVIX) ────────────────────
+
+function DeudaClubModal({ onClose }: { onClose: () => void }) {
+  const { data, loading } = useDeudaDetalle()
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={m.overlay}>
+        <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
+        <View style={[m.sheet, dm.sheet]}>
+          <View style={m.handle} />
+          <Text style={m.sheetTitle}>DEUDA SEGÚN EL CLUB</Text>
+
+          {loading ? (
+            <ActivityIndicator color={colors.oro} style={{ marginVertical: 30 }} />
+          ) : !data ? (
+            <Text style={dm.emptyText}>No se pudo cargar la información.</Text>
+          ) : (
+            <ScrollView style={dm.scroll} showsVerticalScrollIndicator={false}>
+              {/* Sello de frescura */}
+              <View style={dm.selloBox}>
+                <Feather name="clock" size={12} color={colors.oroHondo} />
+                <Text style={dm.selloText}>
+                  {data.fechaCorte
+                    ? `Datos al ${fechaCorta(data.fechaCorte)} — puede no reflejar pagos muy recientes.`
+                    : 'Todavía no hay datos de deuda cargados por el club.'}
+                </Text>
+              </View>
+
+              {/* Períodos con deuda */}
+              {data.periodos.length === 0 && data.regCesantesTotal === 0 && data.saldoAnterior === 0 ? (
+                <Text style={dm.emptyText}>No figurás con deuda pendiente. 🎉</Text>
+              ) : (
+                <>
+                  {data.periodos.map(p => (
+                    <View key={p.periodo} style={dm.periodoBox}>
+                      <View style={dm.periodoHeader}>
+                        <Text style={dm.periodoLabel}>{periodoLabel(p.periodo).toUpperCase()}</Text>
+                        <Text style={dm.periodoMonto}>{montoStr(p.vencido)}</Text>
+                      </View>
+                      {p.comprobantes.length > 1 && (
+                        <View style={dm.subRows}>
+                          {p.comprobantes.map((c, idx) => (
+                            <View key={c.id} style={dm.subRow}>
+                              <Text style={dm.subRowLabel}>Concepto {idx + 1}</Text>
+                              <Text style={dm.subRowMonto}>{montoStr(c.vencido)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {data.saldoAnterior > 0 && (
+                    <View style={dm.periodoBox}>
+                      <View style={dm.periodoHeader}>
+                        <Text style={dm.periodoLabel}>SALDO ANTERIOR</Text>
+                        <Text style={dm.periodoMonto}>{montoStr(data.saldoAnterior)}</Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Plan de regularización — aparte, nunca mezclado con cuotas */}
+                  {data.regCesantesTotal > 0 && (
+                    <View style={dm.regularizacionBox}>
+                      <Text style={dm.regularizacionTitle}>PLAN DE REGULARIZACIÓN</Text>
+                      <View style={dm.periodoHeader}>
+                        <Text style={dm.subRowLabel}>Saldo del plan</Text>
+                        <Text style={dm.periodoMonto}>{montoStr(data.regCesantesTotal)}</Text>
+                      </View>
+                      <Text style={dm.regularizacionHint}>
+                        Aparte de la cuota social — no afecta tu estado de socio al día.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* A vencer — informativo, no es deuda */}
+              {data.proximosVencimientos.length > 0 && (
+                <View style={dm.proximosBox}>
+                  <Text style={dm.proximosTitle}>PRÓXIMOS VENCIMIENTOS</Text>
+                  {data.proximosVencimientos.map(c => (
+                    <View key={c.id} style={dm.subRow}>
+                      <Text style={dm.subRowLabel}>
+                        {c.vencimiento ? `Vence el ${fechaCorta(c.vencimiento)}` : 'Próximo vencimiento'}
+                      </Text>
+                      <Text style={dm.subRowMonto}>{montoStr(c.a_vencer)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          )}
+
+          <TouchableOpacity style={[m.cerrarBtn, { marginTop: 16 }]} onPress={onClose} activeOpacity={0.75}>
+            <Text style={m.cerrarText}>CERRAR</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
 // ─── Card cuota ───────────────────────────────────────────────────────────────
 
 function CuotaCard({
@@ -239,6 +344,7 @@ export default function CuotasScreen() {
   } = useCuotas()
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
+  const [deudaModal, setDeudaModal] = useState(false)
 
   const pendientes   = cuotas.filter(c => c.estado === 'pendiente').length
   const enRevision   = cuotas.filter(c => c.estado === 'en_revision').length
@@ -313,13 +419,17 @@ export default function CuotasScreen() {
                 </View>
               )}
               {!alDia && (
-                <View style={[s.banner, s.bannerDeudaClub]}>
+                <TouchableOpacity
+                  style={[s.banner, s.bannerDeudaClub]}
+                  onPress={() => setDeudaModal(true)}
+                  activeOpacity={0.8}
+                >
                   <Feather name="info" size={14} color={colors.tinta} />
                   <Text style={[s.bannerText, { color: colors.tinta }]}>
                     Según los registros del club, tenés pagos pendientes
-                    {deudaActualizadaAt ? ` (datos al ${fechaCorta(deudaActualizadaAt)})` : ''}.
+                    {deudaActualizadaAt ? ` (datos al ${fechaCorta(deudaActualizadaAt)})` : ''}. Tocá para ver el detalle.
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {/* Historial header */}
@@ -360,6 +470,8 @@ export default function CuotasScreen() {
           serviciosActivos={serviciosActivos}
         />
       )}
+
+      {deudaModal && <DeudaClubModal onClose={() => setDeudaModal(false)} />}
     </View>
   )
 }
@@ -497,4 +609,52 @@ const m = StyleSheet.create({
 
   cerrarBtn: { alignItems: 'center', paddingVertical: 8 },
   cerrarText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: '#8E8574' },
+})
+
+// ─── Styles modal detalle de deuda ────────────────────────────────────────────
+
+const dm = StyleSheet.create({
+  sheet: { maxHeight: '80%' },
+  scroll: { marginTop: 4 },
+
+  selloBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
+    padding: 12, marginBottom: 16,
+  },
+  selloText: { fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 15 },
+
+  emptyText: {
+    fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574',
+    fontStyle: 'italic', textAlign: 'center', paddingVertical: 20,
+  },
+
+  periodoBox: {
+    borderBottomWidth: 1, borderBottomColor: '#2C2418', paddingVertical: 12,
+  },
+  periodoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  periodoLabel:  { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
+  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 20, color: '#F3EFE4' },
+
+  subRows: { marginTop: 8, gap: 4, paddingLeft: 4 },
+  subRow:  { flexDirection: 'row', justifyContent: 'space-between' },
+  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 12, color: '#8E8574', flex: 1 },
+  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 12, color: '#F3EFE4' },
+
+  regularizacionBox: {
+    marginTop: 12, backgroundColor: '#15110A', borderRadius: 6,
+    borderWidth: 1, borderColor: '#2C2418', padding: 12,
+  },
+  regularizacionTitle: {
+    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+  },
+  regularizacionHint: {
+    fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574',
+    fontStyle: 'italic', marginTop: 8, lineHeight: 15,
+  },
+
+  proximosBox: { marginTop: 16 },
+  proximosTitle: {
+    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+  },
 })
