@@ -45,6 +45,65 @@ function formatFecha(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`
 }
 
+// ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
+
+type SortColumn = 'numero_socio' | 'nombre' | 'semaforo' | 'deuda_vencida' | 'meses_impagos' | 'mora_max_dias'
+type SortDirection = 'asc' | 'desc'
+
+const SORT_LABEL: Record<SortColumn, string> = {
+  numero_socio: 'Nº', nombre: 'NOMBRE', semaforo: 'SEMÁFORO',
+  deuda_vencida: 'DEUDA VENCIDA', meses_impagos: 'MESES IMPAGOS', mora_max_dias: 'MORA MÁX (DÍAS)',
+}
+
+function compareSocios(a: SocioSemaforo, b: SocioSemaforo, column: SortColumn): number {
+  switch (column) {
+    case 'numero_socio': {
+      const na = Number(a.numero_socio)
+      const nb = Number(b.numero_socio)
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
+      return a.numero_socio.localeCompare(b.numero_socio, 'es')
+    }
+    case 'nombre':
+      return a.nombre.localeCompare(b.nombre, 'es')
+    case 'semaforo': {
+      // Prioridad de urgencia por default — a quién llamar primero. Empate:
+      // dentro del mismo color, el que más debe primero.
+      const cmp = (SEMAFORO_ORDEN[a.semaforo ?? ''] ?? 9) - (SEMAFORO_ORDEN[b.semaforo ?? ''] ?? 9)
+      return cmp !== 0 ? cmp : b.deuda_vencida - a.deuda_vencida
+    }
+    case 'deuda_vencida':
+      return a.deuda_vencida - b.deuda_vencida
+    case 'meses_impagos':
+      return a.meses_impagos - b.meses_impagos
+    case 'mora_max_dias':
+      return a.mora_max_dias - b.mora_max_dias
+  }
+}
+
+function SortableTh({
+  column, align, sortColumn, sortDirection, onSort, extraClass,
+}: {
+  column: SortColumn
+  align: 'left' | 'center' | 'right'
+  sortColumn: SortColumn
+  sortDirection: SortDirection
+  onSort: (c: SortColumn) => void
+  extraClass?: string
+}) {
+  const activo = sortColumn === column
+  const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+  return (
+    <th
+      onClick={() => onSort(column)}
+      className={`font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 select-none cursor-pointer hover:text-tinta transition-colors ${alignClass} ${extraClass ?? ''}`}
+    >
+      <span className={activo ? 'text-oro' : ''}>
+        {SORT_LABEL[column]}{activo ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+      </span>
+    </th>
+  )
+}
+
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export default function DeudasPage() {
@@ -53,6 +112,17 @@ export default function DeudasPage() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<FiltroSemaforo>('rojo')
   const [busqueda, setBusqueda] = useState('')
+  const [sortColumn,    setSortColumn]    = useState<SortColumn>('semaforo')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
 
   const fetchAll = useCallback(async () => {
     try {
@@ -82,10 +152,7 @@ export default function DeudasPage() {
         meses_impagos: Number(s.meses_impagos ?? 0),
         mora_max_dias: Number(s.mora_max_dias ?? 0),
         nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
-      })).sort((a, b) => {
-        const orden = (SEMAFORO_ORDEN[a.semaforo ?? ''] ?? 9) - (SEMAFORO_ORDEN[b.semaforo ?? ''] ?? 9)
-        return orden !== 0 ? orden : b.deuda_vencida - a.deuda_vencida
-      })
+      }))
 
       setSocios(normalizedSocios)
       setFechaCorte((ultimaImportacion as { fecha_corte: string } | null)?.fecha_corte ?? null)
@@ -102,6 +169,10 @@ export default function DeudasPage() {
       if (!busqueda.trim()) return true
       const q = busqueda.toLowerCase()
       return s.nombre.toLowerCase().includes(q) || s.numero_socio.includes(q)
+    })
+    .sort((a, b) => {
+      const cmp = compareSocios(a, b, sortColumn)
+      return sortDirection === 'asc' ? cmp : -cmp
     })
 
   return (
@@ -151,12 +222,12 @@ export default function DeudasPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4 w-16">Nº</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4">NOMBRE</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3 pr-4">SEMÁFORO</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-right py-3 pr-4">DEUDA VENCIDA</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3 pr-4">MESES IMPAGOS</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3">MORA MÁX (DÍAS)</th>
+              <SortableTh column="numero_socio"  align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="nombre"        align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="semaforo"      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="deuda_vencida" align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="meses_impagos" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="mora_max_dias" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
