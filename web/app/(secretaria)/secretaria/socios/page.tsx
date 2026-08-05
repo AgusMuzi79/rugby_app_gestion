@@ -651,6 +651,53 @@ function ModalActions({
   )
 }
 
+// ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
+
+type SortColumn = 'numero_socio' | 'nombre' | 'categoria' | 'dni' | 'estado' | 'tarjeta'
+type SortDirection = 'asc' | 'desc'
+
+const SORT_LABEL: Record<SortColumn, string> = {
+  numero_socio: 'Nº', nombre: 'NOMBRE', categoria: 'CATEGORÍA', dni: 'DNI', estado: 'ESTADO', tarjeta: 'TARJETA',
+}
+
+function compareSocios(a: SocioItem, b: SocioItem, column: SortColumn): number {
+  if (column === 'numero_socio') {
+    const na = Number(a.numero_socio)
+    const nb = Number(b.numero_socio)
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
+    return a.numero_socio.localeCompare(b.numero_socio, 'es')
+  }
+  if (column === 'tarjeta') {
+    return (a.mp_card_last_four ?? '').localeCompare(b.mp_card_last_four ?? '', 'es')
+  }
+  return String(a[column]).localeCompare(String(b[column]), 'es')
+}
+
+function SortableTh({
+  column, align, sortColumn, sortDirection, onSort, extraClass,
+}: {
+  column: SortColumn
+  align: 'left' | 'center'
+  sortColumn: SortColumn
+  sortDirection: SortDirection
+  onSort: (c: SortColumn) => void
+  extraClass?: string
+}) {
+  const activo = sortColumn === column
+  return (
+    <th
+      onClick={() => onSort(column)}
+      className={`font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 select-none cursor-pointer hover:text-tinta transition-colors ${
+        align === 'center' ? 'text-center' : 'text-left'
+      } ${extraClass ?? ''}`}
+    >
+      <span className={activo ? 'text-oro' : ''}>
+        {SORT_LABEL[column]}{activo ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+      </span>
+    </th>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function SociosPage() {
@@ -663,6 +710,17 @@ export default function SociosPage() {
   const [busqueda,     setBusqueda]     = useState('')
   const [detalle,      setDetalle]      = useState<SocioItem | null>(null)
   const [modalNuevo,   setModalNuevo]   = useState(false)
+  const [sortColumn,    setSortColumn]    = useState<SortColumn>('numero_socio')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
 
   const fetchAll = useCallback(async () => {
     try {
@@ -728,6 +786,10 @@ export default function SociosPage() {
       if (!busqueda.trim()) return true
       const q = busqueda.toLowerCase()
       return s.nombre.toLowerCase().includes(q) || s.dni.includes(q) || s.numero_socio.includes(q)
+    })
+    .sort((a, b) => {
+      const cmp = compareSocios(a, b, sortColumn)
+      return sortDirection === 'asc' ? cmp : -cmp
     })
 
   // ── Vista detalle ──────────────────────────────────────────────────────────
@@ -801,12 +863,12 @@ export default function SociosPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4 w-16">Nº</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4">NOMBRE</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4">CATEGORÍA</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-left py-3 pr-4">DNI</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3 pr-4">ESTADO</th>
-              <th className="font-lora text-xs tracking-widest text-tinta/50 text-center py-3">TARJETA</th>
+              <SortableTh column="numero_socio" align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="nombre"       align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="categoria"    align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="dni"          align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="estado"       align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="tarjeta"      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
