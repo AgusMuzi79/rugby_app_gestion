@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       asistencias: {
@@ -1563,6 +1588,80 @@ export type Database = {
           },
         ]
       }
+      terminos_aceptaciones: {
+        Row: {
+          aceptado_at: string
+          id: string
+          profile_id: string
+          version_id: string
+        }
+        Insert: {
+          aceptado_at?: string
+          id?: string
+          profile_id: string
+          version_id: string
+        }
+        Update: {
+          aceptado_at?: string
+          id?: string
+          profile_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminos_aceptaciones_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "terminos_aceptaciones_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "terminos_versiones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terminos_versiones: {
+        Row: {
+          activo: boolean
+          created_at: string
+          id: string
+          pdf_path: string
+          publicado_por: string | null
+          titulo: string
+          version: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          pdf_path: string
+          publicado_por?: string | null
+          titulo: string
+          version: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          pdf_path?: string
+          publicado_por?: string | null
+          titulo?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminos_versiones_publicado_por_fkey"
+            columns: ["publicado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1707,6 +1806,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

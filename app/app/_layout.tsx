@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
+import { useTerminos } from '@/hooks/useTerminos'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -60,6 +61,7 @@ export default function RootLayout() {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario,
   } = useAuthStore()
+  const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
 
   // Parsear deep links de recovery/invite
   useEffect(() => {
@@ -136,9 +138,14 @@ export default function RootLayout() {
     if (!session) {
       router.replace('/(auth)/login')
     } else if (rol) {
+      if (terminosLoading) return
+      if (terminosPendiente) {
+        router.replace('/(auth)/terminos')
+        return
+      }
       router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
-  }, [mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario])
+  }, [mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, terminosPendiente, terminosLoading])
 
   // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que
   // fontsLoaded=true. Retornar null aquí desmontaría la navegación y causaría
