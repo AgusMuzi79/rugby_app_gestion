@@ -131,6 +131,41 @@ export type Database = {
         }
         Relationships: []
       }
+      categorias_socio_historial: {
+        Row: {
+          categoria_id: string
+          created_at: string
+          id: string
+          monto_mensual: number
+          vigente_desde: string
+          vigente_hasta: string
+        }
+        Insert: {
+          categoria_id: string
+          created_at?: string
+          id?: string
+          monto_mensual: number
+          vigente_desde: string
+          vigente_hasta?: string
+        }
+        Update: {
+          categoria_id?: string
+          created_at?: string
+          id?: string
+          monto_mensual?: number
+          vigente_desde?: string
+          vigente_hasta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categorias_socio_historial_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias_socio"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cobranzas: {
         Row: {
           created_at: string
@@ -1341,6 +1376,38 @@ export type Database = {
           },
         ]
       }
+      reconciliaciones_socios: {
+        Row: {
+          dry_run: boolean
+          ejecutado_en: string
+          ejecutado_por: string | null
+          id: string
+          resumen: Json
+        }
+        Insert: {
+          dry_run: boolean
+          ejecutado_en?: string
+          ejecutado_por?: string | null
+          id?: string
+          resumen: Json
+        }
+        Update: {
+          dry_run?: boolean
+          ejecutado_en?: string
+          ejecutado_por?: string | null
+          id?: string
+          resumen?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reconciliaciones_socios_ejecutado_por_fkey"
+            columns: ["ejecutado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resultados: {
         Row: {
           created_at: string
@@ -1430,20 +1497,26 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          importe: number | null
           servicio_id: string
           socio_id: string
+          variante_nuvix: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          importe?: number | null
           servicio_id: string
           socio_id: string
+          variante_nuvix?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          importe?: number | null
           servicio_id?: string
           socio_id?: string
+          variante_nuvix?: string | null
         }
         Relationships: [
           {

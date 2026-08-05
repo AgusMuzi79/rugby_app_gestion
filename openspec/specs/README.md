@@ -13,6 +13,7 @@ Specs iniciales generados a partir del PRD v1.0 (Mayo 2026), organizados por dom
 | [fichajes](./fichajes/spec.md) | Alta de jugadores y documentación | Manager, Subcomisión |
 | [notificaciones](./notificaciones/spec.md) | Notificaciones manuales (Subcomisión) y automáticas del sistema | Todos los roles |
 | [informes](./informes/spec.md) | Dashboard global y por división | Subcomisión, Coordinador |
+| [servicios-socios](./servicios-socios/spec.md) | Categoría, servicios opcionales y precios de socios, sincronizados contra el Padrón de Servicios de NUVIX | Secretaría, Admin |
 
 ## User Stories por dominio
 
@@ -25,6 +26,7 @@ Specs iniciales generados a partir del PRD v1.0 (Mayo 2026), organizados por dom
 | US-FICH-01..03 | Alta fichaje, listado, detalle y documentación | fichajes |
 | US-NOT-01..06 | Envío manual, recepción, notificaciones automáticas del sistema | notificaciones |
 | US-INF-01..07 | Dashboard global, asistencia, resultados, fichajes, financiero, lesiones, Coordinador | informes |
+| US-SRV-01..04 | Reconciliación contra el Padrón de Servicios NUVIX, no crear/borrar socios, precio autoritativo en el vínculo (no en el catálogo), socios sin liquidación quedan marcados | servicios-socios |
 
 ## Épicas del PRD → Dominios
 
