@@ -36,7 +36,12 @@ interface SocioItem {
 
 type FiltroEstado = 'todos' | 'activo' | 'moroso' | 'pendiente' | 'inactivo'
 
-const FILTROS: FiltroEstado[] = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo']
+// 'moroso' no se incluye en los filtros: era del flujo legacy de débito
+// automático con tarjeta (descartado por la directiva), nadie lo setea más
+// — el filtro siempre daba cero resultados. La morosidad real vive en
+// /secretaria/deuda (semáforo NUVIX). El label/color se dejan por si queda
+// algún registro legacy con ese estado, para que no se muestre en crudo.
+const FILTROS: FiltroEstado[] = ['todos', 'activo', 'pendiente', 'inactivo']
 const ESTADO_LABEL: Record<string, string> = {
   activo: 'Activo', moroso: 'Moroso', pendiente: 'Pendiente', inactivo: 'Inactivo',
 }
