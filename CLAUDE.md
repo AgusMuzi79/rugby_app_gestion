@@ -205,7 +205,7 @@ rugby_app_gestion/
 | Migration `20260804000001` — fix: el semáforo participa para `estado IN ('activo', 'pendiente')`, no sólo `'activo'` | ✅ |
 | Migration `20260804000002` — fix: `exento` por nombre de categoría (Vitalicio/Becado), no por `monto_mensual = 0` | ✅ |
 | Edge Function `importar-deuda` (verify_jwt activo, rol secretaria/admin) | ✅ |
-| Web `secretaria/deuda` — subida de archivo, historial, listado filtrable por color + link "Importar" en el sidebar | ✅ |
+| Web `secretaria/deuda` ("Importar": subida + historial) y `secretaria/deudas` ("Deudas": listado filtrable por color, separado 2026-08-05) + links en el sidebar | ✅ |
 | Semáforo binario en `(socio)/cuotas.tsx` — `useCuotas` lee `socios.semaforo`, banner sólo si hay deuda real | ✅ incluido en preview build `942188b3` |
 | **Push notifications — funcionando end-to-end**, confirmado con un envío real recibido en el teléfono (2026-08-04) | ✅ |
 | Pantalla mobile de detalle de deuda del socio — modal en `(socio)/cuotas.tsx`, `useDeudaDetalle` | ✅ código — requiere build nueva del mobile |
