@@ -73,14 +73,19 @@ export function useCuotas() {
     setCategoriaLabel(cat?.nombre ?? '')
     setMontoCategoria(montoCategoria)
 
+    // importe real del vínculo manda sobre el precio de catálogo (reconciliación
+    // con el Padrón de Servicios de NUVIX, 2026-08-05 — ver socios-pagos)
     const { data: socioServiciosData } = await db
       .from('socio_servicios')
-      .select('servicios_opcionales(id, nombre, monto_mensual)')
+      .select('importe, servicios_opcionales(id, nombre, monto_mensual)')
       .eq('socio_id', socio.id)
 
     const servicios: ServicioActivo[] = (socioServiciosData ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((ss: any) => ss.servicios_opcionales)
+      .map((ss: any) => ss.servicios_opcionales && {
+        ...ss.servicios_opcionales,
+        monto_mensual: ss.importe ?? ss.servicios_opcionales.monto_mensual,
+      })
       .filter(Boolean)
 
     const montoServicios = servicios.reduce((s: number, srv: ServicioActivo) => s + srv.monto_mensual, 0)

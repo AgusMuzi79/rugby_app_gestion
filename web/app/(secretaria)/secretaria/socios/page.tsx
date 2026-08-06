@@ -19,6 +19,11 @@ interface ServicioOpcional {
   activo: boolean
 }
 
+interface VinculoServicio {
+  servicio_id: string
+  importe:     number | null
+}
+
 interface SocioItem {
   id: string
   numero_socio: string
@@ -86,7 +91,7 @@ function DetalleSocio({
   socio: SocioItem
   categorias: CategoriaSocio[]
   servicios: ServicioOpcional[]
-  serviciosSocio: string[]
+  serviciosSocio: VinculoServicio[]
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -157,9 +162,12 @@ function DetalleSocio({
     onRefresh()
   }
 
+  // importe real del vínculo manda sobre el precio de catálogo (reconciliación
+  // con el Padrón de Servicios de NUVIX, 2026-08-05 — mismo criterio que socios-pagos)
+  const vinculoPorServicioId = new Map(serviciosSocio.map(v => [v.servicio_id, v]))
   const montoServicios = servicios
-    .filter(s => serviciosSocio.includes(s.id))
-    .reduce((sum, s) => sum + s.monto_mensual, 0)
+    .filter(s => vinculoPorServicioId.has(s.id))
+    .reduce((sum, s) => sum + (vinculoPorServicioId.get(s.id)!.importe ?? s.monto_mensual), 0)
   const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
 
   return (
@@ -204,7 +212,11 @@ function DetalleSocio({
             <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">SERVICIOS OPCIONALES</p>
             <div className="flex flex-wrap gap-2 mb-3">
               {servicios.map(srv => {
-                const activo = serviciosSocio.includes(srv.id)
+                const vinculo = vinculoPorServicioId.get(srv.id)
+                const activo = !!vinculo
+                // si ya está vinculado, el importe real manda; si no, el precio de
+                // catálogo es sólo una referencia de lo que probablemente le corresponda
+                const monto = vinculo?.importe ?? srv.monto_mensual
                 return (
                   <button
                     key={srv.id}
@@ -215,7 +227,7 @@ function DetalleSocio({
                         : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
                     }`}
                   >
-                    {srv.nombre} · ${srv.monto_mensual.toLocaleString('es-AR')}
+                    {srv.nombre} · ${monto.toLocaleString('es-AR')}
                   </button>
                 )
               })}
@@ -704,7 +716,7 @@ export default function SociosPage() {
   const [socios,       setSocios]       = useState<SocioItem[]>([])
   const [categorias,   setCategorias]   = useState<CategoriaSocio[]>([])
   const [servicios,    setServicios]    = useState<ServicioOpcional[]>([])
-  const [serviciosSocio, setServiciosSocio] = useState<string[]>([])
+  const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const [loading,      setLoading]      = useState(true)
   const [filtro,       setFiltro]       = useState<FiltroEstado>('todos')
   const [busqueda,     setBusqueda]     = useState('')
@@ -765,9 +777,9 @@ export default function SociosPage() {
   const fetchServiciosSocio = useCallback(async (socioId: string) => {
     const { data } = await supabase
       .from('socio_servicios')
-      .select('servicio_id')
+      .select('servicio_id, importe')
       .eq('socio_id', socioId)
-    setServiciosSocio((data ?? []).map((r: { servicio_id: string }) => r.servicio_id))
+    setServiciosSocio((data ?? []) as VinculoServicio[])
   }, [])
 
   const handleAbrirDetalle = (socio: SocioItem) => {

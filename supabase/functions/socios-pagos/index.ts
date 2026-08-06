@@ -102,15 +102,17 @@ async function handleCheckout(
   const categoria = socio.categorias_socio as { monto_mensual: number } | null
   if (!categoria) return jsonError(500, 'Categoría no encontrada')
 
-  // Sumar servicios opcionales activos
+  // Sumar servicios opcionales activos — importe real del vínculo manda sobre
+  // el precio de catálogo (que sólo es informativo desde la reconciliación
+  // con el Padrón de Servicios de NUVIX, 2026-08-05).
   const { data: serviciosActivos } = await supabaseAdmin
     .from('socio_servicios')
-    .select('servicios_opcionales ( monto_mensual )')
+    .select('importe, servicios_opcionales ( monto_mensual )')
     .eq('socio_id', socio.id)
 
   const montoServicios = (serviciosActivos ?? []).reduce((sum, s) => {
     const srv = s.servicios_opcionales as { monto_mensual: number } | null
-    return sum + (srv?.monto_mensual ?? 0)
+    return sum + (s.importe ?? srv?.monto_mensual ?? 0)
   }, 0)
 
   const montoTotal = categoria.monto_mensual + montoServicios
@@ -222,14 +224,15 @@ async function handleDeclararComprobante(
 
   const categoria = socio.categorias_socio as { monto_mensual: number } | null
 
+  // importe real del vínculo manda sobre el precio de catálogo (ver nota en handleCheckout)
   const { data: serviciosActivos } = await supabaseAdmin
     .from('socio_servicios')
-    .select('servicios_opcionales ( monto_mensual )')
+    .select('importe, servicios_opcionales ( monto_mensual )')
     .eq('socio_id', socio.id)
 
   const montoServicios = (serviciosActivos ?? []).reduce((sum, s) => {
     const srv = s.servicios_opcionales as { monto_mensual: number } | null
-    return sum + (srv?.monto_mensual ?? 0)
+    return sum + (s.importe ?? srv?.monto_mensual ?? 0)
   }, 0)
 
   const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
@@ -602,14 +605,15 @@ async function resolverCuota(
 }
 
 async function calcularMontoSocio(socioId: string, categoriaMontoMensual: number): Promise<number> {
+  // importe real del vínculo manda sobre el precio de catálogo (ver nota en handleCheckout)
   const { data: serviciosActivos } = await supabaseAdmin
     .from('socio_servicios')
-    .select('servicios_opcionales ( monto_mensual )')
+    .select('importe, servicios_opcionales ( monto_mensual )')
     .eq('socio_id', socioId)
 
   const montoServicios = (serviciosActivos ?? []).reduce((sum, s) => {
     const srv = s.servicios_opcionales as { monto_mensual: number } | null
-    return sum + (srv?.monto_mensual ?? 0)
+    return sum + (s.importe ?? srv?.monto_mensual ?? 0)
   }, 0)
 
   return categoriaMontoMensual + montoServicios
