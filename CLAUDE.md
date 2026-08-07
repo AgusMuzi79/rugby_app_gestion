@@ -337,13 +337,29 @@ Scripts reutilizables para la próxima carga/actualización: `scripts/import-soc
 - **Incidente en el camino**: durante la ejecución se encontró que Agus había modificado el catálogo de servicios directo en producción (fuera de cualquier migración) mientras exploraba la idea de "Gimnasio Mayor/Menor" que después se descartó — corregido con una migración de fix (`20260805000002`). Sin este chequeo, el script hubiera fallado en silencio o duplicado vínculos; en cambio detectó el desfasaje y no escribió nada hasta resolverlo.
 - Scripts: `scripts/reconciliar-servicios-socios.mjs` (dry-run por default, `--commit` para aplicar, idempotente).
 
+**Aprobación de comprobantes — implementado (2026-08-07).** Confirmado con directiva que vale la pena (ver nota de alcance más arriba). `socios-pagos` suma dos acciones: `aprobar-comprobante` (cuota `en_revision` → `pagado`, inserta `pagos_socios` con `estado='aprobado'`, dispara el mismo generador de PDF + email que ya usa el pago manual) y `rechazar-comprobante` (cuota vuelve a `pendiente` con `comprobante_path=null` para que el socio pueda resubir, inserta `pagos_socios` con `estado='rechazado'` como registro histórico — no hizo falta ampliar el `CHECK` de `cuotas.estado`, esa tabla ya admite `'rechazado'` a diferencia de `cuotas.estado` que no — y le manda un email al socio con el motivo vía Resend, sin persistirlo en ninguna tabla). Página nueva `web/(secretaria)/secretaria/comprobantes/page.tsx`: lista cuotas `en_revision` con la foto del comprobante (signed URL, mismo patrón que `socios-fotos`), botones Aprobar/Rechazar. Sin migración — no se tocó schema.
+
+**Preparación para Play Store / App Store — en curso (2026-08-07).** Agus está por pagar las cuentas de developer (Apple $99/año, Google $25 único). Lo que ya se dejó listo en el repo, sin esperar las cuentas:
+- `app/app.config.js` — agregado `ios.bundleIdentifier` (`com.uncas.rugbyapp`, `.dev` para el variant de desarrollo — antes no existía ninguno, sin esto no se podía ni compilar para iOS). `expo-image-picker`/`expo-camera` pasaron de string simple a config con `photosPermission`/`cameraPermission` en español (antes usaban el default en inglés de Expo, mal visto en review de Apple) y `microphonePermission: false` en ambos (la app no graba audio — menos permisos pedidos, cuestionario de privacidad más simple).
+- `app/eas.json` — perfil `production` pasó de `distribution: "internal"` a `"store"` (antes no servía para subir a ninguna store — internal es para builds ad-hoc/UDIDs registrados).
+- `web/app/privacidad/page.tsx` — **borrador** de Política de Privacidad, página pública sin auth en `/privacidad` (fuera de los route groups `(secretaria)`/`(subcomision)`, no hay middleware global que la bloquee). Ambas stores exigen una URL pública de privacidad para publicar la ficha — es un documento más chico y distinto de Términos y Condiciones, no hace falta esperar a que el abogado cierre el texto de T&C para tener esto publicado, pero sigue siendo un borrador mío, no texto legal revisado.
+
+**Todavía pendiente, no depende de código:**
+- Crear las cuentas (Apple Developer Program, Google Play Console) — lo que Agus está pagando.
+- Revisión legal de `/privacidad` (mismo abogado que Términos y Condiciones).
+- **Cuenta demo para los revisores.** La app es cerrada (alta sólo por Secretaría, sin registro público) — sin un usuario y contraseña de prueba reales en las notas de revisión de App Store Connect / Play Console, ambas stores rechazan por "no se pudo acceder a la funcionalidad". Falta decidir qué rol mostrar (probablemente `socio`, es el flujo más simple de validar) y crear ese usuario en producción antes de enviar a revisión.
+- Completar `submit.production` en `eas.json` una vez existan las cuentas: Android necesita un service account JSON key de Play Console (no se commitea, va como secret/env de EAS); iOS necesita `appleId` + `ascAppId` + `appleTeamId` (o una App Store Connect API key) — ninguno de los dos existe todavía.
+- Assets de ficha: ícono 1024×1024 sin transparencia para Apple (distinto del ícono runtime), screenshots, descripción, categoría — no relevado en esta pasada.
+- Primer build/TestFlight de iOS — nunca corrió en un dispositivo real, esperar bugs de plataforma que nunca aparecieron en Android (dark mode, safe areas, gestos) antes de mandar a revisión.
+- Cuestionarios de datos de cada store (Data Safety en Google, App Privacy en Apple) — completarlos recién cuando exista la ficha, usando `/privacidad` como referencia de qué se declaró.
+
 **Próximo paso:**
 - Semáforo de morosidad: reimportar mensualmente el reporte NUVIX desde `secretaria/deuda` a medida que el club lo genere — no requiere trabajo adicional salvo que aparezca un patrón de descripción nuevo que el parser no reconozca (cae a `concepto='otro'`, se ve en el resumen del import)
 - **Instalar la preview build `942188b3` (2026-08-04)** en los teléfonos, reemplazando `fd404c00`/versiones anteriores — junta paginación, `declarar-comprobante`, TOTP/biometría namespaceados y el semáforo binario de cuotas. Con esta build ya se puede: testear push end-to-end (fix del hallazgo #5), y testear end-to-end portería carnet QR sin el bug de teléfono compartido (hallazgo #6) — usar **esta preview build**, el dev build no recibe push/FCM
 - Secretaría: repasar los ~42 socios con DNI sintético (`SD{código}`) y las filas marcadas "a revisar" del padrón importado — no bloquea nada, es prolijidad de datos
 - Secretaría: revisar los 34 socios activos sin concepto de cuota en la liquidación NUVIX (ver arriba)
 - Confirmar con el club "beca como descuento" (ver arriba) antes de tocar código
-- Web secretaría: revisar y aprobar comprobantes subidos por socios — en pausa, evaluar si vale la pena vs. esperar integración Banco Macro
+- Avanzar la preparación de stores según la lista de arriba — cuenta demo y revisión legal de `/privacidad` son los próximos pasos que no dependen de tener las cuentas creadas
 - Setear secrets de Resend y AWS cuando estén disponibles
 - Rotar la `service_role` key de Supabase cuando corresponda (plan de Agus: al migrar la base a la infraestructura del club)
 

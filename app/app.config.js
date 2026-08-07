@@ -17,6 +17,7 @@ const config = {
   },
   ios: {
     supportsTablet: true,
+    bundleIdentifier: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
   },
   android: {
     icon: './assets/images/logo.png',
@@ -40,8 +41,20 @@ const config = {
     'expo-asset',
     'expo-font',
     'expo-secure-store',
-    'expo-image-picker',
-    'expo-camera',
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Uncas usa tu galería para que subas tu foto de perfil y el comprobante de pago de tu cuota.',
+        cameraPermission: false,
+      },
+    ],
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Uncas usa la cámara para escanear el carnet QR de los socios en portería.',
+        microphonePermission: false,
+      },
+    ],
     [
       'expo-notifications',
       {
