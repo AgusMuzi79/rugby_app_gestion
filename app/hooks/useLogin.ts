@@ -92,7 +92,7 @@ export function useLogin() {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Ingresá a La Bitácora',
+        promptMessage: 'Ingresá a Uncas Rugby',
         fallbackLabel: 'Usar contraseña',
       })
 

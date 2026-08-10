@@ -322,12 +322,53 @@ async function handleAprobarComprobante(
   if (pagoId) {
     // mismo generador que el pago manual — el socio recibe el PDF oficial del club
     // por email, más allá de la foto que ya subió como comprobante
-    EdgeRuntime.waitUntil(
-      generarYEnviarComprobante(cuota.socio_id, pagoId, cuota.periodo, cuota.monto, 'transferencia')
-    )
+    EdgeRuntime.waitUntil(Promise.allSettled([
+      generarYEnviarComprobante(cuota.socio_id, pagoId, cuota.periodo, cuota.monto, 'transferencia'),
+      notificarPushAprobacionComprobante(cuota.socio_id, cuota.periodo),
+    ]))
   }
 
   return jsonOk({ ok: true, cuota_id: cuota.id, pago_id: pagoId })
+}
+
+async function notificarPushAprobacionComprobante(
+  socioId: string,
+  periodo: string
+): Promise<void> {
+  const { data: socio } = await supabaseAdmin
+    .from('socios')
+    .select('profile_id')
+    .eq('id', socioId)
+    .single()
+  if (!socio?.profile_id) return
+
+  const { data: tokens } = await supabaseAdmin
+    .from('push_tokens')
+    .select('token')
+    .eq('usuario_id', socio.profile_id)
+
+  const expoPushTokens = (tokens ?? [])
+    .map(t => t.token)
+    .filter(t => t.startsWith('ExponentPushToken'))
+  if (!expoPushTokens.length) return
+
+  const [anio, mes] = periodo.split('-')
+  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
+
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(expoPushTokens.map(token => ({
+      to:       token,
+      title:    'Comprobante aprobado',
+      body:     `Tu pago de ${periodoLabel} fue confirmado. Te enviamos el comprobante oficial por email.`,
+      sound:    'default',
+      priority: 'high',
+      data:     { type: 'comprobante_aprobado', periodo },
+    }))),
+  })
 }
 
 // ─── Rechazar comprobante en revisión (Secretaría) ────────────────────────────
@@ -378,9 +419,53 @@ async function handleRechazarComprobante(
   if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
   if (pagoRes.error)  return jsonError(500, 'Error al registrar el rechazo: ' + pagoRes.error.message)
 
-  EdgeRuntime.waitUntil(enviarEmailRechazoComprobante(cuota.socio_id, cuota.periodo, motivo))
+  EdgeRuntime.waitUntil(Promise.allSettled([
+    enviarEmailRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
+    notificarPushRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
+  ]))
 
   return jsonOk({ ok: true, cuota_id: cuota.id })
+}
+
+async function notificarPushRechazoComprobante(
+  socioId: string,
+  periodo: string,
+  motivo:  string
+): Promise<void> {
+  const { data: socio } = await supabaseAdmin
+    .from('socios')
+    .select('profile_id')
+    .eq('id', socioId)
+    .single()
+  if (!socio?.profile_id) return
+
+  const { data: tokens } = await supabaseAdmin
+    .from('push_tokens')
+    .select('token')
+    .eq('usuario_id', socio.profile_id)
+
+  const expoPushTokens = (tokens ?? [])
+    .map(t => t.token)
+    .filter(t => t.startsWith('ExponentPushToken'))
+  if (!expoPushTokens.length) return
+
+  const [anio, mes] = periodo.split('-')
+  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
+
+  await fetch('https://exp.host/--/api/v2/push/send', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(expoPushTokens.map(token => ({
+      to:       token,
+      title:    'Comprobante rechazado',
+      body:     `Tu comprobante de ${periodoLabel} no pudo aprobarse. Motivo: ${motivo}`,
+      sound:    'default',
+      priority: 'high',
+      data:     { type: 'comprobante_rechazado', periodo },
+    }))),
+  })
 }
 
 async function enviarEmailRechazoComprobante(

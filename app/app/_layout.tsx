@@ -52,16 +52,24 @@ export default function RootLayout() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => { setMounted(true) }, [])
 
-  useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync()
-  }, [fontsLoaded])
-
   const router = useRouter()
   const {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario,
   } = useAuthStore()
   const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
+
+  // Esconde la splash recién cuando ya sabemos a dónde navegar — evita el
+  // "flash" del login antes del redirect cuando hay una sesión guardada
+  // (fuentes cargan rápido, pero perfil/rol y términos tardan un viaje de red).
+  // Recovery/nuevo-usuario no esperan perfil/términos — mismo orden que el guard de abajo.
+  useEffect(() => {
+    if (!fontsLoaded || loading) return
+    const esperandoPerfilOTerminos =
+      session && !isPasswordRecovery && !isNuevoUsuario && (rol === null || terminosLoading)
+    if (esperandoPerfilOTerminos) return
+    SplashScreen.hideAsync()
+  }, [fontsLoaded, loading, session, rol, terminosLoading, isPasswordRecovery, isNuevoUsuario])
 
   // Parsear deep links de recovery/invite
   useEffect(() => {
@@ -103,12 +111,15 @@ export default function RootLayout() {
           return
         }
         if (newSession) {
+          // Setea la sesión ANTES de esperar el perfil — useTerminos depende
+          // de `session` en el store, así que dispara su query en paralelo
+          // con la de perfil en vez de esperarla (antes eran secuenciales).
+          setSession(newSession)
           const { data: profile } = await supabase
             .from('profiles')
             .select('rol, roles')
             .eq('id', newSession.user.id)
             .single()
-          setSession(newSession)
           setRol((profile?.rol as Rol) ?? null)
           setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
           // Cubre login fresco, login biométrico Y sesión restaurada al abrir
@@ -148,8 +159,8 @@ export default function RootLayout() {
   }, [mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, terminosPendiente, terminosLoading])
 
   // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que
-  // fontsLoaded=true. Retornar null aquí desmontaría la navegación y causaría
-  // re-suscripciones en loop en React Navigation v7 + New Architecture.
+  // fuentes/auth/perfil/términos resuelven. Retornar null aquí desmontaría la
+  // navegación y causaría re-suscripciones en loop en React Navigation v7 + New Architecture.
   return (
     <ThemeProvider>
       <View style={s.root}>
