@@ -33,7 +33,7 @@ export default function Sidebar({ nombre, rol }: Props) {
         <p className="font-playfair font-black text-2xl tracking-wide leading-none">
           <span className="text-tinta">UN</span><span className="text-oro">CAS</span>
         </p>
-        <p className="font-lora text-gris text-[9px] tracking-[4px] mt-1.5 uppercase">La Bitácora</p>
+        <p className="font-lora text-gris text-[9px] tracking-[4px] mt-1.5 uppercase">Subcomisión</p>
       </div>
 
       {/* Nav */}
