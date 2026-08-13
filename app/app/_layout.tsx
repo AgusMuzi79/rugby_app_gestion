@@ -21,6 +21,7 @@ import type { Rol } from '@/constants/roles'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
+import { useAccesoRestringido } from '@/hooks/useAccesoRestringido'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -58,6 +59,7 @@ export default function RootLayout() {
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario,
   } = useAuthStore()
   const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
+  const { restringido, loading: restringidoLoading } = useAccesoRestringido()
 
   // Esconde la splash recién cuando ya sabemos a dónde navegar — evita el
   // "flash" del login antes del redirect cuando hay una sesión guardada
@@ -66,10 +68,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (!fontsLoaded || loading) return
     const esperandoPerfilOTerminos =
-      session && !isPasswordRecovery && !isNuevoUsuario && (rol === null || terminosLoading)
+      session && !isPasswordRecovery && !isNuevoUsuario
+      && (rol === null || terminosLoading || restringidoLoading)
     if (esperandoPerfilOTerminos) return
     SplashScreen.hideAsync()
-  }, [fontsLoaded, loading, session, rol, terminosLoading, isPasswordRecovery, isNuevoUsuario])
+  }, [fontsLoaded, loading, session, rol, terminosLoading, restringidoLoading, isPasswordRecovery, isNuevoUsuario])
 
   // Parsear deep links de recovery/invite
   useEffect(() => {
@@ -149,6 +152,11 @@ export default function RootLayout() {
     if (!session) {
       router.replace('/(auth)/login')
     } else if (rol) {
+      if (restringidoLoading) return
+      if (restringido) {
+        router.replace('/(auth)/acceso-restringido')
+        return
+      }
       if (terminosLoading) return
       if (terminosPendiente) {
         router.replace('/(auth)/terminos')
@@ -156,7 +164,10 @@ export default function RootLayout() {
       }
       router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
-  }, [mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, terminosPendiente, terminosLoading])
+  }, [
+    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario,
+    terminosPendiente, terminosLoading, restringido, restringidoLoading,
+  ])
 
   // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que
   // fuentes/auth/perfil/términos resuelven. Retornar null aquí desmontaría la
