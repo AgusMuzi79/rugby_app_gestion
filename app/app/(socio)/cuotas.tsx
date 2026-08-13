@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
 import { useDeudaDetalle } from '@/hooks/useDeudaDetalle'
+import { useMenoresACargo, type MenorACargo } from '@/hooks/useMenoresACargo'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Config club ──────────────────────────────────────────────────────────────
@@ -131,8 +132,16 @@ function PagoModal({
 
 // ─── Modal detalle de deuda (registros del club, vía NUVIX) ────────────────────
 
-function DeudaClubModal({ onClose }: { onClose: () => void }) {
-  const { data, loading } = useDeudaDetalle()
+function DeudaClubModal({
+  onClose,
+  socioId,
+  titulo = 'DEUDA SEGÚN EL CLUB',
+}: {
+  onClose:  () => void
+  socioId?: string
+  titulo?:  string
+}) {
+  const { data, loading } = useDeudaDetalle(socioId)
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -140,7 +149,7 @@ function DeudaClubModal({ onClose }: { onClose: () => void }) {
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
         <View style={[m.sheet, dm.sheet]}>
           <View style={m.handle} />
-          <Text style={m.sheetTitle}>DEUDA SEGÚN EL CLUB</Text>
+          <Text style={m.sheetTitle}>{titulo}</Text>
 
           {loading ? (
             <ActivityIndicator color={colors.oro} style={{ marginVertical: 30 }} />
@@ -331,6 +340,30 @@ function CuotaCard({
   )
 }
 
+// ─── Card menor a cargo ─────────────────────────────────────────────────────
+
+function MenorCard({ menor, onVerDetalle }: { menor: MenorACargo; onVerDetalle: () => void }) {
+  return (
+    <View style={s.menorCard}>
+      <View style={s.menorInfo}>
+        <Text style={s.menorNombre}>{menor.nombre}</Text>
+        {!!menor.categoriaLabel && <Text style={s.menorCategoria}>{menor.categoriaLabel}</Text>}
+      </View>
+      {menor.alDia ? (
+        <View style={s.menorEstadoOk}>
+          <Feather name="check" size={11} color="#1A7A1A" />
+          <Text style={s.menorEstadoOkText}>AL DÍA</Text>
+        </View>
+      ) : (
+        <TouchableOpacity style={s.menorEstadoDeuda} onPress={onVerDetalle} activeOpacity={0.8}>
+          <Feather name="info" size={11} color={colors.tinta} />
+          <Text style={s.menorEstadoDeudaText}>VER DEUDA</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function CuotasScreen() {
@@ -340,14 +373,37 @@ export default function CuotasScreen() {
   const {
     cuotas, loading, subiendo, subirComprobante, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
-    alDia, deudaActualizadaAt,
+    alDia, deudaActualizadaAt, esMenor,
   } = useCuotas()
+  const { menores, loading: loadingMenores } = useMenoresACargo()
 
-  const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
-  const [deudaModal, setDeudaModal] = useState(false)
+  const [cuotaModal, setCuotaModal]           = useState<Cuota | null>(null)
+  const [deudaModal, setDeudaModal]           = useState(false)
+  const [menorDeudaModal, setMenorDeudaModal] = useState<MenorACargo | null>(null)
 
   const pendientes   = cuotas.filter(c => c.estado === 'pendiente').length
   const enRevision   = cuotas.filter(c => c.estado === 'en_revision').length
+
+  if (!loading && esMenor) {
+    return (
+      <View style={s.root}>
+        <View style={{ paddingTop: insets.top }}>
+          <Header />
+          <View style={s.edicionBar}>
+            <Text style={s.edicionLabel}>SECCIÓN · SOCIOS</Text>
+            <Text style={s.edicionFecha}>{fechaEdicion()}</Text>
+          </View>
+        </View>
+        <View style={s.menorGateContainer}>
+          <Feather name="users" size={22} color={colors.oroHondo} />
+          <Text style={s.menorGateTitle}>Esta sección la administra tu grupo familiar</Text>
+          <Text style={s.menorGateText}>
+            Las cuotas y el estado de deuda los ve el titular de tu grupo familiar desde su propia cuenta.
+          </Text>
+        </View>
+      </View>
+    )
+  }
 
   return (
     <View style={s.root}>
@@ -432,6 +488,23 @@ export default function CuotasScreen() {
                 </TouchableOpacity>
               )}
 
+              {/* Menores a cargo */}
+              {!loadingMenores && menores.length > 0 && (
+                <View style={{ marginTop: 20, gap: 8 }}>
+                  <View style={s.secRow}>
+                    <Text style={s.secTitle}>MENORES A CARGO</Text>
+                    <View style={s.secLine} />
+                  </View>
+                  {menores.map(menor => (
+                    <MenorCard
+                      key={menor.id}
+                      menor={menor}
+                      onVerDetalle={() => setMenorDeudaModal(menor)}
+                    />
+                  ))}
+                </View>
+              )}
+
               {/* Historial header */}
               <View style={[s.secRow, { marginTop: 20 }]}>
                 <Text style={s.secTitle}>HISTORIAL DE CUOTAS</Text>
@@ -472,6 +545,14 @@ export default function CuotasScreen() {
       )}
 
       {deudaModal && <DeudaClubModal onClose={() => setDeudaModal(false)} />}
+
+      {menorDeudaModal && (
+        <DeudaClubModal
+          socioId={menorDeudaModal.id}
+          titulo={`DEUDA DE ${menorDeudaModal.nombre.toUpperCase()}`}
+          onClose={() => setMenorDeudaModal(null)}
+        />
+      )}
     </View>
   )
 }
@@ -556,6 +637,39 @@ const s = StyleSheet.create({
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
+
+  // Gate de menor de edad
+  menorGateContainer: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 40, gap: 12, marginTop: -60,
+  },
+  menorGateTitle: {
+    fontFamily: fonts.titulo, fontSize: 18, color: TEXTO, textAlign: 'center',
+  },
+  menorGateText: {
+    fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, textAlign: 'center',
+    lineHeight: 19, fontStyle: 'italic',
+  },
+
+  // Card de menor a cargo
+  menorCard: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: CARD, borderRadius: 4, borderWidth: 1, borderColor: DIVIDER,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  menorInfo:      { gap: 2, flex: 1 },
+  menorNombre:    { fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO },
+  menorCategoria: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, color: MUTED },
+  menorEstadoOk: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  menorEstadoOkText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, color: '#1A7A1A' },
+  menorEstadoDeuda: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.rojoUrgente, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 2,
+  },
+  menorEstadoDeudaText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, color: colors.tinta },
 })
 
 // ─── Styles modal de pago ─────────────────────────────────────────────────────
