@@ -13,7 +13,7 @@ import {
   Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial } from '@/hooks/useLesiones'
+import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial, DivisionOpcion } from '@/hooks/useLesiones'
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
@@ -196,6 +196,43 @@ function HistorialView({
         </ScrollView>
       )}
     </SafeAreaView>
+  )
+}
+
+// ─── Selector de división ─────────────────────────────────────────────────────
+
+function SelectorDivision({
+  divisiones,
+  divisionId,
+  onSeleccionar,
+}: {
+  divisiones: DivisionOpcion[]
+  divisionId: string | null
+  onSeleccionar: (id: string) => void
+}) {
+  if (divisiones.length < 2) return null
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.divisionChips}
+    >
+      {divisiones.map(div => {
+        const activo = div.id === divisionId
+        return (
+          <TouchableOpacity
+            key={div.id}
+            style={[s.divisionChip, activo && s.divisionChipActivo]}
+            onPress={() => onSeleccionar(div.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
+              {div.nombre.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </ScrollView>
   )
 }
 
@@ -410,7 +447,7 @@ function SelectorGrado({
 
 export default function LesionesScreen() {
   const {
-    loading, divisionNombre, sinDivision,
+    loading, divisiones, divisionId, divisionNombre, sinDivision, seleccionarDivision,
     lesiones, jugadores,
     paso, jugadorHistorial, historialLesiones, cargandoHistorial,
     verHistorial, cerrarHistorial,
@@ -432,19 +469,19 @@ export default function LesionesScreen() {
   const [tabActivo, setTabActivo]   = useState<Tab>('lesiones')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  if (loading) {
-    return (
-      <SafeAreaView style={s.centrado}>
-        <ActivityIndicator color={ORO} size="large" />
-      </SafeAreaView>
-    )
-  }
-
   if (sinDivision) {
     return (
       <SafeAreaView style={s.centrado}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
+      </SafeAreaView>
+    )
+  }
+
+  if (!divisionId) {
+    return (
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
@@ -467,6 +504,13 @@ export default function LesionesScreen() {
         <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>
         <Text style={s.titulo}>Lesiones</Text>
       </View>
+
+      <SelectorDivision
+        divisiones={divisiones}
+        divisionId={divisionId}
+        onSeleccionar={seleccionarDivision}
+      />
+
       <View style={s.separador} />
 
       {/* Tab switcher */}
@@ -484,7 +528,12 @@ export default function LesionesScreen() {
       )}
 
       {/* Vista lesiones */}
-      {tabActivo === 'lesiones' && (
+      {tabActivo === 'lesiones' && loading && (
+        <View style={s.centrado}>
+          <ActivityIndicator color={ORO} size="large" />
+        </View>
+      )}
+      {tabActivo === 'lesiones' && !loading && (
         <>
           <ScrollView contentContainerStyle={s.lista}>
             <View style={s.seccionHeader}>
@@ -658,6 +707,18 @@ const s = StyleSheet.create({
   historialHeader:   { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16, gap: 8 },
   historialTitleFlex:{ flex: 1 },
   backBtn:           { padding: 4, marginRight: 2 },
+
+  // Selector de división
+  divisionChips:      { paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+  divisionChip: {
+    borderWidth: 1, borderColor: DIVIDER, borderRadius: 3,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  divisionChipActivo: { backgroundColor: ORO, borderColor: ORO },
+  divisionChipTexto: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: MUTED,
+  },
+  divisionChipTextoActivo: { color: FONDO, fontWeight: '700' },
 
   // Tabs
   tabSwitcher:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },

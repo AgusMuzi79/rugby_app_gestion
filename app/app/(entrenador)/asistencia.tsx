@@ -2,6 +2,7 @@ import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
@@ -9,7 +10,7 @@ import {
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
-import { useAsistencia, EstadoAsistencia, JugadorConEstado } from '@/hooks/useAsistencia'
+import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -43,6 +44,41 @@ function ContadorBox({ label, count, color }: { label: string; count: number; co
       <Text style={[s.contadorNum, { color }]}>{count}</Text>
       <Text style={s.contadorLabel}>{label}</Text>
     </View>
+  )
+}
+
+function SelectorDivision({
+  divisiones,
+  divisionId,
+  onSeleccionar,
+}: {
+  divisiones: DivisionOpcion[]
+  divisionId: string | null
+  onSeleccionar: (id: string) => void
+}) {
+  if (divisiones.length < 2) return null
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.divisionChips}
+    >
+      {divisiones.map(div => {
+        const activo = div.id === divisionId
+        return (
+          <TouchableOpacity
+            key={div.id}
+            style={[s.divisionChip, activo && s.divisionChipActivo]}
+            onPress={() => onSeleccionar(div.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
+              {div.nombre.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </ScrollView>
   )
 }
 
@@ -103,9 +139,12 @@ export default function AsistenciaScreen() {
     errorGuardado,
     alertas,
     fecha,
+    divisiones,
+    divisionId,
     divisionNombre,
     sinDivision,
     marcados,
+    seleccionarDivision,
     marcarEstado,
     guardarAsistencia,
   } = useAsistencia()
@@ -114,19 +153,19 @@ export default function AsistenciaScreen() {
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
   const justifs   = jugadores.filter(j => j.estado === 'justificado').length
 
-  if (loading) {
-    return (
-      <SafeAreaView style={s.centrado}>
-        <ActivityIndicator color={colors.oro} size="large" />
-      </SafeAreaView>
-    )
-  }
-
   if (sinDivision) {
     return (
       <SafeAreaView style={s.centrado}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
+      </SafeAreaView>
+    )
+  }
+
+  if (!divisionId) {
+    return (
+      <SafeAreaView style={s.centrado}>
+        <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
@@ -158,31 +197,43 @@ export default function AsistenciaScreen() {
         </Text>
       </View>
 
+      <SelectorDivision
+        divisiones={divisiones}
+        divisionId={divisionId}
+        onSeleccionar={seleccionarDivision}
+      />
+
       <View style={s.divider} />
 
-      {/* ── Contadores ─────────────────────────────────────────────────────── */}
-      <View style={s.contadores}>
-        <ContadorBox label="PRESENTES" count={presentes} color={VERDE}  />
-        <ContadorBox label="AUSENTES"  count={ausentes}  color={ROJO}   />
-        <ContadorBox label="JUSTIF."   count={justifs}   color={DORADO} />
-      </View>
+      {loading ? (
+        <ActivityIndicator color={colors.oro} style={s.loadingInline} />
+      ) : (
+        <>
+          {/* ── Contadores ─────────────────────────────────────────────────── */}
+          <View style={s.contadores}>
+            <ContadorBox label="PRESENTES" count={presentes} color={VERDE}  />
+            <ContadorBox label="AUSENTES"  count={ausentes}  color={ROJO}   />
+            <ContadorBox label="JUSTIF."   count={justifs}   color={DORADO} />
+          </View>
 
-      {/* ── Lista de jugadores ─────────────────────────────────────────────── */}
-      <FlatList
-        ref={scrollRef}
-        data={jugadores}
-        keyExtractor={item => item.id}
-        renderItem={({ item, index }) => (
-          <FilaJugador
-            item={item}
-            index={index}
-            alertas={alertas}
-            onMarca={marcarEstado}
+          {/* ── Lista de jugadores ───────────────────────────────────────────── */}
+          <FlatList
+            ref={scrollRef}
+            data={jugadores}
+            keyExtractor={item => item.id}
+            renderItem={({ item, index }) => (
+              <FilaJugador
+                item={item}
+                index={index}
+                alertas={alertas}
+                onMarca={marcarEstado}
+              />
+            )}
+            ItemSeparatorComponent={() => <View style={s.separator} />}
+            contentContainerStyle={s.listContent}
           />
-        )}
-        ItemSeparatorComponent={() => <View style={s.separator} />}
-        contentContainerStyle={s.listContent}
-      />
+        </>
+      )}
 
       {/* ── Estado ─────────────────────────────────────────────────────────── */}
       {(errorGuardado || (guardado && !guardando)) && (
@@ -266,6 +317,19 @@ const s = StyleSheet.create({
   },
 
   divider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
+  loadingInline: { marginTop: 60 },
+
+  // Selector de división
+  divisionChips:      { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
+  divisionChip: {
+    borderWidth: 1, borderColor: DIVIDER, borderRadius: 3,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  divisionChipActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
+  divisionChipTexto: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: '#A89E8C',
+  },
+  divisionChipTextoActivo: { color: colors.tinta, fontWeight: '700' },
 
   // Contadores
   contadores: {

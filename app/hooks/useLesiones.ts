@@ -24,6 +24,11 @@ export interface JugadorHistorial {
   nombre_completo: string
 }
 
+export interface DivisionOpcion {
+  id: string
+  nombre: string
+}
+
 function fechaHoy(): string {
   return new Date().toISOString().split('T')[0]
 }
@@ -32,8 +37,8 @@ export function useLesiones() {
   const { session } = useAuthStore()
 
   const [loading, setLoading] = useState(true)
+  const [divisiones, setDivisiones] = useState<DivisionOpcion[]>([])
   const [divisionId, setDivisionId] = useState<string | null>(null)
-  const [divisionNombre, setDivisionNombre] = useState('')
   const [sinDivision, setSinDivision] = useState(false)
 
   const [lesiones, setLesiones] = useState<LesionItem[]>([])
@@ -54,9 +59,15 @@ export function useLesiones() {
   const [descripcion, setDescripcion] = useState('')
   const [fecha, setFecha] = useState(fechaHoy)
 
+  const divisionNombre = divisiones.find(d => d.id === divisionId)?.nombre ?? ''
+
   useEffect(() => {
-    if (session) fetchDatos()
+    if (session) fetchDivisiones()
   }, [session])
+
+  useEffect(() => {
+    if (divisionId) fetchDatosDivision(divisionId)
+  }, [divisionId])
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +77,7 @@ export function useLesiones() {
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  async function fetchDatos() {
+  async function fetchDivisiones() {
     if (!session) return
     setLoading(true)
 
@@ -76,12 +87,24 @@ export function useLesiones() {
       .eq('id', session.user.id)
       .single()
 
-    const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
-    if (!divId) { setSinDivision(true); setLoading(false); return }
-    setDivisionId(divId)
+    const divIds = (profile?.divisiones as string[] | null) ?? []
+    if (divIds.length === 0) { setSinDivision(true); setLoading(false); return }
 
-    const [divRes, lesionesRes, jgsRes] = await Promise.all([
-      supabase.from('divisiones').select('nombre').eq('id', divId).single(),
+    const { data: divsData } = await supabase
+      .from('divisiones')
+      .select('id, nombre')
+      .in('id', divIds)
+      .order('nombre')
+
+    const divs = divsData ?? []
+    setDivisiones(divs)
+    setDivisionId(prev => (prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)))
+  }
+
+  async function fetchDatosDivision(divId: string) {
+    setLoading(true)
+
+    const [lesionesRes, jgsRes] = await Promise.all([
       supabase
         .from('lesiones')
         .select('id, jugador_id, fecha, descripcion, grado, jugadores(nombre_completo)')
@@ -95,10 +118,14 @@ export function useLesiones() {
         .order('nombre_completo'),
     ])
 
-    setDivisionNombre(divRes.data?.nombre ?? '')
     setJugadores(jgsRes.data ?? [])
     setLesiones(toLesionItems(lesionesRes.data ?? []))
     setLoading(false)
+  }
+
+  function seleccionarDivision(id: string) {
+    if (id === divisionId) return
+    setDivisionId(id)
   }
 
   async function recargarLesiones(divId: string) {
@@ -211,8 +238,11 @@ export function useLesiones() {
 
   return {
     loading,
+    divisiones,
+    divisionId,
     divisionNombre,
     sinDivision,
+    seleccionarDivision,
     lesiones,
     jugadores,
     paso,

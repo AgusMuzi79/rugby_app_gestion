@@ -12,6 +12,11 @@ export interface JugadorConEstado {
   estado: EstadoAsistencia | null
 }
 
+export interface DivisionOpcion {
+  id: string
+  nombre: string
+}
+
 export interface UseAsistenciaReturn {
   jugadores: JugadorConEstado[]
   loading: boolean
@@ -21,9 +26,12 @@ export interface UseAsistenciaReturn {
   errorGuardado: string | null
   alertas: string[]
   fecha: string
+  divisiones: DivisionOpcion[]
+  divisionId: string | null
   divisionNombre: string
   sinDivision: boolean
   marcados: number
+  seleccionarDivision: (id: string) => void
   marcarEstado: (jugadorId: string, estado: EstadoAsistencia) => void
   guardarAsistencia: () => Promise<void>
 }
@@ -36,19 +44,21 @@ export function useAsistencia(): UseAsistenciaReturn {
   const [guardado, setGuardado] = useState(false)
   const [pendienteSync, setPendienteSync] = useState(false)
   const [alertas, setAlertas] = useState<string[]>([])
+  const [divisiones, setDivisiones] = useState<DivisionOpcion[]>([])
   const [divisionId, setDivisionId] = useState<string | null>(null)
-  const [divisionNombre, setDivisionNombre] = useState('')
   const [sinDivision, setSinDivision] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
 
   const fecha = new Date().toISOString().split('T')[0]
   const marcados = jugadores.filter(j => j.estado !== null).length
+  const divisionNombre = divisiones.find(d => d.id === divisionId)?.nombre ?? ''
 
+  // Divisiones asignadas al entrenador — puede tener más de una.
   useEffect(() => {
-    if (session) fetchDatos()
+    if (session) fetchDivisiones()
   }, [session])
 
-  async function fetchDatos() {
+  async function fetchDivisiones() {
     if (!session) return
     setLoading(true)
 
@@ -58,29 +68,44 @@ export function useAsistencia(): UseAsistenciaReturn {
       .eq('id', session.user.id)
       .single()
 
-    const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
+    const divIds = (profile?.divisiones as string[] | null) ?? []
 
-    if (!divId) {
+    if (divIds.length === 0) {
       setSinDivision(true)
       setLoading(false)
       return
     }
 
-    setDivisionId(divId)
+    const { data: divsData } = await supabase
+      .from('divisiones')
+      .select('id, nombre')
+      .in('id', divIds)
+      .order('nombre')
 
-    const [divRes, jgsRes] = await Promise.all([
-      supabase.from('divisiones').select('nombre').eq('id', divId).single(),
-      supabase
-        .from('jugadores')
-        .select('id, nombre_completo')
-        .eq('division_id', divId)
-        .eq('activo', true)
-        .order('nombre_completo'),
-    ])
+    const divs = divsData ?? []
+    setDivisiones(divs)
+    setDivisionId(prev => (prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)))
+  }
 
-    setDivisionNombre(divRes.data?.nombre ?? '')
+  // Jugadores + asistencia de hoy de la división seleccionada.
+  useEffect(() => {
+    if (divisionId) fetchJugadores(divisionId)
+  }, [divisionId])
 
-    const jugadoresBase: JugadorConEstado[] = (jgsRes.data ?? []).map(j => ({
+  async function fetchJugadores(divId: string) {
+    setLoading(true)
+    setGuardado(false)
+    setAlertas([])
+    setErrorGuardado(null)
+
+    const { data: jgsRes } = await supabase
+      .from('jugadores')
+      .select('id, nombre_completo')
+      .eq('division_id', divId)
+      .eq('activo', true)
+      .order('nombre_completo')
+
+    const jugadoresBase: JugadorConEstado[] = (jgsRes ?? []).map(j => ({
       id: j.id,
       nombre_completo: j.nombre_completo,
       estado: null,
@@ -113,6 +138,11 @@ export function useAsistencia(): UseAsistenciaReturn {
 
     setJugadores(jugadoresBase)
     setLoading(false)
+  }
+
+  function seleccionarDivision(id: string) {
+    if (id === divisionId) return
+    setDivisionId(id)
   }
 
   function marcarEstado(jugadorId: string, estado: EstadoAsistencia) {
@@ -246,9 +276,12 @@ export function useAsistencia(): UseAsistenciaReturn {
     errorGuardado,
     alertas,
     fecha,
+    divisiones,
+    divisionId,
     divisionNombre,
     sinDivision,
     marcados,
+    seleccionarDivision,
     marcarEstado,
     guardarAsistencia,
   }
