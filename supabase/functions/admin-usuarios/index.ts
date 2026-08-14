@@ -134,12 +134,11 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   if (!socio.dni)        return jsonError(400, 'El socio no tiene DNI registrado')
 
   const nombre = (socio.profiles as { nombre: string } | null)?.nombre ?? ''
-  const divisionesVal = divisiones && divisiones.length > 0 ? divisiones : null
 
   // Perfil existente — agregar rol al array
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('roles')
+    .select('roles, divisiones')
     .eq('id', socio.profile_id)
     .single()
 
@@ -149,6 +148,16 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   }
 
   const rolesNuevos = [...new Set(['socio', ...rolesActuales, nuevoRol])]
+
+  // `divisiones` es un solo array por perfil, compartido entre todos los roles
+  // del usuario (no hay un array por rol). Si lo pisáramos acá, asignar un
+  // segundo/tercer rol sin volver a marcar divisiones le borraría las que ya
+  // tenía cargadas de un rol anterior (ej. entrenador de M15 → se le asigna
+  // coordinador sin re-marcar M15 → pierde el acceso a M15 como entrenador).
+  // Por eso combinamos con lo que ya tenía en vez de reemplazar.
+  const divisionesActuales = (profile?.divisiones as string[] | null) ?? []
+  const divisionesCombinadas = [...new Set([...divisionesActuales, ...(divisiones ?? [])])]
+  const divisionesVal = divisionesCombinadas.length > 0 ? divisionesCombinadas : null
 
   const { error: updateErr } = await supabaseAdmin
     .from('profiles')
