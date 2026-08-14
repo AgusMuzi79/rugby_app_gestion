@@ -18,6 +18,14 @@ const config = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
+    // Apple rechaza el ícono si tiene canal alfa — a diferencia de `icon`/Android,
+    // no puede reusar logo.png (tiene transparencia). Ver assets/images/icon-store-512.png.
+    icon: './assets/images/icon-ios-1024.png',
+    infoPlist: {
+      // La app solo usa HTTPS estándar (Supabase/Expo), sin cifrado propio —
+      // declarar esto evita que Apple pida la respuesta manual en cada revisión.
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     icon: './assets/images/logo.png',
@@ -41,18 +49,24 @@ const config = {
     'expo-asset',
     'expo-font',
     'expo-secure-store',
-    [
-      'expo-image-picker',
-      {
-        photosPermission: 'Uncas usa tu galería para que subas tu foto de perfil y el comprobante de pago de tu cuota.',
-        cameraPermission: false,
-      },
-    ],
+    // Orden importante: los mods de Info.plist de Expo se aplican en orden
+    // INVERSO al de este array (el último plugin listado corre primero). Con
+    // expo-camera después de expo-image-picker, el cameraPermission:false de
+    // este último terminaba corriendo al final y borrando el texto real de
+    // la cámara (build iOS #2 salió sin NSCameraUsageDescription, rechazado
+    // por Apple). expo-camera va primero para que sea el último en aplicarse.
     [
       'expo-camera',
       {
         cameraPermission: 'Uncas usa la cámara para escanear el carnet QR de los socios en portería.',
         microphonePermission: false,
+      },
+    ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'Uncas usa tu galería para que subas tu foto de perfil y el comprobante de pago de tu cuota.',
+        cameraPermission: false,
       },
     ],
     [

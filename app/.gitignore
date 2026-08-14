@@ -17,6 +17,8 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.csr
+*.cer
 
 # Metro
 .metro-health-check*
@@ -29,6 +31,10 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+
+# iOS signing credentials (contraseña del .p12 en texto plano)
+credentials.json
+p12_password.txt
 
 # local env files
 .env*.local
