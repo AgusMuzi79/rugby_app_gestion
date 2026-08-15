@@ -74,8 +74,7 @@ export default function RootLayout() {
     SplashScreen.hideAsync()
   }, [fontsLoaded, loading, session, rol, terminosLoading, restringidoLoading, isPasswordRecovery, isNuevoUsuario])
 
-  // Red de seguridad — si Supabase nunca responde (colgado esperando red, algo
-  // intermitente que se ve en iOS y no en Android), la splash no puede quedar
+  // Red de seguridad — si Supabase nunca responde, la splash no puede quedar
   // trabada para siempre. Peor caso: cae al login (index.tsx redirige ahí
   // incondicionalmente) y el usuario reintenta, en vez de ver una pantalla
   // negra infinita.
@@ -117,17 +116,28 @@ export default function RootLayout() {
   // Listener de cambios de sesión Supabase
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         if (event === 'PASSWORD_RECOVERY') {
           setSession(newSession!)
           setPasswordRecovery(true)
           return
         }
-        if (newSession) {
-          // Setea la sesión ANTES de esperar el perfil — useTerminos depende
-          // de `session` en el store, así que dispara su query en paralelo
-          // con la de perfil en vez de esperarla (antes eran secuenciales).
-          setSession(newSession)
+        if (!newSession) {
+          clearAuth()
+          return
+        }
+        // Setea la sesión ANTES de esperar el perfil — useTerminos depende
+        // de `session` en el store, así que dispara su query en paralelo
+        // con la de perfil en vez de esperarla (antes eran secuenciales).
+        setSession(newSession)
+        // Ninguna llamada a Supabase puede hacerse DENTRO de este callback:
+        // GoTrue lo corre bajo un lock exclusivo, y una query nuestra que
+        // también necesita ese lock (cualquier .from()/.auth.*) se
+        // deadlockea esperándolo para siempre — bug documentado de
+        // supabase-js, no nuestro. setTimeout(...,0) la corre recién cuando
+        // el callback ya terminó y el lock se liberó.
+        // https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning-PGzXw0
+        setTimeout(async () => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('rol, roles')
@@ -140,9 +150,7 @@ export default function RootLayout() {
           // sesión ya activa cuando se instala una build nueva nunca
           // registraba el token nuevo.
           void registerPushToken()
-        } else {
-          clearAuth()
-        }
+        }, 0)
       }
     )
     return () => subscription.unsubscribe()

@@ -26,7 +26,10 @@ export function useTerminos() {
   const [versionId, setVersionId] = useState<string | null>(null)
 
   const fetchEstado = useCallback(async () => {
-    if (!session) return
+    if (!session) {
+      setState(s => ({ ...s, loading: false }))
+      return
+    }
     setState(s => ({ ...s, loading: true, error: null }))
 
     const { data: activa } = await supabase
