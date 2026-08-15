@@ -74,6 +74,16 @@ export default function RootLayout() {
     SplashScreen.hideAsync()
   }, [fontsLoaded, loading, session, rol, terminosLoading, restringidoLoading, isPasswordRecovery, isNuevoUsuario])
 
+  // Red de seguridad — si Supabase nunca responde (colgado esperando red, algo
+  // intermitente que se ve en iOS y no en Android), la splash no puede quedar
+  // trabada para siempre. Peor caso: cae al login (index.tsx redirige ahí
+  // incondicionalmente) y el usuario reintenta, en vez de ver una pantalla
+  // negra infinita.
+  useEffect(() => {
+    const timer = setTimeout(() => { SplashScreen.hideAsync() }, 8000)
+    return () => clearTimeout(timer)
+  }, [])
+
   // Parsear deep links de recovery/invite
   useEffect(() => {
     async function handleUrl(url: string) {
