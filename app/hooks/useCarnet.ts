@@ -52,6 +52,11 @@ export function useCarnet() {
   const buildCarnet = useCallback(async () => {
     if (!userId) return
 
+    // Actualizar acá (no solo al final) evita que un intento fallido deje
+    // lastStepRef en -1 para siempre, lo que haría reintentar cada segundo
+    // sin límite en vez de esperar al próximo ciclo de 60s.
+    lastStepRef.current = Math.floor(Date.now() / 1000 / TOTP_STEP)
+
     const secret = await getSecret(userId)
     if (!secret) {
       setError('Carnet no disponible. Contactá a Secretaría.')
@@ -106,8 +111,6 @@ export function useCarnet() {
     const nombre    = profile?.nombre ?? '—'
     const roles     = (profile?.roles as string[] | null) ?? ['socio']
     const divData   = jugador?.divisiones as { nombre: string; deporte: string } | null
-
-    lastStepRef.current = Math.floor(Date.now() / 1000 / TOTP_STEP)
 
     setData({
       numero_socio: socio.numero_socio,

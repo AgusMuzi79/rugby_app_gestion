@@ -76,6 +76,12 @@ const config = {
         color: '#F5B41C',
       },
     ],
+    [
+      'expo-local-authentication',
+      {
+        faceIDPermission: 'Uncas usa Face ID para que ingreses más rápido la próxima vez.',
+      },
+    ],
   ],
   extra: {
     router: {},

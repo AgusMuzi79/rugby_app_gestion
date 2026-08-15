@@ -94,6 +94,7 @@ export function useLogin() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: 'Ingresá a Uncas Rugby',
         fallbackLabel: 'Usar contraseña',
+        disableDeviceFallback: true,
       })
 
       if (!result.success) {
