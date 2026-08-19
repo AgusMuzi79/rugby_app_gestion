@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 
 type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'subcomision'
 
@@ -175,49 +176,26 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
 // ─── Email de bienvenida ──────────────────────────────────────────────────────
 
 async function enviarEmailBienvenida(nombre: string, email: string): Promise<void> {
-  const resendKey = Deno.env.get('RESEND_API_KEY')
-  const from      = Deno.env.get('CLUB_EMAIL_FROM') ?? 'UNCAS Rugby Club <no-reply@uncasrugby.com>'
-  if (!resendKey) return
-
-  const html = `
-    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <div style="background:#15110A;padding:32px 24px;text-align:center">
-        <h1 style="color:#F5B41C;font-size:22px;margin:0;letter-spacing:2px">UNCAS RUGBY CLUB</h1>
-      </div>
-      <div style="padding:32px 24px;background:#ffffff">
-        <p style="font-size:16px">Hola <strong>${nombre}</strong>,</p>
-        <p style="font-size:15px;line-height:1.6">
-          Fuiste invitado a formar parte de la app de gestión de <strong>UNCAS Rugby Club</strong>.
-        </p>
-        <div style="background:#f5f5f5;border-radius:8px;padding:20px;margin:24px 0">
-          <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Tus datos de acceso</p>
-          <p style="margin:4px 0;font-size:15px"><strong>Email:</strong> ${email}</p>
-          <p style="margin:4px 0;font-size:15px"><strong>Contraseña inicial:</strong> tu número de DNI</p>
-        </div>
-        <p style="font-size:15px;line-height:1.6">
-          Descargá la app desde la <strong>Play Store</strong> o <strong>App Store</strong>
-          buscando <em>"UNCAS Rugby"</em> e ingresá con estos datos.
-        </p>
-        <p style="font-size:13px;color:#888;margin-top:32px">
-          Si tenés alguna consulta, contactá a la secretaría del club.
-        </p>
-      </div>
-      <div style="background:#15110A;padding:16px 24px;text-align:center">
-        <p style="color:#8E8574;font-size:12px;margin:0">UNCAS Rugby Club · Gestión Operativa</p>
-      </div>
+  const html = emailTemplate(`
+    <p style="font-size:16px">Hola <strong>${nombre}</strong>,</p>
+    <p style="font-size:15px;line-height:1.6">
+      Fuiste invitado a formar parte de la app de gestión de <strong>UNCAS Rugby Club</strong>.
+    </p>
+    <div style="background:#f5f5f5;border-radius:8px;padding:20px;margin:24px 0">
+      <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px">Tus datos de acceso</p>
+      <p style="margin:4px 0;font-size:15px"><strong>Email:</strong> ${email}</p>
+      <p style="margin:4px 0;font-size:15px"><strong>Contraseña inicial:</strong> tu número de DNI</p>
     </div>
-  `
+    <p style="font-size:15px;line-height:1.6">
+      Descargá la app desde la <strong>Play Store</strong> o <strong>App Store</strong>
+      buscando <em>"UNCAS Rugby"</em> e ingresá con estos datos.
+    </p>
+    <p style="font-size:13px;color:#888;margin-top:32px">
+      Si tenés alguna consulta, contactá a la secretaría del club.
+    </p>
+  `)
 
-  await fetch('https://api.resend.com/emails', {
-    method:  'POST',
-    headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from,
-      to:      [email],
-      subject: 'Bienvenido a la app de UNCAS Rugby Club',
-      html,
-    }),
-  }).catch(err => console.error('Error al enviar email de bienvenida:', err))
+  await enviarEmail({ to: email, subject: 'Bienvenido a la app de UNCAS Rugby Club', html })
 }
 
 // ─── Desactivar usuario ───────────────────────────────────────────────────────

@@ -14,17 +14,15 @@
 //
 // Secrets requeridos:
 //   MERCADOPAGO_ACCESS_TOKEN
-//   RESEND_API_KEY
-//
-// Env vars para nombres:
-//   CLUB_EMAIL_FROM (ej: pagos@uncasrugby.com)
+//   RESEND_API_KEY   — sin esto, los emails de comprobante se omiten (fire and forget, ver _shared/email.ts)
+//   CLUB_EMAIL_FROM  — ej: "UNCAS Rugby Club <pagos@dominio-del-club.com>", el dominio debe estar verificado en Resend
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1'
 
 const MP_API = 'https://api.mercadopago.com'
-const RESEND_API = 'https://api.resend.com/emails'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -490,33 +488,21 @@ async function enviarEmailRechazoComprobante(
 
     const email  = user?.email ?? ''
     const nombre = profile?.nombre ?? 'Socio'
-    const resendKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendKey || !email) return
+    if (!email) return
 
     const [anio, mes] = periodo.split('-')
     const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
     const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
 
-    await fetch(RESEND_API, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from:    Deno.env.get('CLUB_EMAIL_FROM') ?? 'pagos@uncasrugby.com',
-        to:      [email],
-        subject: `Tu comprobante de ${periodoLabel} necesita revisión`,
-        html: `
-          <p>Hola ${nombre},</p>
-          <p>Secretaría revisó el comprobante que subiste para la cuota de <strong>${periodoLabel}</strong> y no pudo aprobarlo.</p>
-          <p><strong>Motivo:</strong> ${motivo}</p>
-          <p>Podés volver a subir el comprobante desde la app cuando lo tengas corregido.</p>
-          <p><em>UNCAS Rugby Club</em></p>
-        `,
-      }),
-    })
+    const html = emailTemplate(`
+      <p style="font-size:15px">Hola ${nombre},</p>
+      <p style="font-size:15px;line-height:1.6">Secretaría revisó el comprobante que subiste para la cuota de <strong>${periodoLabel}</strong> y no pudo aprobarlo.</p>
+      <p style="font-size:15px;line-height:1.6"><strong>Motivo:</strong> ${motivo}</p>
+      <p style="font-size:15px;line-height:1.6">Podés volver a subir el comprobante desde la app cuando lo tengas corregido.</p>
+    `)
+
+    await enviarEmail({ to: email, subject: `Tu comprobante de ${periodoLabel} necesita revisión`, html })
   } catch (err) {
     console.error('Error enviando email de rechazo:', err)
   }
@@ -785,36 +771,25 @@ async function generarYEnviarComprobante(
     }
 
     // ── Enviar email con PDF adjunto ─────────────────────────────────────────
-    const resendKey = Deno.env.get('RESEND_API_KEY')
-    if (!resendKey || !email) return
+    if (!email) return
 
     // Convertir Uint8Array a base64 sin spread (evita stack overflow en PDFs grandes)
     let binary = ''
     for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i])
     const base64Pdf = btoa(binary)
 
-    await fetch(RESEND_API, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        from:    Deno.env.get('CLUB_EMAIL_FROM') ?? 'pagos@uncasrugby.com',
-        to:      [email],
-        subject: `Comprobante de pago — Cuota ${periodoLabel}`,
-        html: `
-          <p>Hola ${nombre},</p>
-          <p>Adjuntamos tu comprobante de pago de la cuota correspondiente a <strong>${periodoLabel}</strong>.</p>
-          <p><strong>Monto:</strong> $${monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-          <p>¡Gracias!</p>
-          <p><em>UNCAS Rugby Club</em></p>
-        `,
-        attachments: [{
-          filename: `comprobante-${periodo}.pdf`,
-          content:  base64Pdf,
-        }],
-      }),
+    const html = emailTemplate(`
+      <p style="font-size:15px">Hola ${nombre},</p>
+      <p style="font-size:15px;line-height:1.6">Adjuntamos tu comprobante de pago de la cuota correspondiente a <strong>${periodoLabel}</strong>.</p>
+      <p style="font-size:15px;line-height:1.6"><strong>Monto:</strong> $${monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+      <p style="font-size:15px;line-height:1.6">¡Gracias!</p>
+    `)
+
+    await enviarEmail({
+      to: email,
+      subject: `Comprobante de pago — Cuota ${periodoLabel}`,
+      html,
+      attachments: [{ filename: `comprobante-${periodo}.pdf`, content: base64Pdf }],
     })
   } catch (err) {
     console.error('Error generando comprobante:', err)
