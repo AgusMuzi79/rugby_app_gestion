@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Linking } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { Feather } from '@expo/vector-icons'
@@ -21,6 +21,11 @@ export default function ScannerScreen() {
   }
 
   if (!permission.granted) {
+    // Si el usuario ya rechazó el permiso antes, Android/iOS dejan de mostrar
+    // el diálogo nativo — requestPermission() resuelve al toque sin abrir nada.
+    // Hay que mandarlo a Ajustes del sistema en ese caso.
+    const bloqueado = !permission.canAskAgain
+
     return (
       <View style={[s.root, s.center, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
@@ -30,10 +35,16 @@ export default function ScannerScreen() {
           <Feather name="camera-off" size={48} color={MUTED} />
           <Text style={s.permTitle}>Cámara requerida</Text>
           <Text style={s.permSub}>
-            La app necesita acceso a la cámara para escanear los carnets.
+            {bloqueado
+              ? 'Denegaste el acceso a la cámara. Activalo desde Ajustes del sistema para poder escanear carnets.'
+              : 'La app necesita acceso a la cámara para escanear los carnets.'}
           </Text>
-          <TouchableOpacity style={s.permBtn} onPress={requestPermission} activeOpacity={0.8}>
-            <Text style={s.permBtnText}>PERMITIR ACCESO</Text>
+          <TouchableOpacity
+            style={s.permBtn}
+            onPress={bloqueado ? () => Linking.openSettings() : requestPermission}
+            activeOpacity={0.8}
+          >
+            <Text style={s.permBtnText}>{bloqueado ? 'ABRIR AJUSTES' : 'PERMITIR ACCESO'}</Text>
           </TouchableOpacity>
         </View>
       </View>
