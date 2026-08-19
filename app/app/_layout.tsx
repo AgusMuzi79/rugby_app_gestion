@@ -22,6 +22,7 @@ import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
 import { useAccesoRestringido } from '@/hooks/useAccesoRestringido'
+import { useMailSintetico } from '@/hooks/useMailSintetico'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -60,6 +61,7 @@ export default function RootLayout() {
   } = useAuthStore()
   const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
   const { restringido, loading: restringidoLoading } = useAccesoRestringido()
+  const { pendiente: mailSinteticoPendiente, loading: mailSinteticoLoading } = useMailSintetico()
 
   // Esconde la splash recién cuando ya sabemos a dónde navegar — evita el
   // "flash" del login antes del redirect cuando hay una sesión guardada
@@ -69,10 +71,10 @@ export default function RootLayout() {
     if (!fontsLoaded || loading) return
     const esperandoPerfilOTerminos =
       session && !isPasswordRecovery && !isNuevoUsuario
-      && (rol === null || terminosLoading || restringidoLoading)
+      && (rol === null || terminosLoading || restringidoLoading || mailSinteticoLoading)
     if (esperandoPerfilOTerminos) return
     SplashScreen.hideAsync()
-  }, [fontsLoaded, loading, session, rol, terminosLoading, restringidoLoading, isPasswordRecovery, isNuevoUsuario])
+  }, [fontsLoaded, loading, session, rol, terminosLoading, restringidoLoading, mailSinteticoLoading, isPasswordRecovery, isNuevoUsuario])
 
   // Red de seguridad — si Supabase nunca responde, la splash no puede quedar
   // trabada para siempre. Peor caso: cae al login (index.tsx redirige ahí
@@ -180,11 +182,17 @@ export default function RootLayout() {
         router.replace('/(auth)/terminos')
         return
       }
+      if (mailSinteticoLoading) return
+      if (mailSinteticoPendiente) {
+        router.replace('/(auth)/registrar-mail')
+        return
+      }
       router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
     }
   }, [
     mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario,
     terminosPendiente, terminosLoading, restringido, restringidoLoading,
+    mailSinteticoPendiente, mailSinteticoLoading,
   ])
 
   // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que
