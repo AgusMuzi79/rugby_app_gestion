@@ -15,6 +15,7 @@ interface SocioSemaforo {
   deuda_vencida: number
   meses_impagos: number
   mora_max_dias: number
+  servicios: string[]
 }
 
 type FiltroSemaforo = 'todos' | Semaforo
@@ -126,14 +127,22 @@ export default function DeudasPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [sociosData, { data: ultimaImportacion }] = await Promise.all([
+      const [sociosData, serviciosOpcionalesData, socioServiciosData, { data: ultimaImportacion }] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre)')
+            .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
             .in('estado', ['activo', 'pendiente'])
             .not('semaforo', 'is', null)
+            .range(from, to)
+        ),
+        supabase.from('servicios_opcionales').select('id, nombre'),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        selectAllRows<Record<string, unknown>>((from, to) =>
+          (supabase as any)
+            .from('socio_servicios')
+            .select('socio_id, servicio_id')
             .range(from, to)
         ),
         supabase
@@ -144,15 +153,35 @@ export default function DeudasPage() {
           .maybeSingle(),
       ])
 
-      const normalizedSocios: SocioSemaforo[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
-        id: s.id as string,
-        numero_socio: s.numero_socio as string,
-        semaforo: s.semaforo as Semaforo | null,
-        deuda_vencida: Number(s.deuda_vencida ?? 0),
-        meses_impagos: Number(s.meses_impagos ?? 0),
-        mora_max_dias: Number(s.mora_max_dias ?? 0),
-        nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
-      }))
+      const nombrePorServicioId = new Map<string, string>(
+        (serviciosOpcionalesData.data ?? []).map((s) => [s.id as string, s.nombre as string])
+      )
+
+      const serviciosPorSocioId = new Map<string, string[]>()
+      for (const v of socioServiciosData ?? []) {
+        const socioId = v.socio_id as string
+        const nombreServicio = nombrePorServicioId.get(v.servicio_id as string)
+        if (!nombreServicio) continue
+        if (!serviciosPorSocioId.has(socioId)) serviciosPorSocioId.set(socioId, [])
+        serviciosPorSocioId.get(socioId)!.push(nombreServicio)
+      }
+
+      const normalizedSocios: SocioSemaforo[] = (sociosData ?? []).map((s: Record<string, unknown>) => {
+        const categoria = (s.categorias_socio as { nombre: string } | null)?.nombre
+        return {
+          id: s.id as string,
+          numero_socio: s.numero_socio as string,
+          semaforo: s.semaforo as Semaforo | null,
+          deuda_vencida: Number(s.deuda_vencida ?? 0),
+          meses_impagos: Number(s.meses_impagos ?? 0),
+          mora_max_dias: Number(s.mora_max_dias ?? 0),
+          nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+          servicios: [
+            ...(categoria ? [categoria] : []),
+            ...(serviciosPorSocioId.get(s.id as string) ?? []),
+          ],
+        }
+      })
 
       setSocios(normalizedSocios)
       setFechaCorte((ultimaImportacion as { fecha_corte: string } | null)?.fecha_corte ?? null)
@@ -228,6 +257,7 @@ export default function DeudasPage() {
               <SortableTh column="deuda_vencida" align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <SortableTh column="meses_impagos" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <SortableTh column="mora_max_dias" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <th className="font-lora text-xs tracking-widest text-tinta/50 py-3 pl-4 text-left">SERVICIOS</th>
             </tr>
           </thead>
           <tbody>
@@ -244,7 +274,18 @@ export default function DeudasPage() {
                 </td>
                 <td className="font-lora text-sm text-tinta text-right py-4 pr-4">{formatMoney(s.deuda_vencida)}</td>
                 <td className="font-lora text-sm text-tinta/60 text-center py-4 pr-4">{s.meses_impagos}</td>
-                <td className="font-lora text-sm text-tinta/60 text-center py-4">{s.mora_max_dias}</td>
+                <td className="font-lora text-sm text-tinta/60 text-center py-4 pr-4">{s.mora_max_dias}</td>
+                <td className="py-4 pl-4">
+                  <div className="flex flex-wrap gap-1 max-w-[220px]">
+                    {s.servicios.length === 0
+                      ? <span className="font-lora text-xs text-tinta/30">—</span>
+                      : s.servicios.map((nombre, i) => (
+                          <span key={i} className="font-lora text-[11px] tracking-wide px-2 py-0.5 border border-gris-claro text-tinta/60 whitespace-nowrap">
+                            {nombre}
+                          </span>
+                        ))}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
