@@ -25,6 +25,7 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { parseDeudaNuvix } from '../_shared/parse-deuda-nuvix.ts'
+import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export (module.exports),
 // mismo paquete y misma forma de leerlo que scripts/import-socios-masivo.mjs.
 import XLSX from 'npm:xlsx@0.18.5'
@@ -143,6 +144,13 @@ Deno.serve(async (req: Request) => {
 
   if (rpcErr) return jsonError(500, `Error al guardar la importación: ${rpcErr.message}`)
 
+  // ─── Recordatorio de deuda por mail (amarillo + rojo) ───────────────────────
+  // El semáforo ya quedó recalculado por la RPC de arriba — se arma la lista de
+  // recordatorios ahora (rápido, solo lecturas) y se despachan los mails en
+  // background para no demorar la respuesta al panel de Secretaría.
+  const recordatorios = await construirRecordatoriosDeuda()
+  EdgeRuntime.waitUntil(enviarRecordatoriosDeuda(recordatorios, parsed.fechaCorte))
+
   return jsonOk({
     importacion_id: resultado?.importacion_id ?? null,
     comprobantes: payload.comprobantes_count,
@@ -153,5 +161,156 @@ Deno.serve(async (req: Request) => {
     amarillo: resultado?.amarillo ?? 0,
     rojo: resultado?.rojo ?? 0,
     exento: resultado?.exento ?? 0,
+    recordatorios_deuda: recordatorios.length,
   })
 })
+
+// ─── Recordatorio de deuda por mail ──────────────────────────────────────────
+//
+// Se dispara en cada import (no en un cron aparte) — a quien tenga semáforo
+// amarillo/rojo después de recalcular, salvo que ya se le haya mandado el
+// recordatorio hace menos de CADENCIA_DIAS (columna socios.recordatorio_deuda_enviado_at,
+// migración 20260819000000) — evita duplicar si secretaría reimporta el
+// archivo varias veces en el mismo período. Un menor de edad nunca recibe el
+// mail a su propio nombre: la deuda se le atribuye al titular de su grupo
+// familiar (mismo criterio que la app, ver migración 20260813000000_titular_ve_deuda_menores.sql).
+// Si el menor no tiene titular resuelto, se omite (no hay fallback mandándoselo a él).
+
+const CADENCIA_DIAS = 15
+
+type ItemDeuda = { socioId: string; nombre: string; propio: boolean; mesesImpagos: number; deudaVencida: number }
+type RecordatorioDeuda = { profileId: string; nombreDestinatario: string; items: ItemDeuda[] }
+
+function esMenorDeEdad(fechaNacimiento: string | null): boolean {
+  if (!fechaNacimiento) return false
+  const hace18 = new Date()
+  hace18.setFullYear(hace18.getFullYear() - 18)
+  return new Date(fechaNacimiento) > hace18
+}
+
+function dentroDeCadencia(enviadoAt: string | null): boolean {
+  if (!enviadoAt) return false
+  const limite = new Date()
+  limite.setDate(limite.getDate() - CADENCIA_DIAS)
+  return new Date(enviadoAt) > limite
+}
+
+async function construirRecordatoriosDeuda(): Promise<RecordatorioDeuda[]> {
+  const { data: deudoresRaw } = await supabaseAdmin
+    .from('socios')
+    .select('id, profile_id, cabecera_id, fecha_nacimiento, meses_impagos, deuda_vencida, recordatorio_deuda_enviado_at, profiles!socios_profile_id_fkey(nombre)')
+    .in('estado', ['activo', 'pendiente'])
+    .in('semaforo', ['amarillo', 'rojo'])
+
+  // Cadencia: si a este socio puntual ya se le mandó el recordatorio hace
+  // menos de CADENCIA_DIAS, no vuelve a entrar aunque siga en mora — evita
+  // duplicar si secretaría reimporta el archivo varias veces en el medio.
+  const deudores = (deudoresRaw ?? []).filter((d) => !dentroDeCadencia(d.recordatorio_deuda_enviado_at as string | null))
+  if (deudores.length === 0) return []
+
+  const cabeceraIds = [...new Set(
+    deudores
+      .filter((d) => esMenorDeEdad(d.fecha_nacimiento as string | null) && d.cabecera_id)
+      .map((d) => d.cabecera_id as string)
+  )]
+
+  const titulares = new Map<string, { profileId: string; nombre: string }>()
+  if (cabeceraIds.length > 0) {
+    const { data: titularesData } = await supabaseAdmin
+      .from('socios')
+      .select('id, profile_id, profiles!socios_profile_id_fkey(nombre)')
+      .in('id', cabeceraIds)
+    for (const t of titularesData ?? []) {
+      const perfil = t.profiles as { nombre: string } | null
+      titulares.set(t.id as string, { profileId: t.profile_id as string, nombre: perfil?.nombre ?? 'Titular' })
+    }
+  }
+
+  const porDestinatario = new Map<string, RecordatorioDeuda>()
+
+  for (const d of deudores) {
+    const menor  = esMenorDeEdad(d.fecha_nacimiento as string | null)
+    const perfil = d.profiles as { nombre: string } | null
+    const nombre = perfil?.nombre ?? 'Socio'
+
+    let profileId: string | null
+    let nombreDestinatario: string
+
+    if (menor) {
+      const titular = d.cabecera_id ? titulares.get(d.cabecera_id as string) : undefined
+      if (!titular) continue
+      profileId = titular.profileId
+      nombreDestinatario = titular.nombre
+    } else {
+      profileId = d.profile_id as string | null
+      nombreDestinatario = nombre
+    }
+    if (!profileId) continue
+
+    if (!porDestinatario.has(profileId)) {
+      porDestinatario.set(profileId, { profileId, nombreDestinatario, items: [] })
+    }
+    porDestinatario.get(profileId)!.items.push({
+      socioId:      d.id as string,
+      nombre,
+      propio:       !menor,
+      mesesImpagos: (d.meses_impagos as number) ?? 0,
+      deudaVencida: Number(d.deuda_vencida) || 0,
+    })
+  }
+
+  return [...porDestinatario.values()]
+}
+
+async function enviarRecordatoriosDeuda(recordatorios: RecordatorioDeuda[], fechaCorte: string): Promise<void> {
+  if (recordatorios.length === 0) return
+  const fechaCorteLabel = new Date(fechaCorte).toLocaleDateString('es-AR')
+
+  let enviados = 0, omitidosSinMail = 0, errores = 0
+
+  for (const r of recordatorios) {
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(r.profileId)
+    const email = user?.email ?? ''
+    if (!email || email.endsWith('@uncas.local')) { omitidosSinMail++; continue }
+
+    const filas = r.items.map((it) => `
+      <tr>
+        <td style="padding:8px 0;border-bottom:1px solid #eee">${it.propio ? 'Vos' : it.nombre}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">${it.mesesImpagos} período${it.mesesImpagos === 1 ? '' : 's'}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right">$${it.deudaVencida.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+      </tr>
+    `).join('')
+
+    const html = emailTemplate(`
+      <p style="font-size:15px">Hola ${r.nombreDestinatario},</p>
+      <p style="font-size:15px;line-height:1.6">Según los registros del club, a la fecha tenés cuotas pendientes:</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding-bottom:8px;border-bottom:2px solid #15110A">Socio</th>
+            <th style="text-align:right;padding-bottom:8px;border-bottom:2px solid #15110A">Adeudado</th>
+            <th style="text-align:right;padding-bottom:8px;border-bottom:2px solid #15110A">Monto</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <p style="font-size:13px;color:#888">Datos al ${fechaCorteLabel}. Si ya pagaste, puede no estar reflejado todavía.</p>
+      <p style="font-size:15px;line-height:1.6">Podés ver el detalle y cómo regularizar desde la sección de Cuotas en la app.</p>
+    `)
+
+    const ok = await enviarEmail({ to: email, subject: 'Recordatorio de cuotas pendientes — UNCAS Rugby Club', html })
+
+    if (ok) {
+      enviados++
+      const socioIds = r.items.map((it) => it.socioId)
+      await supabaseAdmin
+        .from('socios')
+        .update({ recordatorio_deuda_enviado_at: new Date().toISOString() })
+        .in('id', socioIds)
+    } else {
+      errores++
+    }
+  }
+
+  console.log(`Recordatorios de deuda: ${enviados} enviados, ${omitidosSinMail} omitidos (sin mail válido), ${errores} con error de envío, de ${recordatorios.length} destinatarios.`)
+}
