@@ -23,10 +23,7 @@ export interface DeudaDetalle {
   saldoAnterior:          number // filas es_saldo_anterior=true, sin período discreto
 }
 
-// socioId: opcional — si se pasa, trae la deuda de ESE socio en vez de la
-// propia (usado por el titular para ver el detalle de un menor a cargo; la
-// RLS de comprobantes_deuda_select_titular_de_menor es la que autoriza esto).
-export function useDeudaDetalle(socioId?: string) {
+export function useDeudaDetalle() {
   const { session } = useAuthStore()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -38,17 +35,14 @@ export function useDeudaDetalle(socioId?: string) {
     if (!session?.user.id) return
     setLoading(true)
 
-    let targetSocioId = socioId
-    if (!targetSocioId) {
-      const { data: socio } = await db
-        .from('socios')
-        .select('id')
-        .eq('profile_id', session.user.id)
-        .single()
+    const { data: socio } = await db
+      .from('socios')
+      .select('id')
+      .eq('profile_id', session.user.id)
+      .single()
 
-      if (!socio) { setLoading(false); return }
-      targetSocioId = socio.id
-    }
+    if (!socio) { setLoading(false); return }
+    const targetSocioId = socio.id
 
     // La deuda vigente siempre es la de la última importación — reimportar
     // reemplaza (no acumula), pero puede haber importaciones de fechas de
@@ -129,7 +123,7 @@ export function useDeudaDetalle(socioId?: string) {
       saldoAnterior,
     })
     setLoading(false)
-  }, [session, socioId])
+  }, [session])
 
   useEffect(() => { fetch() }, [fetch])
 

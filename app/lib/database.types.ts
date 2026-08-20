@@ -1746,11 +1746,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      dependientes_menores_ids: { Args: never; Returns: string[] }
-      es_menor_de_edad: {
-        Args: { p_fecha_nacimiento: string }
-        Returns: boolean
-      }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
       importar_deuda_nuvix: { Args: { p_payload: Json }; Returns: Json }
@@ -1758,7 +1753,6 @@ export type Database = {
         Args: { p_plataforma: string; p_token: string }
         Returns: undefined
       }
-      soy_menor_de_edad: { Args: never; Returns: boolean }
       tiene_acceso_division: {
         Args: { p_division_id: string }
         Returns: boolean

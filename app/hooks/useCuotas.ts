@@ -26,14 +26,6 @@ function periodoHoy(): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 }
 
-// Misma regla que es_menor_de_edad() en SQL (20260813000000) — mantener en sync.
-function esMenorDeEdad(fechaNacimiento: string | null): boolean {
-  if (!fechaNacimiento) return false
-  const limite = new Date()
-  limite.setFullYear(limite.getFullYear() - 18)
-  return new Date(fechaNacimiento) > limite
-}
-
 function decodeBase64(base64: string): Uint8Array {
   const binary = atob(base64)
   const bytes  = new Uint8Array(binary.length)
@@ -59,9 +51,6 @@ export function useCuotas() {
   // propósito: el socio no ve colores ni se compara contra otros socios.
   const [alDia,             setAlDia]             = useState(true)
   const [deudaActualizadaAt, setDeudaActualizadaAt] = useState<string | null>(null)
-  // Menor de edad: la cuota/deuda propia la administra el titular de su grupo
-  // familiar, no el socio mismo — ver migración 20260813000000.
-  const [esMenor, setEsMenor] = useState(false)
 
   const fetch = useCallback(async () => {
     if (!session?.user.id) return
@@ -69,25 +58,13 @@ export function useCuotas() {
 
     const { data: socio } = await db
       .from('socios')
-      .select('id, fecha_nacimiento, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at')
+      .select('id, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at')
       .eq('profile_id', session.user.id)
       .single()
 
     if (!socio) { setLoading(false); return }
 
     setSocioId(socio.id)
-
-    if (esMenorDeEdad(socio.fecha_nacimiento)) {
-      // No pedimos cuotas/servicios/deuda: la RLS las bloquea igual, y
-      // mostrarle el semáforo propio a un menor es justo lo que queremos evitar.
-      setEsMenor(true)
-      setCuotas([])
-      setServiciosActivos([])
-      setTotalMensual(0)
-      setLoading(false)
-      return
-    }
-    setEsMenor(false)
 
     setAlDia(!['amarillo', 'rojo'].includes(socio.semaforo))
     setDeudaActualizadaAt(socio.deuda_actualizada_at ?? null)
@@ -220,6 +197,5 @@ export function useCuotas() {
     montoCategoria,
     alDia,
     deudaActualizadaAt,
-    esMenor,
   }
 }
