@@ -146,11 +146,22 @@ Deno.serve(async (req: Request) => {
   }
 
   // ─── Calcular diff contra la base ───────────────────────────────────────────
-  const { data: sociosDbRaw, error: sociosErr } = await supabaseAdmin
-    .from('socios')
-    .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import')
-
-  if (sociosErr) return jsonError(500, `Error leyendo socios: ${sociosErr.message}`)
+  // PostgREST devuelve máximo 1000 filas por default sin paginar — con ~1500
+  // socios esto truncaba silenciosamente el mapa y hacía que cualquier socio
+  // fuera del primer lote (orden no garantizado) apareciera como "alta"
+  // aunque ya existiera. Mismo bug ya conocido en este proyecto (ver
+  // selectAllRows en app/lib/supabase.ts y web/lib/supabase.ts) — acá faltaba
+  // aplicarlo. Encontrado en vivo probando el import (2026-08-21).
+  let sociosDbRaw: Record<string, unknown>[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabaseAdmin
+      .from('socios')
+      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import')
+      .range(from, from + 999)
+    if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
+    sociosDbRaw = sociosDbRaw.concat(data ?? [])
+    if (!data || data.length < 1000) break
+  }
 
   const sociosDb = new Map<string, SocioDb>(
     (sociosDbRaw ?? [])
@@ -176,16 +187,17 @@ Deno.serve(async (req: Request) => {
 
   // ─── Aplicar ─────────────────────────────────────────────────────────────
   const resultado = await aplicarDiff(diff)
+  const erroresTotales = [...diff.errores, ...resultado.errores]
 
   const { data: importacion, error: importErr } = await supabaseAdmin
     .from('importaciones_socios')
     .insert({
       archivo_nombre: archivo.name,
-      altas:          resultado.altas,
-      bajas:          resultado.bajas,
-      actualizados:   resultado.actualizados,
+      altas:          resultado.altasOk.length,
+      bajas:          resultado.bajasOk.length,
+      actualizados:   resultado.actualizadosOk.length + resultado.reingresosOk.length,
       sin_cambio:     diff.sinCambio,
-      errores:        diff.errores.length + resultado.erroresAplicacion,
+      errores:        erroresTotales.length,
       importado_por:  caller.id,
     })
     .select('id')
@@ -203,11 +215,25 @@ Deno.serve(async (req: Request) => {
   // Mails de baja — fire and forget, no bloquea la respuesta al panel
   EdgeRuntime.waitUntil(enviarMailsBaja(resultado.bajasParaMail))
 
+  // Ojo: esto refleja lo que REALMENTE se aplicó (resultado.*Ok), no el diff
+  // calculado antes de aplicar — un alta puede figurar en el diff y fallar
+  // al crearse (ver aplicarDiff), así que el número real puede ser menor.
   return jsonOk({
     importacion_id: importacion?.id ?? null,
-    ...resumenDiff(diff),
-    aplicado: true,
-    errores_aplicacion: resultado.erroresAplicacion,
+    aplicado:      true,
+    altas:         resultado.altasOk.length,
+    bajas:         resultado.bajasOk.length,
+    reingresos:    resultado.reingresosOk.length,
+    actualizados:  resultado.actualizadosOk.length,
+    sin_cambio:    diff.sinCambio,
+    errores:       erroresTotales.length,
+    detalle: {
+      altas:        resultado.altasOk.map(a => ({ numero_socio: a.numeroSocio, nombre: a.nombre })),
+      bajas:        resultado.bajasOk.map(b => ({ numero_socio: b.numeroSocio, nombre: b.nombre, motivo: b.motivo })),
+      reingresos:   resultado.reingresosOk.map(r => ({ numero_socio: r.numeroSocio, nombre: r.nombre })),
+      actualizados: resultado.actualizadosOk.map(u => ({ numero_socio: u.numeroSocio, nombre: u.nombre })),
+      errores:      erroresTotales.map(e => ({ numero_socio: e.numeroSocio, nombre: e.nombre, motivo: e.motivo })),
+    },
   })
 })
 
@@ -307,16 +333,38 @@ function resumenDiff(diff: Diff) {
 async function aplicarDiff(diff: Diff) {
   const socioIdsAfectados: string[] = []
   const bajasParaMail: { profileId: string; nombre: string; motivo: MotivoBaja }[] = []
-  let altas = 0, bajas = 0, actualizados = 0, erroresAplicacion = 0
+  const altasOk: DiffAlta[] = []
+  const bajasOk: DiffBaja[] = []
+  const reingresosOk: DiffReingreso[] = []
+  const actualizadosOk: DiffActualizar[] = []
+  const errores: DiffError[] = []
 
   for (const alta of diff.altas) {
     try {
-      const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-        email: alta.email,
+      let email = alta.email
+      let { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
         password: alta.dni,
         email_confirm: true,
         user_metadata: { nombre: alta.nombre },
       })
+
+      // Red de seguridad: el parser ya resuelve mails compartidos entre
+      // familiares (resolverEmailsDuplicados en parse-padron-socios.ts), pero
+      // por si igual colisiona contra un mail ya existente (ej. alguien con
+      // cuenta creada por otra vía) — un solo reintento con el mail sintético
+      // en vez de perder el alta entera.
+      const yaExiste = createErr?.message?.toLowerCase().includes('already') || createErr?.message?.toLowerCase().includes('exists')
+      if (yaExiste && !email.endsWith('@uncas.local')) {
+        email = `socio-${alta.numeroSocio}@uncas.local`
+        ;({ data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: alta.dni,
+          email_confirm: true,
+          user_metadata: { nombre: alta.nombre },
+        }))
+      }
+
       if (createErr || !userData.user) throw new Error(createErr?.message ?? 'sin usuario')
       const userId = userData.user.id
 
@@ -346,10 +394,11 @@ async function aplicarDiff(diff: Diff) {
       if (secretErr) console.error(`[warn] TOTP de ${alta.numeroSocio}: ${secretErr.message}`)
 
       socioIdsAfectados.push(socioData.id)
-      altas++
+      altasOk.push(alta)
     } catch (e) {
-      erroresAplicacion++
-      console.error(`Error dando de alta a ${alta.numeroSocio} (${alta.nombre}):`, e instanceof Error ? e.message : e)
+      const motivo = e instanceof Error ? e.message : String(e)
+      errores.push({ numeroSocio: alta.numeroSocio, nombre: alta.nombre, motivo })
+      console.error(`Error dando de alta a ${alta.numeroSocio} (${alta.nombre}):`, motivo)
     }
   }
 
@@ -364,10 +413,11 @@ async function aplicarDiff(diff: Diff) {
 
       socioIdsAfectados.push(baja.socioId)
       bajasParaMail.push({ profileId: baja.profileId, nombre: baja.nombre, motivo: baja.motivo })
-      bajas++
+      bajasOk.push(baja)
     } catch (e) {
-      erroresAplicacion++
-      console.error(`Error dando de baja a ${baja.numeroSocio} (${baja.nombre}):`, e instanceof Error ? e.message : e)
+      const motivo = e instanceof Error ? e.message : String(e)
+      errores.push({ numeroSocio: baja.numeroSocio, nombre: baja.nombre, motivo })
+      console.error(`Error dando de baja a ${baja.numeroSocio} (${baja.nombre}):`, motivo)
     }
   }
 
@@ -382,10 +432,11 @@ async function aplicarDiff(diff: Diff) {
       if (socioRes.error) throw new Error(socioRes.error.message)
 
       socioIdsAfectados.push(r.socioId)
-      actualizados++
+      reingresosOk.push(r)
     } catch (e) {
-      erroresAplicacion++
-      console.error(`Error reingresando a ${r.numeroSocio} (${r.nombre}):`, e instanceof Error ? e.message : e)
+      const motivo = e instanceof Error ? e.message : String(e)
+      errores.push({ numeroSocio: r.numeroSocio, nombre: r.nombre, motivo })
+      console.error(`Error reingresando a ${r.numeroSocio} (${r.nombre}):`, motivo)
     }
   }
 
@@ -399,14 +450,15 @@ async function aplicarDiff(diff: Diff) {
       if (error) throw new Error(error.message)
 
       socioIdsAfectados.push(u.socioId)
-      actualizados++
+      actualizadosOk.push(u)
     } catch (e) {
-      erroresAplicacion++
-      console.error(`Error actualizando a ${u.numeroSocio} (${u.nombre}):`, e instanceof Error ? e.message : e)
+      const motivo = e instanceof Error ? e.message : String(e)
+      errores.push({ numeroSocio: u.numeroSocio, nombre: u.nombre, motivo })
+      console.error(`Error actualizando a ${u.numeroSocio} (${u.nombre}):`, motivo)
     }
   }
 
-  return { altas, bajas, actualizados, erroresAplicacion, socioIdsAfectados, bajasParaMail }
+  return { altasOk, bajasOk, reingresosOk, actualizadosOk, errores, socioIdsAfectados, bajasParaMail }
 }
 
 // ─── Mail de baja ─────────────────────────────────────────────────────────────

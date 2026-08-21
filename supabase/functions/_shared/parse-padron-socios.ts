@@ -17,6 +17,7 @@ export interface SocioPadron {
   fechaNacimiento: string | null // ISO date, o null si no se pudo determinar
   email:           string
   emailSintetico:  boolean
+  esTitular:       boolean // "Socio Cabecera" se autorreferencia (mismo patrón que cabecera_cod_cliente en la carga masiva de julio)
 }
 
 // Nombres exactos en categorias_socio — ver design.md §5, verificado contra
@@ -44,6 +45,10 @@ function esDniValido(raw: string): boolean {
 
 function esEmailValido(raw: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim())
+}
+
+function normalizarNombre(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
 function pad2(n: number): string {
@@ -93,6 +98,7 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
   const iMail      = idx('Mail1')
   const iFechaNac  = idx('FechaNacimiento')
   const iEdad      = idx('Edad')
+  const iCabecera  = idx('Socio Cabecera')
 
   if (iCod === -1 || iEstado === -1) return []
 
@@ -108,9 +114,12 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
     const mailRaw    = String(r[iMail] ?? '').trim()
     const mailValido = esEmailValido(mailRaw)
 
+    const nombre   = String(r[iNombre] ?? '').trim()
+    const cabecera = String(r[iCabecera] ?? '').trim()
+
     out.push({
       numeroSocio,
-      nombre:          String(r[iNombre] ?? '').trim(),
+      nombre,
       estado:          String(r[iEstado] ?? '').trim().toUpperCase(),
       categoriaRaw:    String(r[iCategoria] ?? '').trim(),
       dni:             dniValido ? dniRaw : `SD${numeroSocio}`,
@@ -118,7 +127,34 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
       fechaNacimiento: parseFechaNacimiento(String(r[iFechaNac] ?? ''), String(r[iEdad] ?? '')),
       email:           mailValido ? mailRaw.toLowerCase() : `socio-${numeroSocio}@uncas.local`,
       emailSintetico:  !mailValido,
+      // "Socio Cabecera" se autorreferencia por NOMBRE (no por código, a
+      // diferencia del maestro de agosto) cuando la persona es titular de su
+      // propio grupo familiar.
+      esTitular:       !!cabecera && normalizarNombre(cabecera) === normalizarNombre(nombre),
     })
   }
-  return out
+  return resolverEmailsDuplicados(out)
+}
+
+// Es común que una familia entera comparta un único mail real en NUVIX (ej.
+// el mail del padre cargado para 4 hijos) — mismo hallazgo que ya resolvió
+// scripts/import-socios-masivo.mjs en julio ("el titular se queda con el
+// real cuando existe"). Sin esto, auth.admin.createUser falla para el 2do
+// hermano en adelante (el mail ya está en uso) — encontrado en vivo probando
+// el import real (2026-08-21): 225 mails compartidos por 763 personas en la
+// muestra, causó ~15 altas fallidas en la primera corrida real.
+function resolverEmailsDuplicados(filas: SocioPadron[]): SocioPadron[] {
+  const conteo = new Map<string, number>()
+  for (const f of filas) {
+    if (f.emailSintetico) continue
+    conteo.set(f.email, (conteo.get(f.email) ?? 0) + 1)
+  }
+
+  return filas.map(f => {
+    if (f.emailSintetico) return f
+    if ((conteo.get(f.email) ?? 0) <= 1) return f
+    if (f.esTitular) return f // el titular se queda con el mail real
+
+    return { ...f, email: `socio-${f.numeroSocio}@uncas.local`, emailSintetico: true }
+  })
 }

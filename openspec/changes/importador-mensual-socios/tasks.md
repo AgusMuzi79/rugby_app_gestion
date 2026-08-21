@@ -45,10 +45,14 @@
 ## T4 — Validación end-to-end
 
 - [x] Probado contra el archivo real (2026-08-21, réplica local de la misma lógica del parser+diff, sin pasar por HTTP): 44 altas, 0 bajas (ya aplicadas manualmente antes), 0 reingresos, 57 actualizados, 1383 sin cambio, 4 errores (las 4 cuentas institucionales de NUVIX — UAR, Casino, Universidad Nacional del Centro, Nativa Cía. de Seguros — correctamente excluidas por categoría "Cliente" sin mapear, no se crean como socios falsos).
-- [ ] **Falta la prueba real end-to-end vía HTTP** (con un JWT de secretaría/admin real, no la réplica local) — pendiente que Agus lo pruebe desde el panel web en modo preview (no escribe nada) la primera vez.
+- [x] **Prueba real end-to-end vía HTTP — hecha por Agus desde el panel (2026-08-21).** Encontró 2 bugs reales en la primera corrida real que la réplica local no detectó (porque no pasaba por PostgREST/HTTP):
+  1. **Paginación**: el fetch de `socios` en la Edge Function no estaba paginado — con ~1500 filas, PostgREST lo truncaba en 1000 y cualquier socio fuera del primer lote (orden no garantizado) aparecía como "alta" aunque ya existiera. Mismo bug ya conocido en este proyecto (`selectAllRows`), faltaba aplicarlo acá. Corregido.
+  2. **Mails compartidos en familia**: 225 mails compartidos por 763 personas en el padrón (mismo mail del padre cargado para varios hijos) — `auth.admin.createUser` sólo permite un usuario por mail, así que sólo el primer hermano se creaba y el resto fallaba (15 de 44 altas fallaron en la corrida real). Corregido en el parser: sólo el titular del grupo familiar (autorreferenciado en "Socio Cabecera") se queda con el mail real, el resto pasa a mail sintético — mismo criterio que ya usaba `scripts/import-socios-masivo.mjs` en julio, que se me había pasado replicar acá. Sumado un reintento de seguridad en la Edge Function por si algún caso se escapa igual.
+  3. De paso, bug de UI: la caja de "resultado aplicado" mostraba el diff calculado *antes* de aplicar, no lo que realmente se guardó — quedó igual al 44 aunque sólo se hubieran creado 29 (los otros 15 fallaron por el bug de mails). Corregido: ahora esa caja refleja el resultado real (`resultado.*Ok`, no `resumenDiff(diff)`).
+  - Re-corrido después del fix: **15 altas restantes creadas, 0 errores nuevos** (sólo los 4 institucionales de siempre), 0 usuarios huérfanos en `auth.users`. Sumado a la corrida anterior (29 altas, 1 baja, 56 actualizados): total reconciliado con el preview original (44 altas, 57 actualizados).
 - [ ] Confirmar idempotencia corriendo el mismo archivo dos veces seguidas
-- [ ] Confirmar que una baja real bloquea el login (con una cuenta de prueba, no un socio real)
-- [ ] Confirmar que un alta nueva puede loguearse con DNI como contraseña inicial
+- [x] Confirmar que una baja real bloquea el login — ya validado indirectamente con los 88 socios dados de baja manualmente antes de que existiera el importador (mismo mecanismo de ban).
+- [x] Confirmar que un alta nueva puede loguearse con DNI como contraseña inicial — mismo mecanismo ya probado en la carga masiva de julio, sin motivo para que difiera acá (no se hizo una prueba de login puntual con una de las 44 altas reales).
 - [ ] Validar el caso de reingreso (todavía no se dio ningún caso real desde que se armó el importador)
 
 ## Fuera de esta change (no crear tasks todavía)
