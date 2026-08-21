@@ -693,6 +693,50 @@ export type Database = {
           },
         ]
       }
+      importaciones_socios: {
+        Row: {
+          actualizados: number
+          altas: number
+          archivo_nombre: string | null
+          bajas: number
+          created_at: string
+          errores: number
+          id: string
+          importado_por: string | null
+          sin_cambio: number
+        }
+        Insert: {
+          actualizados?: number
+          altas?: number
+          archivo_nombre?: string | null
+          bajas?: number
+          created_at?: string
+          errores?: number
+          id?: string
+          importado_por?: string | null
+          sin_cambio?: number
+        }
+        Update: {
+          actualizados?: number
+          altas?: number
+          archivo_nombre?: string | null
+          bajas?: number
+          created_at?: string
+          errores?: number
+          id?: string
+          importado_por?: string | null
+          sin_cambio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importaciones_socios_importado_por_fkey"
+            columns: ["importado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items_pedido: {
         Row: {
           cantidad: number
@@ -1547,6 +1591,7 @@ export type Database = {
           deuda_vencida: number
           dni: string
           estado: string
+          excluir_de_import: boolean
           fecha_nacimiento: string | null
           foto_path: string | null
           foto_validada: boolean
@@ -1563,6 +1608,7 @@ export type Database = {
           profile_id: string
           recordatorio_deuda_enviado_at: string | null
           semaforo: string | null
+          ultima_importacion_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1573,6 +1619,7 @@ export type Database = {
           deuda_vencida?: number
           dni: string
           estado?: string
+          excluir_de_import?: boolean
           fecha_nacimiento?: string | null
           foto_path?: string | null
           foto_validada?: boolean
@@ -1589,6 +1636,7 @@ export type Database = {
           profile_id: string
           recordatorio_deuda_enviado_at?: string | null
           semaforo?: string | null
+          ultima_importacion_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1599,6 +1647,7 @@ export type Database = {
           deuda_vencida?: number
           dni?: string
           estado?: string
+          excluir_de_import?: boolean
           fecha_nacimiento?: string | null
           foto_path?: string | null
           foto_validada?: boolean
@@ -1615,6 +1664,7 @@ export type Database = {
           profile_id?: string
           recordatorio_deuda_enviado_at?: string | null
           semaforo?: string | null
+          ultima_importacion_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1637,6 +1687,13 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "socios_ultima_importacion_id_fkey"
+            columns: ["ultima_importacion_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones_socios"
             referencedColumns: ["id"]
           },
         ]

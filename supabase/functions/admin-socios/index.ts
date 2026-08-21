@@ -88,9 +88,13 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   const userId = userData.user.id
 
   // 2. Crear profile con rol='socio'
+  // roles[] explícito — sin esto queda '{}' (default de columna) y el socio
+  // no recibe push de audiencia 'todos' (getDestinatariosSocio() filtra por
+  // .contains('roles', ['socio'])). Mismo bug que ya se corrigió en
+  // scripts/import-socios-masivo.mjs, seguía sin arreglar acá.
   const { error: profileErr } = await supabaseAdmin
     .from('profiles')
-    .insert({ id: userId, nombre, rol: 'socio', divisiones: null })
+    .insert({ id: userId, nombre, rol: 'socio', roles: ['socio'], divisiones: null })
 
   if (profileErr) {
     await supabaseAdmin.auth.admin.deleteUser(userId)

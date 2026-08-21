@@ -15,11 +15,15 @@ Un importador mensual, con el mismo patrón que el importador de deuda ya en pro
 - **Actualiza** categoría de liquidación y servicios opcionales contratados de los socios que siguen — misma lógica que `scripts/reconciliar-servicios-socios.mjs`, pero corrida automáticamente en cada import en vez de a mano.
 - **Reemplaza el alta manual**: se saca "+ NUEVO SOCIO" del panel de secretaría. Toda alta pasa por este import.
 
-## ⚠️ Riesgo central de esta change — confirmar antes de diseñar el resto
+## ⚠️ Riesgo central de esta change — en resolución con el club (2026-08-21)
 
-El diseño de arriba asume que el "padrón general" que sube secretaría cada mes trae, por cada socio, la **categoría de liquidación** y el **detalle de servicios contratados con su importe** (lo mismo que hoy exige `reconciliar-servicios-socios.mjs`, que en agosto vino de **3 archivos distintos**: `socios_activos_maestra.csv` (categoría de liquidación), `socios_servicios.csv` (un renglón por socio+servicio+importe), `precios_conceptos.csv`). El padrón "Tabla de datos.txt" original (52 columnas, una fila por socio) **no** traía nivel de detalle por servicio — de ahí que en la carga original hiciera falta cruzar un archivo aparte.
+El diseño de arriba asume que el import mensual trae, por cada socio, la **categoría de liquidación** y el **detalle de servicios contratados con su importe** (lo mismo que hoy exige `reconciliar-servicios-socios.mjs`, que en agosto vino de **3 archivos distintos**: `socios_activos_maestra.csv` (categoría de liquidación), `socios_servicios.csv` (un renglón por socio+servicio+importe), `precios_conceptos.csv`). El padrón "Tabla de datos.txt" original (52 columnas, una fila por socio) **no** traía nivel de detalle por servicio — de ahí que en la carga original hiciera falta cruzar un archivo aparte.
 
-Agus confirmó que el import mensual va a ser **un solo Excel** (no el .txt original, un padrón general). Todavía no hay un archivo de muestra de ese padrón mensual real. Si ese Excel tiene la granularidad de "una fila por socio" (como `Tabla de datos.txt`), **no alcanza** para reconciliar servicios/categoría de liquidación con la misma lógica de agosto — haría falta o bien pedirle al club un export con la granularidad de `socios_servicios.csv` también, o resignar esa parte del alcance. Este punto se deja explícito en design.md §5 como pregunta abierta bloqueante — no se diseña la reconciliación de servicios en detalle hasta tener un archivo de muestra real.
+**Actualización (2026-08-21, Agus hablando en vivo con el club):** en vez de un único Excel, se está definiendo **importar 2 archivos**:
+1. **Padrón de socios** (vigentes) — altas/bajas/datos básicos. Filtrado a la población "socios" de NUVIX, separado de "cesantes" y "clientes gym" (ver design.md §1).
+2. **Padrón de servicios por socio** — ya hay un archivo de muestra real (`padronserviciossocios_uncas.xls`), validado contra producción: 1517 de 1529 socios activos matchean por `numero_socio`, y trae la granularidad de servicio+categoría que hacía falta (ver design.md §1/§5). Resuelve por sí solo el problema de servicios/categoría de liquidación — el riesgo que sigue abierto es que el club todavía no lo exportó filtrado a vigentes (la muestra vino histórica).
+
+Con los 2 archivos separados, cada uno resuelve una parte: el padrón de socios da altas/bajas, el de servicios da categoría+servicios de los que siguen activos. Detalle completo y decisiones en curso en design.md §1/§10.
 
 ## Riesgo encontrado durante esta propuesta (no documentado antes)
 
