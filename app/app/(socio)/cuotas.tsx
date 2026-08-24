@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
-  StyleSheet, ActivityIndicator, ScrollView,
+  StyleSheet, ActivityIndicator, ScrollView, Linking,
 } from 'react-native'
 import { useRef, useState } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -14,6 +14,10 @@ import { colors, fonts } from '@/constants/theme'
 // ─── Config club ──────────────────────────────────────────────────────────────
 // TODO: mover a tabla config en Supabase cuando se implemente
 const ALIAS_CLUB = 'cuenta.uncas.rugby'
+// Mismo número que web/app/soporte/page.tsx — Secretaría prefiere recibir los
+// comprobantes por WhatsApp (de ahí los carga a NUVIX ella misma) antes que
+// tener que revisarlos en el panel web.
+const WHATSAPP_SECRETARIA = '5492494522888'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +28,11 @@ function periodoLabel(periodo: string): string {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
   ]
   return `${meses[Number(mes)]} ${anio}`
+}
+
+function whatsappComprobanteUrl(periodo: string, monto: number): string {
+  const mensaje = `Hola! Te mando el comprobante de mi cuota de ${periodoLabel(periodo)} ($${monto.toLocaleString('es-AR')}).`
+  return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
 }
 
 function fechaCorta(iso: string): string {
@@ -48,16 +57,12 @@ function fechaEdicion(): string {
 
 function PagoModal({
   cuota,
-  subiendo,
-  onSubir,
   onClose,
   categoriaLabel,
   montoCategoria,
   serviciosActivos,
 }: {
   cuota:             Cuota
-  subiendo:          boolean
-  onSubir:           () => void
   onClose:           () => void
   categoriaLabel:    string
   montoCategoria:    number
@@ -101,23 +106,16 @@ function PagoModal({
 
           {/* Acción */}
           <TouchableOpacity
-            style={[m.subirBtn, subiendo && m.subirBtnDisabled]}
-            onPress={onSubir}
-            disabled={subiendo}
+            style={m.subirBtn}
+            onPress={() => Linking.openURL(whatsappComprobanteUrl(cuota.periodo, cuota.monto))}
             activeOpacity={0.8}
           >
-            {subiendo ? (
-              <ActivityIndicator color={colors.oro} size="small" />
-            ) : (
-              <>
-                <Feather name="upload" size={14} color={colors.oro} />
-                <Text style={m.subirBtnText}>SUBIR COMPROBANTE</Text>
-              </>
-            )}
+            <Feather name="send" size={14} color={colors.oro} />
+            <Text style={m.subirBtnText}>ENVIAR COMPROBANTE POR WHATSAPP</Text>
           </TouchableOpacity>
 
           <Text style={m.subirHint}>
-            Tomá una foto o seleccioná la captura de pantalla del comprobante. Secretaría lo revisará y registrará el pago.
+            Se abre WhatsApp con un mensaje para Secretaría — adjuntá ahí la foto o captura del comprobante.
           </Text>
 
           <TouchableOpacity style={m.cerrarBtn} onPress={onClose} activeOpacity={0.75}>
@@ -338,7 +336,7 @@ export default function CuotasScreen() {
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
   const {
-    cuotas, loading, subiendo, subirComprobante, refetch,
+    cuotas, loading, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
     alDia, deudaActualizadaAt,
   } = useCuotas()
@@ -459,11 +457,6 @@ export default function CuotasScreen() {
       {cuotaModal && (
         <PagoModal
           cuota={cuotaModal}
-          subiendo={subiendo === cuotaModal.id}
-          onSubir={() => {
-            subirComprobante(cuotaModal.id)
-            setCuotaModal(null)
-          }}
           onClose={() => setCuotaModal(null)}
           categoriaLabel={categoriaLabel}
           montoCategoria={montoCategoria}
@@ -599,7 +592,6 @@ const m = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 14,
   },
-  subirBtnDisabled: { opacity: 0.5 },
   subirBtnText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oro },
 
   subirHint: {
