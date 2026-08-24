@@ -197,7 +197,7 @@ function DetalleSocio({
                 { label: 'DNI',       value: socio.dni },
                 { label: 'CATEGORÍA', value: categoria?.nombre ?? socio.categoria },
                 { label: 'ESTADO',    value: ESTADO_LABEL[socio.estado] ?? socio.estado },
-                { label: 'FOTO',      value: socio.foto_validada ? 'Validada ✓' : 'Pendiente de validación' },
+                { label: 'FOTO',      value: socio.foto_validada ? 'Validada ✓' : 'Sin validar' },
               ].map(row => (
                 <tr key={row.label} className="border-b border-gris-claro">
                   <td className="font-lora text-xs tracking-widest text-tinta/50 py-3 pr-6 w-32">{row.label}</td>

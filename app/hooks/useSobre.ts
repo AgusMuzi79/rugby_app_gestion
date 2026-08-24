@@ -180,6 +180,15 @@ export function useSobre() {
           .from('socios-fotos')
           .createSignedUrl(filePath, 3600)
         setFoto(signed?.signedUrl ?? null)
+
+        // Auto-validación (2026-08-24): sin AWS configurado, admin-socios ya
+        // aprueba directo al propio socio. Paso secundario — si falla (red,
+        // función caída) la foto ya quedó subida igual, no rompemos el flujo.
+        try {
+          await supabase.functions.invoke('admin-socios', { body: { action: 'validate-photo' } })
+        } catch {
+          // silencioso — la foto queda pendiente y se puede validar después
+        }
       } catch {
         Alert.alert('Error', 'Ocurrió un error al subir la foto.')
       } finally {
