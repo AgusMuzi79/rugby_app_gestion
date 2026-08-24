@@ -8,6 +8,7 @@ export interface ScanResult {
   nombre?:       string
   numero_socio?: string
   estado?:       string
+  semaforo?:     string | null
   categoria?:    string
   foto_path?:    string | null
   foto_validada?: boolean

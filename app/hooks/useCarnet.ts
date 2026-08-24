@@ -18,6 +18,7 @@ export interface CarnetData {
   qrContent:    string
   code:         string
   estado:       string
+  semaforo:     string | null
   categoria:    string
   secondsLeft:  number
   fotoUrl:      string | null
@@ -70,7 +71,7 @@ export function useCarnet() {
     const [{ data: socio }, { data: profile }] = await Promise.all([
       db
         .from('socios')
-        .select('id, numero_socio, estado, foto_path, categorias_socio ( nombre )')
+        .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre )')
         .eq('profile_id', userId)
         .single(),
       supabase
@@ -118,6 +119,7 @@ export function useCarnet() {
       qrContent:    `${socio.numero_socio}:${code}`,
       code,
       estado:       socio.estado,
+      semaforo:     socio.semaforo,
       categoria,
       secondsLeft:  sLeft,
       fotoUrl:      fotoUrlRef.current,

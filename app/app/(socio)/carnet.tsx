@@ -30,7 +30,7 @@ function fechaEdicion(): string {
 
 const ESTADO_COLOR: Record<string, string> = {
   activo:   '#2ECC71',
-  moroso:   colors.oro,
+  moroso:   colors.rojoUrgente,
   pendiente: '#E67E22',
   inactivo:  colors.rojoUrgente,
 }
@@ -41,6 +41,14 @@ const ESTADO_LABEL: Record<string, string> = {
   inactivo:  'INACTIVO',
 }
 
+// El badge del carnet no es socios.estado tal cual: un socio 'activo' con
+// semáforo 'rojo' (2+ períodos impagos, ver importador de deuda NUVIX) se
+// muestra como 'moroso' en rojo. pendiente/inactivo no se tocan.
+function estadoVisual(data: { estado: string; semaforo: string | null }): string {
+  if (data.estado === 'activo' && data.semaforo === 'rojo') return 'moroso'
+  return data.estado
+}
+
 // ─── Tarjeta física ───────────────────────────────────────────────────────────
 
 const CARD_WIDTH  = Dimensions.get('window').width - 48
@@ -48,7 +56,7 @@ const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.63) // proporción ID card 85.6×5
 
 const ESTADO_BG: Record<string, string> = {
   activo:    '#2ECC71',
-  moroso:    colors.oro,
+  moroso:    colors.rojoUrgente,
   pendiente: '#E67E22',
   inactivo:  colors.rojoUrgente,
 }
@@ -136,9 +144,9 @@ function TarjetaFisicaModal({
                 {/* Roles */}
                 <RolesChips roles={data.roles} />
 
-                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[data.estado] ?? '#555' }]}>
+                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' }]}>
                   <Text style={tm.estadoChipText}>
-                    {ESTADO_LABEL[data.estado] ?? data.estado.toUpperCase()}
+                    {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                   </Text>
                 </View>
               </View>
@@ -259,9 +267,9 @@ export default function CarnetScreen() {
               </View>
 
               {/* Estado */}
-              <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[data.estado] ?? colors.grisClaro }]}>
+              <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
                 <Text style={s.estadoText}>
-                  {ESTADO_LABEL[data.estado] ?? data.estado.toUpperCase()}
+                  {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                 </Text>
               </View>
 

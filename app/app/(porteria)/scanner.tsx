@@ -2,8 +2,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Lin
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { Feather } from '@expo/vector-icons'
-import { useScanner } from '@/hooks/useScanner'
+import { useScanner, type ScanResult } from '@/hooks/useScanner'
 import { colors, fonts } from '@/constants/theme'
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Mismo criterio que el carnet del socio: 'activo' con semáforo 'rojo'
+// (2+ períodos impagos) se muestra como 'moroso' acá también.
+function estadoVisual(result: ScanResult): string {
+  if (result.estado === 'activo' && result.semaforo === 'rojo') return 'moroso'
+  return result.estado ?? ''
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -107,9 +116,9 @@ export default function ScannerScreen() {
                     <Text style={s.resultLabel}>ESTADO</Text>
                     <Text style={[
                       s.resultValor,
-                      result.estado === 'moroso' && { color: colors.oro },
+                      estadoVisual(result) === 'moroso' && { color: colors.rojoUrgente },
                     ]}>
-                      {(result.estado ?? '').toUpperCase()}
+                      {estadoVisual(result).toUpperCase()}
                     </Text>
                   </View>
 
