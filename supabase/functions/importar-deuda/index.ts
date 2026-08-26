@@ -31,6 +31,8 @@ import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 import XLSX from 'npm:xlsx@0.18.5'
 
 const ROLES_PERMITIDOS = ['secretaria', 'admin']
+const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_PUSH_CHUNK_SIZE = 100
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -146,12 +148,14 @@ Deno.serve(async (req: Request) => {
 
   // ─── Recordatorio de deuda (amarillo + rojo) ─────────────────────────────────
   // El semáforo ya quedó recalculado por la RPC de arriba — se arma la lista de
-  // candidatos (rápido, solo lecturas) para reportar el conteo en la respuesta.
+  // candidatos ahora (rápido, solo lecturas) y se despacha el push en
+  // background para no demorar la respuesta al panel de Secretaría.
   // Decisión de Secretaría (2026-08-26): los mails transaccionales de pagos
   // los maneja NUVIX — los recordatorios de la app van por push, no por mail.
   // enviarRecordatoriosDeuda() (mail) queda escrita sin llamarse, por si el
   // club migra a un plan de Resend que soporte el volumen más adelante.
   const recordatorios = await construirRecordatoriosDeuda()
+  EdgeRuntime.waitUntil(enviarPushRecordatoriosDeuda(recordatorios))
 
   return jsonOk({
     importacion_id: resultado?.importacion_id ?? null,
@@ -263,6 +267,90 @@ async function construirRecordatoriosDeuda(): Promise<RecordatorioDeuda[]> {
 
   return [...porDestinatario.values()]
 }
+
+// ─── Recordatorio de deuda por push ──────────────────────────────────────────
+//
+// Reemplaza a enviarRecordatoriosDeuda() (mail, abajo) desde 2026-08-26 — ver
+// project-recordatorios-solo-push en memoria. Misma lista de destinatarios
+// (construirRecordatoriosDeuda) y misma cadencia (recordatorio_deuda_enviado_at),
+// sólo cambia el canal.
+
+async function fetchPushTokensPorProfile(profileIds: string[]): Promise<Map<string, string[]>> {
+  const porProfile = new Map<string, string[]>()
+  for (let i = 0; i < profileIds.length; i += EXPO_PUSH_CHUNK_SIZE) {
+    const chunk = profileIds.slice(i, i + EXPO_PUSH_CHUNK_SIZE)
+    const { data, error } = await supabaseAdmin.from('push_tokens').select('usuario_id, token').in('usuario_id', chunk)
+    if (error) { console.error('Error trayendo push_tokens:', error.message); continue }
+    for (const row of data ?? []) {
+      const usuarioId = row.usuario_id as string
+      const arr = porProfile.get(usuarioId) ?? []
+      arr.push(row.token as string)
+      porProfile.set(usuarioId, arr)
+    }
+  }
+  return porProfile
+}
+
+type ExpoPushMessage = { to: string; title: string; body: string; sound: string; data: Record<string, unknown> }
+
+async function enviarExpoPushBatch(messages: ExpoPushMessage[]): Promise<boolean> {
+  let ok = true
+  for (let i = 0; i < messages.length; i += EXPO_PUSH_CHUNK_SIZE) {
+    const chunk = messages.slice(i, i + EXPO_PUSH_CHUNK_SIZE)
+    try {
+      const res = await fetch(EXPO_PUSH_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate' },
+        body: JSON.stringify(chunk),
+      })
+      if (!res.ok) { ok = false; console.error('Expo push falló:', res.status, await res.text()) }
+    } catch (e) {
+      ok = false
+      console.error('Error enviando push:', e)
+    }
+  }
+  return ok
+}
+
+async function enviarPushRecordatoriosDeuda(recordatorios: RecordatorioDeuda[]): Promise<void> {
+  if (recordatorios.length === 0) return
+
+  const tokensPorProfile = await fetchPushTokensPorProfile(recordatorios.map((r) => r.profileId))
+
+  let enviados = 0, omitidosSinToken = 0, errores = 0
+
+  for (const r of recordatorios) {
+    const tokens = (tokensPorProfile.get(r.profileId) ?? [])
+      .filter((t) => t.startsWith('ExponentPushToken[') || t.startsWith('ExpoPushToken['))
+    if (tokens.length === 0) { omitidosSinToken++; continue }
+
+    const montoTotal    = r.items.reduce((acc, it) => acc + it.deudaVencida, 0)
+    const periodosTotal = r.items.reduce((acc, it) => acc + it.mesesImpagos, 0)
+    const body = `Tenés ${periodosTotal} período${periodosTotal === 1 ? '' : 's'} pendiente${periodosTotal === 1 ? '' : 's'} `
+      + `por $${montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}. Revisá el detalle en Cuotas.`
+
+    const messages: ExpoPushMessage[] = tokens.map((to) => ({
+      to, title: 'Cuotas pendientes', body, sound: 'default', data: { type: 'recordatorio_deuda' },
+    }))
+
+    const ok = await enviarExpoPushBatch(messages)
+
+    if (ok) {
+      enviados++
+      const socioIds = r.items.map((it) => it.socioId)
+      await supabaseAdmin
+        .from('socios')
+        .update({ recordatorio_deuda_enviado_at: new Date().toISOString() })
+        .in('id', socioIds)
+    } else {
+      errores++
+    }
+  }
+
+  console.log(`Recordatorios de deuda (push): ${enviados} enviados, ${omitidosSinToken} omitidos (sin token), ${errores} con error, de ${recordatorios.length} destinatarios.`)
+}
+
+// ─── Recordatorio de deuda por mail (deshabilitado, ver arriba) ─────────────
 
 async function enviarRecordatoriosDeuda(recordatorios: RecordatorioDeuda[], fechaCorte: string): Promise<void> {
   if (recordatorios.length === 0) return
