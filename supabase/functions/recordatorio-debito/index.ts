@@ -14,6 +14,10 @@
 // Secrets requeridos: CRON_SECRET, RESEND_API_KEY, CLUB_EMAIL_FROM (mail se
 // omite en silencio si faltan los últimos dos, ver _shared/email.ts).
 
+// Decisión de Secretaría (2026-08-26): los mails transaccionales de pagos
+// los maneja NUVIX — los recordatorios de la app van solo por push. El envío
+// de mail (enviarMails, abajo) queda escrito pero sin llamar, por si el club
+// migra a un plan de Resend que soporte el volumen más adelante.
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
@@ -61,17 +65,14 @@ Deno.serve(async (req: Request) => {
   const profileIds = socios.map(s => s.profile_id).filter((id): id is string => !!id)
 
   const fechaLabel = formatFechaLabel(fecha.fecha)
-  const [pushResumen, mailResumen] = await Promise.all([
-    enviarPush(profileIds, fechaLabel),
-    enviarMails(profileIds, fechaLabel),
-  ])
+  const pushResumen = await enviarPush(profileIds, fechaLabel)
 
   await supabaseAdmin
     .from('fechas_debito_automatico')
     .update({ aviso_enviado: true, aviso_enviado_at: new Date().toISOString() })
     .eq('id', fecha.id)
 
-  return jsonOk({ enviado: true, socios: profileIds.length, push: pushResumen, mails: mailResumen })
+  return jsonOk({ enviado: true, socios: profileIds.length, push: pushResumen })
 })
 
 function formatFechaLabel(iso: string): string {

@@ -144,12 +144,14 @@ Deno.serve(async (req: Request) => {
 
   if (rpcErr) return jsonError(500, `Error al guardar la importación: ${rpcErr.message}`)
 
-  // ─── Recordatorio de deuda por mail (amarillo + rojo) ───────────────────────
+  // ─── Recordatorio de deuda (amarillo + rojo) ─────────────────────────────────
   // El semáforo ya quedó recalculado por la RPC de arriba — se arma la lista de
-  // recordatorios ahora (rápido, solo lecturas) y se despachan los mails en
-  // background para no demorar la respuesta al panel de Secretaría.
+  // candidatos (rápido, solo lecturas) para reportar el conteo en la respuesta.
+  // Decisión de Secretaría (2026-08-26): los mails transaccionales de pagos
+  // los maneja NUVIX — los recordatorios de la app van por push, no por mail.
+  // enviarRecordatoriosDeuda() (mail) queda escrita sin llamarse, por si el
+  // club migra a un plan de Resend que soporte el volumen más adelante.
   const recordatorios = await construirRecordatoriosDeuda()
-  EdgeRuntime.waitUntil(enviarRecordatoriosDeuda(recordatorios, parsed.fechaCorte))
 
   return jsonOk({
     importacion_id: resultado?.importacion_id ?? null,
