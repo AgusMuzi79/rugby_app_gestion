@@ -100,6 +100,7 @@ export default function DebitoAutomaticoPage() {
               value={nuevaFecha}
               min={hoyISO()}
               onChange={e => setNuevaFecha(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAgregar() }}
               className="font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
             />
           </div>
