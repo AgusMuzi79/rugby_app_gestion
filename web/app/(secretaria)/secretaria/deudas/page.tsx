@@ -15,12 +15,16 @@ interface SocioSemaforo {
   deuda_vencida: number
   meses_impagos: number
   mora_max_dias: number
+  categoria: string | null
+  serviciosOpcionales: string[]
   servicios: string[]
 }
 
 type FiltroSemaforo = 'todos' | Semaforo
 
 const FILTROS: FiltroSemaforo[] = ['todos', 'rojo', 'amarillo', 'verde', 'exento']
+
+const FILTRO_SERVICIO_TODOS = 'todos'
 
 const SEMAFORO_LABEL: Record<Semaforo, string> = {
   verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento',
@@ -112,6 +116,7 @@ export default function DeudasPage() {
   const [fechaCorte, setFechaCorte] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<FiltroSemaforo>('rojo')
+  const [filtroServicio, setFiltroServicio] = useState<string>(FILTRO_SERVICIO_TODOS)
   const [busqueda, setBusqueda] = useState('')
   const [sortColumn,    setSortColumn]    = useState<SortColumn>('semaforo')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -167,7 +172,8 @@ export default function DeudasPage() {
       }
 
       const normalizedSocios: SocioSemaforo[] = (sociosData ?? []).map((s: Record<string, unknown>) => {
-        const categoria = (s.categorias_socio as { nombre: string } | null)?.nombre
+        const categoria = (s.categorias_socio as { nombre: string } | null)?.nombre ?? null
+        const serviciosOpcionales = serviciosPorSocioId.get(s.id as string) ?? []
         return {
           id: s.id as string,
           numero_socio: s.numero_socio as string,
@@ -176,9 +182,11 @@ export default function DeudasPage() {
           meses_impagos: Number(s.meses_impagos ?? 0),
           mora_max_dias: Number(s.mora_max_dias ?? 0),
           nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+          categoria,
+          serviciosOpcionales,
           servicios: [
             ...(categoria ? [categoria] : []),
-            ...(serviciosPorSocioId.get(s.id as string) ?? []),
+            ...serviciosOpcionales,
           ],
         }
       })
@@ -192,8 +200,11 @@ export default function DeudasPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
+  const opcionesServicio = [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es'))
+
   const sociosFiltrados = socios
     .filter(s => filtro === 'todos' || s.semaforo === filtro)
+    .filter(s => filtroServicio === FILTRO_SERVICIO_TODOS || s.serviciosOpcionales.includes(filtroServicio))
     .filter(s => {
       if (!busqueda.trim()) return true
       const q = busqueda.toLowerCase()
@@ -203,6 +214,44 @@ export default function DeudasPage() {
       const cmp = compareSocios(a, b, sortColumn)
       return sortDirection === 'asc' ? cmp : -cmp
     })
+
+  const handleExportar = () => {
+    const columnas = ['Nº Socio', 'Nombre', 'Semáforo', 'Deuda Vencida', 'Meses Impagos', 'Mora Máx (días)', 'Categoría', 'Servicios']
+    const filas = sociosFiltrados.map(s => [
+      s.numero_socio,
+      s.nombre,
+      s.semaforo ? SEMAFORO_LABEL[s.semaforo] : '',
+      s.deuda_vencida.toFixed(2).replace('.', ','),
+      String(s.meses_impagos),
+      String(s.mora_max_dias),
+      s.categoria ?? '',
+      s.serviciosOpcionales.join(' / '),
+    ])
+
+    // Delimitador ";" (no ",") porque los montos usan coma como separador decimal
+    // (es-AR) — con delimitador "," se rompería la columna de deuda vencida.
+    const csvEscape = (v: string) => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+    const lineas = [columnas, ...filas].map(fila => fila.map(csvEscape).join(';'))
+    const bom = '﻿' // fuerza UTF-8 en Excel (si no, rompe las tildes)
+    const csv = bom + lineas.join('\r\n')
+
+    const partesNombre = [
+      'deudas',
+      filtro !== 'todos' ? filtro : null,
+      filtroServicio !== FILTRO_SERVICIO_TODOS ? filtroServicio.toLowerCase().replace(/\s+/g, '-') : null,
+      fechaCorte ?? new Date().toISOString().slice(0, 10),
+    ].filter(Boolean)
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${partesNombre.join('-')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div>
@@ -214,7 +263,7 @@ export default function DeudasPage() {
         </p>
       </div>
 
-      <div className="flex gap-4 mb-6 items-center">
+      <div className="flex gap-4 mb-4 items-center">
         <input
           type="text"
           value={busqueda}
@@ -237,6 +286,41 @@ export default function DeudasPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex gap-4 mb-6 items-center justify-between">
+        <div className="flex gap-1 flex-wrap">
+          <button
+            onClick={() => setFiltroServicio(FILTRO_SERVICIO_TODOS)}
+            className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
+              filtroServicio === FILTRO_SERVICIO_TODOS
+                ? 'bg-oro/20 border-oro text-oro'
+                : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
+            }`}
+          >
+            TODOS LOS SERVICIOS
+          </button>
+          {opcionesServicio.map(nombre => (
+            <button
+              key={nombre}
+              onClick={() => setFiltroServicio(nombre)}
+              className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
+                filtroServicio === nombre
+                  ? 'bg-oro/20 border-oro text-oro'
+                  : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
+              }`}
+            >
+              {nombre.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleExportar}
+          disabled={sociosFiltrados.length === 0}
+          className="font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+        >
+          EXPORTAR CSV ({sociosFiltrados.length})
+        </button>
       </div>
 
       {loading ? (
