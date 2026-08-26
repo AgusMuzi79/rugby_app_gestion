@@ -13,6 +13,7 @@ const NAV = [
   { href: '/secretaria/deudas',      label: 'Deudas'      },
   { href: '/secretaria/deuda',       label: 'Importar Deuda'  },
   { href: '/secretaria/socios-import', label: 'Importar Socios' },
+  { href: '/secretaria/debito-automatico', label: 'Débito Automático' },
 ]
 
 interface Props {

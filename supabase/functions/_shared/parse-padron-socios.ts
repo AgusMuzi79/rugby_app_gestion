@@ -18,6 +18,7 @@ export interface SocioPadron {
   email:           string
   emailSintetico:  boolean
   esTitular:       boolean // "Socio Cabecera" se autorreferencia (mismo patrón que cabecera_cod_cliente en la carga masiva de julio)
+  pagaConTarjeta:  boolean // Vendedor='VISA' — débito o crédito, ambas se cobran automáticamente el mismo día (ver project-forma-pago-padron)
 }
 
 // Nombres exactos en categorias_socio — ver design.md §5, verificado contra
@@ -99,6 +100,7 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
   const iFechaNac  = idx('FechaNacimiento')
   const iEdad      = idx('Edad')
   const iCabecera  = idx('Socio Cabecera')
+  const iVendedor  = idx('Vendedor')
 
   if (iCod === -1 || iEstado === -1) return []
 
@@ -131,6 +133,7 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
       // diferencia del maestro de agosto) cuando la persona es titular de su
       // propio grupo familiar.
       esTitular:       !!cabecera && normalizarNombre(cabecera) === normalizarNombre(nombre),
+      pagaConTarjeta:  String(r[iVendedor] ?? '').trim().toUpperCase() === 'VISA',
     })
   }
   return resolverEmailsDuplicados(out)

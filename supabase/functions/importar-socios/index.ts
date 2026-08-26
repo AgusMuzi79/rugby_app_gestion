@@ -43,6 +43,7 @@ interface SocioDb {
   fechaNacimiento: string | null
   profileId:       string
   fotoValidada:    boolean
+  cobroConTarjeta: boolean
 }
 
 interface DiffAlta {
@@ -52,6 +53,7 @@ interface DiffAlta {
   dni:         string
   fechaNacimiento: string | null
   email:       string
+  cobroConTarjeta: boolean
 }
 
 interface DiffBaja {
@@ -68,6 +70,7 @@ interface DiffReingreso {
   socioId:     string
   profileId:   string
   fotoValidada: boolean
+  cobroConTarjeta: boolean
 }
 
 interface DiffActualizar {
@@ -76,6 +79,7 @@ interface DiffActualizar {
   socioId:     string
   categoriaId: string | null
   fechaNacimiento: string | null
+  cobroConTarjeta: boolean | null
 }
 
 interface DiffError {
@@ -156,7 +160,7 @@ Deno.serve(async (req: Request) => {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from('socios')
-      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import')
+      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta')
       .range(from, from + 999)
     if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
     sociosDbRaw = sociosDbRaw.concat(data ?? [])
@@ -173,6 +177,7 @@ Deno.serve(async (req: Request) => {
         fechaNacimiento: s.fecha_nacimiento as string | null,
         profileId:       s.profile_id as string,
         fotoValidada:    s.foto_validada as boolean,
+        cobroConTarjeta: s.cobro_con_tarjeta as boolean,
       }])
   )
 
@@ -264,6 +269,7 @@ function calcularDiff(
       diff.altas.push({
         numeroSocio, nombre: fila.nombre, categoriaId,
         dni: fila.dni, fechaNacimiento: fila.fechaNacimiento, email: fila.email,
+        cobroConTarjeta: fila.pagaConTarjeta,
       })
       continue
     }
@@ -272,18 +278,21 @@ function calcularDiff(
       diff.reingresos.push({
         numeroSocio, nombre: fila.nombre,
         socioId: existente.id, profileId: existente.profileId, fotoValidada: existente.fotoValidada,
+        cobroConTarjeta: fila.pagaConTarjeta,
       })
       continue
     }
 
-    // activo/pendiente — ¿cambió categoría o fecha de nacimiento?
+    // activo/pendiente — ¿cambió categoría, fecha de nacimiento o forma de cobro?
     const cambioCategoria = !!categoriaId && categoriaId !== existente.categoriaId
     const cambioFecha     = !!fila.fechaNacimiento && fila.fechaNacimiento !== existente.fechaNacimiento
-    if (cambioCategoria || cambioFecha) {
+    const cambioTarjeta   = fila.pagaConTarjeta !== existente.cobroConTarjeta
+    if (cambioCategoria || cambioFecha || cambioTarjeta) {
       diff.actualizados.push({
         numeroSocio, nombre: fila.nombre, socioId: existente.id,
         categoriaId:     cambioCategoria ? categoriaId : null,
         fechaNacimiento: cambioFecha ? fila.fechaNacimiento : null,
+        cobroConTarjeta: cambioTarjeta ? fila.pagaConTarjeta : null,
       })
     } else {
       diff.sinCambio++
@@ -383,6 +392,7 @@ async function aplicarDiff(diff: Diff) {
           fecha_nacimiento: alta.fechaNacimiento,
           estado:           'pendiente',
           foto_validada:    false,
+          cobro_con_tarjeta: alta.cobroConTarjeta,
         })
         .select('id')
         .single()
@@ -426,7 +436,7 @@ async function aplicarDiff(diff: Diff) {
       const nuevoEstado = r.fotoValidada ? 'activo' : 'pendiente'
       const [unbanRes, socioRes] = await Promise.all([
         supabaseAdmin.auth.admin.updateUserById(r.profileId, { ban_duration: 'none' }),
-        supabaseAdmin.from('socios').update({ estado: nuevoEstado }).eq('id', r.socioId),
+        supabaseAdmin.from('socios').update({ estado: nuevoEstado, cobro_con_tarjeta: r.cobroConTarjeta }).eq('id', r.socioId),
       ])
       if (unbanRes.error) throw new Error(unbanRes.error.message)
       if (socioRes.error) throw new Error(socioRes.error.message)
@@ -443,8 +453,9 @@ async function aplicarDiff(diff: Diff) {
   for (const u of diff.actualizados) {
     try {
       const patch: Record<string, unknown> = {}
-      if (u.categoriaId)     patch.categoria_id     = u.categoriaId
-      if (u.fechaNacimiento) patch.fecha_nacimiento = u.fechaNacimiento
+      if (u.categoriaId)             patch.categoria_id     = u.categoriaId
+      if (u.fechaNacimiento)         patch.fecha_nacimiento = u.fechaNacimiento
+      if (u.cobroConTarjeta !== null) patch.cobro_con_tarjeta = u.cobroConTarjeta
 
       const { error } = await supabaseAdmin.from('socios').update(patch).eq('id', u.socioId)
       if (error) throw new Error(error.message)
