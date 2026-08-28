@@ -88,7 +88,10 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
 
   const userId = userData.user.id
 
-  // Insertar perfil — roles[] debe incluir el rol activo desde el inicio
+  // Insertar perfil — roles[] debe incluir el rol activo desde el inicio.
+  // dni se guarda acá también (no sólo como password inicial) porque esta
+  // cuenta no tiene fila en socios — es la única forma de que el login por
+  // DNI (login-dni, profiles.dni) la pueda resolver.
   const { error: profileErr } = await supabaseAdmin
     .from('profiles')
     .insert({
@@ -97,11 +100,16 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
       rol,
       roles:      [rol],
       divisiones: divisiones && divisiones.length > 0 ? divisiones : null,
+      dni,
     })
 
   if (profileErr) {
     await supabaseAdmin.auth.admin.deleteUser(userId)
-    return jsonError(500, 'Error al crear el perfil: ' + profileErr.message)
+    const dniDuplicado = profileErr.message?.toLowerCase().includes('duplicate')
+      && profileErr.message?.toLowerCase().includes('dni')
+    return jsonError(500, dniDuplicado
+      ? 'Ya existe un usuario con ese DNI'
+      : 'Error al crear el perfil: ' + profileErr.message)
   }
 
   // Email de bienvenida — fire and forget, no falla si Resend no está configurado

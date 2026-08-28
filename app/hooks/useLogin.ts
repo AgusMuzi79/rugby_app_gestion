@@ -30,18 +30,30 @@ export function useLogin() {
     setCredencialesGuardadas(!!savedEmail)
   }
 
-  async function login(email: string, password: string): Promise<void> {
+  async function login(dni: string, password: string): Promise<void> {
     setLoading(true)
     setError(null)
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // login-dni resuelve DNI -> email real (sintético o propio) del lado
+      // del servidor y valida la contraseña ahí mismo — el cliente nunca ve
+      // el email, sólo recibe los tokens de sesión ya armados.
+      const { data: loginData, error: loginError } = await supabase.functions.invoke('login-dni', {
+        body: { dni, password },
       })
 
-      if (authError || !data.session) {
-        setError('Credenciales incorrectas. Verificá tu email y contraseña.')
+      if (loginError || !loginData?.access_token || !loginData?.refresh_token) {
+        setError('Credenciales incorrectas. Verificá tu DNI y contraseña.')
+        return
+      }
+
+      const { data, error: sessionError } = await supabase.auth.setSession({
+        access_token: loginData.access_token,
+        refresh_token: loginData.refresh_token,
+      })
+
+      if (sessionError || !data.session || !data.user) {
+        setError('Credenciales incorrectas. Verificá tu DNI y contraseña.')
         return
       }
 
@@ -51,10 +63,13 @@ export function useLogin() {
         .eq('id', data.user.id)
         .single()
 
-      // Ofrecer biometría solo si está disponible y no hay credenciales guardadas aún
+      // Ofrecer biometría solo si está disponible y no hay credenciales guardadas aún.
+      // Se guarda el email real ya resuelto (no el DNI) — loginConBiometria sigue
+      // llamando a signInWithPassword directo, sin pasar por login-dni de nuevo.
       if (biometriaDisponible) {
         const existingEmail = await SecureStore.getItemAsync(EMAIL_KEY)
-        if (!existingEmail) {
+        if (!existingEmail && data.user.email) {
+          const emailResuelto = data.user.email
           Alert.alert(
             'Acceso rápido',
             '¿Querés ingresar con huella o Face ID la próxima vez?',
@@ -63,7 +78,7 @@ export function useLogin() {
               {
                 text: 'Activar',
                 onPress: async () => {
-                  await SecureStore.setItemAsync(EMAIL_KEY, email)
+                  await SecureStore.setItemAsync(EMAIL_KEY, emailResuelto)
                   await SecureStore.setItemAsync(PASSWORD_KEY, password)
                   setCredencialesGuardadas(true)
                 },

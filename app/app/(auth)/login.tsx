@@ -20,7 +20,7 @@ const PLACEHOLDER = '#9B9A8F'
 const HITSOP = { top: 8, bottom: 8, left: 8, right: 8 }
 
 export default function LoginScreen() {
-  const [email, setEmail]                     = useState('')
+  const [dni, setDni]                          = useState('')
   const [password, setPassword]               = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
 
@@ -78,17 +78,16 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Campo USUARIO */}
+          {/* Campo DNI */}
           <View style={s.fieldWrap}>
-            <Text style={s.label}>USUARIO</Text>
+            <Text style={s.label}>DNI</Text>
             <TextInput
               style={s.input}
-              value={email}
-              onChangeText={setEmail}
+              value={dni}
+              onChangeText={setDni}
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType="email-address"
-              placeholder="correo@club.com"
+              placeholder="12345678"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
             />
@@ -131,7 +130,7 @@ export default function LoginScreen() {
           {/* Botón principal */}
           <TouchableOpacity
             style={loading ? s.buttonLoading : s.button}
-            onPress={() => login(email, password)}
+            onPress={() => login(dni, password)}
             disabled={loading}
             activeOpacity={0.85}
           >

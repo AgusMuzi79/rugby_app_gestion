@@ -1215,6 +1215,7 @@ export type Database = {
         Row: {
           activo: boolean
           created_at: string
+          dni: string | null
           divisiones: string[] | null
           id: string
           mail_sintetico_omitido: boolean
@@ -1226,6 +1227,7 @@ export type Database = {
         Insert: {
           activo?: boolean
           created_at?: string
+          dni?: string | null
           divisiones?: string[] | null
           id: string
           mail_sintetico_omitido?: boolean
@@ -1237,6 +1239,7 @@ export type Database = {
         Update: {
           activo?: boolean
           created_at?: string
+          dni?: string | null
           divisiones?: string[] | null
           id?: string
           mail_sintetico_omitido?: boolean
