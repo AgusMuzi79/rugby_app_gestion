@@ -46,7 +46,7 @@ export function useCuotas() {
 
     const { data: socio } = await db
       .from('socios')
-      .select('id, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at')
+      .select('id, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at, cobro_con_tarjeta')
       .eq('profile_id', session.user.id)
       .single()
 
@@ -103,9 +103,11 @@ export function useCuotas() {
     // La cuota virtual del mes actual sólo se ofrece a pagar por alias si el
     // club (semáforo NUVIX, fuente real de verdad) todavía te marca con deuda.
     // Si ya estás al día, mostrarla igual sería contradecir el propio banner
-    // de deuda real.
+    // de deuda real. Tampoco se ofrece si el socio paga con débito automático
+    // (cobro_con_tarjeta) — a esos no les corresponde transferir por alias, el
+    // cobro es automático y el semáforo puede tardar en reflejarlo.
     const hoy = periodoHoy()
-    if (!alDiaSegunClub && !normalized.some(c => c.periodo === hoy)) {
+    if (!alDiaSegunClub && !socio.cobro_con_tarjeta && !normalized.some(c => c.periodo === hoy)) {
       normalized.unshift({
         id:               `virtual-${hoy}`,
         periodo:          hoy,
