@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase'
 
 const NAV = [
   { href: '/secretaria/socios',      label: 'Socios'      },
-  { href: '/secretaria/comprobantes', label: 'Comprobantes' },
   { href: '/secretaria/noticias',    label: 'Noticias'    },
   { href: '/secretaria/servicios',   label: 'Servicios'   },
   { href: '/secretaria/categorias',  label: 'Categorías'  },
