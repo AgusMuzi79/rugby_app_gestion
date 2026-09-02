@@ -24,7 +24,7 @@ const ROL_LABEL: Record<string, string> = {
   entrenador:  'Entrenador',
   manager:     'Manager',
   secretaria:  'Secretaría',
-  porteria:    'Portería',
+  porteria:    'Lector',
   admin:       'Admin',
 }
 

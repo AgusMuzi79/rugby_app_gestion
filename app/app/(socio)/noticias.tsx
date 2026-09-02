@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity,
+  TouchableOpacity, Modal, ScrollView,
 } from 'react-native'
 import { useState, useMemo, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -70,35 +70,75 @@ function FiltroBar({
   )
 }
 
-function NoticiaCard({ noticia }: { noticia: Noticia }) {
+function DeporteBadge({ noticia }: { noticia: Noticia }) {
   const deporte = (['rugby', 'hockey', 'tenis'] as const)
     .find(d => noticia.etiquetas.includes(d))
+  if (!deporte) return null
+  return (
+    <View style={s.deporteBadge}>
+      <Text style={s.deporteText}>{deporte.toUpperCase()}</Text>
+    </View>
+  )
+}
+
+function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => void }) {
+  const [truncado, setTruncado] = useState(false)
 
   return (
-    <View style={s.card}>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.8}>
       <View style={s.cardMeta}>
         <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
-        {deporte && (
-          <View style={s.deporteBadge}>
-            <Text style={s.deporteText}>
-              {deporte.toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <DeporteBadge noticia={noticia} />
       </View>
 
       <Text style={s.cardTitulo}>{noticia.titulo}</Text>
 
       <View style={s.divider} />
 
-      <Text style={s.cardCuerpo} numberOfLines={5}>
+      <Text
+        style={s.cardCuerpo}
+        numberOfLines={5}
+        onTextLayout={e => setTruncado(e.nativeEvent.lines.length >= 5)}
+      >
         {noticia.cuerpo}
       </Text>
+      {truncado && <Text style={s.leerMas}>LEER MÁS →</Text>}
 
       <Text style={s.cardAutor}>
         — {noticia.autor}
       </Text>
-    </View>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Modal de detalle ──────────────────────────────────────────────────────────
+
+function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => void }) {
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View style={m.overlay}>
+        <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
+        <View style={m.sheet}>
+          <View style={m.handle} />
+
+          <View style={s.cardMeta}>
+            <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
+            <DeporteBadge noticia={noticia} />
+          </View>
+
+          <ScrollView style={m.scroll} showsVerticalScrollIndicator={false}>
+            <Text style={m.titulo}>{noticia.titulo}</Text>
+            <View style={[s.divider, { marginVertical: 12 }]} />
+            <Text style={m.cuerpo}>{noticia.cuerpo}</Text>
+            <Text style={[s.cardAutor, { marginTop: 16 }]}>— {noticia.autor}</Text>
+          </ScrollView>
+
+          <TouchableOpacity style={m.cerrarBtn} onPress={onClose} activeOpacity={0.75}>
+            <Text style={m.cerrarText}>CERRAR</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   )
 }
 
@@ -108,6 +148,7 @@ export default function NoticiasPublicasScreen() {
   const insets = useSafeAreaInsets()
   const { noticias, loading, refetch } = useNoticias(true)
   const [filtro, setFiltro] = useState<Filtro>('todas')
+  const [noticiaAbierta, setNoticiaAbierta] = useState<Noticia | null>(null)
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
 
@@ -149,10 +190,16 @@ export default function NoticiasPublicasScreen() {
           data={noticiasFiltradas}
           keyExtractor={n => n.id}
           contentContainerStyle={s.listContent}
-          renderItem={({ item }) => <NoticiaCard noticia={item} />}
+          renderItem={({ item }) => (
+            <NoticiaCard noticia={item} onPress={() => setNoticiaAbierta(item)} />
+          )}
           onRefresh={refetch}
           refreshing={loading}
         />
+      )}
+
+      {noticiaAbierta && (
+        <NoticiaModal noticia={noticiaAbierta} onClose={() => setNoticiaAbierta(null)} />
       )}
     </View>
   )
@@ -226,8 +273,42 @@ const s = StyleSheet.create({
   cardTitulo: { fontFamily: fonts.titulo, fontSize: 22, lineHeight: 28, color: '#F3EFE4' },
   divider:    { height: 1, backgroundColor: '#2C2418' },
   cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 13, lineHeight: 20, color: '#F3EFE4' },
+  leerMas: {
+    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: colors.oro, marginTop: -2,
+  },
   cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic', color: '#8E8574' },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: '#8E8574' },
+})
+
+// ─── Estilos del modal de detalle ──────────────────────────────────────────────
+
+const m = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  overlayBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  sheet: {
+    maxHeight: '85%',
+    backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    padding: 24, paddingBottom: 36, gap: 16,
+    borderTopWidth: 1, borderColor: '#2C2418',
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#3A2E1E',
+    alignSelf: 'center', marginBottom: 4,
+  },
+  scroll: { marginTop: 4 },
+  titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: '#F3EFE4' },
+  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 23, color: '#F3EFE4' },
+  cerrarBtn: {
+    borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  cerrarText: {
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    textTransform: 'uppercase', color: colors.oro,
+  },
 })

@@ -43,7 +43,7 @@ export function useLogin() {
       })
 
       if (loginError || !loginData?.access_token || !loginData?.refresh_token) {
-        setError('Credenciales incorrectas. Verificá tu DNI y contraseña.')
+        setError('Credenciales incorrectas. Verificá tu DNI o mail y tu contraseña.')
         return
       }
 
@@ -53,7 +53,7 @@ export function useLogin() {
       })
 
       if (sessionError || !data.session || !data.user) {
-        setError('Credenciales incorrectas. Verificá tu DNI y contraseña.')
+        setError('Credenciales incorrectas. Verificá tu DNI o mail y tu contraseña.')
         return
       }
 

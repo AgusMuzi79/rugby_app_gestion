@@ -78,16 +78,16 @@ export default function LoginScreen() {
             </View>
           )}
 
-          {/* Campo DNI */}
+          {/* Campo DNI o mail */}
           <View style={s.fieldWrap}>
-            <Text style={s.label}>DNI</Text>
+            <Text style={s.label}>DNI O MAIL</Text>
             <TextInput
               style={s.input}
               value={dni}
               onChangeText={setDni}
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder="12345678"
+              placeholder="DNI o tu mail"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
             />

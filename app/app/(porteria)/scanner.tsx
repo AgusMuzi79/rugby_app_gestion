@@ -1,6 +1,8 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Linking } from 'react-native'
+import { useEffect, useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
+import { useAudioPlayer } from 'expo-audio'
 import { Feather } from '@expo/vector-icons'
 import { useScanner, type ScanResult } from '@/hooks/useScanner'
 import { colors, fonts } from '@/constants/theme'
@@ -14,11 +16,50 @@ function estadoVisual(result: ScanResult): string {
   return result.estado ?? ''
 }
 
+// Autoservicio (tablet fija, sin nadie tocando pantalla entre socio y socio):
+// a los pocos segundos vuelve sola a modo cámara para el próximo escaneo.
+const AUTO_RESET_MS = 4000
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets()
-  const { permission, requestPermission, result, scanning, validando, handleQR, reset } = useScanner()
+  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, reset } = useScanner()
+
+  // Fallback sin QR — el socio no llevaba el celular encima.
+  const [modoDni, setModoDni] = useState(false)
+  const [dniInput, setDniInput] = useState('')
+
+  const sonidoOk      = useAudioPlayer(require('../../assets/sounds/ok.wav'))
+  const sonidoAlerta  = useAudioPlayer(require('../../assets/sounds/alerta.wav'))
+
+  // Un sonido distinto según el resultado — pensado para que el encargado del
+  // gimnasio lo note sin tener que mirar la pantalla en cada escaneo.
+  useEffect(() => {
+    if (!result) return
+    const moroso = result.valido ? estadoVisual(result) === 'moroso' : true
+    const player = moroso ? sonidoAlerta : sonidoOk
+    player.seekTo(0)
+    player.play()
+  }, [result])
+
+  // Autoservicio: vuelve sola a la cámara, sin esperar que alguien la toque.
+  useEffect(() => {
+    if (!result) return
+    const t = setTimeout(() => {
+      reset()
+      setModoDni(false)
+      setDniInput('')
+    }, AUTO_RESET_MS)
+    return () => clearTimeout(t)
+  }, [result, reset])
+
+  const consultarDni = () => {
+    const dni = dniInput.trim()
+    if (!dni) return
+    setDniInput('')
+    handleDNI(dni)
+  }
 
   // ── Sin permiso ──────────────────────────────────────────────────────────
   if (!permission) {
@@ -38,7 +79,7 @@ export default function ScannerScreen() {
     return (
       <View style={[s.root, s.center, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
-          <Text style={s.permBarLabel}>PORTERÍA · SCANNER</Text>
+          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
         </View>
         <View style={s.center}>
           <Feather name="camera-off" size={48} color={MUTED} />
@@ -63,11 +104,12 @@ export default function ScannerScreen() {
   // ── Resultado ──────────────────────────────────────────────────────────
   if (result || validando) {
     const esValido = result?.valido === true
+    const moroso   = result ? (esValido ? estadoVisual(result) === 'moroso' : true) : false
 
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
-          <Text style={s.permBarLabel}>PORTERÍA · SCANNER</Text>
+          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
         </View>
 
         {validando ? (
@@ -77,15 +119,15 @@ export default function ScannerScreen() {
           </View>
         ) : result ? (
           <View style={s.resultContainer}>
-            {/* Banda de estado */}
-            <View style={[s.resultBand, { backgroundColor: esValido ? '#1A7A1A' : colors.rojoUrgente }]}>
+            {/* Banda de estado — foco en la cuota, acá no se bloquea el acceso a nadie */}
+            <View style={[s.resultBand, { backgroundColor: moroso ? colors.rojoUrgente : '#1A7A1A' }]}>
               <Feather
-                name={esValido ? 'check-circle' : 'x-circle'}
+                name={moroso ? 'alert-triangle' : 'check-circle'}
                 size={32}
                 color={colors.blanco}
               />
               <Text style={s.resultBandText}>
-                {esValido ? 'ACCESO PERMITIDO' : 'ACCESO DENEGADO'}
+                {esValido ? (moroso ? 'MOROSO' : 'AL DÍA') : 'QR NO VÁLIDO'}
               </Text>
             </View>
 
@@ -135,7 +177,11 @@ export default function ScannerScreen() {
               </View>
             )}
 
-            <TouchableOpacity style={s.nuevoBtn} onPress={reset} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={s.nuevoBtn}
+              onPress={() => { reset(); setModoDni(false); setDniInput('') }}
+              activeOpacity={0.8}
+            >
               <Text style={s.nuevoBtnText}>ESCANEAR OTRO</Text>
             </TouchableOpacity>
           </View>
@@ -144,17 +190,54 @@ export default function ScannerScreen() {
     )
   }
 
+  // ── Sin QR, ingresar DNI ──────────────────────────────────────────────────
+  if (modoDni) {
+    return (
+      <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={s.permBar}>
+          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
+        </View>
+
+        <View style={s.dniContainer}>
+          <Feather name="hash" size={40} color={MUTED} />
+          <Text style={s.dniTitle}>No tenés el carnet a mano</Text>
+          <Text style={s.dniSub}>Ingresá tu DNI para consultar tu estado</Text>
+
+          <TextInput
+            style={s.dniInput}
+            value={dniInput}
+            onChangeText={setDniInput}
+            keyboardType="number-pad"
+            placeholder="12345678"
+            placeholderTextColor={MUTED}
+            maxLength={9}
+            autoFocus
+            onSubmitEditing={consultarDni}
+          />
+
+          <TouchableOpacity style={s.dniBtn} onPress={consultarDni} activeOpacity={0.8}>
+            <Text style={s.dniBtnText}>CONSULTAR</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => { setModoDni(false); setDniInput('') }} activeOpacity={0.7}>
+            <Text style={s.dniVolver}>Volver a escanear QR</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
   // ── Cámara activa ──────────────────────────────────────────────────────
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.permBar}>
-        <Text style={s.permBarLabel}>PORTERÍA · SCANNER</Text>
+        <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
       </View>
 
       <View style={s.cameraContainer}>
         <CameraView
           style={StyleSheet.absoluteFillObject}
-          facing="back"
+          facing="front"
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={({ data }) => handleQR(data)}
         />
@@ -170,8 +253,12 @@ export default function ScannerScreen() {
         </View>
 
         <View style={s.hint}>
-          <Text style={s.hintText}>Apuntá al QR del carnet del socio</Text>
+          <Text style={s.hintText}>Acercá el QR de tu carnet a la cámara</Text>
         </View>
+
+        <TouchableOpacity style={s.dniLink} onPress={() => setModoDni(true)} activeOpacity={0.7}>
+          <Text style={s.dniLinkText}>¿No tenés el carnet? Ingresar DNI</Text>
+        </TouchableOpacity>
       </View>
     </View>
   )
@@ -236,6 +323,41 @@ const s = StyleSheet.create({
   hintText: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
     textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
+  },
+  dniLink: {
+    position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center',
+  },
+  dniLinkText: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1,
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
+    textDecorationLine: 'underline',
+  },
+
+  // Ingresar DNI (fallback sin QR)
+  dniContainer: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40,
+  },
+  dniTitle: {
+    fontFamily: fonts.titulo, fontSize: 22, color: colors.tinta, textAlign: 'center',
+  },
+  dniSub: {
+    fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 8,
+  },
+  dniInput: {
+    width: '100%', maxWidth: 320, fontFamily: fonts.cuerpo, fontSize: 20, textAlign: 'center',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.oro,
+    backgroundColor: 'transparent', color: colors.tinta, letterSpacing: 2,
+  },
+  dniBtn: {
+    marginTop: 12, width: '100%', maxWidth: 320, borderRadius: 4,
+    paddingVertical: 16, alignItems: 'center', backgroundColor: colors.oro,
+  },
+  dniBtnText: {
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, color: colors.papel,
+  },
+  dniVolver: {
+    marginTop: 16, fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
+    textTransform: 'uppercase', color: MUTED, textDecorationLine: 'underline',
   },
 
   // Validando

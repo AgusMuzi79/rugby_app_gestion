@@ -67,7 +67,7 @@ const ROL_LABEL: Record<string, string> = {
   coordinador:  'COORDINADOR',
   manager:      'MANAGER',
   secretaria:   'SECRETARÍA',
-  porteria:     'PORTERÍA',
+  porteria:     'LECTOR',
   subcomision:  'SUBCOMISIÓN',
   admin:        'ADMIN',
 }

@@ -18,7 +18,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   manager:     'Manager',
   admin:       'Admin',
   secretaria:  'Secretaría',
-  porteria:    'Portería',
+  porteria:    'Lector',
   socio:       'Socio',
 }
 

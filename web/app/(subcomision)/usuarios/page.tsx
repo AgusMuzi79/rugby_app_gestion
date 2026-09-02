@@ -10,7 +10,7 @@ const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', manager: 'Manager',
-  secretaria: 'Secretaría', porteria: 'Portería',
+  secretaria: 'Secretaría', porteria: 'Lector',
 }
 
 interface Division { id: string; nombre: string }

@@ -58,6 +58,34 @@ export function useScanner() {
     setValidando(false)
   }, [scanning, validando])
 
+  // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.
+  const handleDNI = useCallback(async (dni: string) => {
+    if (validando) return
+
+    setValidando(true)
+    setScanning(false)
+
+    const res = await supabase.functions.invoke('socios-qr', {
+      body: { action: 'validate-dni', dni },
+    })
+
+    let sr: ScanResult
+    if (res.error) {
+      sr = { valido: false, motivo: res.error.message }
+    } else {
+      sr = res.data as ScanResult
+      if (sr.valido && sr.foto_path) {
+        const { data: signed } = await supabase.storage
+          .from('socios-fotos')
+          .createSignedUrl(sr.foto_path, 60)
+        sr = { ...sr, foto_url: signed?.signedUrl ?? null }
+      }
+    }
+
+    setResult(sr)
+    setValidando(false)
+  }, [validando])
+
   const reset = useCallback(() => {
     setResult(null)
     setScanning(true)
@@ -70,6 +98,7 @@ export function useScanner() {
     scanning,
     validando,
     handleQR,
+    handleDNI,
     reset,
   }
 }

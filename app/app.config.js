@@ -76,6 +76,7 @@ const config = {
         color: '#F5B41C',
       },
     ],
+    'expo-audio',
     [
       'expo-local-authentication',
       {
