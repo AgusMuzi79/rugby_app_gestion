@@ -66,7 +66,13 @@ const config = {
       'expo-image-picker',
       {
         photosPermission: 'Uncas usa tu galería para que subas tu foto de perfil y el comprobante de pago de tu cuota.',
-        cameraPermission: false,
+        // NO poner cameraPermission: false acá. A diferencia de iOS (donde
+        // false solo omite el string de Info.plist), en Android el plugin de
+        // expo-image-picker interpreta cameraPermission: false como "bloqueame
+        // este permiso para toda la app" (withBlockedPermissions, agrega
+        // tools:node="remove" al manifest) — le borraba a expo-camera el
+        // <uses-permission CAMERA/> que sí necesitamos para el scanner de
+        // Lector, en TODOS los builds de Android hasta ahora (2026-09-03).
       },
     ],
     [
