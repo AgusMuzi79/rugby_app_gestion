@@ -242,25 +242,25 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionMeta: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
     textTransform: 'uppercase', color: colors.grisClaro,
     flexShrink: 1, marginLeft: 8, textAlign: 'right',
   },
 
   tituloContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
   tituloTexto: {
-    fontFamily: fonts.titulo, fontSize: 24, color: colors.tinta,
+    fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta,
     marginBottom: 14, lineHeight: 30,
   },
   tituloDivider: { height: 1, backgroundColor: colors.grisClaro },
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: colors.grisClaro },
 
   lista: { gap: 12 },
@@ -276,18 +276,18 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2,
   },
   tipoBadgeText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.tinta,
   },
-  cobranzaNombre: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 13, color: colors.tinta },
-  cobranzaPct:    { fontFamily: fonts.titulo, fontSize: 18, color: colors.oroHondo, lineHeight: 22 },
+  cobranzaNombre: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  cobranzaPct:    { fontFamily: fonts.titulo, fontSize: 19, color: colors.oroHondo, lineHeight: 22 },
   barraFondo: {
     flexDirection: 'row', height: 4,
     backgroundColor: colors.grisClaro, borderRadius: 2, overflow: 'hidden',
   },
   cobranzaFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cobranzaDetalle:{ fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183' },
-  cobranzaArrow:  { fontFamily: fonts.label, fontSize: 13, color: colors.oroHondo },
+  cobranzaDetalle:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183' },
+  cobranzaArrow:  { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
 
   // Pedido de subcomisión
   pedidoCard: {
@@ -302,18 +302,18 @@ const s = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 2,
   },
   pedidoBadgeText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
-  pedidoNombre: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta },
-  pedidoDetalle:{ fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', color: '#7C7267', lineHeight: 18 },
-  pedidoProgreso:{ fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183', marginTop: 2 },
+  pedidoNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta },
+  pedidoDetalle:{ fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: '#7C7267', lineHeight: 18 },
+  pedidoProgreso:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183', marginTop: 2 },
   confirmarBtn: {
     marginTop: 6, backgroundColor: colors.tinta,
     paddingVertical: 12, alignItems: 'center', borderRadius: 4,
   },
   confirmarBtnText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 
@@ -324,14 +324,14 @@ const s = StyleSheet.create({
     paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.grisClaro,
   },
   fichajeInfo:  { flex: 1 },
-  fichajeNombre:{ fontFamily: fonts.cuerpo, fontSize: 13, color: colors.tinta, marginBottom: 3 },
-  fichajeMeta:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183' },
+  fichajeNombre:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta, marginBottom: 3 },
+  fichajeMeta:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183' },
   okBadge: {
     backgroundColor: colors.oro,
     paddingHorizontal: 9, paddingVertical: 4, borderRadius: 2,
   },
   okBadgeText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
   },
 
@@ -340,11 +340,11 @@ const s = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center', borderRadius: 4,
   },
   verTodosBtnText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta,
   },
 
-  emptyText:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183' },
-  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 24, color: colors.tinta, marginBottom: 8 },
-  sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183' },
+  emptyText:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
+  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, marginBottom: 8 },
+  sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

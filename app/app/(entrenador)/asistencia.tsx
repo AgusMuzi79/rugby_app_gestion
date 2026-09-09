@@ -263,7 +263,7 @@ const s = StyleSheet.create({
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
   mutedTexto: {
     fontFamily: fonts.titulo,
-    fontSize: 16,
+    fontSize: 18,
     color: '#9A9080',
     textAlign: 'center',
   },
@@ -279,7 +279,7 @@ const s = StyleSheet.create({
   headerLeft: { flex: 1 },
   seccion: {
     fontFamily: fonts.label,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 3,
     color: colors.oro,
     marginBottom: 6,
@@ -292,7 +292,7 @@ const s = StyleSheet.create({
   },
   headerMeta: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 1.5,
     color: '#7A7060',
   },
@@ -311,7 +311,7 @@ const s = StyleSheet.create({
   guardarBtnGuardando: { opacity: 0.55 },
   guardarTexto: {
     fontFamily: fonts.label,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 2,
     color: colors.oro,
   },
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
   },
   divisionChipActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   divisionChipTexto: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: '#A89E8C',
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: '#A89E8C',
   },
   divisionChipTextoActivo: { color: colors.tinta, fontWeight: '700' },
 
@@ -352,7 +352,7 @@ const s = StyleSheet.create({
   },
   contadorLabel: {
     fontFamily: fonts.label,
-    fontSize: 8,
+    fontSize: 11,
     letterSpacing: 2,
     color: '#8A8070',
     marginTop: 2,
@@ -368,7 +368,7 @@ const s = StyleSheet.create({
   },
   numero: {
     fontFamily: fonts.label,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: '#A89E8C',
     width: 28,
@@ -379,12 +379,12 @@ const s = StyleSheet.create({
   },
   nombre: {
     fontFamily: fonts.cuerpo,
-    fontSize: 15,
+    fontSize: 17,
     color: colors.tinta,
   },
   alertaInline: {
     fontFamily: fonts.label,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1.5,
     color: colors.rojoUrgente,
     marginTop: 3,
@@ -406,7 +406,7 @@ const s = StyleSheet.create({
   badgeInactivo: { borderColor: '#C5BEA8', backgroundColor: 'transparent' },
   badgeTexto: {
     fontFamily: fonts.label,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1,
   },
 
@@ -419,19 +419,19 @@ const s = StyleSheet.create({
   },
   statusOk: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 1,
     color: VERDE,
   },
   statusPendiente: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 1,
     color: colors.oroHondo,
   },
   statusError: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 1,
     color: colors.rojoUrgente,
   },

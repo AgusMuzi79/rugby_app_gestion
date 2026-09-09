@@ -744,14 +744,14 @@ export default function PartidoScreen() {
 const s = StyleSheet.create({
   root:        { flex: 1, backgroundColor: FONDO },
   centrado:    { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
-  mutedTexto:  { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, textAlign: 'center' },
+  mutedTexto:  { fontFamily: fonts.titulo, fontSize: 18, color: MUTED, textAlign: 'center' },
   scrollContent: { paddingBottom: 40 },
 
   // Header
   header:    { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
-  seccion:   { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro, marginBottom: 6 },
+  seccion:   { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro, marginBottom: 6 },
   titulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, lineHeight: 32 },
-  headerMeta:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: MUTED, marginTop: 4 },
+  headerMeta:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, marginTop: 4 },
   divider:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   separator: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
@@ -764,9 +764,9 @@ const s = StyleSheet.create({
   gap8:        { gap: 8 },
   emptyGap:    { gap: 4 },
 
-  seccionLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro },
+  seccionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro },
   seccionLabelMx: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro,
     marginHorizontal: 20, marginTop: 20, marginBottom: 8,
   },
   seccionDivider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20, marginVertical: 16 },
@@ -776,29 +776,29 @@ const s = StyleSheet.create({
   cardActivo:      { borderColor: colors.oro, borderWidth: 2 },
   cardRow:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardInfo:        { flex: 1 },
-  cardTitle:       { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
+  cardTitle:       { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO },
   cardTitleActivo: { color: colors.oro },
   cardTitleFlex:   { flex: 1 },
-  cardSub:         { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: MUTED, marginTop: 3 },
-  checkOro:        { fontFamily: fonts.label, fontSize: 14, color: colors.oro },
+  cardSub:         { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: MUTED, marginTop: 3 },
+  checkOro:        { fontFamily: fonts.label, fontSize: 16, color: colors.oro },
   checkOroMl:      { marginLeft: 8 },
 
-  emptyTexto:    { fontFamily: fonts.titulo, fontSize: 14, color: MUTED, fontStyle: 'italic' },
-  emptyTextoMx:  { fontFamily: fonts.titulo, fontSize: 14, color: MUTED, fontStyle: 'italic', marginHorizontal: 20, marginTop: 16 },
-  emptySubtexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: MUTED, marginTop: 4 },
+  emptyTexto:    { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic' },
+  emptyTextoMx:  { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic', marginHorizontal: 20, marginTop: 16 },
+  emptySubtexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: MUTED, marginTop: 4 },
 
   // Equipo badges
   equipoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
   equipoBadgeOblig:     { backgroundColor: TEXTO },
   equipoBadgeOpc:       { borderWidth: 1, borderColor: colors.oro, backgroundColor: 'transparent' },
-  equipoBadgeTexto:     { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  equipoBadgeTexto:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
   equipoBadgeTextoOblig:{ color: FONDO },
   equipoBadgeTextoOpc:  { color: colors.oroHondo },
 
   // Fila asistencia
   fila:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
-  numero:     { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED, width: 28 },
-  nombre:     { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, flex: 1, marginRight: 10 },
+  numero:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, width: 28 },
+  nombre:     { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, flex: 1, marginRight: 10 },
   mesaPadding:{ paddingHorizontal: 20 },
 
   // Badges asistencia
@@ -807,7 +807,7 @@ const s = StyleSheet.create({
   badgeInactivo:      { borderColor: DIVIDER, backgroundColor: 'transparent' },
   badgePres:          { backgroundColor: VERDE, borderColor: VERDE },
   badgeAus:           { backgroundColor: ROJO, borderColor: ROJO },
-  badgeTexto:         { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  badgeTexto:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
   badgeTextoPres:     { color: '#fff' },
   badgeTextoAus:      { color: '#fff' },
   badgeTextoInactivo: { color: MUTED },
@@ -820,15 +820,15 @@ const s = StyleSheet.create({
   contadorNum:      { fontFamily: fonts.titulo, fontSize: 28, lineHeight: 34 },
   contadorNumVerde: { color: VERDE },
   contadorNumRojo:  { color: ROJO },
-  contadorLabel:    { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED, marginTop: 2 },
+  contadorLabel:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Conteo mesa
   conteoRow:    { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16, gap: 10 },
   conteoBox:    { flex: 1, borderWidth: 1.5, borderColor: colors.oro, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
-  conteoNum:    { fontFamily: fonts.titulo, fontSize: 24, lineHeight: 30 },
+  conteoNum:    { fontFamily: fonts.titulo, fontSize: 25, lineHeight: 30 },
   conteoNumOro: { color: colors.oro },
   conteoNumRojo:{ color: ROJO },
-  conteoLabel:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED, marginTop: 2 },
+  conteoLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Fila mesa — asignada (dark)
   mesaCardDark: {
@@ -836,8 +836,8 @@ const s = StyleSheet.create({
     backgroundColor: TEXTO, borderRadius: 2,
     paddingHorizontal: 14, paddingVertical: 14,
   },
-  mesaNombreDark: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.oro },
-  mesaQuitarTexto:{ fontFamily: fonts.label, fontSize: 14, color: colors.oroHondo },
+  mesaNombreDark: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.oro },
+  mesaQuitarTexto:{ fontFamily: fonts.label, fontSize: 16, color: colors.oroHondo },
 
   // Fila mesa — disponible
   mesaCardLight: {
@@ -845,38 +845,38 @@ const s = StyleSheet.create({
     backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
     borderRadius: 2, paddingHorizontal: 14, paddingVertical: 12,
   },
-  mesaNombreLight: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, marginRight: 10 },
+  mesaNombreLight: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, marginRight: 10 },
   mesaBotones:     { flexDirection: 'row', gap: 6 },
   mesaRolBtn:      { width: 34, height: 34, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
   mesaRolBtnOff:   { borderColor: DIVIDER, opacity: 0.4 },
-  mesaRolBtnTxt:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: TEXTO },
+  mesaRolBtnTxt:   { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: TEXTO },
   mesaRolBtnTxtOff:{ color: MUTED },
 
   // Botones
   botonPrimario:      { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center' },
   botonPrimarioMt:    { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center', marginTop: 8 },
-  botonPrimarioTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5, color: colors.oro },
+  botonPrimarioTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro },
   botonGuardarMesa:   { backgroundColor: TEXTO, paddingVertical: 18, borderRadius: 2, alignItems: 'center' },
   botonSecundario:    { borderWidth: 1, borderColor: colors.oro, paddingVertical: 14, borderRadius: 2, alignItems: 'center', marginTop: 8 },
-  botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.oro },
+  botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
   botonOff:           { opacity: 0.4 },
 
   volverBtn:  { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
-  volverTexto:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
+  volverTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
 
   // Banners
   bannerError:      { borderLeftWidth: 3, borderLeftColor: ROJO, backgroundColor: '#2A1010', borderRadius: 2, padding: 12, marginBottom: 8 },
-  bannerErrorTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 0.5, color: '#FFAAAA' },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: VERDE, marginBottom: 8 },
+  bannerErrorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: '#FFAAAA' },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: VERDE, marginBottom: 8 },
 
   // Resultado
   resultadoRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
   resultadoCol:   { flex: 1, gap: 8 },
   resultadoColRight: { flex: 1, gap: 8 },
   rivalRow:       { gap: 8, marginTop: 16 },
-  seccionLabelRight: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: colors.oro, textAlign: 'right' },
+  seccionLabelRight: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro, textAlign: 'right' },
   vsTexto: {
-    fontFamily: fonts.titulo, fontSize: 24, color: MUTED,
+    fontFamily: fonts.titulo, fontSize: 25, color: MUTED,
     alignSelf: 'flex-end', paddingBottom: 12,
   },
   inputNumero: {
@@ -888,7 +888,7 @@ const s = StyleSheet.create({
   inputNumeroRight: { textAlign: 'right' },
   inputTexto: {
     borderWidth: 1.5, borderColor: TEXTO, borderRadius: 2,
-    padding: 14, fontFamily: fonts.cuerpo, fontSize: 15,
+    padding: 14, fontFamily: fonts.cuerpo, fontSize: 17,
     color: TEXTO, backgroundColor: CARD,
   },
 })

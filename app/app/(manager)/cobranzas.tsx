@@ -454,39 +454,39 @@ export default function CobranzasScreen() {
 const s = StyleSheet.create({
   container:  { flex: 1, backgroundColor: FONDO },
   centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
-  mutedTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },
+  mutedTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 15, fontStyle: 'italic', textAlign: 'center' },
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
   // Lista eventos
   lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
   seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionLabel:  { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
-  seccionConteo: { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, fontWeight: '600' },
-  emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, fontStyle: 'italic' },
-  emptySubtexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 12, lineHeight: 18 },
+  seccionLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
+  seccionConteo: { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic' },
+  emptySubtexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, lineHeight: 18 },
   emptyWrap:     { gap: 6, marginTop: 8 },
   eventosWrap:   { gap: 12, marginTop: 8 },
 
   // Evento card
   eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 16, backgroundColor: CARD, gap: 8 },
   eventoCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO, lineHeight: 22 },
-  eventoFecha:    { fontFamily: fonts.label, fontSize: 11, color: MUTED, letterSpacing: 0.5 },
-  eventoStats:    { fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 0.5 },
+  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700', color: TEXTO, lineHeight: 22 },
+  eventoFecha:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.5 },
+  eventoStats:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.5 },
   eventoChevron:  { position: 'absolute', right: 14, top: 16 },
 
   // Tipo badge
   tipoBadge:      { alignSelf: 'flex-start', borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
-  tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
+  tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
 
   // % badge
   pctBadge:      { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  pctBadgeTexto: { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: FONDO },
+  pctBadgeTexto: { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', color: FONDO },
 
   // Barra de progreso
   progWrap: { height: 4, backgroundColor: DIVIDER, borderRadius: 2, overflow: 'hidden' },
@@ -494,19 +494,19 @@ const s = StyleSheet.create({
 
   // Volver
   volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
-  volverTexto:{ fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 0.5 },
+  volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Paso jugadores
   jugadoresFlex: { flex: 1 },
   eventoResumen:       { paddingHorizontal: 20, paddingBottom: 14, gap: 6 },
-  eventoResumenNombre: { fontFamily: fonts.titulo, fontSize: 20, color: TEXTO, lineHeight: 26 },
+  eventoResumenNombre: { fontFamily: fonts.titulo, fontSize: 21, color: TEXTO, lineHeight: 26 },
 
   // Barra de resumen
   resumenBar:  { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 14 },
   resumenItem: { flex: 1, alignItems: 'center', gap: 3 },
   resumenDiv:  { width: 1, backgroundColor: DIVIDER, marginVertical: 4 },
-  resumenLabel:{ fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: MUTED },
-  resumenVal:  { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700' },
+  resumenLabel:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED },
+  resumenVal:  { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700' },
   resumenValTexto:{ color: TEXTO },
   resumenValVerde:{ color: VERDE },
   resumenValRojo: { color: ROJO },
@@ -516,14 +516,14 @@ const s = StyleSheet.create({
   jugadoresList: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
   filaDiv:       { height: 1, backgroundColor: DIVIDER },
   filaJugador:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 },
-  filaNumero:    { fontFamily: fonts.label, fontSize: 11, color: MUTED, width: 20, textAlign: 'right' },
-  filaNombre:    { flex: 1, fontFamily: fonts.cuerpo, fontSize: 14, fontWeight: '700', color: TEXTO },
+  filaNumero:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, width: 20, textAlign: 'right' },
+  filaNombre:    { flex: 1, fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
 
   // Badges de estado en la lista
   estadoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
   estadoPagado:         { backgroundColor: VERDE, borderColor: VERDE },
   estadoPendiente:      { backgroundColor: 'transparent', borderColor: DIVIDER },
-  estadoTexto:          { fontFamily: fonts.label, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  estadoTexto:          { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   estadoPagadoTexto:    { color: '#FFFFFF' },
   estadoPendienteTexto: { color: MUTED },
 
@@ -532,45 +532,45 @@ const s = StyleSheet.create({
 
   // Banners
   bannerError:      { marginTop: 12, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#FFAAAA' },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
   bannerOk:         { marginTop: 12, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14 },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 11, color: ORO, fontWeight: '700', letterSpacing: 2 },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: ORO, fontWeight: '700', letterSpacing: 2 },
 
   // Modal
   kavFlex:        { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalSuper:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, maxWidth: '85%' },
   modalClose:     { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
-  campoLabel:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
+  campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
 
   // Estado selector
   estadoSelector:            { flexDirection: 'row', gap: 10 },
   estadoSelectorBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER },
   estadoSelectorBtnActivo:   { backgroundColor: ORO, borderColor: ORO },
   estadoPendienteSelector:   { borderColor: ROJO },
-  estadoSelectorTexto:       { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
+  estadoSelectorTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
   estadoSelectorTextoActivo: { color: FONDO },
   estadoSelectorTextoPendiente: { color: ROJO },
   estadoIconMr:              { marginRight: 6 },
 
   // Monto
   montoWrap:   { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
-  montoSimbolo:{ fontFamily: fonts.label, fontSize: 22, color: MUTED, marginRight: 6, lineHeight: 36 },
+  montoSimbolo:{ fontFamily: fonts.label, fontSize: 23, color: MUTED, marginRight: 6, lineHeight: 36 },
   montoInput:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 32, fontWeight: '700', color: TEXTO, padding: 0 },
 
   // Forma de pago
   formaRow:           { flexDirection: 'row', gap: 8 },
   formaBtn:           { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   formaBtnActivo:     { backgroundColor: TEXTO, borderColor: TEXTO },
-  formaBtnTexto:      { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: MUTED, fontWeight: '700' },
+  formaBtnTexto:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   formaBtnTextoActivo:{ color: ORO },
 
   // Botón principal
   botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

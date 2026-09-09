@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   clubName: {
     textAlign: 'center',
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 2.5,
     color: colors.oro,
     marginBottom: 10,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
-    fontSize: 13,
+    fontSize: 15,
     color: '#7C7267',
     lineHeight: 20,
     marginBottom: 36,
@@ -160,14 +160,14 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 2,
     color: colors.tinta,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
-    fontSize: 16,
+    fontSize: 18,
     color: colors.tinta,
     paddingVertical: 8,
     borderBottomWidth: 1,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: fonts.label,
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 2.5,
     color: colors.oro,
   },
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontFamily: fonts.cuerpo,
-    fontSize: 13,
+    fontSize: 15,
     color: colors.tinta,
     textAlign: 'center',
   },
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   successBody: {
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
-    fontSize: 13,
+    fontSize: 15,
     color: PLACEHOLDER,
     textAlign: 'center',
     lineHeight: 20,
@@ -234,14 +234,14 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontFamily: fonts.label,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: PLACEHOLDER,
   },
   footer: {
     fontFamily: fonts.label,
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1.5,
     color: PLACEHOLDER,
     marginTop: 48,

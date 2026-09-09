@@ -42,14 +42,14 @@ const styles = StyleSheet.create({
   },
   clubName: {
     fontFamily: fonts.label,
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 2.5,
     textTransform: 'uppercase',
     marginBottom: 2,
   },
   titulo: {
     fontFamily: fonts.titulo,
-    fontSize: 22,
+    fontSize: 23,
     lineHeight: 26,
   },
   divider: {

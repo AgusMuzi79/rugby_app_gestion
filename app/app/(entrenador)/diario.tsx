@@ -219,11 +219,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionMeta: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
     textTransform: 'uppercase', color: colors.grisClaro,
     flexShrink: 1, marginLeft: 8, textAlign: 'right',
   },
@@ -234,7 +234,7 @@ const s = StyleSheet.create({
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: colors.grisClaro },
 
   // Evento card
@@ -242,7 +242,7 @@ const s = StyleSheet.create({
     backgroundColor: colors.tinta, borderRadius: 4, padding: 22, gap: 0,
   },
   eventoBadge: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro, marginBottom: 14,
   },
   eventoNombre: {
@@ -250,11 +250,11 @@ const s = StyleSheet.create({
     lineHeight: 34, marginBottom: 10,
   },
   eventoLugar: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro, marginBottom: 22,
   },
   sinEventoText: {
-    fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic',
+    fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic',
     color: colors.grisClaro, marginBottom: 8,
   },
   asistenciaBtn: {
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center', marginTop: 4,
   },
   asistenciaBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
   },
 
@@ -276,11 +276,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, minWidth: 72, alignItems: 'center',
   },
   tareaBadgeText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  tareaDesc:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 12, color: colors.tinta },
-  tareaArrow: { fontFamily: fonts.label, fontSize: 13, color: colors.oroHondo },
+  tareaDesc:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta },
+  tareaArrow: { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
 
   // Atajos
   grid:    { gap: 10 },
@@ -291,10 +291,10 @@ const s = StyleSheet.create({
     backgroundColor: '#15110A',
   },
   atajoCardGold: { backgroundColor: colors.oro, borderColor: colors.oro },
-  atajoText:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: colors.tinta },
+  atajoText:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: colors.tinta },
   atajoTextDark: { color: colors.tinta },
 
-  emptyText:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183' },
-  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 24, color: colors.tinta, marginBottom: 8 },
-  sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183' },
+  emptyText:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
+  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, marginBottom: 8 },
+  sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

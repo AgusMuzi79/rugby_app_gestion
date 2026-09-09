@@ -166,11 +166,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -181,7 +181,7 @@ const s = StyleSheet.create({
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionUltimosPagos: { paddingHorizontal: 20, paddingTop: 22, marginTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
 
   gridRow:   { flexDirection: 'row', gap: 10 },
@@ -192,20 +192,20 @@ const s = StyleSheet.create({
     backgroundColor: '#1C1710', borderColor: '#2C2418', borderLeftColor: '#2C2418',
   },
   statCardDefaultAccent: { borderLeftColor: '#2C2418' },
-  statLabel: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#8E8574' },
+  statLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#8E8574' },
   statValue: { fontFamily: fonts.titulo, fontSize: 32, lineHeight: 36, color: '#F3EFE4' },
-  statSub:   { fontFamily: fonts.cuerpo, fontSize: 10, fontStyle: 'italic', color: '#7C7267', marginTop: 2 },
+  statSub:   { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#7C7267', marginTop: 2 },
 
   pagoRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#2C2418',
   },
   pagoLeft:   { flex: 1 },
-  pagoNombre: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#F3EFE4', marginBottom: 2 },
-  pagoPeriodo:{ fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, color: '#8E8574' },
+  pagoNombre: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#F3EFE4', marginBottom: 2 },
+  pagoPeriodo:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: '#8E8574' },
   pagoRight:  { alignItems: 'flex-end', gap: 2 },
-  pagoMonto:  { fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4' },
-  pagoForma:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574' },
+  pagoMonto:  { fontFamily: fonts.titulo, fontSize: 19, color: '#F3EFE4' },
+  pagoForma:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574' },
 
-  emptyText: { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#8E8574' },
+  emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#8E8574' },
 })

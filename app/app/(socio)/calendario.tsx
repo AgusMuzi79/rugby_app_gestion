@@ -239,8 +239,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
-  edicionLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
-  edicionFecha: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionFecha: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   filtroBar: {
     flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 8,
@@ -250,12 +250,12 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: DIVIDER, backgroundColor: CARD,
   },
   filtroChipActivo:      { backgroundColor: ORO, borderColor: ORO },
-  filtroChipTexto:       { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: MUTED },
+  filtroChipTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED },
   filtroChipTextoActivo: { color: FONDO },
 
   listaContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  seccionHeader: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, color: MUTED, marginBottom: 10 },
-  vacio:         { fontFamily: fonts.cuerpo, color: MUTED, fontStyle: 'italic', fontSize: 13, marginBottom: 8 },
+  seccionHeader: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: MUTED, marginBottom: 10 },
+  vacio:         { fontFamily: fonts.cuerpo, color: MUTED, fontStyle: 'italic', fontSize: 15, marginBottom: 8 },
 
   card: {
     backgroundColor: CARD, borderRadius: 6, borderWidth: 1, borderColor: DIVIDER,
@@ -267,24 +267,24 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start', backgroundColor: ORO + '22', borderRadius: 3,
     paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4,
   },
-  miDivisionTexto: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: ORO },
+  miDivisionTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: ORO },
 
-  partidoFecha: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: MUTED },
-  partidoHora:  { fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 1 },
-  partidoVs:    { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, fontWeight: '600', marginTop: 2 },
-  partidoLugar: { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED },
-  partidoDiv:   { fontFamily: fonts.label, fontSize: 10, color: ORO, letterSpacing: 1.5, marginTop: 4 },
+  partidoFecha: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED },
+  partidoHora:  { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 1 },
+  partidoVs:    { fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO, fontWeight: '600', marginTop: 2 },
+  partidoLugar: { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED },
+  partidoDiv:   { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1.5, marginTop: 4 },
 
-  scoreTexto: { fontFamily: fonts.titulo, fontSize: 22, fontWeight: '700', marginTop: 2 },
-  sinScore:   { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED, fontStyle: 'italic' },
+  scoreTexto: { fontFamily: fonts.titulo, fontSize: 23, fontWeight: '700', marginTop: 2 },
+  sinScore:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, fontStyle: 'italic' },
 
   bannerJugador: {
     backgroundColor: ORO + '22', borderRadius: 6, borderWidth: 1, borderColor: ORO,
     paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16,
   },
-  bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: ORO },
+  bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: ORO },
 
-  errorTexto:    { fontFamily: fonts.cuerpo, color: ROJO, fontSize: 14 },
+  errorTexto:    { fontFamily: fonts.cuerpo, color: ROJO, fontSize: 16 },
   reintentarBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: ORO, borderRadius: 4 },
-  reintentarTexto: { fontFamily: fonts.label, fontSize: 11, color: ORO, letterSpacing: 1 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1 },
 })

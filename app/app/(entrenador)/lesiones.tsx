@@ -695,11 +695,11 @@ export default function LesionesScreen() {
 const s = StyleSheet.create({
   container:  { flex: 1, backgroundColor: FONDO },
   centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
-  mutedTexto: { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
+  mutedTexto: { color: MUTED, fontSize: 15, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center' },
 
   // Header principal
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader: { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  labelHeader: { fontSize: 13, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
   titulo:      { fontSize: 32, fontFamily: fonts.titulo, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
@@ -716,7 +716,7 @@ const s = StyleSheet.create({
   },
   divisionChipActivo: { backgroundColor: ORO, borderColor: ORO },
   divisionChipTexto: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, color: MUTED,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED,
   },
   divisionChipTextoActivo: { color: FONDO, fontWeight: '700' },
 
@@ -724,20 +724,20 @@ const s = StyleSheet.create({
   tabSwitcher:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
   tabBtn:            { flex: 1, paddingVertical: 9, borderRadius: 2, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   tabBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
-  tabBtnTexto:       { fontSize: 10, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
+  tabBtnTexto:       { fontSize: 13, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
   tabBtnTextoActivo: { color: ORO },
 
   // Lista lesiones
   lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, gap: 10 },
   seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   seccionHeaderMt:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, marginTop: 8 },
-  seccionLabel:  { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
-  seccionConteo: { fontSize: 13, color: MUTED, fontWeight: '600' },
-  emptyTexto:    { color: MUTED, fontSize: 14, fontStyle: 'italic', fontFamily: fonts.cuerpo },
+  seccionLabel:  { fontSize: 13, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  seccionConteo: { fontSize: 15, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { color: MUTED, fontSize: 16, fontStyle: 'italic', fontFamily: fonts.cuerpo },
 
   // Lista protocolos (extra paddingBottom)
   listaProtocolos: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, gap: 10 },
-  protocolosSub:   { color: MUTED, fontSize: 13, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center', marginTop: 4 },
+  protocolosSub:   { color: MUTED, fontSize: 15, fontFamily: fonts.cuerpo, fontStyle: 'italic', textAlign: 'center', marginTop: 4 },
 
   // Tarjeta lesión
   lesionCard:         { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14 },
@@ -746,32 +746,32 @@ const s = StyleSheet.create({
   lesionCabeza:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   lesionCabezaInfo:   { flex: 1, gap: 3 },
   lesionBadgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  lesionNombre:       { fontSize: 15, fontWeight: '700', fontFamily: fonts.cuerpo },
+  lesionNombre:       { fontSize: 17, fontWeight: '700', fontFamily: fonts.cuerpo },
   lesionNombreNormal: { color: TEXTO },
   lesionNombreUrgente:{ color: ORO },
-  lesionFecha:        { fontSize: 11, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
+  lesionFecha:        { fontSize: 13, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
   lesionFechaUrgente: { color: '#9A8870' },
-  lesionDesc:         { fontSize: 13, color: TEXTO, lineHeight: 20, fontFamily: fonts.cuerpo },
+  lesionDesc:         { fontSize: 15, color: TEXTO, lineHeight: 20, fontFamily: fonts.cuerpo },
   lesionDescUrgente:  { color: '#0E0E0E' },
 
   // Expansión
   lesionExpand:       { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: DIVIDER, gap: 6 },
   lesionExpandUrgente:{ borderTopColor: '#2A2A2A' },
-  expandLabel:        { fontSize: 9, letterSpacing: 2, color: ORO_HONDO, fontFamily: fonts.label },
+  expandLabel:        { fontSize: 12, letterSpacing: 2, color: ORO_HONDO, fontFamily: fonts.label },
   expandLabelUrgente: { color: ORO },
   historialLink:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
-  historialLinkTexto: { fontSize: 9, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  historialLinkTexto: { fontSize: 12, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
   // Badge de grado
   gradoBadge:          { borderRadius: 3, paddingHorizontal: 8, paddingVertical: 3 },
   gradoBadgeSmall:     { paddingHorizontal: 6, paddingVertical: 2 },
-  gradoBadgeTexto:     { color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, fontFamily: fonts.label },
-  gradoBadgeTextoSmall:{ fontSize: 10 },
+  gradoBadgeTexto:     { color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 0.5, fontFamily: fonts.label },
+  gradoBadgeTextoSmall:{ fontSize: 13 },
 
   // FAB dorado
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ color: FONDO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  fabTexto:{ color: FONDO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
   // Protocolo — ícono de documento
   docIconWrap: { width: 30, height: 30, borderRadius: 2, borderWidth: 1, borderColor: ORO, alignItems: 'center', justifyContent: 'center' },
@@ -779,14 +779,14 @@ const s = StyleSheet.create({
   // Buscador de jugador
   buscadorWrap:  { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: CARD },
   buscadorIcon:  { marginRight: 8 },
-  buscadorInput: { flex: 1, fontSize: 14, color: TEXTO, fontFamily: fonts.cuerpo },
+  buscadorInput: { flex: 1, fontSize: 16, color: TEXTO, fontFamily: fonts.cuerpo },
 
   // Selector jugador
   selectorGap8: { gap: 8 },
   selectorGap4: { gap: 4 },
   jugItem:            { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 10 },
   jugItemActivo:      { borderColor: ORO, backgroundColor: '#1C1510' },
-  jugItemTexto:       { flex: 1, fontSize: 14, fontFamily: fonts.cuerpo },
+  jugItemTexto:       { flex: 1, fontSize: 16, fontFamily: fonts.cuerpo },
   jugItemTextoNormal: { color: TEXTO },
   jugItemTextoActivo: { color: ORO_HONDO, fontWeight: '700' },
 
@@ -795,7 +795,7 @@ const s = StyleSheet.create({
   gradoBtn:              { flex: 1, aspectRatio: 1, borderRadius: 4, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   gradoBtnActivo:        { backgroundColor: TEXTO, borderColor: TEXTO },
   gradoBtnInactivo:      { backgroundColor: 'transparent', borderColor: DIVIDER },
-  gradoBtnTexto:         { fontSize: 16, fontWeight: '700', fontFamily: fonts.label },
+  gradoBtnTexto:         { fontSize: 18, fontWeight: '700', fontFamily: fonts.label },
   gradoBtnTextoActivo:   { color: ORO },
   gradoBtnTextoInactivo: { color: MUTED },
 
@@ -803,14 +803,14 @@ const s = StyleSheet.create({
   kavFlex:        { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalSuper:     { fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
+  modalSuper:     { fontSize: 13, letterSpacing: 2, color: ORO, fontFamily: fonts.label, marginBottom: 4 },
   modalTitulo:    { fontSize: 26, fontFamily: fonts.titulo, color: TEXTO },
   modalClose:     { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, gap: 20 },
 
   // Campos
   campo:     { gap: 10 },
-  campoLabel:{ fontSize: 10, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  campoLabel:{ fontSize: 13, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
 
   // Input descripción
   inputDesc: {
@@ -818,7 +818,7 @@ const s = StyleSheet.create({
     borderBottomColor: ORO,
     paddingVertical: 10,
     paddingHorizontal: 0,
-    fontSize: 14,
+    fontSize: 16,
     color: TEXTO,
     fontFamily: fonts.cuerpo,
     minHeight: 72,
@@ -826,15 +826,15 @@ const s = StyleSheet.create({
 
   // Banners
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontSize: 13, color: '#FFAAAA', fontFamily: fonts.cuerpo },
+  bannerErrorTexto: { fontSize: 15, color: '#FFAAAA', fontFamily: fonts.cuerpo },
   bannerOk:         { backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontSize: 13, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
-  bannerOkSub:      { fontSize: 12, color: '#9A8870', fontFamily: fonts.cuerpo },
+  bannerOkTexto:    { fontSize: 15, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
+  bannerOkSub:      { fontSize: 14, color: '#9A8870', fontFamily: fonts.cuerpo },
 
   // Botones
   botonPrincipal:       { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:    { opacity: 0.6 },
-  botonPrincipalTexto:  { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonPrincipalTexto:  { color: ORO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
   botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
-  botonSecundarioTexto: { color: ORO, fontSize: 11, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonSecundarioTexto: { color: ORO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

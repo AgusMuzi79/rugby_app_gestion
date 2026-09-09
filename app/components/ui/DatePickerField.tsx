@@ -129,9 +129,9 @@ export function DatePickerField({
 
 const styles = StyleSheet.create({
   labelRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  label:      { fontSize: 10, letterSpacing: 2, color: GOLD },
-  limpiar:    { fontSize: 11, color: MUTED, textDecorationLine: 'underline' },
+  label:      { fontSize: 13, letterSpacing: 2, color: GOLD },
+  limpiar:    { fontSize: 13, color: MUTED, textDecorationLine: 'underline' },
   campo:      { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff' },
-  texto:      { flex: 1, fontSize: 15, color: DARK },
+  texto:      { flex: 1, fontSize: 17, color: DARK },
   placeholder:{ color: MUTED },
 })

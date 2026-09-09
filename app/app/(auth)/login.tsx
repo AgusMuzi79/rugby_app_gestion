@@ -201,7 +201,7 @@ const s = StyleSheet.create({
   clubName: {
     textAlign: 'center',
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 2.5,
     color: colors.oro,
     marginBottom: 10,
@@ -223,7 +223,7 @@ const s = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
-    fontSize: 13,
+    fontSize: 15,
     color: '#7C7267',
     marginBottom: 40,
     lineHeight: 20,
@@ -236,14 +236,14 @@ const s = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 2,
     marginBottom: 8,
     color: '#F3EFE4',
   },
   input: {
     fontFamily: fonts.cuerpo,
-    fontSize: 16,
+    fontSize: 18,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -257,7 +257,7 @@ const s = StyleSheet.create({
   passwordInput: {
     flex: 1,
     fontFamily: fonts.cuerpo,
-    fontSize: 16,
+    fontSize: 18,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -282,7 +282,7 @@ const s = StyleSheet.create({
   },
   buttonText: {
     fontFamily: fonts.label,
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 2.5,
     color: colors.oro,
   },
@@ -301,7 +301,7 @@ const s = StyleSheet.create({
   },
   biometriaText: {
     fontFamily: fonts.label,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 2,
     color: colors.oro,
   },
@@ -316,7 +316,7 @@ const s = StyleSheet.create({
   },
   errorText: {
     fontFamily: fonts.cuerpo,
-    fontSize: 13,
+    fontSize: 15,
     textAlign: 'center',
     color: '#F3EFE4',
   },
@@ -331,7 +331,7 @@ const s = StyleSheet.create({
   },
   successText: {
     fontFamily: fonts.cuerpo,
-    fontSize: 13,
+    fontSize: 15,
     textAlign: 'center',
     color: '#2D6A2D',
   },
@@ -341,14 +341,14 @@ const s = StyleSheet.create({
   },
   forgotText: {
     fontFamily: fonts.label,
-    fontSize: 11,
+    fontSize: 13,
     letterSpacing: 1,
     color: PLACEHOLDER,
   },
   footer: {
     fontFamily: fonts.label,
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1.5,
     color: PLACEHOLDER,
     marginTop: 48,

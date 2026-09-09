@@ -281,11 +281,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -294,7 +294,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, gap: 10,
   },
   secTitle: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
   secLine: { flex: 1, height: 1, backgroundColor: DIVIDER },
@@ -308,11 +308,11 @@ const s = StyleSheet.create({
   badgePublicada: { backgroundColor: '#1A7A1A' },
   badgeBorrador:  { backgroundColor: '#555555' },
   badgeText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  rowTitulo: { fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO },
-  rowMeta:   { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1, color: MUTED },
+  rowTitulo: { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
+  rowMeta:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED },
 
   rowActions: { flexDirection: 'row', gap: 8, paddingTop: 4 },
   actionBtn: {
@@ -343,7 +343,7 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: TEXTO,
   },
 
@@ -351,33 +351,33 @@ const s = StyleSheet.create({
   deporteChip:            { borderWidth: 1, borderRadius: 3, paddingHorizontal: 14, paddingVertical: 7 },
   deporteChipActivo:      { backgroundColor: colors.tinta, borderColor: colors.tinta },
   deporteChipInactivo:    { backgroundColor: 'transparent', borderColor: DIVIDER },
-  deporteChipText:        { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2 },
+  deporteChipText:        { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2 },
   deporteChipTextActivo:  { color: colors.oro },
   deporteChipTextInactivo:{ color: MUTED },
 
   inputLabel: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', marginTop: 4, color: MUTED,
   },
   inputLabelMt: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', marginTop: 16, color: MUTED,
   },
   input: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO,
+    fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO,
     borderBottomWidth: 1, borderBottomColor: colors.oro, paddingVertical: 8, marginBottom: 4,
   },
   inputMulti: {
-    fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO,
     borderWidth: 1, borderColor: DIVIDER, borderRadius: 4,
     paddingHorizontal: 12, paddingVertical: 10,
     minHeight: 120, marginTop: 6,
   },
   draftNote: {
-    fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic', marginTop: 8, color: MUTED,
+    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', marginTop: 8, color: MUTED,
   },
   draftNoteMt: {
-    fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic', marginTop: 8, color: MUTED,
+    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', marginTop: 8, color: MUTED,
   },
   crearBtn: {
     backgroundColor: colors.tinta, paddingVertical: 16,
@@ -385,10 +385,10 @@ const s = StyleSheet.create({
   },
   crearBtnDisabled: { opacity: 0.5 },
   crearBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 })

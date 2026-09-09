@@ -218,11 +218,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -231,7 +231,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, gap: 10,
   },
   secTitle: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
   secLine: { flex: 1, height: 1, backgroundColor: '#2C2418' },
@@ -250,7 +250,7 @@ const s = StyleSheet.create({
   filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
   filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: '#2C2418' },
   filtroText: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
   },
   filtroTextActivo:  { color: colors.oro },
   filtroTextInactivo:{ color: '#8E8574' },
@@ -262,24 +262,24 @@ const s = StyleSheet.create({
   },
   cardMeta:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   metaTiempo: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: colors.oroHondo,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.oroHondo,
   },
   deporteBadge: {
     borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2,
     borderColor: '#2C2418',
   },
-  deporteText: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: colors.oroHondo },
+  deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
-  cardTitulo: { fontFamily: fonts.titulo, fontSize: 22, lineHeight: 28, color: '#F3EFE4' },
+  cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: '#F3EFE4' },
   divider:    { height: 1, backgroundColor: '#2C2418' },
-  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 13, lineHeight: 20, color: '#F3EFE4' },
+  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: '#F3EFE4' },
   leerMas: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: colors.oro, marginTop: -2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oro, marginTop: -2,
   },
-  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic', color: '#8E8574' },
+  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#8E8574' },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: '#8E8574' },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: '#8E8574' },
 })
 
 // ─── Estilos del modal de detalle ──────────────────────────────────────────────
@@ -302,13 +302,13 @@ const m = StyleSheet.create({
   },
   scroll: { marginTop: 4 },
   titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: '#F3EFE4' },
-  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 23, color: '#F3EFE4' },
+  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: '#F3EFE4' },
   cerrarBtn: {
     borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
     paddingVertical: 14, alignItems: 'center',
   },
   cerrarText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 })

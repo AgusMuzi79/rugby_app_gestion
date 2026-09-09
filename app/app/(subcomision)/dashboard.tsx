@@ -247,11 +247,11 @@ function formatFecha(fecha: string): string {
 const s = StyleSheet.create({
   root:    { flex: 1, backgroundColor: CREAM },
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: CREAM, gap: 12 },
-  cargandoTexto: { color: MUTED, fontSize: 13 },
+  cargandoTexto: { color: MUTED, fontSize: 15 },
 
   // Header
   header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: DARK },
-  headerLabel: { fontSize: 10, letterSpacing: 2.5, color: GOLD, marginBottom: 4 },
+  headerLabel: { fontSize: 13, letterSpacing: 2.5, color: GOLD, marginBottom: 4 },
   headerTitle: { fontSize: 28, fontStyle: 'italic', fontFamily: 'serif', color: '#FFFFFF' },
 
   // Selector
@@ -259,7 +259,7 @@ const s = StyleSheet.create({
   selectorContent: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
   pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#2A2A2A', borderWidth: 1, borderColor: '#3A3A3A' },
   pillActiva:      { backgroundColor: GOLD, borderColor: GOLD },
-  pillTexto:       { color: '#AAAAAA', fontSize: 12, fontWeight: '500' },
+  pillTexto:       { color: '#AAAAAA', fontSize: 14, fontWeight: '500' },
   pillTextoActiva: { color: DARK },
 
   // Scroll
@@ -269,35 +269,35 @@ const s = StyleSheet.create({
   // Sección
   seccion:         { gap: 8 },
   seccionEncabezado: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionTitulo:   { fontSize: 11, letterSpacing: 1.5, color: GOLD, fontWeight: '700', textTransform: 'uppercase' },
-  seccionTotal:    { fontSize: 12, color: MUTED },
-  vacio:           { color: MUTED, fontSize: 13, fontStyle: 'italic', paddingVertical: 4 },
+  seccionTitulo:   { fontSize: 13, letterSpacing: 1.5, color: GOLD, fontWeight: '700', textTransform: 'uppercase' },
+  seccionTotal:    { fontSize: 14, color: MUTED },
+  vacio:           { color: MUTED, fontSize: 15, fontStyle: 'italic', paddingVertical: 4 },
 
   // Card
   card:       { backgroundColor: CARD, borderRadius: 10, padding: 14, gap: 6, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
   fila:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardNombre: { fontSize: 14, fontWeight: '600', color: DARK, flex: 1, marginRight: 8 },
-  cardMuted:  { fontSize: 12, color: MUTED },
-  cardFecha:  { fontSize: 12, color: MUTED },
+  cardNombre: { fontSize: 16, fontWeight: '600', color: DARK, flex: 1, marginRight: 8 },
+  cardMuted:  { fontSize: 14, color: MUTED },
+  cardFecha:  { fontSize: 14, color: MUTED },
 
   // Asistencia
   badgeRojo:  { backgroundColor: ROJO, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeTexto: { color: '#FFFFFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  porcentaje: { fontSize: 22, fontWeight: '700' },
+  badgeTexto: { color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  porcentaje: { fontSize: 23, fontWeight: '700' },
   porcNormal: { color: VERDE },
   porcBajo:   { color: ROJO },
 
   // Resultados
   resultadoFila: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  marcador:      { fontSize: 22, fontWeight: '700', color: DARK, minWidth: 28 },
-  vs:            { fontSize: 14, color: MUTED },
-  rival:         { fontSize: 13, color: MUTED, flex: 1 },
+  marcador:      { fontSize: 23, fontWeight: '700', color: DARK, minWidth: 28 },
+  vs:            { fontSize: 16, color: MUTED },
+  rival:         { fontSize: 15, color: MUTED, flex: 1 },
 
   // Fichajes
-  numGrande: { fontSize: 24, fontWeight: '700', color: DARK },
+  numGrande: { fontSize: 25, fontWeight: '700', color: DARK },
 
   // Financiero
   tipoBadge: { borderWidth: 1.5, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
-  tipoTexto: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  cobrado:   { fontSize: 13, fontWeight: '600', color: DARK },
+  tipoTexto: { fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  cobrado:   { fontSize: 15, fontWeight: '600', color: DARK },
 })

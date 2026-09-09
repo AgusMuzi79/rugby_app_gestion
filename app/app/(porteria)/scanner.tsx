@@ -279,7 +279,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#2C2418',
   },
   permBarLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 
@@ -287,7 +287,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.titulo, fontSize: 26, color: colors.tinta, textAlign: 'center',
   },
   permSub: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED,
+    fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED,
     textAlign: 'center', paddingHorizontal: 40,
   },
   permBtn: {
@@ -295,7 +295,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 12, borderRadius: 4,
   },
   permBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 
@@ -321,14 +321,14 @@ const s = StyleSheet.create({
     position: 'absolute', bottom: 60, left: 0, right: 0, alignItems: 'center',
   },
   hintText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5,
     textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
   },
   dniLink: {
     position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center',
   },
   dniLinkText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
     textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
     textDecorationLine: 'underline',
   },
@@ -338,13 +338,13 @@ const s = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40,
   },
   dniTitle: {
-    fontFamily: fonts.titulo, fontSize: 22, color: colors.tinta, textAlign: 'center',
+    fontFamily: fonts.titulo, fontSize: 23, color: colors.tinta, textAlign: 'center',
   },
   dniSub: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, textAlign: 'center', marginBottom: 8,
+    fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, textAlign: 'center', marginBottom: 8,
   },
   dniInput: {
-    width: '100%', maxWidth: 320, fontFamily: fonts.cuerpo, fontSize: 20, textAlign: 'center',
+    width: '100%', maxWidth: 320, fontFamily: fonts.cuerpo, fontSize: 21, textAlign: 'center',
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.oro,
     backgroundColor: 'transparent', color: colors.tinta, letterSpacing: 2,
   },
@@ -353,17 +353,17 @@ const s = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', backgroundColor: colors.oro,
   },
   dniBtnText: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, color: colors.papel,
+    fontFamily: fonts.label, fontSize: 14, letterSpacing: 2.5, color: colors.papel,
   },
   dniVolver: {
-    marginTop: 16, fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
+    marginTop: 16, fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
     textTransform: 'uppercase', color: MUTED, textDecorationLine: 'underline',
   },
 
   // Validando
   validandoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 20 },
   validandoText: {
-    fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED,
+    fontFamily: fonts.cuerpo, fontSize: 18, fontStyle: 'italic', color: MUTED,
   },
 
   // Resultado
@@ -373,7 +373,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingVertical: 20,
   },
   resultBandText: {
-    fontFamily: fonts.label, fontSize: 16, letterSpacing: 3,
+    fontFamily: fonts.label, fontSize: 18, letterSpacing: 3,
     textTransform: 'uppercase', color: colors.blanco,
   },
 
@@ -389,27 +389,27 @@ const s = StyleSheet.create({
   },
   resultInfo: { flex: 1, gap: 10 },
   resultNombre: {
-    fontFamily: fonts.titulo, fontSize: 22, color: colors.tinta, marginBottom: 6,
+    fontFamily: fonts.titulo, fontSize: 23, color: colors.tinta, marginBottom: 6,
   },
   resultRow:   { gap: 2 },
   resultLabel: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', color: MUTED,
   },
   resultValor: {
-    fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
   },
   alertaFoto: {
     marginTop: 6, backgroundColor: colors.oroHondo,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 3,
   },
   alertaFotoText: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: colors.blanco,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.blanco,
   },
 
   motivoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   motivoText: {
-    fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic',
+    fontFamily: fonts.cuerpo, fontSize: 18, fontStyle: 'italic',
     color: MUTED, textAlign: 'center',
   },
 
@@ -418,7 +418,7 @@ const s = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', borderRadius: 4,
   },
   nuevoBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 })

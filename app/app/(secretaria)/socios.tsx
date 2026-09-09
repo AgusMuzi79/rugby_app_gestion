@@ -942,11 +942,11 @@ const ss = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -955,7 +955,7 @@ const ss = StyleSheet.create({
   filtroBtn:      { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 2 },
   filtroBtnActive:{ borderBottomWidth: 2, borderBottomColor: colors.oro },
   filtroBtnText: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: '#888',
   },
   filtroBtnTextActive: { color: colors.oro },
@@ -964,12 +964,12 @@ const ss = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DIVIDER,
   },
-  socioNum:    { fontFamily: fonts.titulo, fontSize: 18, width: 44, textAlign: 'right', color: colors.oroHondo },
+  socioNum:    { fontFamily: fonts.titulo, fontSize: 19, width: 44, textAlign: 'right', color: colors.oroHondo },
   socioInfo:   { flex: 1 },
-  socioNombre: { fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO },
-  socioCat:    { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, marginTop: 2, color: MUTED },
+  socioNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
+  socioCat:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, marginTop: 2, color: MUTED },
   estadoBadge: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  estadoBadgeText: { fontFamily: fonts.label, fontSize: 10, color: colors.blanco, fontWeight: 'bold' },
+  estadoBadgeText: { fontFamily: fonts.label, fontSize: 13, color: colors.blanco, fontWeight: 'bold' },
 
   fab: {
     position: 'absolute', bottom: 24, right: 24,
@@ -997,12 +997,12 @@ const ss = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO,
   },
-  inputLabel: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginTop: 12, color: MUTED },
-  inputLabelMt: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', marginTop: 14, color: MUTED },
+  inputLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginTop: 12, color: MUTED },
+  inputLabelMt: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginTop: 14, color: MUTED },
   input: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO,
+    fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO,
     borderBottomWidth: 1, borderBottomColor: colors.oro, paddingVertical: 8, marginBottom: 4,
   },
   categoriasGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
@@ -1011,26 +1011,26 @@ const ss = StyleSheet.create({
   },
   catBtnActivo:         { borderColor: colors.oro, backgroundColor: colors.tinta },
   catBtnInactivo:       { borderColor: DIVIDER, backgroundColor: 'transparent' },
-  catBtnText:           { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  catBtnText:           { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
   catBtnTextActivo:     { color: colors.oro },
   catBtnTextInactivo:   { color: TEXTO },
-  catMonto:             { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic' },
+  catMonto:             { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic' },
   catMontoActivo:       { color: colors.grisClaro },
   catMontoInactivo:     { color: MUTED },
-  catVacio:             { fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', marginTop: 8, color: MUTED },
+  catVacio:             { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginTop: 8, color: MUTED },
   crearBtn: {
     backgroundColor: colors.tinta, paddingVertical: 16,
     alignItems: 'center', borderRadius: 4, marginTop: 20, marginBottom: 8,
   },
   crearBtnOff: { opacity: 0.5 },
   crearBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 
   // Pago modal
   pagoSocioNombre: {
-    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', marginBottom: 4, color: MUTED,
+    fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', marginBottom: 4, color: MUTED,
   },
   formaPagoRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   formaPagoBtn: {
@@ -1039,7 +1039,7 @@ const ss = StyleSheet.create({
   },
   formaPagoBtnActivo:       { borderColor: colors.oro, backgroundColor: colors.tinta },
   formaPagoBtnInactivo:     { borderColor: DIVIDER, backgroundColor: 'transparent' },
-  formaPagoBtnText:         { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase' },
+  formaPagoBtnText:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
   formaPagoBtnTextActivo:   { color: colors.oro },
   formaPagoBtnTextInactivo: { color: TEXTO },
 
@@ -1051,49 +1051,49 @@ const ss = StyleSheet.create({
   detalle:            { flex: 1 },
   detalleBar:         { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DIVIDER },
   backBtn:            { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  backText:           { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO },
+  backText:           { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO },
   detalleScrollContent: { padding: 20, gap: 16 },
 
   fotoDetalle:     { width: 120, height: 150, borderRadius: 6, alignSelf: 'center' },
   fotoPlaceholder: { borderWidth: 1, borderColor: DIVIDER, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  verFotoText:     { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: MUTED },
+  verFotoText:     { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: MUTED },
 
   detalleNombre: { fontFamily: fonts.titulo, fontSize: 28, marginBottom: 2, color: TEXTO },
-  detalleNum:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.oroHondo },
+  detalleNum:    { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
 
   dataRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: DIVIDER,
   },
-  dataLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: MUTED },
-  dataValue: { fontFamily: fonts.cuerpo, fontSize: 13, color: TEXTO },
+  dataLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: MUTED },
+  dataValue: { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
 
   // Servicios
   serviciosSection: { gap: 10, marginTop: 4 },
   serviciosTitulo: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: MUTED,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: MUTED,
   },
   serviciosGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   servicioChip:    { borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
   servicioChipActivo:   { backgroundColor: colors.tinta, borderColor: colors.tinta },
   servicioChipInactivo: { backgroundColor: 'transparent', borderColor: DIVIDER },
-  servicioChipNombre:         { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1 },
+  servicioChipNombre:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
   servicioChipNombreActivo:   { color: colors.oro },
   servicioChipNombreInactivo: { color: TEXTO },
-  servicioChipMonto:          { fontFamily: fonts.cuerpo, fontSize: 11, fontStyle: 'italic' },
+  servicioChipMonto:          { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic' },
   servicioChipMontoActivo:    { color: colors.grisClaro },
   servicioChipMontoInactivo:  { color: MUTED },
   totalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
     paddingTop: 10, borderTopWidth: 1, borderTopColor: DIVIDER,
   },
-  totalLabel: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED },
-  totalMonto: { fontFamily: fonts.titulo, fontSize: 20, color: TEXTO },
+  totalLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED },
+  totalMonto: { fontFamily: fonts.titulo, fontSize: 21, color: TEXTO },
 
   // Tarjeta section
   tarjetaSection: { gap: 8, marginTop: 4 },
   tarjetaTitulo: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: MUTED,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: MUTED,
   },
   tarjetaCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -1101,9 +1101,9 @@ const ss = StyleSheet.create({
     backgroundColor: colors.tinta, borderColor: DIVIDER,
   },
   tarjetaCardInfo: { flex: 1 },
-  tarjetaNumero:   { fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO },
-  tarjetaBrand:    { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, marginTop: 2, color: MUTED },
-  tarjetaVacia:    { fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', color: MUTED },
+  tarjetaNumero:   { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
+  tarjetaBrand:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, marginTop: 2, color: MUTED },
+  tarjetaVacia:    { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
 
   acciones: { gap: 10, marginTop: 8 },
   accionBtn: {
@@ -1112,11 +1112,11 @@ const ss = StyleSheet.create({
   accionBtnVerde:    { borderColor: '#2ECC71' },
   accionBtnOro:      { borderColor: colors.oro },
   accionBtnRojo:     { borderColor: colors.rojoUrgente },
-  accionBtnText:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, textTransform: 'uppercase' },
+  accionBtnText:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
   accionBtnTextVerde:{ color: '#2ECC71' },
   accionBtnTextOro:  { color: colors.oro },
   accionBtnTextRojo: { color: colors.rojoUrgente },
 
   empty:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
+  emptyText: { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 })

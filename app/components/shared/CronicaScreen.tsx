@@ -253,11 +253,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionMeta: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
     textTransform: 'uppercase', color: colors.grisClaro,
     flexShrink: 1, marginLeft: 8, textAlign: 'right',
   },
@@ -275,7 +275,7 @@ const s = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center', borderRadius: 4,
   },
   nuevaBtnText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
   },
 
@@ -298,31 +298,31 @@ const s = StyleSheet.create({
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2,
   },
   badgeText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5, textTransform: 'uppercase',
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
   },
   feedTiempo: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
     textTransform: 'uppercase', color: colors.oroHondo, flex: 1,
   },
   feedArrow: {
-    fontFamily: fonts.label, fontSize: 12, color: colors.oroHondo,
+    fontFamily: fonts.label, fontSize: 14, color: colors.oroHondo,
   },
   feedTitulo: {
-    fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
     fontWeight: '600', lineHeight: 20,
   },
   feedDesc: {
-    fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic',
+    fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic',
     color: '#7C7267', lineHeight: 18,
   },
   feedAutor: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
     textTransform: 'uppercase', color: '#9B9183', marginTop: 2,
   },
 
   emptyContainer: { paddingHorizontal: 20, paddingTop: 40 },
   emptyText: {
-    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183',
+    fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183',
   },
 
   // Modal
@@ -334,29 +334,29 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18,
   },
   modalTitulo: {
-    fontFamily: fonts.titulo, fontSize: 24, color: colors.tinta, lineHeight: 30,
+    fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, lineHeight: 30,
   },
   modalCerrar: {
-    fontFamily: fonts.label, fontSize: 14, color: '#9B9183', letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 16, color: '#9B9183', letterSpacing: 1,
   },
   modalDivider: { height: 1, backgroundColor: colors.grisClaro, marginHorizontal: 24 },
   modalBody:    { paddingHorizontal: 24, paddingTop: 24 },
 
   inputLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oroHondo, marginBottom: 8,
   },
   input: {
     borderWidth: 1, borderColor: colors.grisClaro, borderRadius: 4,
     paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
     backgroundColor: colors.blanco,
   },
   inputMultiline: {
     height: 120, paddingTop: 12,
   },
   charCount: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
     color: '#9B9183', textAlign: 'right', marginTop: 6, marginBottom: 24,
   },
 
@@ -365,7 +365,7 @@ const s = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', borderRadius: 4, marginBottom: 12,
   },
   enviarBtnText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
   },
   cancelarBtn: {
@@ -373,7 +373,7 @@ const s = StyleSheet.create({
     paddingVertical: 14, alignItems: 'center', borderRadius: 4, marginBottom: 40,
   },
   cancelarBtnText: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: '#9B9183',
   },
 })

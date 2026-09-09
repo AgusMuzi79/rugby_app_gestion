@@ -325,11 +325,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -340,7 +340,7 @@ const s = StyleSheet.create({
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
-  secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
 
   carnetCard: {
@@ -348,7 +348,7 @@ const s = StyleSheet.create({
     alignItems: 'center', gap: 12,
     backgroundColor: '#1C1710', borderColor: '#2C2418',
   },
-  numLabel:  { fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
+  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
   numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: '#F3EFE4' },
 
   qrWrapper: {
@@ -358,8 +358,8 @@ const s = StyleSheet.create({
   },
 
   countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 22, color: '#F3EFE4' },
+  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
+  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: '#F3EFE4' },
 
   progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
   progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
@@ -368,19 +368,19 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 5, borderRadius: 3, marginTop: 6,
   },
   estadoText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  categoriaText: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
+  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
 
-  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 12, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
+  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
   codigoValue: {
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
     textAlign: 'center', color: '#F3EFE4',
   },
 
   errorContainer: { padding: 40, alignItems: 'center' },
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 14, textAlign: 'center', color: colors.rojoUrgente },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
 
   verCarnetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -389,7 +389,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
   },
   verCarnetText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
 })
@@ -421,11 +421,11 @@ const tm = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.oroHondo + '40',
   },
   cardClub: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2.5,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oro,
   },
   cardYear: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
     color: colors.oroHondo,
   },
   cardBody: {
@@ -443,25 +443,25 @@ const tm = StyleSheet.create({
     flex: 1, gap: 4,
   },
   nombre: {
-    fontFamily: fonts.titulo, fontSize: 17, color: '#F3EFE4', lineHeight: 22,
+    fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4', lineHeight: 22,
   },
   numRow: {
     flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2,
   },
   numLabel: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#8E8574',
   },
   numValue: {
-    fontFamily: fonts.titulo, fontSize: 18, color: colors.oro,
+    fontFamily: fonts.titulo, fontSize: 19, color: colors.oro,
   },
   dividerLine: {
     height: 1, backgroundColor: '#2C2418', marginVertical: 4,
   },
   categoriaText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574',
   },
   divisionText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.2, color: colors.oro,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.oro,
   },
   rolesRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2,
@@ -471,17 +471,17 @@ const tm = StyleSheet.create({
     paddingHorizontal: 5, paddingVertical: 2,
   },
   rolChipText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1, color: colors.oro,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: colors.oro,
   },
   rolText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: '#8E8574', marginTop: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574', marginTop: 2,
   },
   estadoChip: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3, marginTop: 2,
   },
   estadoChipText: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
   },
   logoEsquina: {
@@ -495,7 +495,7 @@ const tm = StyleSheet.create({
     backgroundColor: colors.oro,
   },
   badgeJText: {
-    fontFamily: fonts.titulo, fontSize: 10, lineHeight: 12,
+    fontFamily: fonts.titulo, fontSize: 13, lineHeight: 12,
     color: colors.tinta,
   },
   cardFooter: {
@@ -504,7 +504,7 @@ const tm = StyleSheet.create({
     backgroundColor: colors.tinta,
   },
   cardFooterText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 3,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 3,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
 
@@ -514,7 +514,7 @@ const tm = StyleSheet.create({
     borderWidth: 1, borderColor: '#3A2E1E', borderRadius: 4,
   },
   cerrarText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: '#8E8574',
   },
 })

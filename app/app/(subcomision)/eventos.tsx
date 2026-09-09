@@ -569,7 +569,7 @@ const s = StyleSheet.create({
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
@@ -577,19 +577,19 @@ const s = StyleSheet.create({
   tabRow:         { flexDirection: 'row', paddingHorizontal: 20, gap: 24 },
   tabBtn:         { paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActivo:   { borderBottomColor: ORO },
-  tabTexto:       { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: MUTED, fontWeight: '700' },
+  tabTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED, fontWeight: '700' },
   tabTextoActivo: { color: TEXTO },
 
   // Lista
   scrollFlex:  { flex: 1 },
   lista:       { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
   listaGap:    { gap: 12 },
-  emptyTexto:  { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, fontStyle: 'italic' },
+  emptyTexto:  { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic' },
   filaDiv:     { height: 1, backgroundColor: DIVIDER },
   seccionBlock:{ gap: 0 },
   seccionBlockMt: { gap: 0, marginTop: 24 },
-  seccionLabel:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 8 },
-  seccionLabelMb: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 6 },
+  seccionLabel:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 8 },
+  seccionLabelMb: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 6 },
 
   // Evento card
   eventoCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, backgroundColor: CARD, gap: 8 },
@@ -597,17 +597,17 @@ const s = StyleSheet.create({
   eventoCardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   eventoCardHeadLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   eventoCardHeadRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO, lineHeight: 22 },
+  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700', color: TEXTO, lineHeight: 22 },
   eventoNombreMuted: { color: MUTED },
-  eventoFecha:    { fontFamily: fonts.label, fontSize: 11, color: MUTED, letterSpacing: 0.3 },
-  eventoMontoSug: { fontFamily: fonts.label, fontSize: 10, color: MUTED },
-  eventoStats:    { fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 0.3 },
+  eventoFecha:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.3 },
+  eventoMontoSug: { fontFamily: fonts.label, fontSize: 13, color: MUTED },
+  eventoStats:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.3 },
 
   // Badges
   tipoBadge:      { borderWidth: 1.5, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
-  tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 9, fontWeight: '700', letterSpacing: 1.5 },
+  tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 },
   divBadge:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 2, paddingHorizontal: 7, paddingVertical: 3 },
-  divBadgeTexto:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 0.5, color: MUTED },
+  divBadgeTexto:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 0.5, color: MUTED },
 
   // Progress bar
   progWrap: { height: 4, backgroundColor: DIVIDER, borderRadius: 2, overflow: 'hidden' },
@@ -616,60 +616,60 @@ const s = StyleSheet.create({
   // FAB
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Detalle
   detalleTopBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
   backBtn:            { padding: 4 },
-  detalleLabelHeader: { flex: 1, fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
+  detalleLabelHeader: { flex: 1, fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   cerradoBadge:       { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  cerradoTexto:       { fontFamily: fonts.label, fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1 },
+  cerradoTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1 },
   detalleNombreWrap:  { paddingHorizontal: 20, paddingBottom: 12, paddingTop: 4 },
   detalleNombre:      { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO, lineHeight: 34 },
   detalleMetaRow:     { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
-  montoSugTexto:      { fontFamily: fonts.label, fontSize: 12, color: ORO_HONDO, paddingHorizontal: 20, marginBottom: 12 },
+  montoSugTexto:      { fontFamily: fonts.label, fontSize: 14, color: ORO_HONDO, paddingHorizontal: 20, marginBottom: 12 },
   detalleScroll:      { padding: 20, paddingBottom: 48 },
 
   // Resumen financiero
   resumenBar:    { flexDirection: 'row', borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, overflow: 'hidden' },
   resumenItem:   { flex: 1, alignItems: 'center', paddingVertical: 14, gap: 4 },
   resumenDiv:    { width: 1, backgroundColor: DIVIDER },
-  resumenLabel:  { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: MUTED },
-  resumenVal:    { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700' },
+  resumenLabel:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED },
+  resumenVal:    { fontFamily: fonts.cuerpo, fontSize: 19, fontWeight: '700' },
   resumenValVerde:  { color: VERDE },
   resumenValRojo:   { color: ROJO },
   resumenValMuted:  { color: MUTED },
-  resumenValCobrado:{ fontFamily: fonts.cuerpo, fontSize: 15, fontWeight: '700', color: TEXTO },
+  resumenValCobrado:{ fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '700', color: TEXTO },
 
   porDivWrap:    { marginTop: 16 },
   divFila:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 },
-  divFilaNombre: { fontFamily: fonts.cuerpo, fontSize: 13, color: TEXTO, flex: 1, marginRight: 8 },
-  divFilaDetalle:{ fontFamily: fonts.label, fontSize: 11, color: MUTED },
+  divFilaNombre: { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, flex: 1, marginRight: 8 },
+  divFilaDetalle:{ fontFamily: fonts.label, fontSize: 13, color: MUTED },
 
   // Pedidos
   pedidosList:      { gap: 10, marginTop: 8 },
   pedidoCard:       { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, padding: 14, gap: 4 },
   pedidoHeader:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  pedidoManager:    { fontFamily: fonts.cuerpo, fontSize: 14, fontWeight: '700', color: TEXTO },
-  pedidoItem:       { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED },
-  pedidoFecha:      { fontFamily: fonts.label, fontSize: 10, color: MUTED, marginTop: 4 },
+  pedidoManager:    { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
+  pedidoItem:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
+  pedidoFecha:      { fontFamily: fonts.label, fontSize: 13, color: MUTED, marginTop: 4 },
   estadoBadge:      { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
   estadoConfirmado: { borderColor: VERDE },
   estadoAbierto:    { borderColor: ORO_HONDO },
-  estadoTexto:      { fontFamily: fonts.label, fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  estadoTexto:      { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   estadoTextoConfirmado: { color: VERDE },
   estadoTextoAbierto:    { color: ORO_HONDO },
 
   // Botón cerrar evento
   botonCerrar:      { marginTop: 32, backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonCerrarOff:   { opacity: 0.6 },
-  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Modal
   kavFlex:        { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalSuper:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
   modalCloseBtn:  { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20, gap: 24 },
@@ -677,32 +677,32 @@ const s = StyleSheet.create({
 
   // Campos
   campo:     { gap: 10 },
-  campoLabel:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
+  campoLabel:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   divRow:    { flexDirection: 'row', gap: 8 },
 
   inputLinea: {
     borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10,
-    fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO,
+    fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO,
   },
   montoWrap:   { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
-  montoSimbolo:{ fontFamily: fonts.label, fontSize: 18, color: MUTED, marginRight: 6, lineHeight: 30 },
-  montoInput:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 24, fontWeight: '700', color: TEXTO, padding: 0 },
+  montoSimbolo:{ fontFamily: fonts.label, fontSize: 19, color: MUTED, marginRight: 6, lineHeight: 30 },
+  montoInput:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 25, fontWeight: '700', color: TEXTO, padding: 0 },
 
   tipoRow:            { flexDirection: 'row', gap: 8 },
   tipoBtn:            { flex: 1, paddingVertical: 13, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
   tipoBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
-  tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 9, color: MUTED, fontWeight: '700', letterSpacing: 1, textAlign: 'center', lineHeight: 14 },
+  tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1, textAlign: 'center', lineHeight: 14 },
   tipoBtnTextoActivo: { color: ORO },
 
   divPill:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
   divPillActiva:      { backgroundColor: TEXTO, borderColor: TEXTO },
-  divPillTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED },
+  divPillTexto:       { fontFamily: fonts.label, fontSize: 14, color: MUTED },
   divPillTextoActivo: { color: ORO },
 
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#FFAAAA' },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
 
   botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

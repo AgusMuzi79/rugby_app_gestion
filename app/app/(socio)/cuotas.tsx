@@ -68,6 +68,15 @@ function PagoModal({
   montoCategoria:    number
   serviciosActivos:  ServicioActivo[]
 }) {
+  // El desglose (categoría + servicios) se calcula siempre con los precios
+  // ACTUALES — sólo coincide con cuota.monto para la cuota virtual del mes en
+  // curso (se calculan juntos, en el mismo fetch). Una cuota real ya creada
+  // en la tabla `cuotas` tiene su monto congelado al momento de generarse, así
+  // que mostrarle un desglose con precios de hoy podría no sumar ese total
+  // (por ejemplo, después de un aumento de cuota). Para esas, mostramos sólo
+  // el total sin fabricar un desglose que no le corresponde.
+  const esVirtual = cuota.id.startsWith('virtual-')
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
@@ -80,17 +89,21 @@ function PagoModal({
 
           {/* Desglose */}
           <View style={m.breakdown}>
-            <View style={m.bRow}>
-              <Text style={m.bLabel}>{categoriaLabel || 'Cuota base'}</Text>
-              <Text style={m.bMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
-            </View>
-            {serviciosActivos.map(srv => (
-              <View key={srv.id} style={m.bRow}>
-                <Text style={m.bLabel}>{srv.nombre}</Text>
-                <Text style={m.bMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
-              </View>
-            ))}
-            <View style={m.bSep} />
+            {esVirtual && (
+              <>
+                <View style={m.bRow}>
+                  <Text style={m.bLabel}>{categoriaLabel || 'Cuota base'}</Text>
+                  <Text style={m.bMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
+                </View>
+                {serviciosActivos.map(srv => (
+                  <View key={srv.id} style={m.bRow}>
+                    <Text style={m.bLabel}>{srv.nombre}</Text>
+                    <Text style={m.bMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
+                  </View>
+                ))}
+                <View style={m.bSep} />
+              </>
+            )}
             <View style={m.bRow}>
               <Text style={m.bTotalLabel}>TOTAL A TRANSFERIR</Text>
               <Text style={m.bTotal}>{montoStr(cuota.monto)}</Text>
@@ -251,6 +264,10 @@ function CuotaCard({
   const pagada      = cuota.estado === 'pagado'
   const enRevision  = cuota.estado === 'en_revision'
   const pendiente   = cuota.estado === 'pendiente'
+  // Mismo criterio que PagoModal: el desglose con precios de hoy sólo es
+  // fiel para la cuota virtual del mes en curso, no para una cuota real ya
+  // creada con un monto congelado de otro momento.
+  const esVirtual   = cuota.id.startsWith('virtual-')
 
   const borderColor = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#2C2418'
   const badgeBg     = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#3A2800'
@@ -284,8 +301,8 @@ function CuotaCard({
       {/* Expansión */}
       {expandida && (
         <View style={s.detalle}>
-          {/* Desglose */}
-          {!!categoriaLabel && (
+          {/* Desglose — sólo para la cuota virtual del mes en curso, ver nota arriba */}
+          {esVirtual && !!categoriaLabel && (
             <View style={s.desgloseBox}>
               <View style={s.desgloseRow}>
                 <Text style={s.desgloseItem}>{categoriaLabel}</Text>
@@ -485,11 +502,11 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
-  edicionLabel: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
-  edicionFecha: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionFecha: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   secRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  secTitle:{ fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine: { flex: 1, height: 1, backgroundColor: DIVIDER },
 
   resumenCard: {
@@ -501,11 +518,11 @@ const s = StyleSheet.create({
     borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8,
     borderColor: DIVIDER, gap: 2,
   },
-  servicioNombre: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1, color: TEXTO },
-  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED },
+  servicioNombre: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: TEXTO },
+  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
   totalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTopWidth: 1, borderTopColor: DIVIDER },
-  totalLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: MUTED },
-  totalMonto:{ fontFamily: fonts.titulo, fontSize: 22, color: TEXTO },
+  totalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED },
+  totalMonto:{ fontFamily: fonts.titulo, fontSize: 23, color: TEXTO },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -517,7 +534,7 @@ const s = StyleSheet.create({
     backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
     borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente,
   },
-  bannerText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
+  bannerText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
 
   // Cards de cuota
   card: {
@@ -527,28 +544,28 @@ const s = StyleSheet.create({
   cardRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLeft:   { gap: 4, flex: 1 },
   cardRight:  { alignItems: 'flex-end' },
-  cardPeriodo:{ fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: MUTED },
+  cardPeriodo:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED },
   cardMonto:  { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO },
   estadoBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2 },
-  estadoText: { fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXTO },
+  estadoText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXTO },
 
   detalle:  { marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: DIVIDER, paddingTop: 14 },
   desgloseBox: { gap: 6 },
   desgloseRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, flex: 1 },
-  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 13, color: TEXTO },
+  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, flex: 1 },
+  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoText:{ fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED, flex: 1, fontStyle: 'italic' },
+  infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, flex: 1, fontStyle: 'italic' },
 
   pagarBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.oro, paddingVertical: 12, borderRadius: 4,
   },
-  pagarBtnText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.tinta },
+  pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.tinta },
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 })
 
 // ─── Styles modal de pago ─────────────────────────────────────────────────────
@@ -574,33 +591,33 @@ const m = StyleSheet.create({
 
   breakdown: { gap: 8 },
   bRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', flex: 1 },
-  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#F3EFE4' },
+  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574', flex: 1 },
+  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#F3EFE4' },
   bSep:      { height: 1, backgroundColor: '#2C2418', marginVertical: 4 },
-  bTotalLabel:{ fontFamily: fonts.label, fontSize: 8, letterSpacing: 2, color: '#8E8574', flex: 1 },
+  bTotalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: '#8E8574', flex: 1 },
   bTotal:    { fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4' },
 
   aliasBox: {
     backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
     padding: 16, gap: 4, alignItems: 'center',
   },
-  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 3, color: '#8E8574' },
-  aliasValor:    { fontFamily: fonts.titulo, fontSize: 24, color: colors.oro, letterSpacing: 1 },
-  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574', fontStyle: 'italic', textAlign: 'center' },
+  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: '#8E8574' },
+  aliasValor:    { fontFamily: fonts.titulo, fontSize: 25, color: colors.oro, letterSpacing: 1 },
+  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', fontStyle: 'italic', textAlign: 'center' },
 
   subirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 14,
   },
-  subirBtnText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oro },
+  subirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   subirHint: {
-    fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
     fontStyle: 'italic', textAlign: 'center', lineHeight: 17,
   },
 
   cerrarBtn: { alignItems: 'center', paddingVertical: 8 },
-  cerrarText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: '#8E8574' },
+  cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: '#8E8574' },
 })
 
 // ─── Styles modal detalle de deuda ────────────────────────────────────────────
@@ -614,10 +631,10 @@ const dm = StyleSheet.create({
     backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
     padding: 12, marginBottom: 16,
   },
-  selloText: { fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 15 },
+  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 15 },
 
   emptyText: {
-    fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574',
     fontStyle: 'italic', textAlign: 'center', paddingVertical: 20,
   },
 
@@ -625,28 +642,28 @@ const dm = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#2C2418', paddingVertical: 12,
   },
   periodoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  periodoLabel:  { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: colors.oroHondo },
-  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 20, color: '#F3EFE4' },
+  periodoLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
+  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: '#F3EFE4' },
 
   subRows: { marginTop: 8, gap: 4, paddingLeft: 4 },
   subRow:  { flexDirection: 'row', justifyContent: 'space-between' },
-  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 12, color: '#8E8574', flex: 1 },
-  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 12, color: '#F3EFE4' },
+  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', flex: 1 },
+  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#F3EFE4' },
 
   regularizacionBox: {
     marginTop: 12, backgroundColor: '#15110A', borderRadius: 6,
     borderWidth: 1, borderColor: '#2C2418', padding: 12,
   },
   regularizacionTitle: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
   },
   regularizacionHint: {
-    fontFamily: fonts.cuerpo, fontSize: 11, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
     fontStyle: 'italic', marginTop: 8, lineHeight: 15,
   },
 
   proximosBox: { marginTop: 16 },
   proximosTitle: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
   },
 })

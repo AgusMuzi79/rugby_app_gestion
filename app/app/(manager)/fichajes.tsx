@@ -443,47 +443,47 @@ export default function FichajesScreen() {
 const s = StyleSheet.create({
   container:  { flex: 1, backgroundColor: FONDO },
   centrado:   { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 8 },
-  mutedTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 13, fontStyle: 'italic', textAlign: 'center' },
+  mutedTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 15, fontStyle: 'italic', textAlign: 'center' },
 
   // Header
   header:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
-  labelHeader:  { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  labelHeader:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   tituloRow:    { flexDirection: 'row', alignItems: 'baseline', gap: 12 },
   titulo:       { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
-  tituloConteo: { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.5 },
+  tituloConteo: { fontFamily: fonts.label, fontSize: 15, color: MUTED, letterSpacing: 0.5 },
   separador:    { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 
   // Lista
   lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120 },
   seccionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  seccionLabel:  { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
-  seccionConteo: { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, fontWeight: '600' },
-  emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, fontStyle: 'italic', marginTop: 12 },
+  seccionLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
+  seccionConteo: { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, fontWeight: '600' },
+  emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic', marginTop: 12 },
   filaDiv:       { height: 1, backgroundColor: DIVIDER },
   jugadoresWrap: { marginTop: 8 },
 
   // Fila de jugador
   fila:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
-  filaNumero:  { fontFamily: fonts.label, fontSize: 11, color: MUTED, width: 22, textAlign: 'right' },
+  filaNumero:  { fontFamily: fonts.label, fontSize: 13, color: MUTED, width: 22, textAlign: 'right' },
   filaInfo:    { flex: 1, gap: 3 },
-  filaNombre:  { fontFamily: fonts.cuerpo, fontSize: 15, fontWeight: '700', color: TEXTO },
-  filaPosicion:{ fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 1 },
+  filaNombre:  { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '700', color: TEXTO },
+  filaPosicion:{ fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 1 },
   filaRight:   { alignItems: 'flex-end', gap: 4 },
-  filaFecha:   { fontFamily: fonts.label, fontSize: 10, color: MUTED, letterSpacing: 0.3 },
+  filaFecha:   { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 0.3 },
   chevronMl:   { marginLeft: 4 },
 
   // Badge OK
   okBadge:     { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-end' },
-  okBadgeTexto:{ fontFamily: fonts.label, fontSize: 9, fontWeight: '700', color: FONDO, letterSpacing: 1 },
+  okBadgeTexto:{ fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: FONDO, letterSpacing: 1 },
 
   // FAB
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Volver
   volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
-  volverTexto:{ fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 0.5 },
+  volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Detalle
   detalleScroll:     { paddingBottom: 48 },
@@ -491,8 +491,8 @@ const s = StyleSheet.create({
   detalleNombre:     { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO, lineHeight: 34 },
   infoSection:       { paddingHorizontal: 20, paddingVertical: 16, gap: 12 },
   infoFila:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  infoLabel:         { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, color: MUTED, width: 90 },
-  infoValor:         { fontFamily: fonts.cuerpo, fontSize: 14, color: TEXTO, flex: 1, textAlign: 'right' },
+  infoLabel:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: MUTED, width: 90 },
+  infoValor:         { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO, flex: 1, textAlign: 'right' },
   seccionDetalle:    { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4, gap: 12 },
   activityMt:        { marginTop: 12 },
   docsWrap:          { marginTop: 4 },
@@ -502,47 +502,47 @@ const s = StyleSheet.create({
   docIconWrap: { width: 34, height: 34, borderRadius: 3, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   docInfo:     { flex: 1, gap: 2 },
   docTipoRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  docTipo:     { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, fontWeight: '700' },
-  docNombre:   { fontFamily: fonts.cuerpo, fontSize: 13, color: TEXTO, fontWeight: '600' },
-  docFecha:    { fontFamily: fonts.label, fontSize: 10, color: MUTED },
+  docTipo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '700' },
+  docNombre:   { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, fontWeight: '600' },
+  docFecha:    { fontFamily: fonts.label, fontSize: 13, color: MUTED },
   abrirBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, justifyContent: 'center' },
-  abrirBtnTexto: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5, color: ORO, fontWeight: '700' },
+  abrirBtnTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: ORO, fontWeight: '700' },
 
   // Selector tipo
   tipoRow:            { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   tipoBtn:            { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
   tipoBtnActivo:      { borderColor: ORO, backgroundColor: CARD },
-  tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: MUTED, fontWeight: '700' },
+  tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   tipoBtnTextoActivo: { color: ORO_HONDO },
 
   // Botón subir
   botonSubir:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3 },
   botonSubirOff:   { opacity: 0.6 },
-  botonSubirTexto: { fontFamily: fonts.label, color: ORO, fontSize: 10, letterSpacing: 2, fontWeight: '700' },
+  botonSubirTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2, fontWeight: '700' },
 
   // Banners
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
-  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#FFAAAA' },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
   bannerOk:         { backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 11, color: ORO, fontWeight: '700', letterSpacing: 2 },
-  bannerOkSub:      { fontFamily: fonts.cuerpo, fontSize: 12, color: MUTED },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: ORO, fontWeight: '700', letterSpacing: 2 },
+  bannerOkSub:      { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED },
 
   // Modal
   kavFlex:        { flex: 1 },
   modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
-  modalSuper:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO, marginBottom: 4 },
+  modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
   modalClose:     { padding: 4, marginTop: 4 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
-  campoLabel:     { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2, color: ORO },
-  inputLinea:     { borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10, fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
+  campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
+  inputLinea:     { borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO },
 
   // Botones
   botonPrincipal:       { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:    { opacity: 0.6 },
-  botonPrincipalTexto:  { fontFamily: fonts.label, color: ORO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto:  { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
   botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
-  botonSecundarioTexto: { fontFamily: fonts.label, color: ORO, fontSize: 11, letterSpacing: 2.5, fontWeight: '700' },
+  botonSecundarioTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

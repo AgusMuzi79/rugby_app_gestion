@@ -231,11 +231,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
   edicionLabel: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
   edicionFecha: {
-    fontFamily: fonts.label, fontSize: 9, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
@@ -245,7 +245,7 @@ const s = StyleSheet.create({
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
-  secTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
+  secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: colors.grisClaro },
 
   // Stat cards
@@ -258,24 +258,24 @@ const s = StyleSheet.create({
   },
   statCardOro: { borderLeftColor: colors.oro },
   statLabel: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta, marginBottom: 6,
   },
   statValue: {
     fontFamily: fonts.titulo, fontSize: 28, color: colors.tinta, lineHeight: 32, marginBottom: 4,
   },
   statSub: {
-    fontFamily: fonts.cuerpo, fontSize: 10, fontStyle: 'italic', color: '#7C7267', lineHeight: 14,
+    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#7C7267', lineHeight: 14,
   },
   statVar: {
-    fontFamily: fonts.label, fontSize: 8, letterSpacing: 1, marginTop: 4,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, marginTop: 4,
   },
   urgenteBadge: {
     marginTop: 6, alignSelf: 'flex-start',
     backgroundColor: colors.tinta, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 2,
   },
   urgenteText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5,
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.oro,
   },
 
@@ -290,13 +290,13 @@ const s = StyleSheet.create({
     minWidth: 56, alignItems: 'center',
   },
   badgeText: {
-    fontFamily: fonts.label, fontSize: 7, letterSpacing: 1.5, textTransform: 'uppercase',
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
   },
   cronicaBody:   { flex: 1 },
-  cronicaTitulo: { fontFamily: fonts.cuerpo, fontSize: 12, color: colors.tinta, marginBottom: 2 },
-  cronicaMensaje:{ fontFamily: fonts.label, fontSize: 9, color: '#9B9183', letterSpacing: 0.5, marginBottom: 3 },
-  cronicaTiempo: { fontFamily: fonts.label, fontSize: 8, letterSpacing: 1.5, color: colors.oroHondo },
-  cronicaArrow:  { fontFamily: fonts.label, fontSize: 13, color: colors.oroHondo },
+  cronicaTitulo: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta, marginBottom: 2 },
+  cronicaMensaje:{ fontFamily: fonts.label, fontSize: 12, color: '#9B9183', letterSpacing: 0.5, marginBottom: 3 },
+  cronicaTiempo: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
+  cronicaArrow:  { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
 
   // Atajos
   atajosCol: { gap: 10 },
@@ -305,9 +305,9 @@ const s = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', borderRadius: 4,
   },
   atajoBtnText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.tinta,
   },
 
-  emptyText: { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#9B9183' },
+  emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

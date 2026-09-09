@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
   clubName: {
     textAlign: 'center',
     fontFamily: fonts.label,
-    fontSize: 10,
+    fontSize: 13,
     letterSpacing: 2.5,
     color: colors.oro,
     marginBottom: 10,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
-    fontSize: 13,
+    fontSize: 15,
     color: '#7C7267',
     lineHeight: 20,
     marginBottom: 32,
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   },
   pdfButtonText: {
     fontFamily: fonts.label,
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 1.5,
     color: colors.oro,
   },
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   checkLabel: {
     flex: 1,
     fontFamily: fonts.cuerpo,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.tinta,
   },
   button: {
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: fonts.label,
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 2.5,
     color: colors.oro,
   },
@@ -205,14 +205,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontFamily: fonts.cuerpo,
-    fontSize: 13,
+    fontSize: 15,
     textAlign: 'center',
     color: colors.tinta,
   },
   footer: {
     fontFamily: fonts.label,
     textAlign: 'center',
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 1.5,
     color: '#9B9A8F',
     marginTop: 48,

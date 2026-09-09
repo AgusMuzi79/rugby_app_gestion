@@ -200,7 +200,7 @@ const s = StyleSheet.create({
 
   // Header
   headerZone: { paddingTop: 24, paddingBottom: 20 },
-  seccion:    { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, marginBottom: 8 },
+  seccion:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, marginBottom: 8 },
   titulo:     { fontFamily: fonts.titulo, fontSize: 32, lineHeight: 38, marginBottom: 20 },
   headerLine: { height: 1 },
 
@@ -212,33 +212,33 @@ const s = StyleSheet.create({
   fotoCirculo: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center' },
   fotoIniciales: { fontFamily: fonts.titulo, fontSize: 28 },
   fotoBadge:    { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  fotoBadgeTexto: { fontSize: 12, color: '#0E0E0E' },
-  rolLabel:        { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, marginTop: 4 },
-  divisionesExtra: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, marginTop: 4 },
+  fotoBadgeTexto: { fontSize: 14, color: '#0E0E0E' },
+  rolLabel:        { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, marginTop: 4 },
+  divisionesExtra: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, marginTop: 4 },
 
   // Sections
   section:      { marginTop: 28 },
-  sectionTitle: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 3, marginBottom: 10 },
+  sectionTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, marginBottom: 10 },
 
   // Nombre
   inputRow:        { flexDirection: 'row', alignItems: 'center', borderRadius: 2, borderWidth: 1, overflow: 'hidden' },
-  inputField:      { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15 },
+  inputField:      { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17 },
   guardarBtn:      { paddingHorizontal: 16, paddingVertical: 14, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
-  guardarBtnTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#0E0E0E' },
+  guardarBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: '#0E0E0E' },
 
   // Seguridad
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },
-  rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 14 },
+  rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 16 },
 
   // Cuenta
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },
-  signOutTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3 },
+  signOutTexto: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 3 },
 
   // Selector de rol
   rolesRow:    { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   rolBtn:      { borderWidth: 1.5, borderRadius: 2, paddingVertical: 10, paddingHorizontal: 16 },
-  rolBtnTexto: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 2 },
+  rolBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2 },
 
   // Footer
-  version: { fontFamily: fonts.label, fontSize: 9, letterSpacing: 2, textAlign: 'center', marginTop: 40 },
+  version: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textAlign: 'center', marginTop: 40 },
 })
