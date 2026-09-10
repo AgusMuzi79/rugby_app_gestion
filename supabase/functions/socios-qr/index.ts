@@ -11,7 +11,7 @@
 //
 // Seguridad:
 //   get-secret:   JWT requerido, rol='socio', retorna su propio secret.
-//   validate(-dni)/listar-accesos: JWT requerido, rol='porteria' (o secretaria/admin/subcomision).
+//   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero' (o secretaria/admin/subcomision).
 //                   El caller NUNCA recibe el secret — solo info del socio.
 //                   validate-dni no tiene el TOTP como segundo factor — confía en que el
 //                   dispositivo ya está autenticado como Lector (mismo trust boundary que
@@ -20,9 +20,11 @@
 //                   tener un fallback cuando el socio no lleva el teléfono.
 //
 // Cada validate/validate-dni exitoso llamado por una cuenta Lector (rol='porteria')
-// deja un registro en `accesos` (ver 20260902000000_accesos_gimnasio.sql) — es lo
-// que alimenta listar-accesos. Un caller secretaria/admin/subcomision (ej. probando
-// un QR) no genera registro — no representa un ingreso real al gimnasio.
+// o Canchero (rol='canchero') deja un registro en `accesos` (ver
+// 20260902000000_accesos_gimnasio.sql) — es lo que alimenta listar-accesos, con
+// `punto` distinto según el rol (gimnasio/tenis, ver PUNTO_POR_ROL). Un caller
+// secretaria/admin/subcomision (ej. probando un QR) no genera registro — no
+// representa un ingreso real.
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
@@ -137,14 +139,21 @@ function socioResponse(socio: SocioRow) {
   }
 }
 
-// Deja registro en `accesos` sólo cuando el que escanea es una cuenta Lector real
-// — un secretaria/admin/subcomision probando un QR no representa un ingreso.
-// Falla en silencio (fire & forget): un problema acá no puede tumbar el escaneo,
-// que ya le mostró el resultado al socio.
-async function registrarAcceso(socioId: string, semaforo: string | null): Promise<void> {
+// Deja registro en `accesos` sólo cuando el que escanea es una cuenta Lector o
+// Canchero real — un secretaria/admin/subcomision probando un QR no representa
+// un ingreso. Falla en silencio (fire & forget): un problema acá no puede
+// tumbar el escaneo, que ya le mostró el resultado al socio.
+const PUNTO_POR_ROL: Record<string, string> = {
+  porteria: 'gimnasio',
+  canchero: 'tenis',
+}
+
+async function registrarAcceso(socioId: string, semaforo: string | null, callerRol: string): Promise<void> {
+  const punto = PUNTO_POR_ROL[callerRol]
+  if (!punto) return
   const { error } = await supabaseAdmin
     .from('accesos')
-    .insert({ socio_id: socioId, semaforo })
+    .insert({ socio_id: socioId, semaforo, punto })
   if (error) console.error('registrarAcceso:', error.message)
 }
 
@@ -152,7 +161,7 @@ async function handleValidate(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   const numero_socio = (body.numero_socio as string | undefined)?.trim()
@@ -192,7 +201,7 @@ async function handleValidate(
   }
 
   const row = socio as unknown as SocioRow
-  if (callerRol === 'porteria') await registrarAcceso(row.id, row.semaforo)
+  if (callerRol === 'porteria' || callerRol === 'canchero') await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
 }
@@ -207,7 +216,7 @@ async function handleValidateDni(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   const dni = (body.dni as string | undefined)?.trim()
@@ -224,7 +233,7 @@ async function handleValidateDni(
   }
 
   const row = socio as unknown as SocioRow
-  if (callerRol === 'porteria') await registrarAcceso(row.id, row.semaforo)
+  if (callerRol === 'porteria' || callerRol === 'canchero') await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
 }
@@ -239,7 +248,7 @@ async function handleListarAccesos(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para ver el historial de accesos')
 
   const fecha = (body.fecha as string | undefined)?.trim() || new Date().toISOString().slice(0, 10)

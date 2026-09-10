@@ -5,6 +5,7 @@ import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
 import { Feather } from '@expo/vector-icons'
 import { useScanner, type ScanResult } from '@/hooks/useScanner'
+import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -24,6 +25,12 @@ const AUTO_RESET_MS = 4000
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets()
+  const { rol } = useAuthStore()
+  const esCanchero = rol === 'canchero'
+  const tituloHeader = esCanchero ? 'CANCHERO · SCANNER' : 'LECTOR · SCANNER'
+  // Lector (gimnasio): autoservicio, el socio escanea su propio carnet → cámara frontal.
+  // Canchero: atendido, es él quien escanea el carnet del socio → cámara trasera.
+  const camaraFacing = esCanchero ? 'back' : 'front'
   const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, reset } = useScanner()
 
   // Fallback sin QR — el socio no llevaba el celular encima.
@@ -79,7 +86,7 @@ export default function ScannerScreen() {
     return (
       <View style={[s.root, s.center, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
-          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
+          <Text style={s.permBarLabel}>{tituloHeader}</Text>
         </View>
         <View style={s.center}>
           <Feather name="camera-off" size={48} color={MUTED} />
@@ -109,7 +116,7 @@ export default function ScannerScreen() {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
-          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
+          <Text style={s.permBarLabel}>{tituloHeader}</Text>
         </View>
 
         {validando ? (
@@ -195,13 +202,13 @@ export default function ScannerScreen() {
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
         <View style={s.permBar}>
-          <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
+          <Text style={s.permBarLabel}>{tituloHeader}</Text>
         </View>
 
         <View style={s.dniContainer}>
           <Feather name="hash" size={40} color={MUTED} />
-          <Text style={s.dniTitle}>No tenés el carnet a mano</Text>
-          <Text style={s.dniSub}>Ingresá tu DNI para consultar tu estado</Text>
+          <Text style={s.dniTitle}>{esCanchero ? 'El socio no tiene el carnet a mano' : 'No tenés el carnet a mano'}</Text>
+          <Text style={s.dniSub}>{esCanchero ? 'Ingresá su DNI para consultar su estado' : 'Ingresá tu DNI para consultar tu estado'}</Text>
 
           <TextInput
             style={s.dniInput}
@@ -231,13 +238,13 @@ export default function ScannerScreen() {
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
       <View style={s.permBar}>
-        <Text style={s.permBarLabel}>LECTOR · SCANNER</Text>
+        <Text style={s.permBarLabel}>{tituloHeader}</Text>
       </View>
 
       <View style={s.cameraContainer}>
         <CameraView
           style={StyleSheet.absoluteFillObject}
-          facing="front"
+          facing={camaraFacing}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={({ data }) => handleQR(data)}
         />
@@ -253,11 +260,13 @@ export default function ScannerScreen() {
         </View>
 
         <View style={s.hint}>
-          <Text style={s.hintText}>Acercá el QR de tu carnet a la cámara</Text>
+          <Text style={s.hintText}>
+            {esCanchero ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
+          </Text>
         </View>
 
         <TouchableOpacity style={s.dniLink} onPress={() => setModoDni(true)} activeOpacity={0.7}>
-          <Text style={s.dniLinkText}>¿No tenés el carnet? Ingresar DNI</Text>
+          <Text style={s.dniLinkText}>{esCanchero ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
         </TouchableOpacity>
       </View>
     </View>

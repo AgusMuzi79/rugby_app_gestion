@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import { useCalendario, EventoCalendario, TipoEvento } from '@/hooks/useCalendario'
+import { useCalendario, EventoCalendario, TipoEvento, ModalidadPartido } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
 
@@ -67,6 +67,7 @@ function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancel
           {fechaCorta(evento.fecha)}
           {evento.hora ? ` · ${evento.hora}` : ''}
           {evento.lugar ? ` · ${evento.lugar}` : ''}
+          {evento.modalidad ? ` · ${evento.modalidad === 'singles' ? 'Singles' : 'Dobles'}` : ''}
         </Text>
         <Text style={styles.eventoDiv}>{evento.division_nombre}</Text>
       </View>
@@ -85,7 +86,7 @@ interface ModalNuevoEventoProps {
   visible:       boolean
   onClose:       () => void
   onGuardar:     () => Promise<void>
-  divisiones:    { id: string; nombre: string }[]
+  divisiones:    { id: string; nombre: string; deporte: string }[]
   form:          ReturnType<typeof useCalendario>['form']
   setForm:       ReturnType<typeof useCalendario>['setForm']
   guardando:     boolean
@@ -95,6 +96,9 @@ interface ModalNuevoEventoProps {
 function ModalNuevoEvento({
   visible, onClose, onGuardar, divisiones, form, setForm, guardando, errorGuardado,
 }: ModalNuevoEventoProps) {
+  const divisionActual = divisiones.find(d => d.id === form.division_id)
+  const esTenis = divisionActual?.deporte === 'tenis'
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.kavFlex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -184,6 +188,27 @@ function ModalNuevoEvento({
                   value={form.rival}
                   onChangeText={v => setForm({ ...form, rival: v })}
                 />
+              </>
+            )}
+
+            {/* Modalidad — solo para partido de tenis */}
+            {form.tipo === 'partido' && esTenis && (
+              <>
+                <Text style={styles.inputLabel}>MODALIDAD</Text>
+                <View style={styles.tipoRow}>
+                  {(['singles', 'dobles'] as ModalidadPartido[]).map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[styles.tipoBoton, form.modalidad === m && styles.tipoBotonActivo]}
+                      onPress={() => setForm({ ...form, modalidad: m })}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.tipoBotonTexto, form.modalidad === m && styles.tipoBotonTextoActivo]}>
+                        {m.charAt(0).toUpperCase() + m.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </>
             )}
 

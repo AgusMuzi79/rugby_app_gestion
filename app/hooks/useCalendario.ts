@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 export type TipoEvento = 'entrenamiento' | 'partido'
+export type ModalidadPartido = 'singles' | 'dobles'
 
 export interface EventoCalendario {
   id: string
@@ -13,6 +14,7 @@ export interface EventoCalendario {
   hora: string | null
   lugar: string | null
   rival: string | null
+  modalidad: string | null
   cancelado: boolean
   creado_por: string
   created_at: string
@@ -27,6 +29,7 @@ export interface NuevoEventoForm {
   hora: string
   lugar: string
   rival: string
+  modalidad: ModalidadPartido | ''
 }
 
 const FORM_VACIO: NuevoEventoForm = {
@@ -36,11 +39,12 @@ const FORM_VACIO: NuevoEventoForm = {
   hora: '',
   lugar: '',
   rival: '',
+  modalidad: '',
 }
 
 export interface UseCalendarioReturn {
   eventos: EventoCalendario[]
-  divisiones: { id: string; nombre: string }[]
+  divisiones: { id: string; nombre: string; deporte: string }[]
   loading: boolean
   guardando: boolean
   errorGuardado: string | null
@@ -58,7 +62,7 @@ export interface UseCalendarioReturn {
 export function useCalendario(): UseCalendarioReturn {
   const { session } = useAuthStore()
   const [eventos, setEventos] = useState<EventoCalendario[]>([])
-  const [divisiones, setDivisiones] = useState<{ id: string; nombre: string }[]>([])
+  const [divisiones, setDivisiones] = useState<{ id: string; nombre: string; deporte: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
@@ -87,7 +91,7 @@ export function useCalendario(): UseCalendarioReturn {
 
     const { data: divsData } = await supabase
       .from('divisiones')
-      .select('id, nombre')
+      .select('id, nombre, deporte')
       .in('id', divIds)
       .order('nombre')
 
@@ -129,6 +133,7 @@ export function useCalendario(): UseCalendarioReturn {
       hora: string | null
       lugar: string | null
       rival: string | null
+      modalidad: string | null
       cancelado: boolean
       creado_por: string
       created_at: string
@@ -142,6 +147,7 @@ export function useCalendario(): UseCalendarioReturn {
       hora: e.hora,
       lugar: e.lugar,
       rival: e.rival,
+      modalidad: e.modalidad,
       cancelado: e.cancelado,
       creado_por: e.creado_por,
       created_at: e.created_at,
@@ -189,6 +195,7 @@ export function useCalendario(): UseCalendarioReturn {
       hora: form.hora.trim() || null,
       lugar: form.lugar.trim() || null,
       rival: form.tipo === 'partido' ? (form.rival.trim() || null) : null,
+      modalidad: form.tipo === 'partido' ? (form.modalidad || null) : null,
       creado_por: session.user.id,
       cancelado: false,
     })

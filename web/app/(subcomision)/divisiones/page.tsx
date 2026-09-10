@@ -159,9 +159,9 @@ export default function DivisionesPage() {
                 <option value="">Seleccioná una categoría</option>
                 <option value="infantil">Infantil</option>
                 <option value="juvenil">Juvenil</option>
-                <option value="plantel_superior">Plantel Superior</option>
+                <option value="superior">Plantel Superior</option>
                 <option value="femenino">Femenino</option>
-                <option value="rugby_mixed">Rugby Mixed</option>
+                <option value="mixed">Rugby Mixed</option>
               </select>
             </div>
 

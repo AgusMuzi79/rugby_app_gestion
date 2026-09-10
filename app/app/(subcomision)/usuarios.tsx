@@ -29,6 +29,7 @@ const ROL_COLOR: Record<string, string> = {
   manager:     '#D97706',
   secretaria:  '#0891B2',
   porteria:    '#65A30D',
+  canchero:    '#0D9488',
   admin:       '#DC2626',
 }
 
@@ -272,6 +273,7 @@ const ROLES_CREABLES_ADMIN: { value: RolCreable; label: string }[] = [
   { value: 'manager',     label: 'Manager'     },
   { value: 'secretaria',  label: 'Secretaría'  },
   { value: 'porteria',    label: 'Lector'      },
+  { value: 'canchero',    label: 'Canchero'    },
   { value: 'subcomision', label: 'Subcomisión' },
 ]
 
