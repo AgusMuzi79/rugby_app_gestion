@@ -2,11 +2,11 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 
-type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'subcomision'
+type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 
 const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
   subcomision: ['coordinador', 'entrenador', 'manager', 'subcomision'],
-  admin:       ['coordinador', 'entrenador', 'manager', 'secretaria', 'porteria', 'canchero', 'subcomision'],
+  admin:       ['coordinador', 'entrenador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision'],
 }
 
 Deno.serve(async (req: Request) => {

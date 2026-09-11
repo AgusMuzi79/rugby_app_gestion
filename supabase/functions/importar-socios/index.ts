@@ -44,6 +44,8 @@ interface SocioDb {
   profileId:       string
   fotoValidada:    boolean
   cobroConTarjeta: boolean
+  dni:             string
+  nombre:          string
 }
 
 interface DiffAlta {
@@ -54,6 +56,7 @@ interface DiffAlta {
   fechaNacimiento: string | null
   email:       string
   cobroConTarjeta: boolean
+  clienteGimnasio: boolean
 }
 
 interface DiffBaja {
@@ -77,9 +80,12 @@ interface DiffActualizar {
   numeroSocio: string
   nombre:      string
   socioId:     string
+  profileId:   string
   categoriaId: string | null
   fechaNacimiento: string | null
   cobroConTarjeta: boolean | null
+  dni:         string | null
+  nombreNuevo: string | null
 }
 
 interface DiffError {
@@ -160,7 +166,7 @@ Deno.serve(async (req: Request) => {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from('socios')
-      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta')
+      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta, dni, profiles!socios_profile_id_fkey(nombre)')
       .range(from, from + 999)
     if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
     sociosDbRaw = sociosDbRaw.concat(data ?? [])
@@ -178,6 +184,8 @@ Deno.serve(async (req: Request) => {
         profileId:       s.profile_id as string,
         fotoValidada:    s.foto_validada as boolean,
         cobroConTarjeta: s.cobro_con_tarjeta as boolean,
+        dni:             s.dni as string,
+        nombre:          (s.profiles as { nombre: string } | null)?.nombre ?? '',
       }])
   )
 
@@ -252,11 +260,22 @@ function calcularDiff(
   const diff: Diff = { altas: [], bajas: [], reingresos: [], actualizados: [], sinCambio: 0, errores: [] }
 
   const filaPorNumeroSocio    = new Map(filas.map(f => [f.numeroSocio, f]))
-  const vigentesPorNumeroSocio = new Map(filas.filter(f => f.estado === 'SOCIO').map(f => [f.numeroSocio, f]))
+  // 'CLIENTE GYM' se suma acá (2026-09-11, rol Cliente Gimnasio) — el
+  // Padrón Extendido y el reporte de vencimientos ya traen a estos clientes
+  // con la misma estructura que un socio real, sólo que con `rol` distinto
+  // (ver migración 20260911000000_rol_cliente_gimnasio) para que queden
+  // afuera de cuotas/noticias/calendario en el resto de la app.
+  const vigentesPorNumeroSocio = new Map(
+    filas.filter(f => f.estado === 'SOCIO' || f.estado === 'CLIENTE GYM').map(f => [f.numeroSocio, f])
+  )
 
   // Altas / actualizados / reingresos / sin_cambio — a partir de lo vigente en el archivo
   for (const [numeroSocio, fila] of vigentesPorNumeroSocio) {
-    const categoriaNombre = categoriaNombreDb(fila.categoriaRaw)
+    const clienteGimnasio = fila.estado === 'CLIENTE GYM'
+    // Para 'CLIENTE GYM' la categoría es fija — no se intenta mapear la
+    // columna Categoría del padrón para estas filas (no aporta nada acá, el
+    // Estado ya alcanza para identificarlos).
+    const categoriaNombre = clienteGimnasio ? 'Cliente Gimnasio' : categoriaNombreDb(fila.categoriaRaw)
     const categoriaId     = categoriaNombre ? categoriaIdPorNombre.get(categoriaNombre) ?? null : null
 
     const existente = sociosDb.get(numeroSocio)
@@ -267,7 +286,7 @@ function calcularDiff(
         continue
       }
       diff.altas.push({
-        numeroSocio, nombre: fila.nombre, categoriaId,
+        numeroSocio, nombre: fila.nombre, categoriaId, clienteGimnasio,
         dni: fila.dni, fechaNacimiento: fila.fechaNacimiento, email: fila.email,
         cobroConTarjeta: fila.pagaConTarjeta,
       })
@@ -283,16 +302,30 @@ function calcularDiff(
       continue
     }
 
-    // activo/pendiente — ¿cambió categoría, fecha de nacimiento o forma de cobro?
+    // activo/pendiente — ¿cambió categoría, fecha de nacimiento, forma de cobro, DNI o nombre?
+    // El DNI sólo se toma si la fila trae uno real (nunca pisa un DNI real ya
+    // cargado con el sintético "SD{numeroSocio}" por una fila con dato faltante/
+    // inválido en un export puntual) — ver hallazgo 2026-09-11: Secretaría corrigió
+    // el DNI mal cargado de una socia en NUVIX y el importador nunca lo sincronizaba
+    // (ni acá ni en profiles.dni, que se sincroniza sólo cuando cambia socios.dni),
+    // así que ella no podía loguearse con el DNI corregido por más veces que se
+    // reimportara el padrón. Mismo día: un cambio de apellido en NUVIX tampoco se
+    // reflejaba — el nombre nunca se comparaba, sólo se usaba al crear una alta.
+    // El nombre vive en `profiles.nombre`, no en `socios` — se actualiza aparte
+    // en aplicarDiff().
     const cambioCategoria = !!categoriaId && categoriaId !== existente.categoriaId
     const cambioFecha     = !!fila.fechaNacimiento && fila.fechaNacimiento !== existente.fechaNacimiento
     const cambioTarjeta   = fila.pagaConTarjeta !== existente.cobroConTarjeta
-    if (cambioCategoria || cambioFecha || cambioTarjeta) {
+    const cambioDni       = !fila.dniSintetico && fila.dni !== existente.dni
+    const cambioNombre    = !!fila.nombre && fila.nombre !== existente.nombre
+    if (cambioCategoria || cambioFecha || cambioTarjeta || cambioDni || cambioNombre) {
       diff.actualizados.push({
-        numeroSocio, nombre: fila.nombre, socioId: existente.id,
+        numeroSocio, nombre: fila.nombre, socioId: existente.id, profileId: existente.profileId,
         categoriaId:     cambioCategoria ? categoriaId : null,
         fechaNacimiento: cambioFecha ? fila.fechaNacimiento : null,
         cobroConTarjeta: cambioTarjeta ? fila.pagaConTarjeta : null,
+        dni:             cambioDni ? fila.dni : null,
+        nombreNuevo:     cambioNombre ? fila.nombre : null,
       })
     } else {
       diff.sinCambio++
@@ -379,7 +412,12 @@ async function aplicarDiff(diff: Diff) {
 
       const { error: profileErr } = await supabaseAdmin
         .from('profiles')
-        .insert({ id: userId, nombre: alta.nombre, rol: 'socio', roles: ['socio'], divisiones: null })
+        .insert({
+          id: userId, nombre: alta.nombre,
+          rol:   alta.clienteGimnasio ? 'cliente_gimnasio' : 'socio',
+          roles: [alta.clienteGimnasio ? 'cliente_gimnasio' : 'socio'],
+          divisiones: null,
+        })
       if (profileErr) { await supabaseAdmin.auth.admin.deleteUser(userId); throw new Error(profileErr.message) }
 
       const { data: socioData, error: socioErr } = await supabaseAdmin
@@ -456,9 +494,18 @@ async function aplicarDiff(diff: Diff) {
       if (u.categoriaId)             patch.categoria_id     = u.categoriaId
       if (u.fechaNacimiento)         patch.fecha_nacimiento = u.fechaNacimiento
       if (u.cobroConTarjeta !== null) patch.cobro_con_tarjeta = u.cobroConTarjeta
+      if (u.dni)                     patch.dni              = u.dni
 
-      const { error } = await supabaseAdmin.from('socios').update(patch).eq('id', u.socioId)
-      if (error) throw new Error(error.message)
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabaseAdmin.from('socios').update(patch).eq('id', u.socioId)
+        if (error) throw new Error(error.message)
+      }
+
+      // El nombre vive en `profiles`, no en `socios` — update aparte.
+      if (u.nombreNuevo) {
+        const { error } = await supabaseAdmin.from('profiles').update({ nombre: u.nombreNuevo }).eq('id', u.profileId)
+        if (error) throw new Error(error.message)
+      }
 
       socioIdsAfectados.push(u.socioId)
       actualizadosOk.push(u)

@@ -22,8 +22,11 @@ export interface SocioPadron {
 }
 
 // Nombres exactos en categorias_socio — ver design.md §5, verificado contra
-// producción (2026-08-21). CLIENTE / CLIENTE GYM no mapean: son poblaciones
-// que ya se excluyen antes de llegar acá (sólo se procesa Estado='SOCIO').
+// producción (2026-08-21). CLIENTE no mapea: son cuentas institucionales de
+// NUVIX, se excluyen en importar-socios/index.ts (categoría sin mapear).
+// CLIENTE GYM tampoco mapea por esta tabla — importar-socios lo asigna
+// directo a la categoría fija "Cliente Gimnasio" sin pasar por acá (ver
+// migración 20260911000000_rol_cliente_gimnasio).
 const CATEGORIA_MAP: Record<string, string> = {
   'ACTIVO MAYOR':      'Activo Mayor',
   'ACTIVO MENOR':      'Activo Menor',

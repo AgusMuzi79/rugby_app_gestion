@@ -27,8 +27,9 @@ export default function ScannerScreen() {
   const insets = useSafeAreaInsets()
   const { rol } = useAuthStore()
   const esCanchero = rol === 'canchero'
-  const tituloHeader = esCanchero ? 'CANCHERO · SCANNER' : 'LECTOR · SCANNER'
-  // Lector (gimnasio): autoservicio, el socio escanea su propio carnet → cámara frontal.
+  const TITULOS_HEADER: Record<string, string> = { canchero: 'CANCHERO · SCANNER', buffet: 'BUFFET · SCANNER' }
+  const tituloHeader = TITULOS_HEADER[rol ?? ''] ?? 'LECTOR · SCANNER'
+  // Lector (gimnasio) y Buffet: autoservicio, el socio escanea su propio carnet → cámara frontal.
   // Canchero: atendido, es él quien escanea el carnet del socio → cámara trasera.
   const camaraFacing = esCanchero ? 'back' : 'front'
   const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, reset } = useScanner()

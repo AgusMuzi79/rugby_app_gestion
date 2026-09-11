@@ -45,7 +45,7 @@ const ROLES_POR_TIPO: Record<NotificationType, string[]> = {
   fichaje:                   ['manager'],
   ausencias_consecutivas:    ['entrenador'],
   cancelacion_entrenamiento: ['coordinador'],
-  noticia_publicada:         ['secretaria'],
+  noticia_publicada:         ['secretaria', 'buffet'],
   manual:                    ['subcomision', 'manager', 'entrenador', 'coordinador'],
 }
 

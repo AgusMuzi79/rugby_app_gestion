@@ -6,11 +6,11 @@ import { supabase } from '@/lib/supabase'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 const ROLES_SUBCO  = ['coordinador', 'entrenador', 'manager', 'subcomision']
-const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero']
+const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', manager: 'Manager',
-  secretaria: 'Secretaría', porteria: 'Lector', canchero: 'Canchero',
+  secretaria: 'Secretaría', porteria: 'Lector', canchero: 'Canchero', buffet: 'Buffet',
 }
 
 interface Division { id: string; nombre: string }
@@ -58,7 +58,7 @@ export default function UsuariosPage() {
     let query = supabase.from('profiles').select('id, nombre, rol, divisiones')
       .neq('rol', 'socio').neq('rol', 'admin').order('nombre')
     if (!admin) {
-      query = query.neq('rol', 'secretaria').neq('rol', 'porteria').neq('rol', 'canchero')
+      query = query.neq('rol', 'secretaria').neq('rol', 'porteria').neq('rol', 'canchero').neq('rol', 'buffet')
     }
     const [{ data: profs }, { data: divs }] = await Promise.all([
       query,

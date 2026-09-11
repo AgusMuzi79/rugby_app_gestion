@@ -10,8 +10,8 @@
 //   listar-accesos — Panel web de Lector: historial de ingresos de un día (tabla `accesos`).
 //
 // Seguridad:
-//   get-secret:   JWT requerido, rol='socio', retorna su propio secret.
-//   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero' (o secretaria/admin/subcomision).
+//   get-secret:   JWT requerido, rol='socio' o 'cliente_gimnasio', retorna su propio secret.
+//   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero'/'buffet' (o secretaria/admin/subcomision).
 //                   El caller NUNCA recibe el secret — solo info del socio.
 //                   validate-dni no tiene el TOTP como segundo factor — confía en que el
 //                   dispositivo ya está autenticado como Lector (mismo trust boundary que
@@ -19,10 +19,10 @@
 //                   disparar la consulta desde la tablet — trade-off aceptado a cambio de
 //                   tener un fallback cuando el socio no lleva el teléfono.
 //
-// Cada validate/validate-dni exitoso llamado por una cuenta Lector (rol='porteria')
-// o Canchero (rol='canchero') deja un registro en `accesos` (ver
-// 20260902000000_accesos_gimnasio.sql) — es lo que alimenta listar-accesos, con
-// `punto` distinto según el rol (gimnasio/tenis, ver PUNTO_POR_ROL). Un caller
+// Cada validate/validate-dni exitoso llamado por una cuenta Lector (rol='porteria'),
+// Canchero (rol='canchero') o Buffet (rol='buffet') deja un registro en `accesos`
+// (ver 20260902000000_accesos_gimnasio.sql) — es lo que alimenta listar-accesos, con
+// `punto` distinto según el rol (gimnasio/tenis/buffet, ver PUNTO_POR_ROL). Un caller
 // secretaria/admin/subcomision (ej. probando un QR) no genera registro — no
 // representa un ingreso real.
 
@@ -69,7 +69,11 @@ Deno.serve(async (req: Request) => {
 // NO se regenera el secret en cada llamada — siempre es el mismo.
 
 async function handleGetSecret(callerRol: string, callerId: string): Promise<Response> {
-  if (callerRol !== 'socio') return jsonError(403, 'Solo los socios pueden obtener su secret')
+  // 'cliente_gimnasio' también es una fila real de `socios` (ver migración
+  // 20260911000000_rol_cliente_gimnasio) — mismo carnet QR/TOTP que un socio.
+  if (callerRol !== 'socio' && callerRol !== 'cliente_gimnasio') {
+    return jsonError(403, 'Sólo socios o clientes de gimnasio pueden obtener su secret')
+  }
 
   // Buscar socio_id del caller
   const { data: socio, error: socioErr } = await supabaseAdmin
@@ -146,6 +150,7 @@ function socioResponse(socio: SocioRow) {
 const PUNTO_POR_ROL: Record<string, string> = {
   porteria: 'gimnasio',
   canchero: 'tenis',
+  buffet:   'buffet',
 }
 
 async function registrarAcceso(socioId: string, semaforo: string | null, callerRol: string): Promise<void> {
@@ -161,7 +166,7 @@ async function handleValidate(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   const numero_socio = (body.numero_socio as string | undefined)?.trim()
@@ -201,7 +206,7 @@ async function handleValidate(
   }
 
   const row = socio as unknown as SocioRow
-  if (callerRol === 'porteria' || callerRol === 'canchero') await registrarAcceso(row.id, row.semaforo, callerRol)
+  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
 }
@@ -216,7 +221,7 @@ async function handleValidateDni(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   const dni = (body.dni as string | undefined)?.trim()
@@ -233,7 +238,7 @@ async function handleValidateDni(
   }
 
   const row = socio as unknown as SocioRow
-  if (callerRol === 'porteria' || callerRol === 'canchero') await registrarAcceso(row.id, row.semaforo, callerRol)
+  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
 }
@@ -248,7 +253,7 @@ async function handleListarAccesos(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para ver el historial de accesos')
 
   const fecha = (body.fecha as string | undefined)?.trim() || new Date().toISOString().slice(0, 10)

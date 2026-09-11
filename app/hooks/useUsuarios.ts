@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 
-export type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'subcomision'
+export type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
 
 export interface Usuario {
@@ -26,6 +26,7 @@ const ROL_LABEL: Record<string, string> = {
   secretaria:  'Secretaría',
   porteria:    'Lector',
   canchero:    'Canchero',
+  buffet:      'Buffet',
   admin:       'Admin',
 }
 
