@@ -70,8 +70,8 @@ export function useUsuarios() {
   // Assign-role flow
   const [busquedaSocio, setBusquedaSocio]               = useState('')
   const [buscandoSocio, setBuscandoSocio]               = useState(false)
-  const [resultadosBusqueda, setResultadosBusqueda]     = useState<{ id: string; nombre: string; email?: string }[]>([])
-  const [socioEncontrado, setSocioEncontrado]           = useState<{ id: string; nombre: string; email?: string } | null>(null)
+  const [resultadosBusqueda, setResultadosBusqueda]     = useState<{ id: string; nombre: string }[]>([])
+  const [socioEncontrado, setSocioEncontrado]           = useState<{ id: string; nombre: string } | null>(null)
   const [errorBusqueda, setErrorBusqueda]               = useState<string | null>(null)
   const [rolAsignacion, setRolAsignacion]               = useState<RolCreable | null>(null)
   const [divisionesAsignacion, setDivisionesAsignacion] = useState<string[]>([])
@@ -200,40 +200,31 @@ export function useUsuarios() {
     const esDni = /^\d+$/.test(q)
 
     if (esDni) {
+      // `profiles` no tiene columna `email` (vive en auth.users, resuelta
+      // aparte por fetchEmail() vía admin-usuarios) — pedirla acá rompía la
+      // query entera (error de PostgREST) y el catch-all de abajo lo
+      // mostraba como "no se encontró ningún socio", enmascarando el error
+      // real. Bug real: toda búsqueda por DNI fallaba, sin importar cuál.
       const { data, error } = await supabase
         .from('socios')
-        .select('id, profiles!socios_profile_id_fkey(nombre, email)')
+        .select('id, profiles!socios_profile_id_fkey(nombre)')
         .eq('dni', q)
         .maybeSingle()
-      const prof = data?.profiles as { nombre?: string; email?: string } | null
+      const prof = data?.profiles as { nombre?: string } | null
       if (error || !data || !prof?.nombre) {
         setErrorBusqueda('No se encontró ningún socio con ese DNI.')
       } else {
-        setSocioEncontrado({ id: data.id, nombre: prof.nombre, email: prof.email })
+        setSocioEncontrado({ id: data.id, nombre: prof.nombre })
       }
     } else {
-      // Buscar en profiles por nombre, luego cruzar con socios
-      const { data: profs, error: profErr } = await supabase
-        .from('profiles')
-        .select('id, nombre')
-        .ilike('nombre', `%${q}%`)
-        .limit(10)
-      if (profErr || !profs || profs.length === 0) {
-        setErrorBusqueda('No se encontraron socios con ese nombre.')
-        setBuscandoSocio(false)
-        return
-      }
-      const { data: sociosData } = await supabase
-        .from('socios')
-        .select('id, profile_id')
-        .in('profile_id', profs.map(p => p.id))
-      if (!sociosData || sociosData.length === 0) {
+      // buscar_socios_por_nombre — RPC que matchea cada palabra en cualquier
+      // orden e ignora tildes (unaccent), a diferencia del ILIKE simple que
+      // esto reemplaza (ver project-bug-busqueda-socio-usuarios en memoria).
+      const { data, error: rpcErr } = await supabase.rpc('buscar_socios_por_nombre', { q })
+      if (rpcErr || !data || data.length === 0) {
         setErrorBusqueda('No se encontraron socios con ese nombre.')
       } else {
-        const results = sociosData.map(s => ({
-          id:     s.id,
-          nombre: profs.find(p => p.id === s.profile_id)?.nombre ?? '—',
-        }))
+        const results = data.map(r => ({ id: r.id, nombre: r.nombre }))
         if (results.length === 1) setSocioEncontrado(results[0])
         else setResultadosBusqueda(results)
       }
@@ -241,7 +232,7 @@ export function useUsuarios() {
     setBuscandoSocio(false)
   }
 
-  function elegirSocioDeResultados(socio: { id: string; nombre: string; email?: string }) {
+  function elegirSocioDeResultados(socio: { id: string; nombre: string }) {
     setSocioEncontrado(socio)
     setResultadosBusqueda([])
   }

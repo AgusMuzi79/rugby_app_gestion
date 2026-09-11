@@ -333,28 +333,14 @@ function ModalNuevoUsuario({
         setSocioElegido({ id: data.id, nombre })
       }
     } else {
-      // Buscar en profiles por nombre, luego cruzar con socios
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, nombre')
-        .ilike('nombre', `%${q}%`)
-        .limit(10)
-      if (!profs || profs.length === 0) {
-        setErrorBusqueda('No se encontraron socios con ese nombre.')
-        setBuscando(false)
-        return
-      }
-      const { data: sociosData } = await supabase
-        .from('socios')
-        .select('id, profile_id')
-        .in('profile_id', profs.map(p => p.id))
-      if (!sociosData || sociosData.length === 0) {
+      // buscar_socios_por_nombre — RPC que matchea cada palabra en cualquier
+      // orden e ignora tildes (unaccent), a diferencia del ILIKE simple que
+      // esto reemplaza (ver project-bug-busqueda-socio-usuarios en memoria).
+      const { data } = await supabase.rpc('buscar_socios_por_nombre', { q })
+      if (!data || data.length === 0) {
         setErrorBusqueda('No se encontraron socios con ese nombre.')
       } else {
-        const results = sociosData.map(s => ({
-          id: s.id,
-          nombre: profs.find(p => p.id === s.profile_id)?.nombre ?? '—',
-        }))
+        const results = data.map((r: { id: string; nombre: string }) => ({ id: r.id, nombre: r.nombre }))
         if (results.length === 1) setSocioElegido(results[0])
         else setResultados(results)
       }

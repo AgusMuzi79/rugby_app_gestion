@@ -1879,6 +1879,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      buscar_socios_por_nombre: {
+        Args: { q: string }
+        Returns: {
+          id: string
+          nombre: string
+        }[]
+      }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
       importar_deuda_nuvix: { Args: { p_payload: Json }; Returns: Json }
@@ -1890,6 +1897,7 @@ export type Database = {
         Args: { p_division_id: string }
         Returns: boolean
       }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
