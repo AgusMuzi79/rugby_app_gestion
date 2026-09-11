@@ -5,7 +5,7 @@ const config = {
   name: IS_DEV ? 'Uncas (Dev)' : 'Uncas Rugby App',
   slug: 'uncas-rugby-app',
   scheme: 'uncasrugby',
-  version: '1.0.3',
+  version: '1.0.4',
   orientation: 'portrait',
   icon: './assets/images/logo.png',
   userInterfaceStyle: 'dark',

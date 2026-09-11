@@ -30,6 +30,16 @@ function periodoLabel(periodo: string): string {
   return `${meses[Number(mes)]} ${anio}`
 }
 
+// Sólo visual — el período que coincide con el mes calendario actual se
+// etiqueta "MES EN CURSO" en vez de mostrarse como deuda atrasada más, aunque
+// NUVIX ya lo haya marcado como vencido (su fecha de vencimiento puede haber
+// pasado hace apenas unos días dentro del mismo mes). No cambia el semáforo
+// ni el monto — el socio real sigue contando este período igual que antes,
+// esto es puramente de presentación en esta pantalla.
+function esMesEnCurso(periodo: string): boolean {
+  return periodo === new Date().toISOString().slice(0, 7)
+}
+
 function whatsappComprobanteUrl(periodo: string, monto: number): string {
   const mensaje = `Hola! Te mando el comprobante de mi cuota de ${periodoLabel(periodo)} ($${monto.toLocaleString('es-AR')}).`
   return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
@@ -177,7 +187,14 @@ function DeudaClubModal({ onClose }: { onClose: () => void }) {
                   {data.periodos.map(p => (
                     <View key={p.periodo} style={dm.periodoBox}>
                       <View style={dm.periodoHeader}>
-                        <Text style={dm.periodoLabel}>{periodoLabel(p.periodo).toUpperCase()}</Text>
+                        <View style={dm.periodoLabelRow}>
+                          <Text style={dm.periodoLabel}>{periodoLabel(p.periodo).toUpperCase()}</Text>
+                          {esMesEnCurso(p.periodo) && (
+                            <View style={dm.mesEnCursoTag}>
+                              <Text style={dm.mesEnCursoTagText}>MES EN CURSO</Text>
+                            </View>
+                          )}
+                        </View>
                         <Text style={dm.periodoMonto}>{montoStr(p.vencido)}</Text>
                       </View>
                       {p.comprobantes.length > 1 && (
@@ -642,8 +659,17 @@ const dm = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: '#2C2418', paddingVertical: 12,
   },
   periodoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  periodoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   periodoLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
   periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: '#F3EFE4' },
+
+  mesEnCursoTag: {
+    borderWidth: 1, borderColor: '#8E8574', borderRadius: 3,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  mesEnCursoTagText: {
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: '#8E8574',
+  },
 
   subRows: { marginTop: 8, gap: 4, paddingLeft: 4 },
   subRow:  { flexDirection: 'row', justifyContent: 'space-between' },
