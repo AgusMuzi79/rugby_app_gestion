@@ -11,11 +11,23 @@ export interface Usuario {
   rol:        string
   activo:     boolean
   divisiones: string[] | null
+  deporte:    string | null
 }
 
+// Disciplina de una cuenta de subcomisión — null = general (ve todo el
+// club). Sólo admin puede asignarla/cambiarla (guard_profile_role_update,
+// migración 20260914000000).
+export const DEPORTE_SUBCO_OPCIONES: { value: string | null; label: string }[] = [
+  { value: null,     label: 'Todas (general)' },
+  { value: 'rugby',  label: 'Rugby' },
+  { value: 'hockey', label: 'Hockey' },
+  { value: 'tenis',  label: 'Tenis' },
+]
+
 export interface DivisionOpcion {
-  id:     string
-  nombre: string
+  id:      string
+  nombre:  string
+  deporte: string
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -52,6 +64,8 @@ export function useUsuarios() {
   const [divisionesEditDetalle, setDivisionesEditDetalle] = useState<string[]>([])
   const [guardandoDivisiones, setGuardandoDivisiones]   = useState(false)
   const [divisionesGuardadasOk, setDivisionesGuardadasOk] = useState(false)
+  const [guardandoDeporte, setGuardandoDeporte]         = useState(false)
+  const [deporteGuardadoOk, setDeporteGuardadoOk]       = useState(false)
   const [emailUsuario, setEmailUsuario]                 = useState<string | null>(null)
   const [cargandoEmail, setCargandoEmail]               = useState(false)
 
@@ -63,6 +77,7 @@ export function useUsuarios() {
   const [dni, setDni]                                   = useState('')
   const [rolSeleccionado, setRolSeleccionado]           = useState<RolCreable | null>(null)
   const [divisionesSeleccionadas, setDivisionesSeleccionadas] = useState<string[]>([])
+  const [deporteSeleccionado, setDeporteSeleccionado]   = useState<string | null>(null)
   const [creando, setCreando]                           = useState(false)
   const [creadoOk, setCreadoOk]                         = useState(false)
   const [errorForm, setErrorForm]                       = useState<string | null>(null)
@@ -75,6 +90,7 @@ export function useUsuarios() {
   const [errorBusqueda, setErrorBusqueda]               = useState<string | null>(null)
   const [rolAsignacion, setRolAsignacion]               = useState<RolCreable | null>(null)
   const [divisionesAsignacion, setDivisionesAsignacion] = useState<string[]>([])
+  const [deporteAsignacion, setDeporteAsignacion]       = useState<string | null>(null)
   const [asignando, setAsignando]                       = useState(false)
   const [asignadoOk, setAsignadoOk]                     = useState(false)
   const [errorAsignacion, setErrorAsignacion]           = useState<string | null>(null)
@@ -100,9 +116,10 @@ export function useUsuarios() {
   async function fetchUsuarios() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, nombre, rol, activo, divisiones')
+      .select('id, nombre, rol, activo, divisiones, deporte')
       .neq('rol', 'admin')
       .neq('rol', 'socio')
+      .neq('rol', 'cliente_gimnasio')
       .order('nombre')
     setUsuarios(data ?? [])
   }
@@ -110,7 +127,7 @@ export function useUsuarios() {
   async function fetchDivisiones() {
     const { data } = await supabase
       .from('divisiones')
-      .select('id, nombre')
+      .select('id, nombre, deporte')
       .eq('activa', true)
       .order('nombre')
     setDivisiones(data ?? [])
@@ -124,6 +141,7 @@ export function useUsuarios() {
     setErrorEstado(null)
     setDivisionesEditDetalle(u.divisiones ?? [])
     setDivisionesGuardadasOk(false)
+    setDeporteGuardadoOk(false)
     setEmailUsuario(null)
     setPaso('detalle')
     void fetchEmail(u.id)
@@ -152,6 +170,7 @@ export function useUsuarios() {
     setDni('')
     setRolSeleccionado(null)
     setDivisionesSeleccionadas([])
+    setDeporteSeleccionado(null)
     setErrorForm(null)
     setCreadoOk(false)
     setBusquedaSocio('')
@@ -160,6 +179,7 @@ export function useUsuarios() {
     setErrorBusqueda(null)
     setRolAsignacion(null)
     setDivisionesAsignacion([])
+    setDeporteAsignacion(null)
     setAsignando(false)
     setAsignadoOk(false)
     setErrorAsignacion(null)
@@ -251,6 +271,7 @@ export function useUsuarios() {
         socioId:    socioEncontrado.id,
         nuevoRol:   rolAsignacion,
         divisiones: divisionesAsignacion,
+        deporte:    deporteAsignacion,
       },
     })
 
@@ -290,6 +311,7 @@ export function useUsuarios() {
         dni:        dniTrim,
         rol:        rolSeleccionado,
         divisiones: divisionesSeleccionadas,
+        deporte:    deporteSeleccionado,
       },
     })
 
@@ -332,6 +354,29 @@ export function useUsuarios() {
       setTimeout(() => setDivisionesGuardadasOk(false), 2000)
     }
     setGuardandoDivisiones(false)
+  }
+
+  // ─── Disciplina (sólo admin, ver guard_profile_role_update) ─────────────────
+
+  async function guardarDeporte(deporte: string | null) {
+    if (!usuarioSeleccionado) return
+    setGuardandoDeporte(true)
+    setErrorEstado(null)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ deporte })
+      .eq('id', usuarioSeleccionado.id)
+    if (error) {
+      setErrorEstado('Error al guardar la disciplina.')
+    } else {
+      setUsuarioSeleccionado(prev => prev ? { ...prev, deporte } : prev)
+      setUsuarios(prev =>
+        prev.map(u => u.id === usuarioSeleccionado.id ? { ...u, deporte } : u),
+      )
+      setDeporteGuardadoOk(true)
+      setTimeout(() => setDeporteGuardadoOk(false), 2000)
+    }
+    setGuardandoDeporte(false)
   }
 
   // ─── Eliminar usuario ─────────────────────────────────────────────────────
@@ -404,6 +449,9 @@ export function useUsuarios() {
     guardandoDivisiones,
     divisionesGuardadasOk,
     guardarDivisiones,
+    guardandoDeporte,
+    deporteGuardadoOk,
+    guardarDeporte,
     modalVisible,
     abrirModal,
     cerrarModal,
@@ -414,6 +462,7 @@ export function useUsuarios() {
     rolSeleccionado,    setRolSeleccionado,
     divisionesSeleccionadas,
     toggleDivision,
+    deporteSeleccionado, setDeporteSeleccionado,
     creando,
     creadoOk,
     errorForm,
@@ -429,6 +478,7 @@ export function useUsuarios() {
     rolAsignacion,      setRolAsignacion,
     divisionesAsignacion,
     toggleDivisionAsignacion,
+    deporteAsignacion,  setDeporteAsignacion,
     asignando,
     asignadoOk,
     errorAsignacion,

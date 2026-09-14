@@ -13,11 +13,76 @@ const ROL_LABEL: Record<string, string> = {
   secretaria: 'Secretaría', porteria: 'Lector', canchero: 'Canchero', buffet: 'Buffet',
 }
 
-interface Division { id: string; nombre: string }
+interface Division { id: string; nombre: string; deporte: string }
+
+const DEPORTE_LABEL: Record<string, string> = {
+  rugby:  'Rugby',
+  hockey: 'Hockey',
+  tenis:  'Tenis',
+}
+const DEPORTE_ORDEN = ['rugby', 'hockey', 'tenis']
+
+// Disciplina de una cuenta de subcomisión — null = general (ve todo el
+// club, comportamiento de siempre). Sólo admin puede asignarla/cambiarla
+// (ver guard_profile_role_update, migración 20260914000000).
+const DEPORTE_SUBCO_OPCIONES: { value: string | null; label: string }[] = [
+  { value: null,     label: 'Todas (general)' },
+  { value: 'rugby',  label: 'Rugby' },
+  { value: 'hockey', label: 'Hockey' },
+  { value: 'tenis',  label: 'Tenis' },
+]
+
+function agruparPorDeporte(divisiones: Division[]) {
+  const grupos = new Map<string, Division[]>()
+  for (const d of divisiones) {
+    const lista = grupos.get(d.deporte) ?? []
+    lista.push(d)
+    grupos.set(d.deporte, lista)
+  }
+  return [...grupos.entries()].sort(([a], [b]) => {
+    const ia = DEPORTE_ORDEN.indexOf(a)
+    const ib = DEPORTE_ORDEN.indexOf(b)
+    return (ia === -1 ? DEPORTE_ORDEN.length : ia) - (ib === -1 ? DEPORTE_ORDEN.length : ib)
+  })
+}
+
+function DivisionesPillSelector({
+  divisiones, seleccionadas, onToggle,
+}: {
+  divisiones: Division[]
+  seleccionadas: string[]
+  onToggle: (id: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {agruparPorDeporte(divisiones).map(([deporte, items]) => (
+        <div key={deporte}>
+          <p className="font-lora text-[11px] tracking-widest text-tinta/40 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
+          <div className="flex flex-wrap gap-2">
+            {items.map(d => {
+              const sel = seleccionadas.includes(d.id)
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => onToggle(d.id)}
+                  className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
+                    sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                  }`}
+                >
+                  {d.nombre}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 interface ProfileRow {
   id: string; nombre: string; rol: string
-  divisiones: string[]; activo?: boolean
+  divisiones: string[]; activo?: boolean; deporte?: string | null
   email?: string; loadingEmail?: boolean
   expanded?: boolean; editingRol?: boolean; editingDiv?: boolean
   tempRol?: string; tempDiv?: string[]
@@ -55,14 +120,14 @@ export default function UsuariosPage() {
   const rolesDisponibles = isAdmin ? ROLES_ADMIN : ROLES_SUBCO
 
   const fetchData = useCallback(async (admin: boolean) => {
-    let query = supabase.from('profiles').select('id, nombre, rol, divisiones')
-      .neq('rol', 'socio').neq('rol', 'admin').order('nombre')
+    let query = supabase.from('profiles').select('id, nombre, rol, divisiones, deporte')
+      .neq('rol', 'socio').neq('rol', 'admin').neq('rol', 'cliente_gimnasio').order('nombre')
     if (!admin) {
       query = query.neq('rol', 'secretaria').neq('rol', 'porteria').neq('rol', 'canchero').neq('rol', 'buffet')
     }
     const [{ data: profs }, { data: divs }] = await Promise.all([
       query,
-      supabase.from('divisiones').select('id, nombre').order('nombre'),
+      supabase.from('divisiones').select('id, nombre, deporte').order('nombre'),
     ])
     setProfiles(profs ?? [])
     setDivisiones(divs ?? [])
@@ -100,6 +165,12 @@ export default function UsuariosPage() {
     if (!p.tempRol) return
     await supabase.from('profiles').update({ rol: p.tempRol }).eq('id', p.id)
     setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, rol: p.tempRol!, editingRol: false } : r))
+  }
+
+  const saveDeporte = async (p: ProfileRow, deporte: string | null) => {
+    const { error } = await supabase.from('profiles').update({ deporte }).eq('id', p.id)
+    if (error) { alert('Error al guardar la disciplina: ' + error.message); return }
+    setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, deporte } : r))
   }
 
   const saveDiv = async (p: ProfileRow) => {
@@ -218,20 +289,45 @@ export default function UsuariosPage() {
                       </div>
                     )}
                   </div>
+                  {isAdmin && p.rol === 'subcomision' && (
+                    <div className="col-span-2">
+                      <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">DISCIPLINA</p>
+                      <div className="flex flex-wrap gap-2">
+                        {DEPORTE_SUBCO_OPCIONES.map(o => (
+                          <button
+                            key={o.label}
+                            onClick={() => saveDeporte(p, o.value)}
+                            className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
+                              (p.deporte ?? null) === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                            }`}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">DIVISIONES</p>
                     {p.editingDiv ? (
                       <div>
-                        <div className="grid grid-cols-3 gap-2 mb-3">
-                          {divisiones.map(d => {
-                            const selected = (p.tempDiv ?? p.divisiones ?? []).includes(d.id)
-                            return (
-                              <label key={d.id} className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={selected} onChange={() => toggleDivision(p.id, d.id)} className="accent-oro" />
-                                <span className="font-lora text-xs text-tinta">{d.nombre}</span>
-                              </label>
-                            )
-                          })}
+                        <div className="flex flex-col gap-3 mb-3">
+                          {agruparPorDeporte(divisiones).map(([deporte, items]) => (
+                            <div key={deporte}>
+                              <p className="font-lora text-[11px] tracking-widest text-tinta/40 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
+                              <div className="grid grid-cols-3 gap-2">
+                                {items.map(d => {
+                                  const selected = (p.tempDiv ?? p.divisiones ?? []).includes(d.id)
+                                  return (
+                                    <label key={d.id} className="flex items-center gap-2 cursor-pointer">
+                                      <input type="checkbox" checked={selected} onChange={() => toggleDivision(p.id, d.id)} className="accent-oro" />
+                                      <span className="font-lora text-xs text-tinta">{d.nombre}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => saveDiv(p)} className="font-lora text-xs bg-oro text-papel px-3 py-1 tracking-widest">GUARDAR</button>
@@ -300,6 +396,7 @@ function ModalNuevoUsuario({
   const [errorBusqueda, setErrorBusqueda]     = useState('')
   const [rolAsignacion, setRolAsignacion]     = useState('')
   const [divsAsignacion, setDivsAsignacion]   = useState<string[]>([])
+  const [deporteAsignacion, setDeporteAsignacion] = useState<string | null>(null)
   const [asignando, setAsignando]             = useState(false)
   const [asignadoOk, setAsignadoOk]           = useState(false)
   const [errorAsignacion, setErrorAsignacion] = useState('')
@@ -310,6 +407,7 @@ function ModalNuevoUsuario({
   const [dni, setDni]                 = useState('')
   const [rolNuevo, setRolNuevo]       = useState('')
   const [divsNuevo, setDivsNuevo]     = useState<string[]>([])
+  const [deporteNuevo, setDeporteNuevo] = useState<string | null>(null)
   const [creando, setCreando]         = useState(false)
   const [creadoOk, setCreadoOk]       = useState(false)
   const [errorCrear, setErrorCrear]   = useState('')
@@ -354,7 +452,7 @@ function ModalNuevoUsuario({
     setAsignando(true); setErrorAsignacion('')
     const json = await callEdgeFunction('admin-usuarios', {
       action: 'assign-role', socioId: socioElegido.id,
-      nuevoRol: rolAsignacion, divisiones: divsAsignacion,
+      nuevoRol: rolAsignacion, divisiones: divsAsignacion, deporte: deporteAsignacion,
     })
     setAsignando(false)
     if (json.error) { setErrorAsignacion(json.error); return }
@@ -369,7 +467,7 @@ function ModalNuevoUsuario({
     setCreando(true); setErrorCrear('')
     const json = await callEdgeFunction('admin-usuarios', {
       action: 'create', nombre: nombre.trim(), email: email.trim().toLowerCase(),
-      dni: dni.trim(), rol: rolNuevo, divisiones: divsNuevo,
+      dni: dni.trim(), rol: rolNuevo, divisiones: divsNuevo, deporte: deporteNuevo,
     })
     setCreando(false)
     if (json.error) { setErrorCrear(json.error); return }
@@ -482,24 +580,32 @@ function ModalNuevoUsuario({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
-                      <div className="flex flex-wrap gap-2">
-                        {divisiones.map(d => {
-                          const sel = divsAsignacion.includes(d.id)
-                          return (
+                    {isAdmin && rolAsignacion === 'subcomision' && (
+                      <div>
+                        <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                        <div className="flex flex-wrap gap-2">
+                          {DEPORTE_SUBCO_OPCIONES.map(o => (
                             <button
-                              key={d.id}
-                              onClick={() => toggleDiv(d.id, divsAsignacion, setDivsAsignacion)}
+                              key={o.label}
+                              onClick={() => setDeporteAsignacion(o.value)}
                               className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                                sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                                deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
                               }`}
                             >
-                              {d.nombre}
+                              {o.label}
                             </button>
-                          )
-                        })}
+                          ))}
+                        </div>
                       </div>
+                    )}
+
+                    <div>
+                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                      <DivisionesPillSelector
+                        divisiones={divisiones}
+                        seleccionadas={divsAsignacion}
+                        onToggle={id => toggleDiv(id, divsAsignacion, setDivsAsignacion)}
+                      />
                     </div>
 
                     {errorAsignacion && <p className="font-lora text-rojo text-sm">{errorAsignacion}</p>}
@@ -557,24 +663,32 @@ function ModalNuevoUsuario({
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
-                  <div className="flex flex-wrap gap-2">
-                    {divisiones.map(d => {
-                      const sel = divsNuevo.includes(d.id)
-                      return (
+                {isAdmin && rolNuevo === 'subcomision' && (
+                  <div>
+                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                    <div className="flex flex-wrap gap-2">
+                      {DEPORTE_SUBCO_OPCIONES.map(o => (
                         <button
-                          key={d.id}
-                          onClick={() => toggleDiv(d.id, divsNuevo, setDivsNuevo)}
+                          key={o.label}
+                          onClick={() => setDeporteNuevo(o.value)}
                           className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                            sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                            deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
                           }`}
                         >
-                          {d.nombre}
+                          {o.label}
                         </button>
-                      )
-                    })}
+                      ))}
+                    </div>
                   </div>
+                )}
+
+                <div>
+                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                  <DivisionesPillSelector
+                    divisiones={divisiones}
+                    seleccionadas={divsNuevo}
+                    onToggle={id => toggleDiv(id, divsNuevo, setDivsNuevo)}
+                  />
                 </div>
 
                 {errorCrear && <p className="font-lora text-rojo text-sm">{errorCrear}</p>}

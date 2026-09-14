@@ -13,7 +13,7 @@ import {
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
-import { useUsuarios, rolLabel } from '@/hooks/useUsuarios'
+import { useUsuarios, rolLabel, DEPORTE_SUBCO_OPCIONES } from '@/hooks/useUsuarios'
 import type { Usuario, RolCreable, DivisionOpcion } from '@/hooks/useUsuarios'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
@@ -32,6 +32,27 @@ const ROL_COLOR: Record<string, string> = {
   canchero:    '#0D9488',
   buffet:      '#EA580C',
   admin:       '#DC2626',
+}
+
+const DEPORTE_LABEL: Record<string, string> = {
+  rugby:  'Rugby',
+  hockey: 'Hockey',
+  tenis:  'Tenis',
+}
+const DEPORTE_ORDEN = ['rugby', 'hockey', 'tenis']
+
+function agruparPorDeporte(divisiones: DivisionOpcion[]) {
+  const grupos = new Map<string, DivisionOpcion[]>()
+  for (const d of divisiones) {
+    const lista = grupos.get(d.deporte) ?? []
+    lista.push(d)
+    grupos.set(d.deporte, lista)
+  }
+  return [...grupos.entries()].sort(([a], [b]) => {
+    const ia = DEPORTE_ORDEN.indexOf(a)
+    const ib = DEPORTE_ORDEN.indexOf(b)
+    return (ia === -1 ? DEPORTE_ORDEN.length : ia) - (ib === -1 ? DEPORTE_ORDEN.length : ib)
+  })
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -123,6 +144,8 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   const u     = hook.usuarioSeleccionado!
   const color  = ROL_COLOR[u.rol] ?? MUTED
   const inicial = u.nombre.charAt(0).toUpperCase()
+  const { rol: rolPropio } = useAuthStore()
+  const esAdmin = rolPropio === 'admin'
 
   function confirmarEliminar() {
     Alert.alert(
@@ -180,6 +203,34 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
             </Text>
           </View>
         </View>
+
+        {/* Disciplina — sólo admin, sólo si el rol es subcomisión */}
+        {esAdmin && u.rol === 'subcomision' && (
+          <View style={s.seccionDetalle}>
+            <Text style={s.seccionLabel}>DISCIPLINA</Text>
+            <View style={s.divisionesGrid}>
+              {DEPORTE_SUBCO_OPCIONES.map(o => {
+                const activa = (u.deporte ?? null) === o.value
+                return (
+                  <TouchableOpacity
+                    key={o.label}
+                    style={[s.divPill, activa && s.divPillActiva]}
+                    onPress={() => hook.guardarDeporte(o.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]}>{o.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+            {hook.deporteGuardadoOk && (
+              <View style={s.bannerOkMt}>
+                <Text style={s.bannerTexto}>✓ Disciplina actualizada.</Text>
+              </View>
+            )}
+            {hook.guardandoDeporte && <ActivityIndicator color={colors.oro} style={s.activityMt12} />}
+          </View>
+        )}
 
         {/* Divisiones editables */}
         <View style={s.seccionDetalle}>
@@ -397,6 +448,27 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                       ))}
                     </View>
 
+                    {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
+                    {rol === 'admin' && hook.rolAsignacion === 'subcomision' && (
+                      <>
+                        <Text style={s.inputLabel}>Disciplina</Text>
+                        <View style={s.divisionesGrid}>
+                          {DEPORTE_SUBCO_OPCIONES.map(o => (
+                            <TouchableOpacity
+                              key={o.label}
+                              style={[s.divPill, hook.deporteAsignacion === o.value && s.divPillActiva]}
+                              onPress={() => hook.setDeporteAsignacion(o.value)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[s.divPillTexto, hook.deporteAsignacion === o.value && s.divPillTextoActivo]}>
+                                {o.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </>
+                    )}
+
                     {/* Divisiones */}
                     <Text style={s.inputLabel}>Divisiones asignadas</Text>
                     <DivisionesMultiselect
@@ -486,6 +558,27 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   ))}
                 </View>
 
+                {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
+                {rol === 'admin' && hook.rolSeleccionado === 'subcomision' && (
+                  <>
+                    <Text style={s.inputLabel}>Disciplina</Text>
+                    <View style={s.divisionesGrid}>
+                      {DEPORTE_SUBCO_OPCIONES.map(o => (
+                        <TouchableOpacity
+                          key={o.label}
+                          style={[s.divPill, hook.deporteSeleccionado === o.value && s.divPillActiva]}
+                          onPress={() => hook.setDeporteSeleccionado(o.value)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[s.divPillTexto, hook.deporteSeleccionado === o.value && s.divPillTextoActivo]}>
+                            {o.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
                 {/* Divisiones */}
                 <Text style={s.inputLabel}>Divisiones asignadas</Text>
                 <DivisionesMultiselect
@@ -534,22 +627,29 @@ function DivisionesMultiselect({
     return <Text style={s.vacio}>Sin divisiones disponibles.</Text>
   }
   return (
-    <View style={s.divisionesGrid}>
-      {divisiones.map(d => {
-        const activa = seleccionadas.includes(d.id)
-        return (
-          <TouchableOpacity
-            key={d.id}
-            style={[s.divPill, activa && s.divPillActiva]}
-            onPress={() => onToggle(d.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]} numberOfLines={1}>
-              {d.nombre}
-            </Text>
-          </TouchableOpacity>
-        )
-      })}
+    <View style={s.deporteGrupos}>
+      {agruparPorDeporte(divisiones).map(([deporte, items]) => (
+        <View key={deporte}>
+          <Text style={s.deporteHeader}>{DEPORTE_LABEL[deporte] ?? deporte}</Text>
+          <View style={s.divisionesGrid}>
+            {items.map(d => {
+              const activa = seleccionadas.includes(d.id)
+              return (
+                <TouchableOpacity
+                  key={d.id}
+                  style={[s.divPill, activa && s.divPillActiva]}
+                  onPress={() => onToggle(d.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]} numberOfLines={1}>
+                    {d.nombre}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </View>
+      ))}
     </View>
   )
 }
@@ -660,6 +760,8 @@ const s = StyleSheet.create({
   rolBtnTextoActivo: { color: colors.tinta },
 
   // Divisiones multiselect
+  deporteGrupos:  { gap: 12 },
+  deporteHeader:  { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 1.5, color: MUTED, textTransform: 'uppercase', marginBottom: 6 },
   divisionesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   divPill:        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418', maxWidth: '48%' },
   divPillActiva:  { backgroundColor: colors.oro + '33', borderColor: colors.oro },

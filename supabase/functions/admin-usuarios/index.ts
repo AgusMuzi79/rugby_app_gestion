@@ -3,6 +3,16 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 
 type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
+type Deporte = 'rugby' | 'hockey' | 'tenis'
+const DEPORTES_VALIDOS: Deporte[] = ['rugby', 'hockey', 'tenis']
+
+// Sólo admin asigna la disciplina de una subco (ver guard_profile_role_update
+// en la migración 20260914000000) — si el caller es subcomisión, se ignora
+// lo que mande el body en vez de confiar en el cliente.
+function resolverDeporte(rol: string | undefined, callerRol: string, deporte: unknown): Deporte | null {
+  if (rol !== 'subcomision' || callerRol !== 'admin') return null
+  return DEPORTES_VALIDOS.includes(deporte as Deporte) ? (deporte as Deporte) : null
+}
 
 const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
   subcomision: ['coordinador', 'entrenador', 'manager', 'subcomision'],
@@ -60,6 +70,7 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   const dni        = (body.dni    as string | undefined)?.trim()
   const rol        = body.rol as RolCreable | undefined
   const divisiones = body.divisiones as string[] | undefined
+  const deporte    = resolverDeporte(rol, callerRol, body.deporte)
 
   if (!nombre) return jsonError(400, 'El nombre es requerido')
   if (!email)  return jsonError(400, 'El email es requerido')
@@ -100,6 +111,7 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
       rol,
       roles:      [rol],
       divisiones: divisiones && divisiones.length > 0 ? divisiones : null,
+      deporte,
       dni,
     })
 
@@ -124,6 +136,7 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   const socioId    = body.socioId  as string | undefined
   const nuevoRol   = body.nuevoRol as RolCreable | undefined
   const divisiones = body.divisiones as string[] | undefined
+  const deporte    = resolverDeporte(nuevoRol, callerRol, body.deporte)
 
   if (!socioId) return jsonError(400, 'socioId es requerido')
 
@@ -168,12 +181,16 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   const divisionesCombinadas = [...new Set([...divisionesActuales, ...(divisiones ?? [])])]
   const divisionesVal = divisionesCombinadas.length > 0 ? divisionesCombinadas : null
 
+  // deporte sólo se pisa cuando corresponde (admin asignando rol subcomision
+  // con un valor válido) — si no, se deja como está (switchear a otro rol y
+  // volver a subcomision más adelante no debe perder la disciplina ya asignada).
   const { error: updateErr } = await supabaseAdmin
     .from('profiles')
     .update({
       roles:      rolesNuevos,
       rol:        nuevoRol,
       divisiones: divisionesVal,
+      ...(nuevoRol === 'subcomision' && deporte ? { deporte } : {}),
     })
     .eq('id', socio.profile_id)
 

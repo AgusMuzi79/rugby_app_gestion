@@ -1285,6 +1285,7 @@ export type Database = {
         Row: {
           activo: boolean
           created_at: string
+          deporte: string | null
           divisiones: string[] | null
           dni: string | null
           id: string
@@ -1297,6 +1298,7 @@ export type Database = {
         Insert: {
           activo?: boolean
           created_at?: string
+          deporte?: string | null
           divisiones?: string[] | null
           dni?: string | null
           id: string
@@ -1309,6 +1311,7 @@ export type Database = {
         Update: {
           activo?: boolean
           created_at?: string
+          deporte?: string | null
           divisiones?: string[] | null
           dni?: string | null
           id?: string
