@@ -4,13 +4,20 @@
 // Actions:
 //   get-secret     — Entrega el TOTP secret al dispositivo del socio (una vez por sesión/dispositivo).
 //                    El secret se almacena en expo-secure-store y genera el QR localmente.
+//                    Con `socio_id` en el body, entrega el secret de un DEPENDIENTE MENOR DE 13
+//                    del caller (titular de grupo familiar viendo el carnet de su hijo — ver
+//                    migración 20260915000000_titular_ve_carnet_menores).
 //   validate       — Lector escanea el QR y recibe estado del socio + foto.
 //   validate-dni   — Fallback sin QR (socio sin el celular encima): busca directo por DNI,
 //                    sin código TOTP. Misma respuesta que validate.
 //   listar-accesos — Panel web de Lector: historial de ingresos de un día (tabla `accesos`).
 //
 // Seguridad:
-//   get-secret:   JWT requerido, rol='socio' o 'cliente_gimnasio', retorna su propio secret.
+//   get-secret:   JWT requerido, rol='socio' o 'cliente_gimnasio', retorna su propio secret o
+//                 (con `socio_id`) el de un dependiente menor de 13 — validado server-side acá
+//                 mismo (cabecera_id + edad), no delegado a RLS: socios_secrets no tiene ninguna
+//                 policy de SELECT ni para el propio socio ni para el titular, sólo el
+//                 service_role de esta función puede leerla.
 //   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero'/'buffet' (o secretaria/admin/subcomision).
 //                   El caller NUNCA recibe el secret — solo info del socio.
 //                   validate-dni no tiene el TOTP como segundo factor — confía en que el
@@ -54,7 +61,7 @@ Deno.serve(async (req: Request) => {
 
   const { action } = body
 
-  if (action === 'get-secret')     return handleGetSecret(callerRol, caller.id)
+  if (action === 'get-secret')     return handleGetSecret(callerRol, caller.id, body)
   if (action === 'validate')       return handleValidate(body, callerRol)
   if (action === 'validate-dni')   return handleValidateDni(body, callerRol)
   if (action === 'listar-accesos') return handleListarAccesos(body, callerRol)
@@ -68,28 +75,70 @@ Deno.serve(async (req: Request) => {
 // El secret viaja sobre HTTPS y se guarda en expo-secure-store.
 // NO se regenera el secret en cada llamada — siempre es el mismo.
 
-async function handleGetSecret(callerRol: string, callerId: string): Promise<Response> {
+// Mismo umbral y misma fórmula que useAccesoRestringido.ts (EDAD_MINIMA=13)
+// y que es_menor_de_13() en SQL — duplicado a propósito: esta función corre
+// con service_role y no puede apoyarse en la policy de RLS (que además no
+// existe para socios_secrets), tiene que validar el vínculo ella misma.
+function esMenorDe13(fechaNacimiento: string | null): boolean {
+  if (!fechaNacimiento) return false
+  const limite = new Date()
+  limite.setFullYear(limite.getFullYear() - 13)
+  return new Date(fechaNacimiento) > limite
+}
+
+async function handleGetSecret(
+  callerRol: string,
+  callerId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
   // 'cliente_gimnasio' también es una fila real de `socios` (ver migración
   // 20260911000000_rol_cliente_gimnasio) — mismo carnet QR/TOTP que un socio.
   if (callerRol !== 'socio' && callerRol !== 'cliente_gimnasio') {
     return jsonError(403, 'Sólo socios o clientes de gimnasio pueden obtener su secret')
   }
 
-  // Buscar socio_id del caller
-  const { data: socio, error: socioErr } = await supabaseAdmin
+  // Buscar socio_id del caller (titular, si pide el de un dependiente)
+  const { data: callerSocio, error: callerSocioErr } = await supabaseAdmin
     .from('socios')
     .select('id, estado')
     .eq('profile_id', callerId)
     .single()
 
-  if (socioErr || !socio) return jsonError(404, 'Registro de socio no encontrado')
-  if (socio.estado === 'inactivo') return jsonError(403, 'Socio inactivo')
+  if (callerSocioErr || !callerSocio) return jsonError(404, 'Registro de socio no encontrado')
+
+  const socioIdDestino = (body.socio_id as string | undefined)?.trim()
+  let socioId = callerSocio.id
+  let estadoSocio = callerSocio.estado
+
+  if (socioIdDestino && socioIdDestino !== callerSocio.id) {
+    // Carnet de un dependiente — sólo si es MENOR DE 13 y cuelga de este
+    // titular (cabecera_id). Un dependiente adulto no está contemplado: se
+    // loguea solo y ve su propio carnet, no hace falta este camino.
+    const { data: dependiente, error: depErr } = await supabaseAdmin
+      .from('socios')
+      .select('id, estado, cabecera_id, fecha_nacimiento')
+      .eq('id', socioIdDestino)
+      .single()
+
+    if (depErr || !dependiente) return jsonError(404, 'Dependiente no encontrado')
+    if (dependiente.cabecera_id !== callerSocio.id) {
+      return jsonError(403, 'Ese socio no es un dependiente tuyo')
+    }
+    if (!esMenorDe13(dependiente.fecha_nacimiento)) {
+      return jsonError(403, 'Sólo podés ver el carnet de dependientes menores de 13 años')
+    }
+
+    socioId = dependiente.id
+    estadoSocio = dependiente.estado
+  }
+
+  if (estadoSocio === 'inactivo') return jsonError(403, 'Socio inactivo')
 
   // Leer secret de socios_secrets (sin RLS → service role lo puede leer)
   const { data: secretData, error: secretErr } = await supabaseAdmin
     .from('socios_secrets')
     .select('totp_secret')
-    .eq('socio_id', socio.id)
+    .eq('socio_id', socioId)
     .single()
 
   if (secretErr || !secretData) {

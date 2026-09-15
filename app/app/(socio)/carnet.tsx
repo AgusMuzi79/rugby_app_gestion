@@ -9,7 +9,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
-import { useCarnet } from '@/hooks/useCarnet'
+import { useCarnet, useDependientesMenores } from '@/hooks/useCarnet'
 import { colors, fonts } from '@/constants/theme'
 import { SOCIOS_BADGE_J } from '@/constants/carnetBadge'
 
@@ -185,7 +185,9 @@ export default function CarnetScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, error, data, refresh } = useCarnet()
+  const { dependientes } = useDependientesMenores()
+  const [verComoId, setVerComoId] = useState<string | null>(null)
+  const { loading, error, data, refresh } = useCarnet(verComoId ?? undefined)
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
 
@@ -219,10 +221,35 @@ export default function CarnetScreen() {
 
       <View style={s.saludoContainer}>
         <Text style={s.saludoTexto}>
-          Tu carnet{data ? `, ${data.nombre.split(' ')[0]}.` : '.'}
+          {verComoId ? 'Carnet' : 'Tu carnet'}{data ? `, ${data.nombre.split(' ')[0]}.` : '.'}
         </Text>
         <View style={s.divider} />
       </View>
+
+      {/* ── Selector "MI CARNET" / dependientes menores de 13 a cargo ── */}
+      {dependientes.length > 0 && (
+        <View style={s.familiaRow}>
+          <TouchableOpacity
+            style={[s.familiaChip, !verComoId && s.familiaChipActivo]}
+            onPress={() => setVerComoId(null)}
+            activeOpacity={0.75}
+          >
+            <Text style={[s.familiaChipTexto, !verComoId && s.familiaChipTextoActivo]}>MI CARNET</Text>
+          </TouchableOpacity>
+          {dependientes.map(d => (
+            <TouchableOpacity
+              key={d.id}
+              style={[s.familiaChip, verComoId === d.id && s.familiaChipActivo]}
+              onPress={() => setVerComoId(d.id)}
+              activeOpacity={0.75}
+            >
+              <Text style={[s.familiaChipTexto, verComoId === d.id && s.familiaChipTextoActivo]} numberOfLines={1}>
+                {d.nombre.split(' ')[0]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
@@ -336,6 +363,25 @@ const s = StyleSheet.create({
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
   saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: '#F3EFE4', marginBottom: 14 },
   divider:         { height: 1, backgroundColor: '#2C2418' },
+
+  familiaRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    paddingHorizontal: 20, paddingTop: 14,
+  },
+  familiaChip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418',
+  },
+  familiaChipActivo: {
+    backgroundColor: colors.oro + '33', borderColor: colors.oro,
+  },
+  familiaChipTexto: {
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
+    textTransform: 'uppercase', color: '#8E8574',
+  },
+  familiaChipTextoActivo: {
+    color: colors.oro,
+  },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },

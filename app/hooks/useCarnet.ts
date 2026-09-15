@@ -27,7 +27,50 @@ export interface CarnetData {
   deporte:      string | null
 }
 
-export function useCarnet() {
+export interface DependienteMenor {
+  id:     string
+  nombre: string
+}
+
+// Titular de grupo familiar viendo el carnet de un hijo menor de 13 (sin
+// acceso propio a la app, ver useAccesoRestringido) — lista sus dependientes
+// menores para el selector de carnet.tsx. RLS (socios_select_titular_de_menor13,
+// migración 20260915000000) ya filtra por edad: cualquier fila que vuelva acá
+// es un menor de 13 real, no hace falta repetir el cálculo en el cliente.
+export function useDependientesMenores() {
+  const { session } = useAuthStore()
+  const userId = session?.user.id
+  const [dependientes, setDependientes] = useState<DependienteMenor[]>([])
+
+  useEffect(() => {
+    if (!userId) return
+    let cancelado = false
+    ;(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+      const { data: propio } = await db.from('socios').select('id').eq('profile_id', userId).single()
+      if (!propio || cancelado) return
+      const { data } = await db
+        .from('socios')
+        .select('id, profiles!socios_profile_id_fkey ( nombre )')
+        .eq('cabecera_id', propio.id)
+      if (cancelado) return
+      const lista: DependienteMenor[] = (data ?? []).map((d: { id: string; profiles: { nombre: string } | null }) => ({
+        id:     d.id,
+        nombre: d.profiles?.nombre ?? '—',
+      }))
+      setDependientes(lista)
+    })()
+    return () => { cancelado = true }
+  }, [userId])
+
+  return { dependientes }
+}
+
+// socioIdObjetivo: sin valor = mi propio carnet (comportamiento de siempre).
+// Con valor = el carnet de un dependiente menor de 13 a mi cargo (titular de
+// grupo familiar) — validado server-side en socios-qr/get-secret, no acá.
+export function useCarnet(socioIdObjetivo?: string) {
   const { session }  = useAuthStore()
   const userId       = session?.user.id
   const [loading, setLoading] = useState(true)
@@ -36,13 +79,13 @@ export function useCarnet() {
   const lastStepRef           = useRef(-1)
   const fotoUrlRef            = useRef<string | null | undefined>(undefined)
 
-  const getSecret = useCallback(async (uid: string): Promise<string | null> => {
-    const key    = totpSecretKey(uid)
+  const getSecret = useCallback(async (uid: string, socioId?: string): Promise<string | null> => {
+    const key    = totpSecretKey(socioId ?? uid)
     const cached = await SecureStore.getItemAsync(key)
     if (cached) return cached
 
     const res = await supabase.functions.invoke('socios-qr', {
-      body: { action: 'get-secret' },
+      body: socioId ? { action: 'get-secret', socio_id: socioId } : { action: 'get-secret' },
     })
     if (res.error || !res.data?.secret) return null
 
@@ -58,7 +101,7 @@ export function useCarnet() {
     // sin límite en vez de esperar al próximo ciclo de 60s.
     lastStepRef.current = Math.floor(Date.now() / 1000 / TOTP_STEP)
 
-    const secret = await getSecret(userId)
+    const secret = await getSecret(userId, socioIdObjetivo)
     if (!secret) {
       setError('Carnet no disponible. Contactá a Secretaría.')
       setLoading(false)
@@ -68,24 +111,36 @@ export function useCarnet() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
 
-    const [{ data: socio }, { data: profile }] = await Promise.all([
-      db
-        .from('socios')
-        .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre )')
-        .eq('profile_id', userId)
-        .single(),
-      supabase
-        .from('profiles')
-        .select('nombre, roles')
-        .eq('id', userId)
-        .single(),
+    const socioQuery = socioIdObjetivo
+      ? db
+          .from('socios')
+          .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre ), profiles!socios_profile_id_fkey ( nombre, roles )')
+          .eq('id', socioIdObjetivo)
+          .single()
+      : db
+          .from('socios')
+          .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre )')
+          .eq('profile_id', userId)
+          .single()
+
+    const [{ data: socio }, profileResult] = await Promise.all([
+      socioQuery,
+      socioIdObjetivo
+        ? Promise.resolve({ data: null })
+        : supabase.from('profiles').select('nombre, roles').eq('id', userId).single(),
     ])
 
     if (!socio) {
-      setError('No se encontró tu registro de socio.')
+      setError(socioIdObjetivo ? 'No se encontró el carnet de este dependiente.' : 'No se encontró tu registro de socio.')
       setLoading(false)
       return
     }
+
+    // Viendo el carnet de un dependiente: nombre/roles vienen del join de
+    // arriba (profiles del dependiente, no del titular logueado).
+    const profile = socioIdObjetivo
+      ? (socio.profiles as { nombre: string; roles: string[] } | null)
+      : profileResult.data
 
     // Generar signed URL de foto solo una vez por sesión (expira en 1h)
     if (fotoUrlRef.current === undefined) {
@@ -129,7 +184,16 @@ export function useCarnet() {
     })
     setError(null)
     setLoading(false)
-  }, [userId, getSecret])
+  }, [userId, getSecret, socioIdObjetivo])
+
+  // Cambio de objetivo (mi carnet ↔ el de un dependiente) — la foto cacheada
+  // es de otra persona, no sirve; forzar loading evita mostrar por un
+  // instante los datos del carnet anterior mientras llega el nuevo.
+  useEffect(() => {
+    fotoUrlRef.current = undefined
+    setLoading(true)
+    setData(null)
+  }, [socioIdObjetivo])
 
   useEffect(() => { buildCarnet() }, [buildCarnet])
 
