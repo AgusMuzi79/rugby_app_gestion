@@ -17,21 +17,22 @@ function estadoVisual(result: ScanResult): string {
   return result.estado ?? ''
 }
 
-// Autoservicio (tablet fija, sin nadie tocando pantalla entre socio y socio):
-// a los pocos segundos vuelve sola a modo cámara para el próximo escaneo.
-const AUTO_RESET_MS = 4000
+// Sin que nadie toque la pantalla entre un escaneo y el siguiente, vuelve
+// sola a modo cámara — tiempo suficiente para leer el resultado (o, en modo
+// atendido, mostrárselo al socio) antes de que desaparezca.
+const AUTO_RESET_MS = 8000
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets()
   const { rol } = useAuthStore()
-  const esCanchero = rol === 'canchero'
+  const esAutoservicio = rol === 'porteria'
   const TITULOS_HEADER: Record<string, string> = { canchero: 'CANCHERO · SCANNER', buffet: 'BUFFET · SCANNER' }
   const tituloHeader = TITULOS_HEADER[rol ?? ''] ?? 'LECTOR · SCANNER'
-  // Lector (gimnasio) y Buffet: autoservicio, el socio escanea su propio carnet → cámara frontal.
-  // Canchero: atendido, es él quien escanea el carnet del socio → cámara trasera.
-  const camaraFacing = esCanchero ? 'back' : 'front'
+  // Lector (gimnasio): autoservicio, el socio escanea su propio carnet → cámara frontal.
+  // Canchero y Buffet: atendido, es él quien escanea el carnet del socio → cámara trasera.
+  const camaraFacing = esAutoservicio ? 'front' : 'back'
   const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, reset } = useScanner()
 
   // Fallback sin QR — el socio no llevaba el celular encima.
@@ -171,12 +172,6 @@ export default function ScannerScreen() {
                       {estadoVisual(result).toUpperCase()}
                     </Text>
                   </View>
-
-                  {!result.foto_validada && (
-                    <View style={s.alertaFoto}>
-                      <Text style={s.alertaFotoText}>⚠ Foto pendiente de validación</Text>
-                    </View>
-                  )}
                 </View>
               </View>
             ) : (
@@ -208,8 +203,8 @@ export default function ScannerScreen() {
 
         <View style={s.dniContainer}>
           <Feather name="hash" size={40} color={MUTED} />
-          <Text style={s.dniTitle}>{esCanchero ? 'El socio no tiene el carnet a mano' : 'No tenés el carnet a mano'}</Text>
-          <Text style={s.dniSub}>{esCanchero ? 'Ingresá su DNI para consultar su estado' : 'Ingresá tu DNI para consultar tu estado'}</Text>
+          <Text style={s.dniTitle}>{!esAutoservicio ? 'El socio no tiene el carnet a mano' : 'No tenés el carnet a mano'}</Text>
+          <Text style={s.dniSub}>{!esAutoservicio ? 'Ingresá su DNI para consultar su estado' : 'Ingresá tu DNI para consultar tu estado'}</Text>
 
           <TextInput
             style={s.dniInput}
@@ -262,12 +257,12 @@ export default function ScannerScreen() {
 
         <View style={s.hint}>
           <Text style={s.hintText}>
-            {esCanchero ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
+            {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
           </Text>
         </View>
 
         <TouchableOpacity style={s.dniLink} onPress={() => setModoDni(true)} activeOpacity={0.7}>
-          <Text style={s.dniLinkText}>{esCanchero ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
+          <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -408,13 +403,6 @@ const s = StyleSheet.create({
   },
   resultValor: {
     fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
-  },
-  alertaFoto: {
-    marginTop: 6, backgroundColor: colors.oroHondo,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 3,
-  },
-  alertaFotoText: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.blanco,
   },
 
   motivoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
