@@ -1,5 +1,5 @@
 import {
-  View, Text, FlatList, StyleSheet, ActivityIndicator,
+  View, Text, Image, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, ScrollView,
 } from 'react-native'
 import { useState, useMemo, useRef } from 'react'
@@ -91,6 +91,10 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
         <DeporteBadge noticia={noticia} />
       </View>
 
+      {noticia.imagenUrl && (
+        <Image source={{ uri: noticia.imagenUrl }} style={s.cardImagen} />
+      )}
+
       <Text style={s.cardTitulo}>{noticia.titulo}</Text>
 
       <View style={s.divider} />
@@ -127,6 +131,9 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
           </View>
 
           <ScrollView style={m.scroll} showsVerticalScrollIndicator={false}>
+            {noticia.imagenUrl && (
+              <Image source={{ uri: noticia.imagenUrl }} style={m.imagen} />
+            )}
             <Text style={m.titulo}>{noticia.titulo}</Text>
             <View style={[s.divider, { marginVertical: 12 }]} />
             <Text style={m.cuerpo}>{noticia.cuerpo}</Text>
@@ -270,6 +277,7 @@ const s = StyleSheet.create({
   },
   deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
+  cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: '#2C2418' },
   cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: '#F3EFE4' },
   divider:    { height: 1, backgroundColor: '#2C2418' },
   cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: '#F3EFE4' },
@@ -301,6 +309,7 @@ const m = StyleSheet.create({
     alignSelf: 'center', marginBottom: 4,
   },
   scroll: { marginTop: 4 },
+  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: '#2C2418', marginBottom: 12 },
   titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: '#F3EFE4' },
   cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: '#F3EFE4' },
   cerrarBtn: {

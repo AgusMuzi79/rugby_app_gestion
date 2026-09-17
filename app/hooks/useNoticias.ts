@@ -9,6 +9,7 @@ export interface Noticia {
   titulo:      string
   cuerpo:      string
   imagen_path: string | null
+  imagenUrl:   string | null
   publicada:   boolean
   etiquetas:   string[]
   created_at:  string
@@ -40,16 +41,20 @@ export function useNoticias(soloPublicadas: boolean) {
 
     const { data } = await q
 
-    const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => ({
-      id:          n.id as string,
-      titulo:      n.titulo as string,
-      cuerpo:      n.cuerpo as string,
-      imagen_path: n.imagen_path as string | null,
-      publicada:   n.publicada as boolean,
-      etiquetas:   (n.etiquetas as string[]) ?? [],
-      created_at:  n.created_at as string,
-      autor:       (n.profiles as { nombre: string } | null)?.nombre ?? '—',
-    }))
+    const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => {
+      const imagenPath = n.imagen_path as string | null
+      return {
+        id:          n.id as string,
+        titulo:      n.titulo as string,
+        cuerpo:      n.cuerpo as string,
+        imagen_path: imagenPath,
+        imagenUrl:   imagenPath ? supabase.storage.from('noticias-imagenes').getPublicUrl(imagenPath).data.publicUrl : null,
+        publicada:   n.publicada as boolean,
+        etiquetas:   (n.etiquetas as string[]) ?? [],
+        created_at:  n.created_at as string,
+        autor:       (n.profiles as { nombre: string } | null)?.nombre ?? '—',
+      }
+    })
 
     setNoticias(normalized)
     setLoading(false)
