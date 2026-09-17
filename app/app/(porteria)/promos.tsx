@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   View,
   Text,
+  Image,
   FlatList,
   TouchableOpacity,
   Modal,
@@ -14,6 +15,7 @@ import {
   Platform,
   Alert,
 } from 'react-native'
+import * as ImagePicker from 'expo-image-picker'
 import { usePromosBuffet, type Promo } from '@/hooks/usePromosBuffet'
 import { colors, fonts } from '@/constants/theme'
 
@@ -36,6 +38,9 @@ function fechaCorta(iso: string) {
 function FilaPromo({ promo, onEliminar }: { promo: Promo; onEliminar: (p: Promo) => void }) {
   return (
     <View style={s.fila}>
+      {promo.imagenUrl && (
+        <Image source={{ uri: promo.imagenUrl }} style={s.filaThumb} />
+      )}
       <View style={s.filaInfo}>
         <Text style={s.filaTitulo} numberOfLines={1}>{promo.titulo}</Text>
         <Text style={s.filaCuerpo} numberOfLines={2}>{promo.cuerpo}</Text>
@@ -53,21 +58,38 @@ function FilaPromo({ promo, onEliminar }: { promo: Promo; onEliminar: (p: Promo)
 interface ModalNuevaPromoProps {
   visible:    boolean
   onClose:    () => void
-  onPublicar: (titulo: string, cuerpo: string) => Promise<boolean>
+  onPublicar: (titulo: string, cuerpo: string, imagenUri?: string | null) => Promise<boolean>
   publicando: boolean
 }
 
 function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuevaPromoProps) {
   const [titulo, setTitulo] = useState('')
   const [cuerpo, setCuerpo] = useState('')
+  const [imagenUri, setImagenUri] = useState<string | null>(null)
+
+  const elegirImagen = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitás permitir acceso a la galería.')
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: 'images',
+      allowsEditing: true,
+      aspect: [4, 3] as [number, number],
+      quality: 0.8,
+    })
+    if (result.canceled || !result.assets[0]) return
+    setImagenUri(result.assets[0].uri)
+  }
 
   const handlePublicar = async () => {
     if (!titulo.trim() || !cuerpo.trim()) return
-    const ok = await onPublicar(titulo, cuerpo)
-    if (ok) { setTitulo(''); setCuerpo(''); onClose() }
+    const ok = await onPublicar(titulo, cuerpo, imagenUri)
+    if (ok) { setTitulo(''); setCuerpo(''); setImagenUri(null); onClose() }
   }
 
-  const handleClose = () => { setTitulo(''); setCuerpo(''); onClose() }
+  const handleClose = () => { setTitulo(''); setCuerpo(''); setImagenUri(null); onClose() }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
@@ -100,6 +122,20 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
               multiline
               numberOfLines={4}
             />
+
+            <Text style={s.inputLabel}>FOTO (OPCIONAL)</Text>
+            {imagenUri ? (
+              <View style={s.previewWrap}>
+                <Image source={{ uri: imagenUri }} style={s.preview} />
+                <TouchableOpacity onPress={() => setImagenUri(null)} activeOpacity={0.7} style={s.previewQuitar}>
+                  <Text style={s.previewQuitarTexto}>QUITAR</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={elegirImagen} activeOpacity={0.8} style={s.botonImagen}>
+                <Text style={s.botonImagenTexto}>+ AGREGAR FOTO</Text>
+              </TouchableOpacity>
+            )}
 
             <Text style={s.aviso}>
               Se publica de una para todos los socios del club.
@@ -134,7 +170,7 @@ export default function PromosScreen() {
   const confirmarEliminar = (promo: Promo) => {
     Alert.alert('Eliminar promoción', `¿Eliminar "${promo.titulo}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => eliminar(promo.id) },
+      { text: 'Eliminar', style: 'destructive', onPress: () => eliminar(promo) },
     ])
   }
 
@@ -205,6 +241,7 @@ const s = StyleSheet.create({
   emptyWrap:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
 
   fila:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12 },
+  filaThumb: { width: 48, height: 48, borderRadius: 4, backgroundColor: DIVIDER },
   filaInfo:  { flex: 1 },
   filaTitulo:{ fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, fontWeight: '500' },
   filaCuerpo:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 2 },
@@ -226,6 +263,12 @@ const s = StyleSheet.create({
   input:          { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, backgroundColor: CARD, marginBottom: 20 },
   inputMultiline: { height: 110, textAlignVertical: 'top', paddingTop: 12 },
   aviso:          { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED, marginTop: -8 },
+  botonImagen:      { borderWidth: 1.5, borderColor: DIVIDER, borderStyle: 'dashed', borderRadius: 6, paddingVertical: 18, alignItems: 'center', marginBottom: 20 },
+  botonImagenTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 13, letterSpacing: 1.5, fontWeight: '600' },
+  previewWrap:      { marginBottom: 20 },
+  preview:          { width: '100%', aspectRatio: 4 / 3, borderRadius: 6, backgroundColor: DIVIDER },
+  previewQuitar:    { alignSelf: 'flex-start', marginTop: 8 },
+  previewQuitarTexto: { fontFamily: fonts.label, color: colors.rojoUrgente, fontSize: 12, letterSpacing: 1.5, fontWeight: '600' },
   botonGuardar:   { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:       { opacity: 0.5 },
   botonGuardarTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },

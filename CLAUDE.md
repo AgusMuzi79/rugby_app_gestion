@@ -82,8 +82,8 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Semáforo de morosidad: importador recurrente del reporte de deuda NUVIX (`importar-deuda`). Pago real vía alias + comprobante por WhatsApp (interino, hasta integrar Banco Macro).
 - Recordatorios por push (deuda, débito automático) — sin mail: NUVIX ya manda los transaccionales de pago.
 - Calendario, asistencia, lesiones, fichajes, cobranzas e informes — flujo completo por rol (coordinador/entrenador/manager).
-- Noticias con audiencia (socios / cuerpo técnico) y push al publicar.
-- Paneles web Next.js separados para subcomisión y secretaría (Vercel, dominio `uncasapp.com`).
+- Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
+- Paneles web Next.js separados para subcomisión, secretaría, Lector (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-09-17):**
 - **Android:** versión 12 (1.0.4) en Producción, 100% de rollout.

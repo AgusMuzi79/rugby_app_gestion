@@ -31,7 +31,7 @@ export default function LoginPage() {
       .eq('id', data.user.id)
       .single()
 
-    const rolesPermitidos = ['subcomision', 'admin', 'secretaria', 'porteria']
+    const rolesPermitidos = ['subcomision', 'admin', 'secretaria', 'porteria', 'buffet']
     const rolesArray = (profile?.roles as string[]) ?? []
 
     // Determinar el rol web activo: puede que profiles.rol esté en 'manager' u otro
@@ -53,6 +53,8 @@ export default function LoginPage() {
       router.replace('/secretaria/socios')
     } else if (rolWeb === 'porteria') {
       router.replace('/porteria/accesos')
+    } else if (rolWeb === 'buffet') {
+      router.replace('/buffet/promos')
     } else {
       router.replace('/dashboard')
     }
