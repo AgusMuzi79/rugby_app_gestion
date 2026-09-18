@@ -562,3 +562,12 @@ Confirmado también, explícitamente (no asumido): ninguna tabla de `public` tie
 - **`AUTO_RESET_MS` de 4000 a 8000** — el tiempo que la pantalla de resultado queda visible antes de volver sola a la cámara. Pedido de Agus, sin un valor exacto — se dobló como punto de partida, ajustable si queda corto/largo.
 - Verificado `tsc --noEmit` sin errores nuevos.
 - **Aclaración de infraestructura, misma sesión:** el proyecto NO tiene `expo-updates`/EAS Update configurado (ni el paquete instalado ni `runtimeVersion`/canal) — pese a que las notas de este archivo vienen diciendo "requiere build/OTA" de forma genérica, en la práctica **no hay OTA real**, cualquier cambio JS necesita un `eas build` nuevo para llegar a producción.
+
+**Resultado final de la ronda de builds — ambas plataformas (2026-09-17/18).** Cierre de la sesión que agregó foto a las promos de Buffet + panel web + fixes del scanner (ver entradas de arriba). Sucedieron varias vueltas de build/submit en la misma sesión:
+- Primera tanda: Android versionCode 13, iOS build 18 (ambos 1.0.5) — subida de rutina.
+- Segunda tanda (tras el pedido de extender `AUTO_RESET_MS`): Android versionCode 14, iOS build 19 (ambos todavía 1.0.5).
+- Mientras se subía el build 19, Apple aprobó la versión pública 1.0.5 (build 17) — tren cerrado, build 19 quedó "Failed" en TestFlight (esperable, mismo síntoma de siempre). Se bumpeó `version` a **1.0.6** (a mano esta vez, todavía no existía el script) y se generó un build de iOS nuevo, sólo esa plataforma: **build 20**.
+- Build 20 agregado a ambos grupos de TestFlight (Internal + External) y enviado a Beta App Review — aprobado, quedó en estado "Testing". Versión pública **1.0.6** creada, build 20 asignado, enviada a revisión ("Waiting for Review").
+- Android: Agus subió a mano el `.aab` de versionCode 14 (quedó con nombre de versión "1.0.5", generado antes del bump — sin problema, Android no tiene la restricción de tren cerrado) a Producción vía "Añadir de la biblioteca" en el flujo de creación de versión, notas de la versión completadas (`<es-419>...</es-419>`), enviado a revisión de Google.
+- **Confirmado al día siguiente (2026-09-18):** Android versionCode 14 (1.0.5) aprobado y publicado en Producción al 100%. iOS 1.0.5 aprobada ("Ready for Distribution", publicada vía autorelease); 1.0.6 (build 20) sigue "Waiting for Review" en Apple.
+- De paso, mientras se trabajaba: la sesión de App Store Connect se desconectó dos veces (2FA expirado) — hay que pedirle a Agus que vuelva a loguearse cuando pase; no es un bug del proyecto.

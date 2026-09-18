@@ -85,9 +85,9 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Lector (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-09-17):**
-- **Android:** versión 12 (1.0.4) en Producción, 100% de rollout.
-- **iOS:** build 17 (1.0.5) en TestFlight (grupo externo) y versión pública 1.0.5 enviada a revisión de Apple ("Waiting for Review").
+**Estado de las stores (actualizado 2026-09-18):**
+- **Android:** versión 14 (1.0.5) en Producción, 100% de rollout.
+- **iOS:** versión pública 1.0.5 aprobada y publicada. Versión 1.0.6 (build 20) en TestFlight (ambos grupos) y enviada a revisión pública de Apple ("Waiting for Review").
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
@@ -95,7 +95,9 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Rotar la `service_role` key de Supabase (al migrar a infraestructura del club).
 - Shop del club y gestor de alquiler de espacios — sin priorizar todavía.
 
-**Recordatorio de proceso:** cada build nuevo de iOS subido con `eas submit` hay que agregarlo a mano al grupo de testers en TestFlight (App Store Connect → TestFlight → grupo → Builds → "+") — `eas submit` sólo sube el binario, no lo hace visible a nadie.
+**Recordatorio de proceso:**
+- Cada build nuevo de iOS subido con `eas submit` hay que agregarlo a mano al grupo de testers en TestFlight (App Store Connect → TestFlight → grupo → Builds → "+") — `eas submit` sólo sube el binario, no lo hace visible a nadie.
+- Antes de cualquier `eas build --profile production` (iOS o `all`), correr `npm run version:bump` (desde `app/`) — bumpea el patch de `version` de forma incondicional, sin depender de chequear App Store Connect a mano. Ver `.claude/context/historial.md` (2026-09-17) o memoria `feedback-ios-tren-cerrado-eas`.
 
 ## Fuentes
 
