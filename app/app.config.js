@@ -44,6 +44,17 @@ const config = {
   web: {
     favicon: './assets/favicon.png',
   },
+  // EAS Update (OTA) — atado a la versión nativa (`policy: 'appVersion'`): un
+  // cambio 100% JS llega por `eas update` a los clientes que ya tengan
+  // instalada esa misma versión (1.0.6, etc.), sin pasar por revisión de
+  // tienda. Un cambio nativo (nueva librería, permiso, plugin) sigue
+  // necesitando build + submit igual que siempre.
+  runtimeVersion: {
+    policy: 'appVersion',
+  },
+  updates: {
+    url: 'https://u.expo.dev/d363d962-7caf-4050-81fc-b70b493289ca',
+  },
   plugins: [
     'expo-router',
     'expo-asset',

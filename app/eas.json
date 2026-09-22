@@ -7,12 +7,14 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "env": {
         "APP_VARIANT": "development"
       }
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       }
@@ -20,6 +22,7 @@
     "production": {
       "distribution": "store",
       "autoIncrement": true,
+      "channel": "production",
       "ios": {
         "credentialsSource": "local"
       }
