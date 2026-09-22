@@ -5,6 +5,7 @@ import {
 import { useRef, useState, useCallback } from 'react'
 import { Feather } from '@expo/vector-icons'
 const LOGO = require('@/assets/images/logo.png')
+import { useRouter } from 'expo-router'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
@@ -184,6 +185,7 @@ function TarjetaFisicaModal({
 export default function CarnetScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
+  const router = useRouter()
   const insets = useSafeAreaInsets()
   const { dependientes } = useDependientesMenores()
   const [verComoId, setVerComoId] = useState<string | null>(null)
@@ -259,6 +261,21 @@ export default function CarnetScreen() {
         </View>
       ) : data ? (
         <>
+          {/* ── AVISO: falta foto de perfil (solo mi propio carnet — no hay
+              forma de subirle la foto a un dependiente todavía) ── */}
+          {!verComoId && !data.fotoUrl && (
+            <TouchableOpacity
+              style={[s.banner, s.bannerFoto]}
+              onPress={() => router.navigate('/(socio)/sobre')}
+              activeOpacity={0.8}
+            >
+              <Feather name="camera" size={14} color={colors.tinta} />
+              <Text style={[s.bannerText, { color: colors.tinta }]}>
+                Todavía no subiste tu foto de perfil. Tocá para subirla desde Mi Perfil.
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── CARNET DIGITAL ── */}
           <View style={s.section}>
             <View style={s.secRow}>
@@ -382,6 +399,14 @@ const s = StyleSheet.create({
   familiaChipTextoActivo: {
     color: colors.oro,
   },
+
+  banner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 4,
+    marginHorizontal: 20, marginTop: 14,
+  },
+  bannerFoto:  { backgroundColor: '#E67E22' },
+  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },
