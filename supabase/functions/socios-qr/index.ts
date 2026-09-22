@@ -202,6 +202,39 @@ const PUNTO_POR_ROL: Record<string, string> = {
   buffet:   'buffet',
 }
 
+// ─── Gate de servicio: Lector exige Gimnasio contratado ───────────────────────
+//
+// A diferencia de Canchero/Buffet (que hoy sólo validan "socio al día",
+// igual que Lector antes de esto), el gimnasio es autoservicio sin nadie
+// atendiendo la puerta — el escaneo ES el control de acceso, así que acá sí
+// hace falta bloquear de verdad si el servicio no está contratado, no sólo
+// mostrar un aviso.
+//
+// El catálogo real (`servicios_opcionales`, ver 20260821000000_gimnasio_variantes_padron_servicios
+// y 20260805000002_fix_gimnasio_catalogo_drift) tiene varias variantes de
+// gimnasio (Gimnasio, Gimnasio Menor, Gimnasio Alícuota, Gimnasio Becado) —
+// hoy en la práctica casi todo el vínculo real está en la fila "Gimnasio"
+// (249 socios), pero se matchea por nombre para no dejar afuera a las otras
+// variantes si secretaría empieza a usarlas.
+//
+// "Cliente Gimnasio" es un caso aparte: no son socios del club, son filas de
+// `socios` con categoría "Cliente Gimnasio" y rol 'cliente_gimnasio' (ver
+// 20260911000000_rol_cliente_gimnasio) — no tienen fila en `socio_servicios`
+// porque la categoría ya los distingue, el gimnasio ES su único servicio.
+async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | null): Promise<boolean> {
+  if (categoriaNombre === 'Cliente Gimnasio') return true
+
+  const { data } = await supabaseAdmin
+    .from('socio_servicios')
+    .select('servicios_opcionales!inner(nombre, activo)')
+    .eq('socio_id', socioId)
+    .eq('servicios_opcionales.activo', true)
+    .ilike('servicios_opcionales.nombre', '%gimnasio%')
+    .limit(1)
+
+  return (data?.length ?? 0) > 0
+}
+
 async function registrarAcceso(socioId: string, semaforo: string | null, callerRol: string): Promise<void> {
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return
@@ -255,6 +288,14 @@ async function handleValidate(
   }
 
   const row = socio as unknown as SocioRow
+
+  if (callerRol === 'porteria') {
+    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
+    if (!tieneGimnasio) {
+      return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
+    }
+  }
+
   if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
@@ -287,6 +328,14 @@ async function handleValidateDni(
   }
 
   const row = socio as unknown as SocioRow
+
+  if (callerRol === 'porteria') {
+    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
+    if (!tieneGimnasio) {
+      return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
+    }
+  }
+
   if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
 
   return jsonOk(socioResponse(row))
