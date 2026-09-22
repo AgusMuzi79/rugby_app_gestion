@@ -77,7 +77,8 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 
 **Subsistemas en producción:**
 - Auth multi-rol (`profiles.roles[]`): socio, secretaría, lector, canchero, buffet, cliente gimnasio, coordinador, entrenador, manager, subcomisión, admin.
-- Carnet QR (TOTP, paso de 60s) + escaneo por Lector/Canchero/Buffet + historial de accesos al gimnasio.
+- Carnet QR (TOTP, paso de 60s) + escaneo por Lector/Canchero/Buffet + historial de accesos al gimnasio. Lector además exige que el socio tenga el servicio Gimnasio contratado (o sea Cliente Gimnasio) — Canchero/Buffet siguen validando solo "socio al día".
+- Titular de grupo familiar (`socios.cabecera_id`) ve el carnet QR de sus dependientes menores de 13 desde su propia cuenta — el link familiar depende de que el padrón NUVIX traiga `cabecera_cod_cliente`; hay ~176 menores de 13 sin ese link todavía (huecos de datos del padrón, no del código).
 - Gestión de socios: alta manual + importador mensual recurrente del padrón NUVIX (`importar-socios`), 1528+ socios reales cargados.
 - Semáforo de morosidad: importador recurrente del reporte de deuda NUVIX (`importar-deuda`). Pago real vía alias + comprobante por WhatsApp (interino, hasta integrar Banco Macro).
 - Recordatorios por push (deuda, débito automático) — sin mail: NUVIX ya manda los transaccionales de pago.
@@ -94,6 +95,9 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal.
 - Rotar la `service_role` key de Supabase (al migrar a infraestructura del club).
 - Shop del club y gestor de alquiler de espacios — sin priorizar todavía.
+- 176 socios menores de 13 sin `cabecera_id` (link familiar) — sólo se resolvió puntualmente la familia Fiori (2026-09-18); decidir si conviene un fix masivo o ir caso por caso.
+- Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado a Lector (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
+- Próximo `eas build` de producción: sumar el banner de "subí tu foto" en el carnet (2026-09-18, JS puro) — y a partir de ese build, el canal de EAS Update (`production`) ya queda operativo para mandar cambios de JS futuros sin pasar por revisión de tienda.
 
 **Recordatorio de proceso:**
 - Cada build nuevo de iOS subido con `eas submit` hay que agregarlo a mano al grupo de testers en TestFlight (App Store Connect → TestFlight → grupo → Builds → "+") — `eas submit` sólo sube el binario, no lo hace visible a nadie.
