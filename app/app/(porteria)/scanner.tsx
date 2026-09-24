@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
@@ -26,6 +26,10 @@ const AUTO_RESET_MS = 8000
 
 export default function ScannerScreen() {
   const insets = useSafeAreaInsets()
+  const { width } = useWindowDimensions()
+  // En tablet la pantalla de resultado se lee más de lejos (apoyada en un
+  // mostrador) — se agranda todo un escalón extra a partir de este ancho.
+  const esTablet = width >= 600
   const { rol } = useAuthStore()
   const esAutoservicio = rol === 'porteria'
   const TITULOS_HEADER: Record<string, string> = { canchero: 'CANCHERO · SCANNER', buffet: 'BUFFET · SCANNER' }
@@ -129,44 +133,45 @@ export default function ScannerScreen() {
         ) : result ? (
           <View style={s.resultContainer}>
             {/* Banda de estado — foco en la cuota, acá no se bloquea el acceso a nadie */}
-            <View style={[s.resultBand, { backgroundColor: moroso ? colors.rojoUrgente : '#1A7A1A' }]}>
+            <View style={[s.resultBand, { backgroundColor: moroso ? colors.rojoUrgente : '#1A7A1A' }, esTablet && s.resultBandTablet]}>
               <Feather
                 name={moroso ? 'alert-triangle' : 'check-circle'}
-                size={32}
+                size={esTablet ? 56 : 32}
                 color={colors.blanco}
               />
-              <Text style={s.resultBandText}>
+              <Text style={[s.resultBandText, esTablet && s.resultBandTextTablet]}>
                 {esValido ? (moroso ? 'MOROSO' : 'AL DÍA') : 'QR NO VÁLIDO'}
               </Text>
             </View>
 
             {esValido ? (
-              <View style={s.resultBody}>
+              <View style={[s.resultBody, esTablet && s.resultBodyTablet]}>
                 {/* Foto */}
                 {result.foto_url ? (
-                  <Image source={{ uri: result.foto_url }} style={s.fotoSocio} />
+                  <Image source={{ uri: result.foto_url }} style={[s.fotoSocio, esTablet && s.fotoSocioTablet]} />
                 ) : (
-                  <View style={[s.fotoSocio, s.fotoPlaceholder]}>
-                    <Feather name="user" size={40} color={colors.grisClaro} />
+                  <View style={[s.fotoSocio, s.fotoPlaceholder, esTablet && s.fotoSocioTablet]}>
+                    <Feather name="user" size={esTablet ? 84 : 40} color={colors.grisClaro} />
                   </View>
                 )}
 
                 {/* Info */}
-                <View style={s.resultInfo}>
-                  <Text style={s.resultNombre}>{result.nombre ?? '—'}</Text>
+                <View style={[s.resultInfo, esTablet && s.resultInfoTablet]}>
+                  <Text style={[s.resultNombre, esTablet && s.resultNombreTablet]}>{result.nombre ?? '—'}</Text>
 
                   <View style={s.resultRow}>
-                    <Text style={s.resultLabel}>Nº SOCIO</Text>
-                    <Text style={s.resultValor}>{result.numero_socio}</Text>
+                    <Text style={[s.resultLabel, esTablet && s.resultLabelTablet]}>Nº SOCIO</Text>
+                    <Text style={[s.resultValor, esTablet && s.resultValorTablet]}>{result.numero_socio}</Text>
                   </View>
                   <View style={s.resultRow}>
-                    <Text style={s.resultLabel}>CATEGORÍA</Text>
-                    <Text style={s.resultValor}>{result.categoria}</Text>
+                    <Text style={[s.resultLabel, esTablet && s.resultLabelTablet]}>CATEGORÍA</Text>
+                    <Text style={[s.resultValor, esTablet && s.resultValorTablet]}>{result.categoria}</Text>
                   </View>
                   <View style={s.resultRow}>
-                    <Text style={s.resultLabel}>ESTADO</Text>
+                    <Text style={[s.resultLabel, esTablet && s.resultLabelTablet]}>ESTADO</Text>
                     <Text style={[
                       s.resultValor,
+                      esTablet && s.resultValorTablet,
                       estadoVisual(result) === 'moroso' && { color: colors.rojoUrgente },
                     ]}>
                       {estadoVisual(result).toUpperCase()}
@@ -176,16 +181,16 @@ export default function ScannerScreen() {
               </View>
             ) : (
               <View style={s.motivoContainer}>
-                <Text style={s.motivoText}>{result.motivo ?? 'QR inválido'}</Text>
+                <Text style={[s.motivoText, esTablet && s.motivoTextTablet]}>{result.motivo ?? 'QR inválido'}</Text>
               </View>
             )}
 
             <TouchableOpacity
-              style={s.nuevoBtn}
+              style={[s.nuevoBtn, esTablet && s.nuevoBtnTablet]}
               onPress={() => { reset(); setModoDni(false); setDniInput('') }}
               activeOpacity={0.8}
             >
-              <Text style={s.nuevoBtnText}>ESCANEAR OTRO</Text>
+              <Text style={[s.nuevoBtnText, esTablet && s.nuevoBtnTextTablet]}>ESCANEAR OTRO</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -256,13 +261,17 @@ export default function ScannerScreen() {
         </View>
 
         <View style={s.hint}>
-          <Text style={s.hintText}>
-            {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
-          </Text>
+          <View style={s.hintChip}>
+            <Text style={s.hintText}>
+              {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
+            </Text>
+          </View>
         </View>
 
         <TouchableOpacity style={s.dniLink} onPress={() => setModoDni(true)} activeOpacity={0.7}>
-          <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
+          <View style={s.dniLinkChip}>
+            <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -325,16 +334,26 @@ const s = StyleSheet.create({
   hint: {
     position: 'absolute', bottom: 60, left: 0, right: 0, alignItems: 'center',
   },
+  // Fondo oscuro fijo detrás del texto: sin esto, contra un techo o pared
+  // blanca (lo que suele captar la cámara frontal) el texto claro se pierde.
+  hintChip: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
+  },
   hintText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase', color: colors.blanco,
   },
   dniLink: {
     position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center',
   },
+  dniLinkChip: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6,
+  },
   dniLinkText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
-    textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.85)',
     textDecorationLine: 'underline',
   },
 
@@ -381,42 +400,59 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 18, letterSpacing: 3,
     textTransform: 'uppercase', color: colors.blanco,
   },
+  resultBandTablet: { paddingHorizontal: 48, paddingVertical: 40, gap: 28 },
+  resultBandTextTablet: { fontSize: 34 },
 
   resultBody: {
     flexDirection: 'row', gap: 20, padding: 24,
+  },
+  // En tablet el body pasa a ocupar todo el espacio libre entre el banner y
+  // el botón, y centra el bloque foto+datos ahí — así no queda todo pegado
+  // arriba con media pantalla vacía debajo.
+  resultBodyTablet: {
+    flex: 1, gap: 44, padding: 48,
+    alignItems: 'center', justifyContent: 'center',
   },
   fotoSocio: {
     width: 100, height: 120, borderRadius: 4,
     borderWidth: 1, borderColor: '#333333',
   },
+  fotoSocioTablet: { width: 240, height: 288 },
   fotoPlaceholder: {
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#2C2418',
   },
   resultInfo: { flex: 1, gap: 10 },
+  resultInfoTablet: { flex: 0, maxWidth: 460, gap: 28 },
   resultNombre: {
     fontFamily: fonts.titulo, fontSize: 23, color: colors.tinta, marginBottom: 6,
   },
+  resultNombreTablet: { fontSize: 44, marginBottom: 14 },
   resultRow:   { gap: 2 },
   resultLabel: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', color: MUTED,
   },
+  resultLabelTablet: { fontSize: 17 },
   resultValor: {
     fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
   },
+  resultValorTablet: { fontSize: 32 },
 
   motivoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   motivoText: {
     fontFamily: fonts.cuerpo, fontSize: 18, fontStyle: 'italic',
     color: MUTED, textAlign: 'center',
   },
+  motivoTextTablet: { fontSize: 26 },
 
   nuevoBtn: {
     margin: 24, borderWidth: 1, borderColor: colors.oro,
     paddingVertical: 16, alignItems: 'center', borderRadius: 4,
   },
+  nuevoBtnTablet: { margin: 40, paddingVertical: 22 },
   nuevoBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
+  nuevoBtnTextTablet: { fontSize: 17 },
 })

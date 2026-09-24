@@ -86,9 +86,9 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Lector (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-09-22):**
-- **Android:** versión 15 (1.0.7) en revisión en Producción. La versión 14 (1.0.5) sigue siendo la que ven los usuarios reales mientras tanto.
-- **iOS:** versión pública 1.0.7 (build 21) enviada a revisión de Apple ("Waiting for Review", hasta 48hs). Build 21 ya está en TestFlight (Internal + External "Club UNCAS"). La versión pública 1.0.6 sigue siendo la última aprobada/publicada mientras 1.0.7 se revisa.
+**Estado de las stores (actualizado 2026-09-23):**
+- **Android:** versión 15 (1.0.7) aprobada y **disponible en Google Play** desde el 22/09 19:33.
+- **iOS:** versión 1.0.7 (build 21) **aprobada por Apple** — "Ready for Distribution" en App Store Connect. Verificar si el release es automático o si falta el trigger manual de "Release This Version" para que quede visible a todos los usuarios.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
@@ -98,7 +98,6 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - 176 socios menores de 13 sin `cabecera_id` (link familiar) — sólo se resolvió puntualmente la familia Fiori (2026-09-18); decidir si conviene un fix masivo o ir caso por caso.
 - Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado a Lector (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
 - Trader status de la UE (Digital Services Act) sin completar en App Store Connect — banner recurrente, no bloqueante fuera de la UE, sin resolver.
-- Resultado de la revisión de Android v15/1.0.7 e iOS v1.0.7 (build 21) — confirmar cuando Google/Apple respondan.
 
 **Recordatorio de proceso:**
 - Cada build nuevo de iOS subido con `eas submit` hay que agregarlo a mano al grupo de testers en TestFlight (App Store Connect → TestFlight → grupo → Builds → "+") — `eas submit` sólo sube el binario, no lo hace visible a nadie.
