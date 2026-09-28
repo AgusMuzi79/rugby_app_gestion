@@ -15,7 +15,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 
 ## Supabase Cloud
 
-- Proyecto: `tlexvbattnzpmdftjsao`
+- Proyecto: `tlexvbattnzpmdftjsao` (`uncas_rugby_app`, São Paulo, plan Free/NANO). Transferido el 2026-09-28 a la org **NoisyDev** nueva (`mudqyyrszmrmhedaeyue`, Owners: noisydevs@gmail.com + agusmuzi79@gmail.com). OJO: existe otra org también llamada "NoisyDev" (`irbmnazcvgsfolasaibe`, personal de agusmuzi79) que conserva `noisy_wallet` y `uncas_tenis_tour_inscripcion`. Integración GitHub desconectada (requisito de Supabase para transferir; no se usaba branching ni deploy automático).
 - URL: `https://tlexvbattnzpmdftjsao.supabase.co`
 - Migraciones aplicadas con `supabase db push`
 - Edge Functions deployadas: `admin-usuarios`, `notifications`

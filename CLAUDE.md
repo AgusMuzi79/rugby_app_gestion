@@ -33,7 +33,7 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 | Capa | Tecnología |
 |---|---|
 | Mobile | React Native + Expo (TypeScript) |
-| Auth + DB + Realtime | Supabase (PostgreSQL, Auth, Storage, Edge Functions) |
+| Auth + DB + Realtime | Supabase (PostgreSQL, Auth, Storage, Edge Functions) — proyecto `tlexvbattnzpmdftjsao` en la org NoisyDev nueva (`mudqyyrszmrmhedaeyue`, cuenta noisydevs@gmail.com) desde 2026-09-28 |
 | Push | Expo Push API desde Edge Functions |
 | Offline | AsyncStorage + cola de sync (NetInfo) |
 | Deploy mobile | Expo EAS — internal distribution (sin App Store en MVP) |
@@ -93,7 +93,10 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal.
-- Rotar la `service_role` key de Supabase (al migrar a infraestructura del club).
+- Subir la organización NoisyDev (Supabase) a plan Pro — el proyecto `uncas_rugby_app` sigue en Free (se pausa por inactividad, sin backups automáticos). Urgente.
+- Rotar la `service_role` key de Supabase (buen momento tras la transferencia del 2026-09-28; ojo con env vars de Vercel y scripts).
+- Probar en la práctica login + reset de contraseña (Resend) + escaneo tras la transferencia de Supabase (2026-09-28); sólo se verificó DB/Auth health/Edge Functions/secrets por CLI.
+- Decidir si `agusmuzi79` sale de la organización Supabase vieja (personal) y si se reconecta la integración GitHub (hoy desconectada, no se usaba).
 - Shop del club y gestor de alquiler de espacios — sin priorizar todavía.
 - 176 socios menores de 13 sin `cabecera_id` (link familiar) — sólo se resolvió puntualmente la familia Fiori (2026-09-18); decidir si conviene un fix masivo o ir caso por caso.
 - Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado a Lector (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
