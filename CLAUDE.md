@@ -93,7 +93,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal.
-- Subir la organización NoisyDev (Supabase) a plan Pro — el proyecto `uncas_rugby_app` sigue en Free (se pausa por inactividad, sin backups automáticos). Urgente.
+- Supabase sigue en plan **Free** por decisión de Agus (2026-09-28, motivo económico): sin backups automáticos y con pausa tras 7 días de inactividad. Mitigación: `node scripts/backup-supabase.mjs` (requiere Docker Desktop abierto; guarda en `~/backups-uncas/`, fuera del repo) — correrlo semanalmente y SIEMPRE antes de un importador masivo. No respalda los archivos de Storage (fotos). Reevaluar Pro si crece el uso o pasa algo.
 - Rotar la `service_role` key de Supabase (buen momento tras la transferencia del 2026-09-28; ojo con env vars de Vercel y scripts).
 - Probar en la práctica login + reset de contraseña (Resend) + escaneo tras la transferencia de Supabase (2026-09-28); sólo se verificó DB/Auth health/Edge Functions/secrets por CLI.
 - Decidir si `agusmuzi79` sale de la organización Supabase vieja (personal) y si se reconecta la integración GitHub (hoy desconectada, no se usaba).
