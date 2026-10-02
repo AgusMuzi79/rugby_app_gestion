@@ -94,9 +94,11 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Integración Banco Macro (reemplazaría el alias manual de pago).
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal.
 - Supabase sigue en plan **Free** por decisión de Agus (2026-09-28, motivo económico): sin backups automáticos y con pausa tras 7 días de inactividad. Mitigación: `node scripts/backup-supabase.mjs` (requiere Docker Desktop abierto; guarda en `~/backups-uncas/`, fuera del repo) — correrlo semanalmente y SIEMPRE antes de un importador masivo. No respalda los archivos de Storage (fotos). Reevaluar Pro si crece el uso o pasa algo.
-- Rotar la `service_role` key de Supabase (buen momento tras la transferencia del 2026-09-28; ojo con env vars de Vercel y scripts).
+- Rotar la `service_role` key de Supabase (buen momento tras la transferencia del 2026-09-28; ojo con env vars de Vercel y scripts). **Más urgente desde 2026-09-30**: quedó pegada varias veces en el chat.
+- Pendientes de la reconciliación de servicios (2026-09-30, ver `historial.md`): decidir si se borra el Rugby manual del 16823; revisar el DNI de 6 dígitos del 7110; confirmar que los 6 socios con contraseña reseteada a DNI (16340, 17988, 16072, 7110, 16557, 7269) pueden entrar.
+- Idea (no urgente): acción "resetear contraseña a DNI" en el panel de Secretaría. Hoy sólo se puede por script (`scripts/resetear-password-a-dni.mjs`) y el link del Dashboard de Supabase no llega a quien tiene mail sintético.
 - Probar en la práctica login + reset de contraseña (Resend) + escaneo tras la transferencia de Supabase (2026-09-28); sólo se verificó DB/Auth health/Edge Functions/secrets por CLI.
-- Decidir si `agusmuzi79` sale de la organización Supabase vieja (personal) y si se reconecta la integración GitHub (hoy desconectada, no se usaba).
+- Decidir si se reconecta la integración GitHub de Supabase (hoy desconectada, no se usaba). Resuelto 2026-09-29: `agusmuzi79` quedó como **Developer** (no Owner) en la org Supabase nueva (`mudqyyrszmrmhedaeyue`) — sigue teniendo acceso por CLI/scripts y ya no cuenta como Owner contra el límite de 2 proyectos Free (eso bloqueaba reactivar `noisy_wallet`).
 - Shop del club y gestor de alquiler de espacios — sin priorizar todavía.
 - 176 socios menores de 13 sin `cabecera_id` (link familiar) — sólo se resolvió puntualmente la familia Fiori (2026-09-18); decidir si conviene un fix masivo o ir caso por caso.
 - Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado a Lector (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
