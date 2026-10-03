@@ -126,12 +126,12 @@ Deno.serve(async (req: Request) => {
   const messages = conToken.flatMap(d =>
     (tokensPorProfile.get(d.profileId) ?? []).map(to => ({ profileId: d.profileId, msg: armarMensaje(d, to) }))
   )
-  const okProfiles = await enviarPush(messages)
+  const { ok: okProfiles, fallidos } = await enviarPush(messages)
 
   const marcarIds = conToken.filter(d => okProfiles.has(d.profileId)).flatMap(d => d.socioIds)
   const marcados = await marcarAvisados(marcarIds)
 
-  return jsonOk({ dry_run: false, ...resumen, push_ok: okProfiles.size, socios_marcados: marcados })
+  return jsonOk({ dry_run: false, ...resumen, push_ok: okProfiles.size, enviados: okProfiles.size, fallidos, socios_marcados: marcados })
 })
 
 // ─── Lecturas ────────────────────────────────────────────────────────────────
@@ -299,11 +299,15 @@ function armarMensaje(d: Destinatario, to: string) {
   }
 }
 
-// Devuelve los profileId cuyos mensajes salieron en un chunk que Expo aceptó.
+// Expo responde 200 aunque algunos tickets fallen (p. ej. DeviceNotRegistered):
+// `data` es un array de tickets en el mismo orden que los mensajes enviados.
+// Un profile cuenta como entregado sólo si al menos uno de SUS tokens tuvo un
+// ticket `ok`. Un body ausente o malformado se trata como no entregado.
 async function enviarPush(
   messages: { profileId: string; msg: ReturnType<typeof armarMensaje> }[],
-): Promise<Set<string>> {
+): Promise<{ ok: Set<string>; fallidos: number }> {
   const ok = new Set<string>()
+  let fallidos = 0
   for (let i = 0; i < messages.length; i += EXPO_PUSH_CHUNK_SIZE) {
     const chunk = messages.slice(i, i + EXPO_PUSH_CHUNK_SIZE)
     try {
@@ -312,13 +316,31 @@ async function enviarPush(
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate' },
         body: JSON.stringify(chunk.map(c => c.msg)),
       })
-      if (res.ok) chunk.forEach(c => ok.add(c.profileId))
-      else console.error('Expo push falló:', res.status, await res.text())
+      if (!res.ok) {
+        console.error('Expo push falló:', res.status, await res.text())
+        continue
+      }
+
+      const json = await res.json().catch(() => null) as { data?: unknown } | null
+      const tickets = json?.data
+      if (!Array.isArray(tickets) || tickets.length !== chunk.length) {
+        console.error('Expo push: respuesta con formato inesperado, chunk tratado como no entregado')
+        continue
+      }
+
+      tickets.forEach((t, idx) => {
+        const status = (t as { status?: string } | null)?.status
+        if (status === 'ok') ok.add(chunk[idx].profileId)
+        else {
+          fallidos++
+          console.error('Expo push: ticket con error:', JSON.stringify(t))
+        }
+      })
     } catch (e) {
       console.error('Error enviando push:', e)
     }
   }
-  return ok
+  return { ok, fallidos }
 }
 
 async function marcarAvisados(socioIds: string[]): Promise<number> {

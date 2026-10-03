@@ -92,9 +92,12 @@ export default function ScannerScreen() {
     const dni = invitadoDni.trim()
     if (!dni || invitadoEnviando) return
     setInvitadoEnviando(true)
-    const res = await registrarInvitado(dni, invitadoNombre)
-    setInvitadoResultado(res)
-    setInvitadoEnviando(false)
+    try {
+      const res = await registrarInvitado(dni, invitadoNombre)
+      setInvitadoResultado(res)
+    } finally {
+      setInvitadoEnviando(false)
+    }
   }
 
   const consultarDni = () => {
@@ -231,6 +234,7 @@ export default function ScannerScreen() {
   // ── Registrar invitado (no-socio) ─────────────────────────────────────────
   if (modoInvitado && esAutoservicio) {
     const confirmado = invitadoResultado?.ok === true
+    const sinConteo  = confirmado && invitadoResultado?.veces == null
     const repetido   = confirmado && (invitadoResultado?.veces ?? 0) >= UMBRAL_INVITADO_REPETIDO
 
     return (
@@ -247,7 +251,9 @@ export default function ScannerScreen() {
               <Text style={s.dniSub}>
                 DNI {invitadoResultado?.dni}{invitadoResultado?.nombre ? ` · ${invitadoResultado.nombre}` : ''}
                 {'\n'}
-                {invitadoResultado?.veces} {invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días
+                {sinConteo
+                  ? 'No se pudo calcular cuántas veces vino.'
+                  : `${invitadoResultado?.veces} ${invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días`}
               </Text>
               {repetido && (
                 <Text style={[s.dniSub, { color: colors.rojoUrgente }]}>

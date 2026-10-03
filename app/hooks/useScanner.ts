@@ -17,13 +17,14 @@ export interface ScanResult {
 
 // Respuesta de la acción `registrar-invitado` de socios-qr. `ok: false` trae
 // el motivo (DNI inválido, el DNI es de un socio, etc.); `veces` cuenta los
-// ingresos de ese DNI como invitado en los últimos 30 días, incluido éste.
+// ingresos de ese DNI como invitado en los últimos 30 días, incluido éste
+// (null si el registro salió bien pero no se pudo calcular la cuenta).
 export interface InvitadoResult {
   ok:      boolean
   motivo?: string
   dni?:    string
   nombre?: string | null
-  veces?:  number
+  veces?:  number | null
 }
 
 // Desde cuántas visitas en 30 días se sugiere derivar al invitado a Secretaría.

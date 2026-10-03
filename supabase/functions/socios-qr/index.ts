@@ -362,14 +362,19 @@ async function handleValidateDni(
 
 const VENTANA_INVITADO_DIAS = 30
 
-async function contarVecesInvitado(dni: string): Promise<number> {
+// null = no se pudo contar (error de la consulta): el caller no debe mostrar un 0 falso.
+async function contarVecesInvitado(dni: string): Promise<number | null> {
   const desde = new Date(Date.now() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
-  const { count } = await supabaseAdmin
+  const { count, error } = await supabaseAdmin
     .from('accesos')
     .select('id', { count: 'exact', head: true })
     .eq('es_invitado', true)
     .eq('invitado_dni', dni)
     .gte('creado_en', desde.toISOString())
+  if (error) {
+    console.error('contar-veces-invitado:', error.message)
+    return null
+  }
   return count ?? 0
 }
 
@@ -393,11 +398,17 @@ async function handleRegistrarInvitado(
 
   // Un socio no se carga como invitado: se consulta como socio (así queda el
   // aviso de servicio/cuota y el registro con su número).
-  const { data: socioExistente } = await supabaseAdmin
+  const { data: socioExistente, error: socioError } = await supabaseAdmin
     .from('socios')
     .select('id')
     .eq('dni', dni)
     .limit(1)
+
+  // Sin poder verificar el DNI no se inserta: podría ser un socio real.
+  if (socioError) {
+    console.error('registrar-invitado (verificar DNI):', socioError.message)
+    return jsonOk({ ok: false, motivo: 'No se pudo verificar el DNI. Probá de nuevo.' })
+  }
 
   if ((socioExistente?.length ?? 0) > 0) {
     return jsonOk({ ok: false, motivo: 'Ese DNI pertenece a un socio. Escaneá su carnet o consultalo por DNI como socio.' })
@@ -473,20 +484,28 @@ async function handleListarAccesos(
 
   const rows = data as unknown as AccesoRow[]
 
-  // Repeticiones de cada invitado en los últimos 30 días (no sólo el día
-  // consultado): es lo que dispara el "Derivar a Secretaría" en el panel.
+  // Repeticiones de cada invitado en los 30 días que terminan al cierre del día
+  // consultado (incluido ese día, no sólo ese día): es lo que dispara el "Derivar
+  // a Secretaría" en el panel. Si la consulta falla, `veces_invitado` va null en
+  // vez de un número equivocado, sin tirar abajo el listado.
   const dnisInvitados = [...new Set(rows.filter(a => a.es_invitado && a.invitado_dni).map(a => a.invitado_dni as string))]
-  const vecesPorDni = new Map<string, number>()
+  let vecesPorDni: Map<string, number> | null = new Map<string, number>()
   if (dnisInvitados.length > 0) {
-    const desde = new Date(Date.now() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
-    const { data: previos } = await supabaseAdmin
+    const desde = new Date(fin.getTime() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
+    const { data: previos, error: previosError } = await supabaseAdmin
       .from('accesos')
       .select('invitado_dni')
       .eq('es_invitado', true)
       .in('invitado_dni', dnisInvitados)
       .gte('creado_en', desde.toISOString())
-    for (const p of (previos ?? []) as { invitado_dni: string }[]) {
-      vecesPorDni.set(p.invitado_dni, (vecesPorDni.get(p.invitado_dni) ?? 0) + 1)
+      .lt('creado_en', fin.toISOString())
+    if (previosError) {
+      console.error('listar-accesos (veces invitado):', previosError.message)
+      vecesPorDni = null
+    } else {
+      for (const p of (previos ?? []) as { invitado_dni: string }[]) {
+        vecesPorDni.set(p.invitado_dni, (vecesPorDni.get(p.invitado_dni) ?? 0) + 1)
+      }
     }
   }
 
@@ -497,7 +516,7 @@ async function handleListarAccesos(
     sin_servicio:    a.sin_servicio,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
-    veces_invitado:  a.es_invitado && a.invitado_dni ? (vecesPorDni.get(a.invitado_dni) ?? 1) : null,
+    veces_invitado:  a.es_invitado && a.invitado_dni && vecesPorDni ? (vecesPorDni.get(a.invitado_dni) ?? null) : null,
     numero_socio:    a.es_invitado ? '—' : (a.socios?.numero_socio ?? '—'),
     nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : (a.socios?.profiles?.nombre ?? '—'),
   }))
