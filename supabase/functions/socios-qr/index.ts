@@ -235,12 +235,19 @@ async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | 
   return (data?.length ?? 0) > 0
 }
 
-async function registrarAcceso(socioId: string, semaforo: string | null, callerRol: string): Promise<void> {
+// `sinServicio` marca el escaneo de un socio sin Gimnasio contratado (el
+// Lector igual le muestra el aviso, pero el intento queda visible en el panel).
+async function registrarAcceso(
+  socioId: string,
+  semaforo: string | null,
+  callerRol: string,
+  sinServicio = false,
+): Promise<void> {
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return
   const { error } = await supabaseAdmin
     .from('accesos')
-    .insert({ socio_id: socioId, semaforo, punto })
+    .insert({ socio_id: socioId, semaforo, punto, sin_servicio: sinServicio })
   if (error) console.error('registrarAcceso:', error.message)
 }
 
@@ -292,6 +299,7 @@ async function handleValidate(
   if (callerRol === 'porteria') {
     const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
     if (!tieneGimnasio) {
+      await registrarAcceso(row.id, row.semaforo, callerRol, true)
       return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
     }
   }
@@ -332,6 +340,7 @@ async function handleValidateDni(
   if (callerRol === 'porteria') {
     const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
     if (!tieneGimnasio) {
+      await registrarAcceso(row.id, row.semaforo, callerRol, true)
       return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
     }
   }
@@ -366,6 +375,7 @@ async function handleListarAccesos(
       creado_en,
       punto,
       semaforo,
+      sin_servicio,
       socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
     `)
     .gte('creado_en', inicio.toISOString())
@@ -378,6 +388,7 @@ async function handleListarAccesos(
     creado_en: string
     punto: string
     semaforo: string | null
+    sin_servicio: boolean
     socios: { numero_socio: string; profiles: { nombre: string } | null } | null
   }
 
@@ -385,6 +396,7 @@ async function handleListarAccesos(
     creado_en:    a.creado_en,
     punto:        a.punto,
     semaforo:     a.semaforo,
+    sin_servicio: a.sin_servicio,
     numero_socio: a.socios?.numero_socio ?? '—',
     nombre:       a.socios?.profiles?.nombre ?? '—',
   }))

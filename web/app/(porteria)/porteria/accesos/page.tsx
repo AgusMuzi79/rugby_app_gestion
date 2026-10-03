@@ -11,6 +11,7 @@ interface Acceso {
   creado_en: string
   punto: string
   semaforo: Semaforo | null
+  sin_servicio: boolean
   numero_socio: string
   nombre: string
 }
@@ -84,12 +85,13 @@ export default function AccesosPage() {
   useEffect(() => { fetchAccesos(fecha) }, [fecha, fetchAccesos])
 
   const handleExportar = () => {
-    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota']
+    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio']
     const filas = accesos.map(a => [
       formatHora(a.creado_en),
       a.numero_socio,
       a.nombre,
       a.semaforo ? SEMAFORO_LABEL[a.semaforo] : '',
+      a.sin_servicio ? 'Sí' : '',
     ])
 
     // Delimitador ";" (no ",") — mismo criterio que /secretaria/deudas.
@@ -163,7 +165,14 @@ export default function AccesosPage() {
               <tr key={i} className="border-b border-gris-claro">
                 <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{formatHora(a.creado_en)}</td>
                 <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{a.numero_socio}</td>
-                <td className="font-lora text-sm text-tinta py-4 pr-4">{a.nombre}</td>
+                <td className="font-lora text-sm text-tinta py-4 pr-4">
+                  {a.nombre}
+                  {a.sin_servicio && (
+                    <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo">
+                      SIN SERVICIO
+                    </span>
+                  )}
+                </td>
                 <td className="text-center py-4 pl-4">
                   <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${
                     a.semaforo ? SEMAFORO_COLOR[a.semaforo] : 'border-gris-claro text-tinta/40'
