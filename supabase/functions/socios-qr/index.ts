@@ -11,6 +11,9 @@
 //   validate-dni   — Fallback sin QR (socio sin el celular encima): busca directo por DNI,
 //                    sin código TOTP. Misma respuesta que validate.
 //   listar-accesos — Panel web de Lector: historial de ingresos de un día (tabla `accesos`).
+//   registrar-invitado — Anota el ingreso de un no-socio (DNI obligatorio, nombre opcional) y
+//                    devuelve cuántas veces entró ese DNI en los últimos 30 días, para que
+//                    se lo derive a Secretaría cuando se repite (ver 20261003000001_accesos_invitados).
 //
 // Seguridad:
 //   get-secret:   JWT requerido, rol='socio' o 'cliente_gimnasio', retorna su propio secret o
@@ -65,6 +68,7 @@ Deno.serve(async (req: Request) => {
   if (action === 'validate')       return handleValidate(body, callerRol)
   if (action === 'validate-dni')   return handleValidateDni(body, callerRol)
   if (action === 'listar-accesos') return handleListarAccesos(body, callerRol)
+  if (action === 'registrar-invitado') return handleRegistrarInvitado(body, callerRol)
 
   return jsonError(400, `Acción desconocida: ${action}`)
 })
@@ -350,6 +354,75 @@ async function handleValidateDni(
   return jsonOk(socioResponse(row))
 }
 
+// ─── Invitados (no-socios) en el gimnasio ─────────────────────────────────────
+//
+// Los errores de validación vuelven como 200 con `ok: false` + `motivo` (no
+// como jsonError): supabase.functions.invoke esconde el body de un non-2xx y
+// la tablet necesita mostrarle el motivo real al encargado.
+
+const VENTANA_INVITADO_DIAS = 30
+
+async function contarVecesInvitado(dni: string): Promise<number> {
+  const desde = new Date(Date.now() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
+  const { count } = await supabaseAdmin
+    .from('accesos')
+    .select('id', { count: 'exact', head: true })
+    .eq('es_invitado', true)
+    .eq('invitado_dni', dni)
+    .gte('creado_en', desde.toISOString())
+  return count ?? 0
+}
+
+async function handleRegistrarInvitado(
+  body: Record<string, unknown>,
+  callerRol: string
+): Promise<Response> {
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para registrar invitados')
+
+  // Igual que validate: secretaria/admin/subcomision no representan un ingreso real.
+  const punto = PUNTO_POR_ROL[callerRol]
+  if (!punto) return jsonOk({ ok: false, motivo: 'Sólo las cuentas de acceso pueden registrar invitados' })
+
+  const dni = (body.dni as string | undefined)?.trim() ?? ''
+  if (!/^\d{6,9}$/.test(dni)) return jsonOk({ ok: false, motivo: 'El DNI debe tener entre 6 y 9 dígitos' })
+
+  const nombreRaw = (body.nombre as string | undefined)?.trim() ?? ''
+  if (nombreRaw.length > 80) return jsonOk({ ok: false, motivo: 'El nombre no puede superar los 80 caracteres' })
+  const nombre = nombreRaw || null
+
+  // Un socio no se carga como invitado: se consulta como socio (así queda el
+  // aviso de servicio/cuota y el registro con su número).
+  const { data: socioExistente } = await supabaseAdmin
+    .from('socios')
+    .select('id')
+    .eq('dni', dni)
+    .limit(1)
+
+  if ((socioExistente?.length ?? 0) > 0) {
+    return jsonOk({ ok: false, motivo: 'Ese DNI pertenece a un socio. Escaneá su carnet o consultalo por DNI como socio.' })
+  }
+
+  const { error } = await supabaseAdmin
+    .from('accesos')
+    .insert({
+      socio_id: null,
+      semaforo: null,
+      punto,
+      es_invitado: true,
+      invitado_dni: dni,
+      invitado_nombre: nombre,
+    })
+
+  if (error) {
+    console.error('registrar-invitado:', error.message)
+    return jsonError(500, 'No se pudo registrar el invitado')
+  }
+
+  const veces = await contarVecesInvitado(dni)
+  return jsonOk({ ok: true, dni, nombre, veces })
+}
+
 // ─── Panel web de Lector: historial de accesos de un día ─────────────────────
 //
 // `fecha` en formato YYYY-MM-DD, interpretada en horario de Argentina
@@ -376,6 +449,9 @@ async function handleListarAccesos(
       punto,
       semaforo,
       sin_servicio,
+      es_invitado,
+      invitado_dni,
+      invitado_nombre,
       socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
     `)
     .gte('creado_en', inicio.toISOString())
@@ -389,16 +465,41 @@ async function handleListarAccesos(
     punto: string
     semaforo: string | null
     sin_servicio: boolean
+    es_invitado: boolean
+    invitado_dni: string | null
+    invitado_nombre: string | null
     socios: { numero_socio: string; profiles: { nombre: string } | null } | null
   }
 
-  const accesos = (data as unknown as AccesoRow[]).map(a => ({
-    creado_en:    a.creado_en,
-    punto:        a.punto,
-    semaforo:     a.semaforo,
-    sin_servicio: a.sin_servicio,
-    numero_socio: a.socios?.numero_socio ?? '—',
-    nombre:       a.socios?.profiles?.nombre ?? '—',
+  const rows = data as unknown as AccesoRow[]
+
+  // Repeticiones de cada invitado en los últimos 30 días (no sólo el día
+  // consultado): es lo que dispara el "Derivar a Secretaría" en el panel.
+  const dnisInvitados = [...new Set(rows.filter(a => a.es_invitado && a.invitado_dni).map(a => a.invitado_dni as string))]
+  const vecesPorDni = new Map<string, number>()
+  if (dnisInvitados.length > 0) {
+    const desde = new Date(Date.now() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
+    const { data: previos } = await supabaseAdmin
+      .from('accesos')
+      .select('invitado_dni')
+      .eq('es_invitado', true)
+      .in('invitado_dni', dnisInvitados)
+      .gte('creado_en', desde.toISOString())
+    for (const p of (previos ?? []) as { invitado_dni: string }[]) {
+      vecesPorDni.set(p.invitado_dni, (vecesPorDni.get(p.invitado_dni) ?? 0) + 1)
+    }
+  }
+
+  const accesos = rows.map(a => ({
+    creado_en:       a.creado_en,
+    punto:           a.punto,
+    semaforo:        a.semaforo,
+    sin_servicio:    a.sin_servicio,
+    es_invitado:     a.es_invitado,
+    invitado_dni:    a.invitado_dni,
+    veces_invitado:  a.es_invitado && a.invitado_dni ? (vecesPorDni.get(a.invitado_dni) ?? 1) : null,
+    numero_socio:    a.es_invitado ? '—' : (a.socios?.numero_socio ?? '—'),
+    nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : (a.socios?.profiles?.nombre ?? '—'),
   }))
 
   return jsonOk({ fecha, accesos })

@@ -15,6 +15,20 @@ export interface ScanResult {
   foto_url?:     string | null   // signed URL, resolved after validate
 }
 
+// Respuesta de la acción `registrar-invitado` de socios-qr. `ok: false` trae
+// el motivo (DNI inválido, el DNI es de un socio, etc.); `veces` cuenta los
+// ingresos de ese DNI como invitado en los últimos 30 días, incluido éste.
+export interface InvitadoResult {
+  ok:      boolean
+  motivo?: string
+  dni?:    string
+  nombre?: string | null
+  veces?:  number
+}
+
+// Desde cuántas visitas en 30 días se sugiere derivar al invitado a Secretaría.
+export const UMBRAL_INVITADO_REPETIDO = 3
+
 export function useScanner() {
   const [permission, requestPermission] = useCameraPermissions()
   const [result, setResult]             = useState<ScanResult | null>(null)
@@ -86,6 +100,16 @@ export function useScanner() {
     setValidando(false)
   }, [validando])
 
+  // Invitado (no-socio): DNI obligatorio, nombre opcional. No toca `result` —
+  // la pantalla muestra su propia confirmación.
+  const registrarInvitado = useCallback(async (dni: string, nombre: string): Promise<InvitadoResult> => {
+    const res = await supabase.functions.invoke('socios-qr', {
+      body: { action: 'registrar-invitado', dni, nombre: nombre.trim() || undefined },
+    })
+    if (res.error) return { ok: false, motivo: res.error.message }
+    return res.data as InvitadoResult
+  }, [])
+
   const reset = useCallback(() => {
     setResult(null)
     setScanning(true)
@@ -99,6 +123,7 @@ export function useScanner() {
     validando,
     handleQR,
     handleDNI,
+    registrarInvitado,
     reset,
   }
 }

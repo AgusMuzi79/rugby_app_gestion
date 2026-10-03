@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
 import { Feather } from '@expo/vector-icons'
-import { useScanner, type ScanResult } from '@/hooks/useScanner'
+import { useScanner, UMBRAL_INVITADO_REPETIDO, type ScanResult, type InvitadoResult } from '@/hooks/useScanner'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
@@ -37,11 +37,25 @@ export default function ScannerScreen() {
   // Gimnasio (rol porteria): autoservicio, el socio escanea su propio carnet → cámara frontal.
   // Canchero y Buffet: atendido, es él quien escanea el carnet del socio → cámara trasera.
   const camaraFacing = esAutoservicio ? 'front' : 'back'
-  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, reset } = useScanner()
+  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, registrarInvitado, reset } = useScanner()
 
   // Fallback sin QR — el socio no llevaba el celular encima.
   const [modoDni, setModoDni] = useState(false)
   const [dniInput, setDniInput] = useState('')
+
+  // Invitados (no-socios): sólo en Gimnasio (rol porteria), es una función del gimnasio.
+  const [modoInvitado, setModoInvitado]         = useState(false)
+  const [invitadoDni, setInvitadoDni]           = useState('')
+  const [invitadoNombre, setInvitadoNombre]     = useState('')
+  const [invitadoEnviando, setInvitadoEnviando] = useState(false)
+  const [invitadoResultado, setInvitadoResultado] = useState<InvitadoResult | null>(null)
+
+  const cerrarInvitado = () => {
+    setModoInvitado(false)
+    setInvitadoDni('')
+    setInvitadoNombre('')
+    setInvitadoResultado(null)
+  }
 
   const sonidoOk      = useAudioPlayer(require('../../assets/sounds/ok.wav'))
   const sonidoAlerta  = useAudioPlayer(require('../../assets/sounds/alerta.wav'))
@@ -66,6 +80,22 @@ export default function ScannerScreen() {
     }, AUTO_RESET_MS)
     return () => clearTimeout(t)
   }, [result, reset])
+
+  // Tras la confirmación, vuelve sola a la cámara (mismo criterio que el resultado de un escaneo).
+  useEffect(() => {
+    if (!invitadoResultado?.ok) return
+    const t = setTimeout(cerrarInvitado, AUTO_RESET_MS)
+    return () => clearTimeout(t)
+  }, [invitadoResultado])
+
+  const enviarInvitado = async () => {
+    const dni = invitadoDni.trim()
+    if (!dni || invitadoEnviando) return
+    setInvitadoEnviando(true)
+    const res = await registrarInvitado(dni, invitadoNombre)
+    setInvitadoResultado(res)
+    setInvitadoEnviando(false)
+  }
 
   const consultarDni = () => {
     const dni = dniInput.trim()
@@ -198,6 +228,89 @@ export default function ScannerScreen() {
     )
   }
 
+  // ── Registrar invitado (no-socio) ─────────────────────────────────────────
+  if (modoInvitado && esAutoservicio) {
+    const confirmado = invitadoResultado?.ok === true
+    const repetido   = confirmado && (invitadoResultado?.veces ?? 0) >= UMBRAL_INVITADO_REPETIDO
+
+    return (
+      <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={s.permBar}>
+          <Text style={s.permBarLabel}>{tituloHeader}</Text>
+        </View>
+
+        <View style={s.dniContainer}>
+          {confirmado ? (
+            <>
+              <Feather name={repetido ? 'alert-triangle' : 'check-circle'} size={48} color={repetido ? colors.rojoUrgente : colors.oro} />
+              <Text style={s.dniTitle}>Invitado registrado</Text>
+              <Text style={s.dniSub}>
+                DNI {invitadoResultado?.dni}{invitadoResultado?.nombre ? ` · ${invitadoResultado.nombre}` : ''}
+                {'\n'}
+                {invitadoResultado?.veces} {invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días
+              </Text>
+              {repetido && (
+                <Text style={[s.dniSub, { color: colors.rojoUrgente }]}>
+                  Derivar a Secretaría para que se haga socio.
+                </Text>
+              )}
+              <TouchableOpacity style={s.dniBtn} onPress={cerrarInvitado} activeOpacity={0.8}>
+                <Text style={s.dniBtnText}>LISTO</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Feather name="user-plus" size={40} color={MUTED} />
+              <Text style={s.dniTitle}>Registrar invitado</Text>
+              <Text style={s.dniSub}>DNI obligatorio, nombre opcional</Text>
+
+              <TextInput
+                style={s.dniInput}
+                value={invitadoDni}
+                onChangeText={setInvitadoDni}
+                keyboardType="number-pad"
+                placeholder="DNI"
+                placeholderTextColor={MUTED}
+                maxLength={9}
+                autoFocus
+              />
+              <TextInput
+                style={s.dniInput}
+                value={invitadoNombre}
+                onChangeText={setInvitadoNombre}
+                placeholder="Nombre (opcional)"
+                placeholderTextColor={MUTED}
+                maxLength={80}
+                onSubmitEditing={enviarInvitado}
+              />
+
+              {invitadoResultado && !invitadoResultado.ok && (
+                <Text style={[s.dniSub, { color: colors.rojoUrgente }]}>
+                  {invitadoResultado.motivo ?? 'No se pudo registrar el invitado'}
+                </Text>
+              )}
+
+              <TouchableOpacity
+                style={[s.dniBtn, (!invitadoDni.trim() || invitadoEnviando) && { opacity: 0.5 }]}
+                onPress={enviarInvitado}
+                disabled={!invitadoDni.trim() || invitadoEnviando}
+                activeOpacity={0.8}
+              >
+                {invitadoEnviando
+                  ? <ActivityIndicator color={colors.papel} />
+                  : <Text style={s.dniBtnText}>REGISTRAR</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={cerrarInvitado} activeOpacity={0.7}>
+                <Text style={s.dniVolver}>Volver a escanear QR</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    )
+  }
+
   // ── Sin QR, ingresar DNI ──────────────────────────────────────────────────
   if (modoDni) {
     return (
@@ -260,7 +373,7 @@ export default function ScannerScreen() {
           </View>
         </View>
 
-        <View style={s.hint}>
+        <View style={[s.hint, esAutoservicio && { bottom: 100 }]}>
           <View style={s.hintChip}>
             <Text style={s.hintText}>
               {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
@@ -268,11 +381,20 @@ export default function ScannerScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={s.dniLink} onPress={() => setModoDni(true)} activeOpacity={0.7}>
-          <View style={s.dniLinkChip}>
-            <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={s.dniLink}>
+          <TouchableOpacity onPress={() => setModoDni(true)} activeOpacity={0.7}>
+            <View style={s.dniLinkChip}>
+              <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
+            </View>
+          </TouchableOpacity>
+          {esAutoservicio && (
+            <TouchableOpacity onPress={() => setModoInvitado(true)} activeOpacity={0.7}>
+              <View style={s.dniLinkChip}>
+                <Text style={s.dniLinkText}>Registrar invitado</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   )
@@ -345,7 +467,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', color: colors.blanco,
   },
   dniLink: {
-    position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center',
+    position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center', gap: 8,
   },
   dniLinkChip: {
     backgroundColor: 'rgba(0,0,0,0.45)',

@@ -12,6 +12,9 @@ interface Acceso {
   punto: string
   semaforo: Semaforo | null
   sin_servicio: boolean
+  es_invitado: boolean
+  invitado_dni: string | null
+  veces_invitado: number | null
   numero_socio: string
   nombre: string
 }
@@ -26,6 +29,9 @@ const SEMAFORO_COLOR: Record<Semaforo, string> = {
   rojo: 'text-rojo border-rojo',
   exento: 'text-tinta/30 border-gris-claro',
 }
+
+// Desde cuántas visitas en 30 días se le sugiere al invitado hacerse socio.
+const UMBRAL_INVITADO_REPETIDO = 3
 
 function hoyISO(): string {
   // Fecha local del navegador (Argentina), no UTC — new Date().toISOString()
@@ -85,13 +91,16 @@ export default function AccesosPage() {
   useEffect(() => { fetchAccesos(fecha) }, [fecha, fetchAccesos])
 
   const handleExportar = () => {
-    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio']
+    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Invitado', 'DNI invitado', 'Veces (30 días)']
     const filas = accesos.map(a => [
       formatHora(a.creado_en),
       a.numero_socio,
       a.nombre,
       a.semaforo ? SEMAFORO_LABEL[a.semaforo] : '',
       a.sin_servicio ? 'Sí' : '',
+      a.es_invitado ? 'Sí' : '',
+      a.invitado_dni ?? '',
+      a.veces_invitado != null ? String(a.veces_invitado) : '',
     ])
 
     // Delimitador ";" (no ",") — mismo criterio que /secretaria/deudas.
@@ -171,6 +180,21 @@ export default function AccesosPage() {
                     <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo">
                       SIN SERVICIO
                     </span>
+                  )}
+                  {a.es_invitado && (
+                    <>
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-oro border-oro">
+                        INVITADO
+                      </span>
+                      {a.invitado_dni && (
+                        <span className="ml-2 font-lora text-xs text-tinta/50">DNI {a.invitado_dni}</span>
+                      )}
+                      {a.veces_invitado != null && a.veces_invitado >= UMBRAL_INVITADO_REPETIDO && (
+                        <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo bg-rojo/10">
+                          {a.veces_invitado} VECES · DERIVAR A SECRETARÍA
+                        </span>
+                      )}
+                    </>
                   )}
                 </td>
                 <td className="text-center py-4 pl-4">
