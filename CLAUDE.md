@@ -22,9 +22,9 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 | **Entrenador** | Toma asistencia, registra lesiones, carga resultados. |
 | **Manager** | Gestiona cobranzas y fichajes de su equipo. |
 | **Secretaría** | Gestiona socios (alta, categorías, servicios, foto, estado) y publica noticias (siempre a los socios, ya no puede elegir "cuerpo técnico"). |
-| **Lector** (ex-Portería, sólo el label — rol interno sigue siendo `porteria`) | Escanea carnets QR en el gimnasio (autoservicio, cámara frontal) para ver estado de cuota. |
-| **Canchero** | Mismo escaneo que Lector pero atendido (cámara trasera) — hoy en tenis, a futuro gestiona turnos de cancha. |
-| **Buffet** | Mismo escaneo que Lector + publica promociones/noticias a todos los socios. |
+| **Gimnasio** (ex-Lector, ex-Portería, sólo el label — rol interno sigue siendo `porteria`) | Escanea carnets QR en el gimnasio (autoservicio, cámara frontal) para ver estado de cuota. |
+| **Canchero** | Mismo escaneo que Gimnasio pero atendido (cámara trasera) — hoy en tenis, a futuro gestiona turnos de cancha. |
+| **Buffet** | Mismo escaneo que Gimnasio + publica promociones/noticias a todos los socios. |
 | **Cliente Gimnasio** | No es socio del club — accede a la app únicamente para ver su carnet digital QR. |
 | **Socio** | Ve su carnet digital QR, cuotas, noticias del club y sus servicios contratados. |
 
@@ -76,15 +76,15 @@ rugby_app_gestion/
 La app está **en producción** en ambas stores desde agosto 2026 y se sigue iterando sobre ella. El historial completo de cómo se construyó cada feature (bugs, causas raíz, decisiones de negocio, sesión por sesión) vive en [`.claude/context/historial.md`](.claude/context/historial.md) — no hace falta leerlo entero, se busca por fecha o por feature.
 
 **Subsistemas en producción:**
-- Auth multi-rol (`profiles.roles[]`): socio, secretaría, lector, canchero, buffet, cliente gimnasio, coordinador, entrenador, manager, subcomisión, admin.
-- Carnet QR (TOTP, paso de 60s) + escaneo por Lector/Canchero/Buffet + historial de accesos al gimnasio. Lector además exige que el socio tenga el servicio Gimnasio contratado (o sea Cliente Gimnasio) — Canchero/Buffet siguen validando solo "socio al día".
+- Auth multi-rol (`profiles.roles[]`): socio, secretaría, gimnasio (`porteria`), canchero, buffet, cliente gimnasio, coordinador, entrenador, manager, subcomisión, admin.
+- Carnet QR (TOTP, paso de 60s) + escaneo por Gimnasio/Canchero/Buffet (el label del rol `porteria` pasó de "Lector" a "Gimnasio" el 2026-10-03) + historial de accesos al gimnasio. Gimnasio además exige que el socio tenga el servicio Gimnasio contratado (o sea Cliente Gimnasio) — Canchero/Buffet siguen validando solo "socio al día".
 - Titular de grupo familiar (`socios.cabecera_id`) ve el carnet QR de sus dependientes menores de 13 desde su propia cuenta — el link familiar depende de que el padrón NUVIX traiga `cabecera_cod_cliente`; hay ~176 menores de 13 sin ese link todavía (huecos de datos del padrón, no del código).
 - Gestión de socios: alta manual + importador mensual recurrente del padrón NUVIX (`importar-socios`), 1528+ socios reales cargados.
 - Semáforo de morosidad: importador recurrente del reporte de deuda NUVIX (`importar-deuda`). Pago real vía alias + comprobante por WhatsApp (interino, hasta integrar Banco Macro).
 - Recordatorios por push (deuda, débito automático) — sin mail: NUVIX ya manda los transaccionales de pago.
 - Calendario, asistencia, lesiones, fichajes, cobranzas e informes — flujo completo por rol (coordinador/entrenador/manager).
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
-- Paneles web Next.js separados para subcomisión, secretaría, Lector (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
+- Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-09-23):**
 - **Android:** versión 15 (1.0.7) aprobada y **disponible en Google Play** desde el 22/09 19:33.
@@ -101,7 +101,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Decidir si se reconecta la integración GitHub de Supabase (hoy desconectada, no se usaba). Resuelto 2026-09-29: `agusmuzi79` quedó como **Developer** (no Owner) en la org Supabase nueva (`mudqyyrszmrmhedaeyue`) — sigue teniendo acceso por CLI/scripts y ya no cuenta como Owner contra el límite de 2 proyectos Free (eso bloqueaba reactivar `noisy_wallet`).
 - Shop del club y gestor de alquiler de espacios — sin priorizar todavía.
 - 176 socios menores de 13 sin `cabecera_id` (link familiar) — sólo se resolvió puntualmente la familia Fiori (2026-09-18); decidir si conviene un fix masivo o ir caso por caso.
-- Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado a Lector (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
+- Confirmar en la práctica (escaneo real en el gimnasio) el gate de servicio Gimnasio agregado al rol Gimnasio (2026-09-18) — deployado pero sin probar con un socio sin el servicio.
 - Trader status de la UE (Digital Services Act) sin completar en App Store Connect — banner recurrente, no bloqueante fuera de la UE, sin resolver.
 
 **Recordatorio de proceso:**

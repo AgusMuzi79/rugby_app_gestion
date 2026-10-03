@@ -324,7 +324,7 @@ const ROLES_CREABLES_ADMIN: { value: RolCreable; label: string }[] = [
   { value: 'entrenador',  label: 'Entrenador'  },
   { value: 'manager',     label: 'Manager'     },
   { value: 'secretaria',  label: 'Secretaría'  },
-  { value: 'porteria',    label: 'Lector'      },
+  { value: 'porteria',    label: 'Gimnasio'    },
   { value: 'canchero',    label: 'Canchero'    },
   { value: 'buffet',      label: 'Buffet'      },
   { value: 'subcomision', label: 'Subcomisión' },

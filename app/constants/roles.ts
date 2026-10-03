@@ -21,14 +21,14 @@ export const ROL_LABELS: Record<Rol, string> = {
   manager:     'Manager',
   admin:       'Admin',
   secretaria:  'Secretaría',
-  porteria:    'Lector',
+  porteria:    'Gimnasio',
   canchero:    'Canchero',
   buffet:      'Buffet',
   cliente_gimnasio: 'Cliente Gimnasio',
   socio:       'Socio',
 }
 
-// Canchero y Buffet reusan hoy la misma pantalla de escaneo que Lector
+// Canchero y Buffet reusan hoy la misma pantalla de escaneo que Gimnasio
 // (mismo comportamiento base, ver migraciones 20260910000001_rol_canchero
 // y 20260910000002_rol_buffet_y_noticias) — Buffet además tiene una tab
 // propia ("promos") dentro del mismo grupo de rutas para publicar noticias.

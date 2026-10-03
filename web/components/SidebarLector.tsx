@@ -29,7 +29,7 @@ export default function SidebarLector({ nombre }: Props) {
         <p className="font-playfair font-black text-2xl tracking-wide leading-none">
           <span className="text-tinta">UN</span><span className="text-oro">CAS</span>
         </p>
-        <p className="font-lora text-gris text-[9px] tracking-[4px] mt-1.5 uppercase">Lector</p>
+        <p className="font-lora text-gris text-[9px] tracking-[4px] mt-1.5 uppercase">Gimnasio</p>
       </div>
 
       {/* Nav */}

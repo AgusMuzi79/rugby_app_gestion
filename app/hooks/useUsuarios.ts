@@ -36,7 +36,7 @@ const ROL_LABEL: Record<string, string> = {
   entrenador:  'Entrenador',
   manager:     'Manager',
   secretaria:  'Secretaría',
-  porteria:    'Lector',
+  porteria:    'Gimnasio',
   canchero:    'Canchero',
   buffet:      'Buffet',
   admin:       'Admin',
