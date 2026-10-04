@@ -9,6 +9,7 @@ const NAV = [
   { href: '/usuarios',   label: 'Usuarios'   },
   { href: '/divisiones', label: 'Divisiones' },
   { href: '/informes',   label: 'Informes'   },
+  { href: '/porteria/turnos', label: 'Turnos' },
 ]
 
 interface Props {

@@ -26,7 +26,7 @@ export default function PorteriaLayout({ children }: { children: React.ReactNode
         .eq('id', user.id)
         .single()
 
-      if (!data || !['porteria', 'admin'].includes(data.rol)) {
+      if (!data || !['porteria', 'admin', 'subcomision'].includes(data.rol)) {
         await supabase.auth.signOut()
         router.replace('/login')
         return

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 
 const NAV = [
   { href: '/porteria/accesos', label: 'Accesos' },
+  { href: '/porteria/turnos',  label: 'Turnos'  },
 ]
 
 interface Props {
