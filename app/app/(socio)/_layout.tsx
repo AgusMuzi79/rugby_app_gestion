@@ -14,6 +14,10 @@ export default function SocioLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="dollar-sign" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="turnos"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="clock" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
         name="noticias"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
       />
