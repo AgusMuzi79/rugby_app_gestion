@@ -225,7 +225,10 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
   // No se listan días pasados: "desde" se acota a hoy.
   let desde = (body.desde as string | undefined | null) ?? hoy
   if (desde < hoy) desde = hoy
-  const hasta = (body.hasta as string | undefined | null) ?? sumarDias(hoy, cfg.anticipacion_dias)
+  // El rango por defecto (hoy..hoy+anticipación) incluye anticipación+1 días: se acota para
+  // que nunca supere MAX_DIAS_RANGO aunque la config guardada tenga un valor más alto.
+  const hasta = (body.hasta as string | undefined | null)
+    ?? sumarDias(hoy, Math.min(cfg.anticipacion_dias, MAX_DIAS_RANGO - 1))
   if (hasta < desde) return rechazo('El rango de fechas es inválido.')
   const cantDias = Math.round((new Date(`${hasta}T00:00:00Z`).getTime() - new Date(`${desde}T00:00:00Z`).getTime()) / 86400000) + 1
   if (cantDias > MAX_DIAS_RANGO) return rechazo(`El rango no puede superar ${MAX_DIAS_RANGO} días.`)

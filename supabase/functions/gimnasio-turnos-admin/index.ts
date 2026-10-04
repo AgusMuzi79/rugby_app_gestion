@@ -560,7 +560,8 @@ async function handleConfigGet(): Promise<Response> {
 
 // Rangos válidos por campo numérico de gimnasio_config (los CHECK de la tabla son más laxos).
 const RANGOS_CONFIG: Record<string, [number, number, string]> = {
-  anticipacion_dias: [0, 60, 'La anticipación debe ser de 0 a 60 días.'],
+  // Máximo 30: el listado de turnos del socio cubre hasta 31 días (hoy + anticipación).
+  anticipacion_dias: [0, 30, 'La anticipación debe ser de 0 a 30 días.'],
   pct_cupo_fijos: [0, 100, 'El porcentaje de cupo para fijos debe ser de 0 a 100.'],
   faltas_aviso: [1, 20, 'Las faltas para avisar deben ser de 1 a 20.'],
   semanas_fijos: [1, 12, 'Las semanas de turnos fijos deben ser de 1 a 12.'],
