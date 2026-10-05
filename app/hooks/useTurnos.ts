@@ -13,6 +13,7 @@ export interface FranjaTurno {
   disponibles: number
   cerrado:     boolean
   motivo_cierre: string | null   // mensaje del encargado cuando la franja está cerrada
+  profesor:    string | null   // texto libre del encargado (p. ej. 'Ana / Luis'), si cargó alguno
   pasada:      boolean
   reservada:   boolean
   reserva_id:  string | null

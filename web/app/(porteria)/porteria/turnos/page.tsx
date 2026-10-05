@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { callEdgeFunction, type EdgeResponse } from '@/lib/edgeFunction'
+import { parseCalendario, PLANTILLA_CSV, type FilaCalendario } from '@/lib/calendarioImport'
 
 // Administración de turnos del gimnasio (Edge Function `gimnasio-turnos-admin`).
 // Día de semana ISO: 1 = lunes … 7 = domingo. Horas 'HH:MM'.
@@ -14,6 +15,7 @@ interface Franja {
   hora_desde: string
   hora_hasta: string
   cupo: number
+  profesor: string | null
   activa: boolean
 }
 
@@ -35,6 +37,7 @@ interface FranjaOcupacion {
   ocupados_fijos: number
   cerrado: boolean
   motivo_cierre: string | null
+  profesor: string | null
   inactiva: boolean
   reservas: ReservaOcupacion[]
 }
@@ -72,11 +75,12 @@ type ResultadoCierre = {
   avisos_sin_token: number
 }
 
-type Seccion = 'ocupacion' | 'franjas' | 'excepciones' | 'config'
+type Seccion = 'ocupacion' | 'franjas' | 'importar' | 'excepciones' | 'config'
 
 const SECCIONES: { id: Seccion; label: string }[] = [
   { id: 'ocupacion',   label: 'OCUPACIÓN' },
   { id: 'franjas',     label: 'FRANJAS' },
+  { id: 'importar',    label: 'IMPORTAR CALENDARIO' },
   { id: 'excepciones', label: 'EXCEPCIONES' },
   { id: 'config',      label: 'CONFIGURACIÓN' },
 ]
@@ -216,6 +220,9 @@ function OcupacionSeccion() {
                   </p>
                   <p className="font-lora text-sm text-tinta/60">{f.ocupados} / {f.capacidad} lugares</p>
                 </div>
+                {f.profesor && (
+                  <p className="font-lora text-sm text-tinta/60 mb-2">Prof. {f.profesor}</p>
+                )}
                 {f.cerrado && f.motivo_cierre && (
                   <p className="font-lora text-xs text-tinta/60 mb-2">Mensaje a los socios: {f.motivo_cierre}</p>
                 )}
@@ -266,8 +273,8 @@ function OcupacionSeccion() {
 
 // ─── Franjas ──────────────────────────────────────────────────────────────────
 
-interface FranjaForm { id: string; dia_semana: number; hora_desde: string; hora_hasta: string; cupo: string }
-const FRANJA_VACIA: FranjaForm = { id: '', dia_semana: 1, hora_desde: '', hora_hasta: '', cupo: '' }
+interface FranjaForm { id: string; dia_semana: number; hora_desde: string; hora_hasta: string; cupo: string; profesor: string }
+const FRANJA_VACIA: FranjaForm = { id: '', dia_semana: 1, hora_desde: '', hora_hasta: '', cupo: '', profesor: '' }
 
 function FranjasSeccion() {
   const { franjas, loading, error, recargar } = useFranjas()
@@ -286,6 +293,7 @@ function FranjasSeccion() {
       hora_desde: form.hora_desde,
       hora_hasta: form.hora_hasta,
       cupo: Number(form.cupo),
+      profesor: form.profesor.trim() || null,
     })
     if (r.ok) {
       const n = r.reservas_futuras ?? 0
@@ -332,7 +340,10 @@ function FranjasSeccion() {
 
   const editar = (f: Franja) => {
     setAviso(null)
-    setForm({ id: f.id, dia_semana: f.dia_semana, hora_desde: f.hora_desde, hora_hasta: f.hora_hasta, cupo: String(f.cupo) })
+    setForm({
+      id: f.id, dia_semana: f.dia_semana, hora_desde: f.hora_desde, hora_hasta: f.hora_hasta,
+      cupo: String(f.cupo), profesor: f.profesor ?? '',
+    })
   }
 
   return (
@@ -358,6 +369,13 @@ function FranjasSeccion() {
         <div className="flex flex-col gap-1">
           <label className={LABEL}>CUPO</label>
           <input type="number" min={1} max={500} value={form.cupo} onChange={e => setForm({ ...form, cupo: e.target.value })} className={`${INPUT} w-24`} required />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className={LABEL}>PROFESOR</label>
+          <input
+            value={form.profesor} onChange={e => setForm({ ...form, profesor: e.target.value })}
+            maxLength={80} className={`${INPUT} w-64`} placeholder="opcional (Ana / Luis si son dos)"
+          />
         </div>
         <button type="submit" disabled={enviando} className={BTN}>GUARDAR</button>
         {form.id && (
@@ -387,12 +405,394 @@ function FranjasSeccion() {
                 ) : delDia.map(f => (
                   <div key={f.id} className={`flex items-center gap-4 py-2 border-t border-gris-claro ${f.activa ? '' : 'opacity-50'}`}>
                     <span className="font-lora text-sm text-tinta w-32">{f.hora_desde} – {f.hora_hasta}</span>
-                    <span className="font-lora text-sm text-tinta/60 flex-1">Cupo {f.cupo}{f.activa ? '' : ' · inactiva'}</span>
+                    <span className="font-lora text-sm text-tinta/60 flex-1">
+                      Cupo {f.cupo}{f.profesor ? ` · Prof. ${f.profesor}` : ''}{f.activa ? '' : ' · inactiva'}
+                    </span>
                     <button className={BTN} onClick={() => editar(f)}>EDITAR</button>
                     {f.activa
                       ? <button className={BTN_PELIGRO} onClick={() => desactivar(f)}>DESACTIVAR</button>
                       : <button className={BTN} onClick={() => reactivar(f)}>REACTIVAR</button>}
                   </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Importar calendario ──────────────────────────────────────────────────────
+
+type ModoImport = 'agregar' | 'reemplazar'
+
+interface ResumenImport {
+  crear: number
+  actualizar: number
+  sin_cambios: number
+  desactivar: number
+  reservas_futuras_afectadas: number
+  turnos_fijos_afectados: number
+}
+interface FilaCrear { dia_semana: number; hora_desde: string; hora_hasta: string; cupo: number; profesor: string | null }
+interface FilaActualizar {
+  dia_semana: number; hora_desde: string; hora_hasta: string
+  cupo_antes: number; cupo: number; profesor_antes: string | null; profesor: string | null; reactivada?: boolean
+}
+interface FilaDesactivar extends FilaCrear { reservas_futuras: number; turnos_fijos?: number }
+type ResultadoImport = {
+  aplicado: boolean
+  modo: ModoImport
+  resumen: ResumenImport
+  detalle: { crear: FilaCrear[]; actualizar: FilaActualizar[]; desactivar: FilaDesactivar[] }
+  errores?: { fila: number; motivo: string }[]
+}
+
+const MODOS_IMPORT: { id: ModoImport; label: string; ayuda: string }[] = [
+  {
+    id: 'agregar',
+    label: 'Agregar a las franjas actuales',
+    ayuda: 'Crea las franjas nuevas y actualiza las que coinciden en día y horario. Las demás quedan como están.',
+  },
+  {
+    id: 'reemplazar',
+    label: 'Reemplazar todo el calendario',
+    ayuda: 'Lo que no esté en el archivo se desactiva (no se borra). Las reservas futuras de esas franjas NO se cancelan solas.',
+  },
+]
+
+function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`
+}
+
+// Lee un archivo como texto: primero UTF-8 y, si trae caracteres rotos (CSV guardado por Excel en
+// Windows), de nuevo como windows-1252.
+function leerArchivo(archivo: File, codificacion: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const lector = new FileReader()
+    lector.onload = () => resolve(String(lector.result ?? ''))
+    lector.onerror = () => reject(lector.error)
+    lector.readAsText(archivo, codificacion)
+  })
+}
+
+function descargarPlantilla() {
+  const blob = new Blob([PLANTILLA_CSV], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'plantilla-calendario-gimnasio.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function ImportarSeccion() {
+  const { franjas, loading: cargandoFranjas, recargar } = useFranjas()
+  const [texto, setTexto]   = useState('')
+  const [modo, setModo]     = useState<ModoImport>('agregar')
+  const [previa, setPrevia] = useState<ResultadoImport | null>(null)
+  const [filasListas, setFilasListas] = useState<FilaCalendario[]>([])
+  const [erroresLectura, setErroresLectura]   = useState<string[]>([])
+  const [erroresServidor, setErroresServidor] = useState<string[]>([])
+  const [aviso, setAviso]   = useState<Aviso>(null)
+  const [trabajando, setTrabajando] = useState(false)
+
+  // Cualquier cambio del texto o del modo invalida la vista previa anterior.
+  const limpiarPrevia = () => {
+    setPrevia(null); setFilasListas([]); setErroresLectura([]); setErroresServidor([]); setAviso(null)
+  }
+
+  const cambiarTexto = (t: string) => { setTexto(t); limpiarPrevia() }
+  const cambiarModo = (m: ModoImport) => { setModo(m); limpiarPrevia() }
+
+  const subirCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const archivo = e.target.files?.[0]
+    e.target.value = '' // permite volver a elegir el mismo archivo
+    if (!archivo) return
+    try {
+      let t = await leerArchivo(archivo, 'utf-8')
+      if (t.includes('�')) t = await leerArchivo(archivo, 'windows-1252')
+      cambiarTexto(t)
+    } catch {
+      setAviso({ tipo: 'error', texto: 'No se pudo leer el archivo.' })
+    }
+  }
+
+  // Errores del servidor por posición de fila -> línea del texto original.
+  const textoErrorServidor = (fila: number, motivo: string, filas: FilaCalendario[]): string => {
+    const linea = filas[fila - 1]?.linea
+    const m = motivo.replace(/fila (\d+)/gi, (_, n) => {
+      const l = filas[Number(n) - 1]?.linea
+      return l ? `línea ${l}` : `fila ${n}`
+    })
+    return linea ? `Fila ${linea}: ${m}` : m
+  }
+
+  const llamar = async (filas: FilaCalendario[], soloVistaPrevia: boolean) => {
+    const r = await callEdgeFunction<ResultadoImport>('gimnasio-turnos-admin', {
+      action: 'franjas-importar',
+      modo,
+      solo_vista_previa: soloVistaPrevia,
+      // Sólo los campos del contrato: `linea` es de uso local (mapear errores al texto original).
+      filas: filas.map(f => ({
+        dia_semana: f.dia_semana, hora_desde: f.hora_desde, hora_hasta: f.hora_hasta, cupo: f.cupo, profesor: f.profesor,
+      })),
+    })
+    return r
+  }
+
+  const vistaPrevia = async () => {
+    limpiarPrevia()
+    const { filas, errores } = parseCalendario(texto)
+    if (errores.length > 0) {
+      setErroresLectura(errores.map(e => e.motivo))
+      return
+    }
+    setTrabajando(true)
+    const r = await llamar(filas, true)
+    if (r.ok && r.resumen) {
+      setPrevia(r)
+      setFilasListas(filas)
+    } else if (Array.isArray(r.errores) && r.errores.length > 0) {
+      setErroresServidor([...new Set(r.errores.map(e => textoErrorServidor(e.fila, e.motivo, filas)))])
+    } else {
+      setAviso({ tipo: 'error', texto: mensajeError(r) })
+    }
+    setTrabajando(false)
+  }
+
+  const cambios = previa ? previa.resumen.crear + previa.resumen.actualizar + previa.resumen.desactivar : 0
+  const puedeConfirmar = !!previa && cambios > 0 && erroresLectura.length === 0 && erroresServidor.length === 0 && !trabajando
+
+  const confirmar = async () => {
+    if (!previa || !puedeConfirmar) return
+    const s = previa.resumen
+    let msg =
+      `Se van a crear ${s.crear}, actualizar ${s.actualizar} y desactivar ${s.desactivar} franjas ` +
+      `(${s.sin_cambios} quedan igual).`
+    if (modo === 'reemplazar') {
+      msg +=
+        `\n\nReemplazar todo el calendario desactiva las franjas que no están en el archivo. ` +
+        `Afecta a ${plural(s.reservas_futuras_afectadas, 'reserva futura', 'reservas futuras')} y ` +
+        `${plural(s.turnos_fijos_afectados, 'turno fijo activo', 'turnos fijos activos')}: no se cancelan solos.`
+    }
+    msg += '\n\n¿Confirmás la importación?'
+    if (!window.confirm(msg)) return
+
+    setTrabajando(true)
+    setAviso(null)
+    const r = await llamar(filasListas, false)
+    if (r.ok && r.resumen) {
+      const a = r.resumen
+      setAviso({
+        tipo: 'ok',
+        texto:
+          `Calendario importado: ${plural(a.crear, 'franja creada', 'franjas creadas')}, ` +
+          `${plural(a.actualizar, 'actualizada', 'actualizadas')}, ${plural(a.desactivar, 'desactivada', 'desactivadas')}, ` +
+          `${a.sin_cambios} sin cambios.` +
+          (a.desactivar > 0
+            ? ` Quedan ${plural(a.reservas_futuras_afectadas, 'reserva futura', 'reservas futuras')} y ` +
+              `${plural(a.turnos_fijos_afectados, 'turno fijo activo', 'turnos fijos activos')} en franjas desactivadas para revisar.`
+            : ''),
+      })
+      setPrevia(null); setFilasListas([]); setTexto('')
+      await recargar()
+    } else if (Array.isArray(r.errores) && r.errores.length > 0) {
+      // Cambió algo desde la vista previa (otro encargado, por ejemplo): se muestra y se pide revisar.
+      setPrevia(null)
+      setErroresServidor([...new Set(r.errores.map(e => textoErrorServidor(e.fila, e.motivo, filasListas)))])
+    } else {
+      setAviso({ tipo: 'error', texto: mensajeError(r) })
+    }
+    setTrabajando(false)
+  }
+
+  const th = TH
+  const celda = 'font-lora text-sm text-tinta py-2 pr-4'
+  const celdaSuave = 'font-lora text-sm text-tinta/60 py-2 pr-4'
+
+  return (
+    <div>
+      <AvisoBox aviso={aviso} />
+
+      <div className="mb-8 border border-gris-claro p-4 flex flex-col gap-4">
+        <p className="font-lora text-xs tracking-widest text-oro">IMPORTAR CALENDARIO</p>
+        <p className="font-lora text-xs text-tinta/50">
+          Una fila por franja, con las columnas Día, Desde, Hasta, Cupo y Profesor (opcional). El día puede ser
+          «Lun», «Lun-Vie» o «Lun, Mié, Vie». Las horas pueden ir como 7:00, 07:30 o 7hs.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <label className={LABEL}>PEGÁ ACÁ EL CALENDARIO DESDE EXCEL O GOOGLE SHEETS</label>
+          <textarea
+            value={texto}
+            onChange={e => cambiarTexto(e.target.value)}
+            rows={10}
+            spellCheck={false}
+            placeholder={'Día\tDesde\tHasta\tCupo\tProfesor\nLun-Vie\t07:00\t08:30\t25\tAna Pérez'}
+            className={`${INPUT} w-full font-mono text-xs`}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-4 items-center">
+          <label className={`${BTN} cursor-pointer`}>
+            SUBIR CSV
+            <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={subirCsv} className="hidden" />
+          </label>
+          <button type="button" className={BTN} onClick={descargarPlantilla}>DESCARGAR PLANTILLA</button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className={LABEL}>MODO</p>
+          {MODOS_IMPORT.map(m => (
+            <label key={m.id} className="flex items-start gap-2 font-lora text-sm text-tinta cursor-pointer">
+              <input type="radio" name="modo-import" className="mt-1" checked={modo === m.id} onChange={() => cambiarModo(m.id)} />
+              <span>
+                {m.label}
+                <span className="block font-lora text-xs text-tinta/40">{m.ayuda}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div>
+          <button type="button" className={BTN} disabled={trabajando || texto.trim() === ''} onClick={vistaPrevia}>
+            {trabajando && !previa ? 'REVISANDO…' : 'VISTA PREVIA'}
+          </button>
+        </div>
+      </div>
+
+      {erroresLectura.length > 0 && (
+        <div className="border border-rojo p-4 mb-6">
+          <p className="font-lora text-xs tracking-widest text-rojo mb-2">REVISÁ EL ARCHIVO ({erroresLectura.length})</p>
+          <ul className="flex flex-col gap-1">
+            {erroresLectura.map((e, i) => <li key={i} className="font-lora text-sm text-rojo">{e}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {erroresServidor.length > 0 && (
+        <div className="border border-rojo p-4 mb-6">
+          <p className="font-lora text-xs tracking-widest text-rojo mb-2">NO SE PUEDE IMPORTAR ({erroresServidor.length})</p>
+          <ul className="flex flex-col gap-1">
+            {erroresServidor.map((e, i) => <li key={i} className="font-lora text-sm text-rojo">{e}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {previa && (
+        <div className="border border-gris-claro p-4 mb-8">
+          <p className="font-lora text-xs tracking-widest text-oro mb-3">VISTA PREVIA — TODAVÍA NO SE GUARDÓ NADA</p>
+          <p className="font-lora text-sm text-tinta mb-1">
+            Crear {previa.resumen.crear} · Actualizar {previa.resumen.actualizar} · Sin cambios {previa.resumen.sin_cambios} · Desactivar {previa.resumen.desactivar}
+          </p>
+          {previa.resumen.desactivar > 0 && (
+            <p className="font-lora text-sm text-rojo mb-1">
+              Reservas futuras en franjas que se desactivan: {previa.resumen.reservas_futuras_afectadas} · Turnos fijos activos: {previa.resumen.turnos_fijos_afectados}
+            </p>
+          )}
+
+          {previa.detalle.crear.length > 0 && (
+            <div className="mt-4">
+              <p className={`${LABEL} mb-1`}>SE CREAN ({previa.detalle.crear.length})</p>
+              <table className="w-full border-collapse">
+                <thead><tr className="border-b-2 border-gris-claro">
+                  <th className={th}>DÍA</th><th className={th}>HORARIO</th><th className={th}>CUPO</th><th className={th}>PROFESOR</th>
+                </tr></thead>
+                <tbody>
+                  {previa.detalle.crear.map((f, i) => (
+                    <tr key={i} className="border-b border-gris-claro">
+                      <td className={celda}>{DIAS[f.dia_semana]}</td>
+                      <td className={celda}>{f.hora_desde} – {f.hora_hasta}</td>
+                      <td className={celda}>{f.cupo}</td>
+                      <td className={celdaSuave}>{f.profesor ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {previa.detalle.actualizar.length > 0 && (
+            <div className="mt-4">
+              <p className={`${LABEL} mb-1`}>SE ACTUALIZAN ({previa.detalle.actualizar.length})</p>
+              <table className="w-full border-collapse">
+                <thead><tr className="border-b-2 border-gris-claro">
+                  <th className={th}>DÍA</th><th className={th}>HORARIO</th><th className={th}>CUPO</th><th className={th}>PROFESOR</th><th className={th}></th>
+                </tr></thead>
+                <tbody>
+                  {previa.detalle.actualizar.map((f, i) => (
+                    <tr key={i} className="border-b border-gris-claro">
+                      <td className={celda}>{DIAS[f.dia_semana]}</td>
+                      <td className={celda}>{f.hora_desde} – {f.hora_hasta}</td>
+                      <td className={celda}>{f.cupo_antes === f.cupo ? f.cupo : `${f.cupo_antes} → ${f.cupo}`}</td>
+                      <td className={celdaSuave}>
+                        {(f.profesor_antes ?? null) === (f.profesor ?? null)
+                          ? (f.profesor ?? '—')
+                          : `${f.profesor_antes ?? '—'} → ${f.profesor ?? '—'}`}
+                      </td>
+                      <td className={celdaSuave}>{f.reactivada ? 'se reactiva' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {previa.detalle.desactivar.length > 0 && (
+            <div className="mt-4">
+              <p className={`${LABEL} mb-1`}>SE DESACTIVAN ({previa.detalle.desactivar.length})</p>
+              <table className="w-full border-collapse">
+                <thead><tr className="border-b-2 border-gris-claro">
+                  <th className={th}>DÍA</th><th className={th}>HORARIO</th><th className={th}>CUPO</th><th className={th}>PROFESOR</th>
+                  <th className={th}>RESERVAS FUTURAS</th><th className={th}>TURNOS FIJOS</th>
+                </tr></thead>
+                <tbody>
+                  {previa.detalle.desactivar.map((f, i) => (
+                    <tr key={i} className="border-b border-gris-claro">
+                      <td className={celda}>{DIAS[f.dia_semana]}</td>
+                      <td className={celda}>{f.hora_desde} – {f.hora_hasta}</td>
+                      <td className={celda}>{f.cupo}</td>
+                      <td className={celdaSuave}>{f.profesor ?? '—'}</td>
+                      <td className={`${celda} ${f.reservas_futuras > 0 ? 'text-rojo' : ''}`}>{f.reservas_futuras}</td>
+                      <td className={`${celda} ${(f.turnos_fijos ?? 0) > 0 ? 'text-rojo' : ''}`}>{f.turnos_fijos ?? 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-6 flex items-center gap-4">
+            <button type="button" className={BTN} disabled={!puedeConfirmar} onClick={confirmar}>
+              {trabajando ? 'IMPORTANDO…' : 'CONFIRMAR IMPORTACIÓN'}
+            </button>
+            {cambios === 0 && (
+              <p className="font-lora text-xs text-tinta/50">No hay nada para cambiar: el calendario ya está así.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <p className="font-lora text-xs tracking-widest text-oro mb-3">FRANJAS ACTUALES</p>
+      {cargandoFranjas ? <Cargando /> : franjas.length === 0 ? (
+        <div className="border border-gris-claro p-8 text-center">
+          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO HAY FRANJAS CARGADAS</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3, 4, 5, 6, 7].map(dia => {
+            const delDia = franjas.filter(f => f.dia_semana === dia)
+            if (delDia.length === 0) return null
+            return (
+              <div key={dia} className="border border-gris-claro p-3">
+                <p className="font-playfair text-base text-tinta mb-1">{DIAS[dia]}</p>
+                {delDia.map(f => (
+                  <p key={f.id} className={`font-lora text-sm text-tinta/70 ${f.activa ? '' : 'opacity-50'}`}>
+                    {f.hora_desde} – {f.hora_hasta} · cupo {f.cupo}
+                    {f.profesor ? ` · Prof. ${f.profesor}` : ''}{f.activa ? '' : ' · inactiva'}
+                  </p>
                 ))}
               </div>
             )
@@ -731,6 +1131,7 @@ export default function TurnosPage() {
 
       {seccion === 'ocupacion'   && <OcupacionSeccion />}
       {seccion === 'franjas'     && <FranjasSeccion />}
+      {seccion === 'importar'    && <ImportarSeccion />}
       {seccion === 'excepciones' && <ExcepcionesSeccion />}
       {seccion === 'config'      && <ConfigSeccion />}
     </div>

@@ -64,6 +64,7 @@ function FranjaRow({
       >
         <View style={{ flex: 1 }}>
           <Text style={s.horario}>{horario}</Text>
+          {!!franja.profesor && <Text style={s.profesor}>Prof. {franja.profesor}</Text>}
           {franja.cerrado ? (
             !!franja.motivo_cierre && <Text style={s.motivoCierre}>Cerrado: {franja.motivo_cierre}</Text>
           ) : (
@@ -250,6 +251,7 @@ const s = StyleSheet.create({
   },
   franjaMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   horario:    { fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4' },
+  profesor:   { fontFamily: fonts.cuerpo, fontSize: 14, color: '#B8AD96', marginTop: 2 },
   lugares:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
   motivoCierre: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
   fijoTag:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo, marginTop: 4 },
