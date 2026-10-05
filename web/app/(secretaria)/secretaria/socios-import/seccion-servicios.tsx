@@ -4,7 +4,8 @@
 // Llama a la Edge Function importar-servicios (preview/confirmar), que deja
 // socio_servicios como espejo del archivo para Gimnasio, Rugby, Hockey,
 // Carnet Tenis, Rugby Inclusivo y Hockey Inclusivo. Las bajas se pueden
-// destildar una por una antes de confirmar (van como `bajas_omitidas`).
+// destildar una por una antes de confirmar; al confirmar se mandan las que
+// quedaron tildadas (`bajas_aprobadas`) y sólo esas se aplican.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -99,13 +100,13 @@ interface ImportacionServicios {
 async function callImportarServicios<T>(
   archivo: File,
   modo: 'preview' | 'confirmar',
-  bajasOmitidas: string[] = [],
+  bajasAprobadas: string[] = [],
 ): Promise<T & { error?: string }> {
   const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
-  if (modo === 'confirmar') formData.append('bajas_omitidas', JSON.stringify(bajasOmitidas))
+  if (modo === 'confirmar') formData.append('bajas_aprobadas', JSON.stringify(bajasAprobadas))
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-servicios`,
     {
@@ -187,7 +188,8 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
     setAplicando(true)
     setError(null)
     try {
-      const json = await callImportarServicios<ResultadoServicios>(archivo, 'confirmar', [...omitidas])
+      const aprobadas = (preview?.detalle.eliminados ?? []).map(e => e.clave).filter(c => !omitidas.has(c))
+      const json = await callImportarServicios<ResultadoServicios>(archivo, 'confirmar', aprobadas)
       if (json.error) { setError(json.error); return }
       setResultado(json)
       setPreview(null)

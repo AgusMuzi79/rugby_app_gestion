@@ -331,11 +331,13 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
 }
 
 /**
- * Quita del diff las bajas que Secretaría destildó en la vista previa
- * (claves `${numeroSocio}|${servicio}`). Las claves que no corresponden a
- * ninguna baja se ignoran.
+ * Deja en el diff sólo las bajas que Secretaría aprobó en la vista previa
+ * (claves `${numeroSocio}|${servicio}` que quedaron tildadas). Como el
+ * confirmar recalcula el diff contra la base, una baja que apareció después de
+ * la vista previa no está en la lista y no se aplica. Las claves que no
+ * corresponden a ninguna baja se ignoran.
  */
-export function omitirBajas(diff: DiffServicios, claves: Set<string>): { diff: DiffServicios; omitidos: number } {
-  const eliminados = diff.eliminados.filter((e) => !claves.has(claveVinculo(e.numeroSocio, e.servicio)))
+export function filtrarBajasAprobadas(diff: DiffServicios, aprobadas: Set<string>): { diff: DiffServicios; omitidos: number } {
+  const eliminados = diff.eliminados.filter((e) => aprobadas.has(claveVinculo(e.numeroSocio, e.servicio)))
   return { diff: { ...diff, eliminados }, omitidos: diff.eliminados.length - eliminados.length }
 }

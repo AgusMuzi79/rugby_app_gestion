@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import {
   parsePadronServicios,
   calcularDiffServicios,
-  omitirBajas,
+  filtrarBajasAprobadas,
   normalizarConcepto,
   claveVinculo,
   SERVICIOS_MAPEADOS,
@@ -210,10 +210,19 @@ caso('falta de precio en el catálogo es error y no se aplica', () => {
   assert.match(d.errores[0].motivo, /Gimnasio Becado/)
 })
 
-caso('omitirBajas saca sólo las claves pedidas y cuenta las omitidas', () => {
-  const { diff, omitidos } = omitirBajas(diffBase(), new Set(['107|Gimnasio', '1|Nada']))
-  assert.equal(omitidos, 1)
+caso('filtrarBajasAprobadas aplica sólo las bajas aprobadas en la vista previa y cuenta el resto como omitidas', () => {
+  const base = diffBase()
+  const v4 = base.eliminados.find((e) => e.vinculoId === 'v4')!
+  const { diff, omitidos } = filtrarBajasAprobadas(base, new Set([claveVinculo(v4.numeroSocio, v4.servicio), '1|Nada']))
+  assert.equal(omitidos, base.eliminados.length - 1)
   assert.deepEqual(diff.eliminados.map((e) => e.vinculoId), ['v4'])
+})
+
+caso('filtrarBajasAprobadas sin aprobadas no borra nada (una baja que no se vio no se aplica)', () => {
+  const base = diffBase()
+  const { diff, omitidos } = filtrarBajasAprobadas(base, new Set())
+  assert.equal(diff.eliminados.length, 0)
+  assert.equal(omitidos, base.eliminados.length)
 })
 
 caso('aplicar el diff y recalcular da cero cambios (idempotente)', () => {

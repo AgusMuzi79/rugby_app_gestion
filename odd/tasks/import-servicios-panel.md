@@ -47,7 +47,7 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 ## Acceptance criteria
 
 - Preview against the real sample shows counts of agregados/actualizados/eliminados/sin cambio, conflicts, unknown concepts and unmatched socios, without writing anything.
-- Confirm applies exactly the previewed diff minus unchecked deletions, records one `importaciones_servicios` row, and is idempotent (second run = 0 changes).
+- Confirm applies the previewed diff, deleting only the deletions that stayed checked (`bajas_aprobadas`), records one `importaciones_servicios` row, and is idempotent (second run = 0 changes).
 - Only secretaria/admin can call the function.
 
 ## Checks
@@ -69,7 +69,10 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 
 - T4 commit: `91e527f`.
 - T5: docs updated (`estado-web.md`, `estado-supabase.md`, `historial.md`); structural readback only. Commit: the `docs(socios-import)` commit after `91e527f`.
-- Open note: `historial.md` (2026-09-30) records stored importes per variant (Mayor 30000, Menor 22500, Rugby 28000, Hockey 35000, Carnet Tenis 70000, Inclusivos 21000) while the old migrations seed the catalog with lower prices; if the catalog `monto_mensual` is not aligned, the first preview will show those rows as "actualizados". Check the preview before confirming.
+- Price note resolved: production catalog `monto_mensual` was checked on 2026-10-05 and matches every stored importe per variant (Gimnasio 30000, Gimnasio Menor 22500, Gimnasio Becado 0, Rugby 28000, Hockey 35000, Carnet Tenis 70000, Inclusivos 21000), so the first preview should not show price-only updates.
+- T2 commit: `a5a9543` (migration `20261009000000_importaciones_servicios.sql`; 20261008 is taken on `feat/gimnasio-lector-turnos`).
+- Native review (RDD on, assessed medium, consent granted by the user): approved and acknowledged (lineage review-b28e83951baa34e2), 1 reliability lens. Advisory findings fixed afterwards as separate work: (1) confirm now receives the explicit list of approved deletions `bajas_aprobadas` instead of the unchecked ones, so a deletion that appears between preview and confirm is never applied (`filtrarBajasAprobadas`, 2 new check cases); (2) socios pagination ordered by `id`. Not addressed: the Edge Function branches have no automated test (no Deno runner in the repo).
+- Fix checks: check RED (missing export) → GREEN 16/16; `npm run build` in `web/` with dummy NEXT_PUBLIC_SUPABASE_* → OK (without them it fails prerendering `/buffet/promos`, unrelated and pre-existing).
 
 ## Next step
 

@@ -12,9 +12,9 @@
 // Mismo esquema que importar-socios — FormData con `archivo` + `modo`:
 //   - preview   → calcula el diff completo, no escribe nada
 //   - confirmar → recalcula el diff desde el mismo archivo (no hay estado entre
-//                 una llamada y otra) y lo aplica. `bajas_omitidas` (JSON con
-//                 claves "numero_socio|Servicio") son las bajas que Secretaría
-//                 destildó en la vista previa: no se borran.
+//                 una llamada y otra) y lo aplica. `bajas_aprobadas` (JSON con
+//                 claves "numero_socio|Servicio") son las bajas que quedaron
+//                 tildadas en la vista previa: sólo esas se borran.
 // Cada fila se aplica por separado; un error puntual no aborta el resto y va a
 // `errores` en la respuesta.
 //
@@ -25,7 +25,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import {
   parsePadronServicios,
   calcularDiffServicios,
-  omitirBajas,
+  filtrarBajasAprobadas,
   claveVinculo,
   normalizarConcepto,
   MAPEO_CONCEPTOS,
@@ -88,15 +88,16 @@ Deno.serve(async (req: Request) => {
   const modo = String(formData.get('modo') ?? 'preview')
   if (modo !== 'preview' && modo !== 'confirmar') return jsonError(400, 'modo debe ser "preview" o "confirmar"')
 
-  let bajasOmitidas = new Set<string>()
-  const bajasOmitidasRaw = formData.get('bajas_omitidas')
-  if (bajasOmitidasRaw !== null && String(bajasOmitidasRaw).trim() !== '') {
+  // Bajas aprobadas en la vista previa: lista explícita, así el confirmar nunca
+  // borra un vínculo que Secretaría no vio.
+  let bajasAprobadas = new Set<string>()
+  if (modo === 'confirmar') {
     try {
-      const parsed = JSON.parse(String(bajasOmitidasRaw))
+      const parsed = JSON.parse(String(formData.get('bajas_aprobadas') ?? ''))
       if (!Array.isArray(parsed) || !parsed.every((c) => typeof c === 'string')) throw new Error('no es una lista')
-      bajasOmitidas = new Set(parsed)
+      bajasAprobadas = new Set(parsed)
     } catch {
-      return jsonError(400, 'bajas_omitidas debe ser una lista JSON de claves "numero_socio|Servicio"')
+      return jsonError(400, 'bajas_aprobadas es requerido al confirmar: lista JSON de claves "numero_socio|Servicio"')
     }
   }
 
@@ -152,6 +153,7 @@ Deno.serve(async (req: Request) => {
     const { data, error } = await supabaseAdmin
       .from('socios')
       .select('id, numero_socio, excluir_de_import, profiles!socios_profile_id_fkey(nombre)')
+      .order('id')
       .range(from, from + PAGINA - 1)
     if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
     sociosRaw = sociosRaw.concat(data ?? [])
@@ -206,7 +208,7 @@ Deno.serve(async (req: Request) => {
   }
 
   // ─── Aplicar ─────────────────────────────────────────────────────────────
-  const { diff, omitidos } = omitirBajas(diffCompleto, bajasOmitidas)
+  const { diff, omitidos } = filtrarBajasAprobadas(diffCompleto, bajasAprobadas)
   const resultado = await aplicarDiff(diff, servicioIdPorNombre)
   const erroresTotales: ErrorAplicacion[] = [
     ...diff.errores.map((e) => ({ numero_socio: e.numeroSocio, nombre: e.nombre, servicio: e.servicio, motivo: e.motivo })),
