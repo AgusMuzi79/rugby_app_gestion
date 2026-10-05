@@ -3,7 +3,12 @@
 //
 // Actions (body.action):
 //   franjas-listar     — todas las franjas (activas e inactivas) de la plantilla semanal.
-//   franja-guardar     — { id?, dia_semana, hora_desde, hora_hasta, cupo, activa? } alta o edición.
+//   franja-guardar     — { id?, dia_semana, hora_desde, hora_hasta, cupo, profesor?, activa? } alta o edición.
+//                        `profesor` es texto libre opcional (máx. 80); null o '' lo borra; si no viene en una
+//                        edición, queda como estaba.
+//   franjas-importar   — { filas, modo, solo_vista_previa? } calendario completo (RPC gimnasio_importar_franjas):
+//                        modo 'agregar' | 'reemplazar'; con solo_vista_previa:true no escribe, sólo cuenta.
+//                        Validaciones del calendario => 200 { ok:false, errores:[{fila,motivo}] }.
 //   franja-desactivar  — { franja_id } baja lógica (activa=false). Sus reservas futuras NO se tocan:
 //                        se devuelve cuántas quedan para que el encargado decida.
 //   excepcion-guardar  — { fecha, franja_id|null, cerrado, cupo_override|null, motivo, solo_vista_previa? } una por
@@ -35,6 +40,8 @@ const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d(:00)?$/
 const MAX_DIAS_EXCEPCIONES = 366
 const CUPO_MAX = 500
+const PROFESOR_MAX = 80
+const IMPORT_MAX_FILAS = 300
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
 // Tope por chunk: el push corre después de cancelar y confirmar las reservas, así que si Expo
@@ -76,6 +83,16 @@ function esEntero(n: unknown, min: number, max: number): n is number {
   return typeof n === 'number' && Number.isInteger(n) && n >= min && n <= max
 }
 
+// Profesor: texto libre opcional. Se recorta; vacío o null => null; más de PROFESOR_MAX => inválido.
+// `undefined` (campo ausente) se distingue antes de llamar: acá sólo llegan valores presentes.
+function normalizarProfesor(p: unknown): { valor: string | null } | { error: string } {
+  if (p === null) return { valor: null }
+  if (typeof p !== 'string') return { error: 'El profesor debe ser un texto.' }
+  const t = p.trim()
+  if (t.length > PROFESOR_MAX) return { error: `El profesor no puede superar ${PROFESOR_MAX} caracteres.` }
+  return { valor: t === '' ? null : t }
+}
+
 // ─── Respuestas ───────────────────────────────────────────────────────────────
 
 function rechazo(motivo: string, extra: Record<string, unknown> = {}): Response {
@@ -115,6 +132,7 @@ Deno.serve(async (req: Request) => {
   switch (body.action) {
     case 'franjas-listar':     return handleFranjasListar()
     case 'franja-guardar':     return handleFranjaGuardar(body)
+    case 'franjas-importar':   return handleFranjasImportar(body)
     case 'franja-desactivar':  return handleFranjaDesactivar(body)
     case 'excepcion-guardar':  return handleExcepcionGuardar(body)
     case 'excepcion-borrar':   return handleExcepcionBorrar(body)
@@ -146,7 +164,7 @@ async function contarReservasFuturas(franjaId: string): Promise<number | Respons
 async function handleFranjasListar(): Promise<Response> {
   const { data, error } = await supabaseAdmin
     .from('gimnasio_franjas')
-    .select('id, dia_semana, hora_desde, hora_hasta, cupo, activa')
+    .select('id, dia_semana, hora_desde, hora_hasta, cupo, profesor, activa')
     .order('dia_semana', { ascending: true })
     .order('hora_desde', { ascending: true })
   if (error) return errorDb('gimnasio_franjas', error)
@@ -171,6 +189,12 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
   if (desde >= hasta) return rechazo('La hora de inicio debe ser anterior a la de fin.')
   if (!esEntero(cupo, 1, CUPO_MAX)) return rechazo(`El cupo debe ser un número entero entre 1 y ${CUPO_MAX}.`)
   if (body.activa !== undefined && typeof body.activa !== 'boolean') return rechazo('El campo "activa" es inválido.')
+  let profesor: string | null | undefined // undefined = no tocar (en una edición)
+  if (body.profesor !== undefined) {
+    const p = normalizarProfesor(body.profesor)
+    if ('error' in p) return rechazo(p.error)
+    profesor = p.valor
+  }
 
   let existente: { id: string; dia_semana: number; activa: boolean } | null = null
   if (typeof id === 'string') {
@@ -221,12 +245,12 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
     }
   }
 
-  const valores = { dia_semana: diaSemana, hora_desde: desde, hora_hasta: hasta, cupo, activa }
+  const valores: Record<string, unknown> = { dia_semana: diaSemana, hora_desde: desde, hora_hasta: hasta, cupo, activa }
+  if (profesor !== undefined) valores.profesor = profesor
+  const cols = 'id, dia_semana, hora_desde, hora_hasta, cupo, profesor, activa'
   const { data: guardada, error: saveErr } = existente
-    ? await supabaseAdmin.from('gimnasio_franjas').update(valores).eq('id', existente.id)
-        .select('id, dia_semana, hora_desde, hora_hasta, cupo, activa').single()
-    : await supabaseAdmin.from('gimnasio_franjas').insert(valores)
-        .select('id, dia_semana, hora_desde, hora_hasta, cupo, activa').single()
+    ? await supabaseAdmin.from('gimnasio_franjas').update(valores).eq('id', existente.id).select(cols).single()
+    : await supabaseAdmin.from('gimnasio_franjas').insert(valores).select(cols).single()
   if (saveErr || !guardada) return errorDb('guardar franja', saveErr)
 
   return jsonOk({
@@ -234,6 +258,81 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
     franja: { ...guardada, hora_desde: hhmm(guardada.hora_desde), hora_hasta: hhmm(guardada.hora_hasta) },
     reservas_futuras: reservasFuturas,
   })
+}
+
+// ─── importar calendario ──────────────────────────────────────────────────────
+
+// Calendario completo: modo 'agregar' (conserva las franjas que el archivo no menciona) o 'reemplazar'
+// (desactiva las activas que faltan; nunca borra). La lógica y la atomicidad viven en la RPC
+// gimnasio_importar_franjas; acá se revalida el tipo de CADA campo antes de llamarla (el cliente
+// no es de fiar) y los rechazos de validación salen como HTTP 200 { ok:false, ... }.
+async function handleFranjasImportar(body: Record<string, unknown>): Promise<Response> {
+  if (body.modo !== 'agregar' && body.modo !== 'reemplazar') {
+    return rechazo('El modo debe ser "agregar" o "reemplazar".')
+  }
+  if (body.solo_vista_previa !== undefined && typeof body.solo_vista_previa !== 'boolean') {
+    return rechazo('El campo "solo_vista_previa" es inválido.')
+  }
+  const soloVistaPrevia = body.solo_vista_previa === true
+
+  const filasRaw = body.filas
+  if (!Array.isArray(filasRaw) || filasRaw.length === 0) return rechazo('El calendario no tiene filas.')
+  if (filasRaw.length > IMPORT_MAX_FILAS) {
+    return rechazo(`El calendario no puede tener más de ${IMPORT_MAX_FILAS} filas.`)
+  }
+
+  // Todos los errores de tipo juntos (fila = posición 1-based), con el mismo formato que los de la RPC.
+  const errores: { fila: number; motivo: string }[] = []
+  const filas: Record<string, unknown>[] = []
+  filasRaw.forEach((raw, i) => {
+    const fila = i + 1
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      errores.push({ fila, motivo: 'La fila no es válida.' })
+      return
+    }
+    const r = raw as Record<string, unknown>
+    let ok = true
+    if (!esEntero(r.dia_semana, 1, 7)) {
+      ok = false
+      errores.push({ fila, motivo: 'El día debe ser de 1 (lunes) a 7 (domingo).' })
+    }
+    const desde = normalizarHora(r.hora_desde)
+    const hasta = normalizarHora(r.hora_hasta)
+    if (!desde) { ok = false; errores.push({ fila, motivo: 'La hora de inicio debe tener formato HH:MM.' }) }
+    if (!hasta) { ok = false; errores.push({ fila, motivo: 'La hora de fin debe tener formato HH:MM.' }) }
+    if (desde && hasta && desde >= hasta) {
+      ok = false
+      errores.push({ fila, motivo: 'La hora de inicio debe ser anterior a la de fin.' })
+    }
+    if (!esEntero(r.cupo, 1, CUPO_MAX)) {
+      ok = false
+      errores.push({ fila, motivo: `El cupo debe ser un número entero entre 1 y ${CUPO_MAX}.` })
+    }
+    let profesor: string | null = null
+    if (r.profesor !== undefined) {
+      const p = normalizarProfesor(r.profesor)
+      if ('error' in p) { ok = false; errores.push({ fila, motivo: p.error }) } else profesor = p.valor
+    }
+    if (ok) {
+      filas.push({
+        dia_semana: r.dia_semana, hora_desde: hhmm(desde as string), hora_hasta: hhmm(hasta as string),
+        cupo: r.cupo, profesor,
+      })
+    }
+  })
+  if (errores.length > 0) {
+    return rechazo('El calendario tiene errores; no se importó nada.', { codigo: 'errores', errores })
+  }
+
+  const { data, error } = await supabaseAdmin.rpc('gimnasio_importar_franjas', {
+    p_filas: filas,
+    p_modo: body.modo,
+    p_aplicar: !soloVistaPrevia,
+  })
+  if (error) return errorDb('gimnasio_importar_franjas', error)
+
+  // {ok:false, codigo, motivo, errores?} es un rechazo de validación: 200, no 500.
+  return jsonOk(data)
 }
 
 async function handleFranjaDesactivar(body: Record<string, unknown>): Promise<Response> {
@@ -598,9 +697,12 @@ interface FilaDisponibilidad {
   ocupados_fijos: number
   cerrado: boolean
   motivo_cierre: string | null
+  profesor: string | null
 }
 
-type FranjaEmbed = { dia_semana: number; hora_desde: string; hora_hasta: string; cupo: number; activa: boolean } | null
+type FranjaEmbed = {
+  dia_semana: number; hora_desde: string; hora_hasta: string; cupo: number; profesor: string | null; activa: boolean
+} | null
 type SocioEmbed = { numero_socio: string; dni: string; profiles: { nombre: string } | null } | null
 
 async function handleOcupacion(body: Record<string, unknown>): Promise<Response> {
@@ -617,7 +719,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
     .from('gimnasio_reservas')
     .select(
       'id, franja_id, estado, origen, socios(numero_socio, dni, profiles!socios_profile_id_fkey(nombre)), ' +
-      'gimnasio_franjas(dia_semana, hora_desde, hora_hasta, cupo, activa)',
+      'gimnasio_franjas(dia_semana, hora_desde, hora_hasta, cupo, profesor, activa)',
     )
     .eq('fecha', fecha)
     .order('created_at', { ascending: true })
@@ -632,6 +734,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
     ocupados_fijos: number
     cerrado: boolean
     motivo_cierre: string | null
+    profesor: string | null
     inactiva: boolean
     reservas: unknown[]
   }
@@ -646,6 +749,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
       ocupados_fijos: f.ocupados_fijos,
       cerrado: f.cerrado,
       motivo_cierre: f.motivo_cierre,
+      profesor: f.profesor,
       inactiva: false,
       reservas: [],
     })
@@ -669,6 +773,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
         ocupados_fijos: 0,
         cerrado: false,
         motivo_cierre: null,
+        profesor: fe.profesor,
         inactiva: true,
         reservas: [],
       }

@@ -208,6 +208,7 @@ interface FilaDisponibilidad {
   ocupados_fijos: number
   cerrado: boolean
   motivo_cierre: string | null
+  profesor: string | null
 }
 
 async function handleListar(socioId: string, body: Record<string, unknown>): Promise<Response> {
@@ -269,6 +270,8 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
       cerrado: f.cerrado,
       // Mensaje que cargó el encargado al cerrar (la pantalla lo muestra bajo "Cerrado").
       motivo_cierre: f.cerrado ? f.motivo_cierre : null,
+      // Profesor de la franja (texto libre del encargado), o null si no cargó ninguno.
+      profesor: f.profesor ?? null,
       pasada: yaComenzo(f.fecha, f.hora_desde),
       reservada: reservaId !== null,
       reserva_id: reservaId,
