@@ -14,7 +14,8 @@
 //                   reservado a fijos y materializa YA las reservas de las próximas semanas (RPC
 //                   gimnasio_materializar_fijos; después las renueva el cron `gimnasio-turnos-fijos`). Devuelve
 //                   { ok, turno_fijo_id, reservas_creadas, motivo_parcial? }.
-//   cancelar-fijo — { turno_fijo_id } desactiva el turno fijo y cancela sus ocurrencias futuras 'reservada'.
+//   cancelar-fijo — { turno_fijo_id } desactiva el turno fijo y BORRA sus ocurrencias futuras que todavía no
+//                   empezaron (RPC gimnasio_liberar_fijo): así, si el socio vuelve a crear el fijo, se regeneran.
 //
 // Seguridad: JWT requerido; rol 'socio' o 'cliente_gimnasio' (el rol sale de profiles.rol del caller,
 // nunca del body) y el caller necesita el servicio de Gimnasio (misma regla que `tieneServicioGimnasio`
@@ -500,24 +501,41 @@ async function handleCrearFijo(socioId: string, body: Record<string, unknown>): 
   if (matErr || !mat) return errorDb('materializar turno fijo', matErr)
 
   // Fechas que no se pudieron reservar (cupo lleno, cerrado, ...). 'pasado' (hoy, franja ya empezada)
-  // no se cuenta: nadie espera reservar un horario que ya comenzó.
+  // no entra en esa cuenta: nadie espera reservar un horario que ya comenzó.
   const porCodigo = (mat.omitidas?.por_codigo ?? {}) as Record<string, number>
   const noReservadas = Object.entries(porCodigo)
     .filter(([codigo]) => codigo !== 'pasado')
     .reduce((acc, [, n]) => acc + n, 0)
+  const omitidasTotal = Object.values(porCodigo).reduce((acc, n) => acc + n, 0)
+  // Fechas que ya tenían una fila del socio en esa franja (una reserva viva o una cancelación anterior).
+  const yaExistia = Number(mat.omitidas?.ya_existia ?? 0)
+  const creadas = Number(mat.creadas ?? 0)
   const errores = (mat.errores ?? []) as unknown[]
   if (errores.length > 0) {
     console.error('gimnasio-turnos: error al materializar el turno fijo:', JSON.stringify(errores))
   }
 
-  const out: Record<string, unknown> = { ok: true, turno_fijo_id: creado.id, reservas_creadas: mat.creadas ?? 0 }
+  const notas: string[] = []
   if (errores.length > 0) {
-    out.motivo_parcial = 'No se pudieron reservar todas las fechas. Lo vamos a reintentar automáticamente.'
-  } else if (noReservadas > 0) {
-    out.motivo_parcial = noReservadas === 1
-      ? 'No se pudo reservar 1 fecha por cupo o cierre.'
-      : `No se pudieron reservar ${noReservadas} fechas por cupo o cierre.`
+    notas.push('No se pudieron reservar todas las fechas. Lo vamos a reintentar automáticamente.')
   }
+  if (noReservadas > 0) {
+    notas.push(noReservadas === 1
+      ? 'No se pudo reservar 1 fecha por cupo o cierre.'
+      : `No se pudieron reservar ${noReservadas} fechas por cupo o cierre.`)
+  }
+  if (yaExistia > 0) {
+    notas.push(yaExistia === 1
+      ? '1 fecha ya tenía una reserva tuya o una cancelación anterior.'
+      : `${yaExistia} fechas ya tenían una reserva tuya o una cancelación anterior.`)
+  }
+  // Sin ninguna reserva nueva y con algo omitido, siempre se explica por qué (p. ej. sólo quedaba hoy).
+  if (notas.length === 0 && creadas === 0 && omitidasTotal > 0) {
+    notas.push('No se pudo reservar ninguna fecha: el horario de hoy ya empezó.')
+  }
+
+  const out: Record<string, unknown> = { ok: true, turno_fijo_id: creado.id, reservas_creadas: creadas }
+  if (notas.length > 0) out.motivo_parcial = notas.join(' ')
   return jsonOk(out)
 }
 
@@ -536,42 +554,11 @@ async function handleCancelarFijo(socioId: string, body: Record<string, unknown>
   if (!fijo || fijo.socio_id !== socioId) return rechazo('No encontramos ese turno fijo.')
   if (!fijo.activo) return rechazo('Ese turno fijo ya estaba cancelado.')
 
-  const { error: offErr } = await supabaseAdmin
-    .from('gimnasio_turnos_fijos')
-    .update({ activo: false })
-    .eq('id', fijoId)
-    .eq('socio_id', socioId)
-  if (offErr) return errorDb('desactivar turno fijo', offErr)
+  // Desactivar el fijo y borrar sus ocurrencias futuras sin empezar, atómico en una RPC. Se borran (no se
+  // cancelan) para que un turno fijo nuevo del mismo socio y franja pueda volver a materializar esas fechas.
+  // La de hoy que ya empezó se deja como está (asistencia/falta la resuelve el proceso de faltas).
+  const { data: lib, error: libErr } = await supabaseAdmin.rpc('gimnasio_liberar_fijo', { p_turno_fijo_id: fijoId })
+  if (libErr || !lib) return errorDb('gimnasio_liberar_fijo', libErr)
 
-  // Ocurrencias futuras todavía 'reservada'. La de hoy que ya empezó se deja como está
-  // (asistencia/falta la resuelve el Lector o el cron).
-  const { data: futuras, error: futErr } = await supabaseAdmin
-    .from('gimnasio_reservas')
-    .select('id, fecha, gimnasio_franjas(hora_desde)')
-    .eq('turno_fijo_id', fijoId)
-    .eq('socio_id', socioId)
-    .eq('estado', 'reservada')
-    .gte('fecha', hoyLocal())
-  if (futErr) return errorDb('reservas del turno fijo', futErr)
-
-  const ids = (futuras ?? [])
-    .filter((r) => {
-      const hora = (r as unknown as { gimnasio_franjas: { hora_desde: string } | null }).gimnasio_franjas?.hora_desde
-      return hora ? !yaComenzo(r.fecha, hora) : true
-    })
-    .map((r) => r.id)
-
-  let canceladas = 0
-  if (ids.length > 0) {
-    const { data: upd, error: updErr } = await supabaseAdmin
-      .from('gimnasio_reservas')
-      .update({ estado: 'cancelada' })
-      .in('id', ids)
-      .eq('estado', 'reservada')
-      .select('id')
-    if (updErr) return errorDb('cancelar ocurrencias', updErr)
-    canceladas = upd?.length ?? 0
-  }
-
-  return jsonOk({ ok: true, reservas_canceladas: canceladas })
+  return jsonOk({ ok: true, reservas_canceladas: lib.reservas_eliminadas ?? 0 })
 }

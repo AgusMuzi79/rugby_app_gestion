@@ -219,6 +219,45 @@ begin
 end;
 $$;
 
+-- ─── Liberar un turno fijo ────────────────────────────────────────────────────
+-- Desactiva el turno fijo y BORRA sus ocurrencias futuras que todavía no empezaron
+-- (turno_fijo_id = p_turno_fijo_id, estado 'reservada' o 'cancelada', fecha + hora_desde > ahora).
+-- Se borran (no se marcan 'cancelada') porque la materialización saltea toda fecha que ya tiene una
+-- fila del socio en esa franja: si quedaran canceladas, un turno fijo nuevo del mismo socio y franja
+-- no recibiría esas fechas. Mientras el fijo está ACTIVO, en cambio, las canceladas (por el socio o por
+-- un cierre) siguen ahí y no se recrean.
+-- Nunca toca 'asistio' ni 'falto' (historia), ni ocurrencias de hoy que ya empezaron (podrían ser un
+-- 'asistio' todavía sin evaluar), ni reservas de otros socios o franjas.
+-- La usan la Edge Function `gimnasio-turnos` (cancelar-fijo) y gimnasio_procesar_faltas (baja).
+-- Devuelve {ok, fijo_desactivado, reservas_eliminadas}.
+
+create or replace function gimnasio_liberar_fijo(p_turno_fijo_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ahora   timestamp := gimnasio_ahora();
+  v_off     integer;
+  v_borradas integer;
+begin
+  update gimnasio_turnos_fijos set activo = false where id = p_turno_fijo_id and activo;
+  get diagnostics v_off = row_count;
+
+  delete from gimnasio_reservas r
+  using gimnasio_franjas f
+  where f.id = r.franja_id
+    and r.turno_fijo_id = p_turno_fijo_id
+    and r.estado in ('reservada', 'cancelada')
+    and r.fecha >= v_ahora::date
+    and (r.fecha + f.hora_desde) > v_ahora;
+  get diagnostics v_borradas = row_count;
+
+  return jsonb_build_object('ok', true, 'fijo_desactivado', v_off > 0, 'reservas_eliminadas', v_borradas);
+end;
+$$;
+
 -- ─── Rachas de faltas ─────────────────────────────────────────────────────────
 -- Racha vigente por (socio, franja): faltas consecutivas YA evaluadas ('falto'), ordenadas por
 -- fecha, que vienen después del último 'asistio' y de la última baja registrada. Las reservas
@@ -298,8 +337,11 @@ $$;
 -- 3. Racha >= faltas_aviso y < faltas_baja y sin evento 'aviso' de esa racha: registra el aviso y lo
 --    devuelve en `avisos`. Si la racha ya llegó a la baja en la misma corrida se da la baja directa,
 --    sin aviso intermedio.
--- 4. Racha >= faltas_baja: registra la baja, cancela TODAS las reservas 'reservada' del socio en esa
---    franja con fecha >= hoy, desactiva su turno fijo activo en esa franja y lo devuelve en `bajas`.
+-- 4. Racha >= faltas_baja: registra la baja y libera el horario: desactiva su turno fijo activo en esa
+--    franja y BORRA las ocurrencias futuras de ese fijo (gimnasio_liberar_fijo), y cancela sus demás
+--    reservas 'reservada' de esa franja (sueltas). Sólo las que todavía no empezaron: la de hoy cuya
+--    franja ya terminó pero sigue dentro de la tolerancia podría ser un 'asistio' sin evaluar. Lo
+--    devuelve en `bajas`.
 --
 -- Interruptor: con faltas_activas = false y p_aplicar = true NO hace nada y devuelve
 -- {ok:true, activo:false}. Con p_aplicar = false es un dry-run: calcula y devuelve lo mismo que
@@ -315,7 +357,8 @@ $$;
 --
 -- Devuelve {ok, activo, aplicado, desde, evaluadas, asistio, falto, avisos:[...], bajas:[...]}; cada item
 -- trae socio_id, profile_id, franja_id, dia_semana, hora_desde, hora_hasta, profesor, fecha, racha y
--- faltas_baja (las bajas además reservas_canceladas y fijo_desactivado).
+-- faltas_baja (las bajas además reservas_canceladas (sueltas), reservas_eliminadas (del fijo) y
+-- fijo_desactivado).
 
 create or replace function gimnasio_procesar_faltas(p_aplicar boolean default true)
 returns jsonb
@@ -340,7 +383,10 @@ declare
   v_profile    uuid;
   v_ev         uuid;
   v_canceladas integer;
-  v_fijos_off  integer;
+  v_fijos_off  integer := 0;
+  v_elim       integer := 0;
+  v_fid        uuid;
+  v_lib        jsonb;
 begin
   select * into v_cfg from gimnasio_config where id = 1;
   if not found then
@@ -422,18 +468,28 @@ begin
         returning id into v_ev;
 
         if v_ev is not null then
+          -- Turno fijo activo de esa franja: se desactiva y se borran sus ocurrencias futuras.
+          v_fijos_off := 0;
+          v_elim := 0;
+          for v_fid in
+            select tf.id from gimnasio_turnos_fijos tf
+            where tf.socio_id = v_r.socio_id and tf.franja_id = v_r.franja_id and tf.activo
+          loop
+            v_lib := gimnasio_liberar_fijo(v_fid);
+            v_fijos_off := v_fijos_off + 1;
+            v_elim := v_elim + (v_lib->>'reservas_eliminadas')::integer;
+          end loop;
+
+          -- Reservas sueltas que le queden en la franja: se cancelan (no se borran), sólo las que no
+          -- empezaron.
           update gimnasio_reservas
              set estado = 'cancelada'
            where socio_id = v_r.socio_id
              and franja_id = v_r.franja_id
              and estado = 'reservada'
-             and fecha >= v_hoy;
+             and fecha >= v_hoy
+             and (fecha + v_f.hora_desde) > v_ahora;
           get diagnostics v_canceladas = row_count;
-
-          update gimnasio_turnos_fijos
-             set activo = false
-           where socio_id = v_r.socio_id and franja_id = v_r.franja_id and activo;
-          get diagnostics v_fijos_off = row_count;
 
           v_bajas := v_bajas || jsonb_build_object(
             'socio_id', v_r.socio_id,
@@ -447,6 +503,7 @@ begin
             'racha', v_r.largo,
             'faltas_baja', v_cfg.faltas_baja,
             'reservas_canceladas', v_canceladas,
+            'reservas_eliminadas', v_elim,
             'fijo_desactivado', v_fijos_off > 0
           );
         end if;
@@ -497,10 +554,12 @@ $$;
 
 -- Execute sólo para service_role.
 revoke execute on function gimnasio_materializar_fijos(uuid, date, boolean) from public, anon, authenticated;
+revoke execute on function gimnasio_liberar_fijo(uuid)             from public, anon, authenticated;
 revoke execute on function gimnasio_rachas()                       from public, anon, authenticated;
 revoke execute on function gimnasio_procesar_faltas(boolean)       from public, anon, authenticated;
 
 grant execute on function gimnasio_materializar_fijos(uuid, date, boolean)  to service_role;
+grant execute on function gimnasio_liberar_fijo(uuid)              to service_role;
 grant execute on function gimnasio_rachas()                        to service_role;
 grant execute on function gimnasio_procesar_faltas(boolean)        to service_role;
 
