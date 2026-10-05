@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { callEdgeFunction, type EdgeResponse } from '@/lib/edgeFunction'
 import { parseCalendario, PLANTILLA_CSV, type FilaCalendario } from '@/lib/calendarioImport'
 
@@ -444,6 +444,9 @@ interface FilaDesactivar extends FilaCrear { reservas_futuras: number; turnos_fi
 type ResultadoImport = {
   aplicado: boolean
   modo: ModoImport
+  // Huella del plan de la vista previa: hay que mandarla de vuelta al confirmar.
+  plan_hash?: string
+  codigo?: string
   resumen: ResumenImport
   detalle: { crear: FilaCrear[]; actualizar: FilaActualizar[]; desactivar: FilaDesactivar[] }
   errores?: { fila: number; motivo: string }[]
@@ -493,6 +496,11 @@ function ImportarSeccion() {
   const [modo, setModo]     = useState<ModoImport>('agregar')
   const [previa, setPrevia] = useState<ResultadoImport | null>(null)
   const [filasListas, setFilasListas] = useState<FilaCalendario[]>([])
+  // Huella del plan que se le mostró al usuario (viene en la vista previa y se envía al confirmar).
+  const [planHash, setPlanHash] = useState<string | null>(null)
+  // Cada cambio de texto/modo o nueva vista previa sube el contador: una respuesta de una vista previa
+  // que quedó vieja (el usuario siguió escribiendo mientras tanto) se descarta.
+  const peticion = useRef(0)
   const [erroresLectura, setErroresLectura]   = useState<string[]>([])
   const [erroresServidor, setErroresServidor] = useState<string[]>([])
   const [aviso, setAviso]   = useState<Aviso>(null)
@@ -500,7 +508,10 @@ function ImportarSeccion() {
 
   // Cualquier cambio del texto o del modo invalida la vista previa anterior.
   const limpiarPrevia = () => {
-    setPrevia(null); setFilasListas([]); setErroresLectura([]); setErroresServidor([]); setAviso(null)
+    peticion.current += 1
+    setPrevia(null); setFilasListas([]); setPlanHash(null)
+    setErroresLectura([]); setErroresServidor([]); setAviso(null)
+    setTrabajando(false)
   }
 
   const cambiarTexto = (t: string) => { setTexto(t); limpiarPrevia() }
@@ -529,11 +540,13 @@ function ImportarSeccion() {
     return linea ? `Fila ${linea}: ${m}` : m
   }
 
-  const llamar = async (filas: FilaCalendario[], soloVistaPrevia: boolean) => {
+  const llamar = async (filas: FilaCalendario[], soloVistaPrevia: boolean, hash?: string) => {
     const r = await callEdgeFunction<ResultadoImport>('gimnasio-turnos-admin', {
       action: 'franjas-importar',
       modo,
       solo_vista_previa: soloVistaPrevia,
+      // Sólo al aplicar: la vista previa no lleva huella.
+      ...(soloVistaPrevia ? {} : { plan_hash: hash }),
       // Sólo los campos del contrato: `linea` es de uso local (mapear errores al texto original).
       filas: filas.map(f => ({
         dia_semana: f.dia_semana, hora_desde: f.hora_desde, hora_hasta: f.hora_hasta, cupo: f.cupo, profesor: f.profesor,
@@ -550,10 +563,15 @@ function ImportarSeccion() {
       return
     }
     setTrabajando(true)
+    const id = peticion.current
     const r = await llamar(filas, true)
-    if (r.ok && r.resumen) {
+    if (id !== peticion.current) return // el texto o el modo cambió mientras se revisaba
+    if (r.ok && r.resumen && typeof r.plan_hash === 'string') {
       setPrevia(r)
       setFilasListas(filas)
+      setPlanHash(r.plan_hash)
+    } else if (r.ok && r.resumen) {
+      setAviso({ tipo: 'error', texto: 'La vista previa no trajo la huella del plan. Probá de nuevo.' })
     } else if (Array.isArray(r.errores) && r.errores.length > 0) {
       setErroresServidor([...new Set(r.errores.map(e => textoErrorServidor(e.fila, e.motivo, filas)))])
     } else {
@@ -563,10 +581,10 @@ function ImportarSeccion() {
   }
 
   const cambios = previa ? previa.resumen.crear + previa.resumen.actualizar + previa.resumen.desactivar : 0
-  const puedeConfirmar = !!previa && cambios > 0 && erroresLectura.length === 0 && erroresServidor.length === 0 && !trabajando
+  const puedeConfirmar = !!previa && !!planHash && cambios > 0 && erroresLectura.length === 0 && erroresServidor.length === 0 && !trabajando
 
   const confirmar = async () => {
-    if (!previa || !puedeConfirmar) return
+    if (!previa || !planHash || !puedeConfirmar) return
     const s = previa.resumen
     let msg =
       `Se van a crear ${s.crear}, actualizar ${s.actualizar} y desactivar ${s.desactivar} franjas ` +
@@ -582,7 +600,8 @@ function ImportarSeccion() {
 
     setTrabajando(true)
     setAviso(null)
-    const r = await llamar(filasListas, false)
+    // Sin descartar la respuesta aunque el texto haya cambiado: la importación ya salió y hay que informarla.
+    const r = await llamar(filasListas, false, planHash)
     if (r.ok && r.resumen) {
       const a = r.resumen
       setAviso({
@@ -596,11 +615,17 @@ function ImportarSeccion() {
               `${plural(a.turnos_fijos_afectados, 'turno fijo activo', 'turnos fijos activos')} en franjas desactivadas para revisar.`
             : ''),
       })
-      setPrevia(null); setFilasListas([]); setTexto('')
+      setPrevia(null); setFilasListas([]); setPlanHash(null); setTexto('')
+      await recargar()
+    } else if (r.codigo === 'plan_cambio' || r.codigo === 'solape') {
+      // El calendario cambió desde la vista previa (otro encargado, por ejemplo): no se escribió nada.
+      // Se invalida la vista previa vieja y se pide hacer otra con el estado actual.
+      setPrevia(null); setFilasListas([]); setPlanHash(null)
+      setAviso({ tipo: 'error', texto: mensajeError(r) })
       await recargar()
     } else if (Array.isArray(r.errores) && r.errores.length > 0) {
       // Cambió algo desde la vista previa (otro encargado, por ejemplo): se muestra y se pide revisar.
-      setPrevia(null)
+      setPrevia(null); setFilasListas([]); setPlanHash(null)
       setErroresServidor([...new Set(r.errores.map(e => textoErrorServidor(e.fila, e.motivo, filasListas)))])
     } else {
       setAviso({ tipo: 'error', texto: mensajeError(r) })
@@ -627,6 +652,7 @@ function ImportarSeccion() {
           <label className={LABEL}>PEGÁ ACÁ EL CALENDARIO DESDE EXCEL O GOOGLE SHEETS</label>
           <textarea
             value={texto}
+            disabled={trabajando}
             onChange={e => cambiarTexto(e.target.value)}
             rows={10}
             spellCheck={false}
@@ -647,7 +673,7 @@ function ImportarSeccion() {
           <p className={LABEL}>MODO</p>
           {MODOS_IMPORT.map(m => (
             <label key={m.id} className="flex items-start gap-2 font-lora text-sm text-tinta cursor-pointer">
-              <input type="radio" name="modo-import" className="mt-1" checked={modo === m.id} onChange={() => cambiarModo(m.id)} />
+              <input type="radio" name="modo-import" className="mt-1" checked={modo === m.id} disabled={trabajando} onChange={() => cambiarModo(m.id)} />
               <span>
                 {m.label}
                 <span className="block font-lora text-xs text-tinta/40">{m.ayuda}</span>

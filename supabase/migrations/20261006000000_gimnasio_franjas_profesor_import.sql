@@ -1,10 +1,13 @@
 -- Migration: 20261006000000_gimnasio_franjas_profesor_import
 --
--- Dos cambios sobre el turnero del gimnasio (20261005000000, ya aplicada en producción):
+-- Tres cambios sobre el turnero del gimnasio (20261005000000, ya aplicada en producción):
 --   1. `profesor` por franja: texto libre opcional (hasta 80 caracteres). Si hay dos
 --      profesores en el mismo horario se escriben juntos en el mismo texto ('Ana / Luis').
---   2. Importación de un calendario completo: RPC atómica `gimnasio_importar_franjas`
---      con vista previa (p_aplicar = false) y aplicación (p_aplicar = true).
+--   2. Dos franjas ACTIVAS del mismo día no pueden solaparse: lo garantiza la base con un
+--      EXCLUDE (antes sólo lo validaba el código, y dos escrituras concurrentes se colaban).
+--   3. Importación de un calendario completo: RPC atómica `gimnasio_importar_franjas`
+--      con vista previa (p_aplicar = false) y aplicación (p_aplicar = true) que exige la
+--      huella (`plan_hash`) de la vista previa que el usuario revisó.
 --
 -- Esta migración NO edita la anterior: `gimnasio_disponibilidad` devuelve un tipo de tabla,
 -- así que para agregarle la columna hay que borrarla y recrearla (y volver a dar los
@@ -19,6 +22,23 @@ alter table gimnasio_franjas add column profesor text;
 alter table gimnasio_franjas
   add constraint gimnasio_franjas_profesor_check
   check (profesor is null or (char_length(profesor) <= 80 and length(btrim(profesor)) > 0));
+
+-- ─── Sin solapes entre franjas activas ────────────────────────────────────────
+-- btree_gist permite combinar la igualdad de `dia_semana` con el solape de rangos en un mismo
+-- índice GiST. Se crea sin schema, igual que `unaccent` en 20260911000001.
+-- El rango es [desde, hasta): dos franjas pegadas (09:00–11:00 y 11:00–13:00) NO se solapan.
+-- Como no hay un tipo de rango de `time`, se usa tsrange sobre una fecha fija (inmutable).
+-- Las franjas inactivas quedan fuera (baja lógica), así que se pueden reactivar mientras no
+-- pisen a otra activa. Si la tabla ya tuviera franjas activas solapadas, esta sentencia falla
+-- y hay que corregirlas antes (en producción hoy no hay ninguna franja).
+create extension if not exists btree_gist;
+
+alter table gimnasio_franjas
+  add constraint gimnasio_franjas_sin_solape
+  exclude using gist (
+    dia_semana with =,
+    tsrange(date '2000-01-01' + hora_desde, date '2000-01-01' + hora_hasta, '[)') with &&
+  ) where (activa);
 
 -- ─── Disponibilidad (ahora con profesor) ──────────────────────────────────────
 -- Igual que antes: franjas ACTIVAS entre p_desde y p_hasta (acotado a 31 días desde p_desde),
@@ -84,6 +104,9 @@ $$;
 --                          (baja lógica: nunca se borran; sus reservas futuras se cuentan
 --                          y se informan, pero no se tocan).
 -- p_aplicar: false = vista previa, no escribe nada; true = aplica (todo o nada).
+-- p_plan_hash: huella del plan que devolvió la vista previa. OBLIGATORIA al aplicar: se recalcula
+--          el plan con el estado actual (ya con el lock tomado) y, si no coincide o falta, se
+--          rechaza con codigo 'plan_cambio' sin escribir nada (el usuario confirmó otra cosa).
 --
 -- Coincidencia por (dia_semana, hora_desde, hora_hasta) contra franjas ACTIVAS O INACTIVAS:
 --   · coincide  -> se actualizan cupo y profesor y se reactiva; la franja conserva su id, así
@@ -97,11 +120,23 @@ $$;
 -- se escribe nada, aunque p_aplicar sea true.
 --
 -- Concurrencia: un advisory lock transaccional serializa dos importaciones, y al aplicar se
--- toman con `for update` todas las franjas (tabla chica) para que no cambie nada a mitad.
+-- toman con `for update` todas las franjas existentes (tabla chica) para que no se edite ninguna a
+-- mitad. Ese lock NO frena el alta de una franja nueva por otro camino (`franja-guardar`): contra
+-- eso está el EXCLUDE `gimnasio_franjas_sin_solape`; si salta al aplicar, se deshace todo lo
+-- escrito y se devuelve codigo 'solape'.
+--
+-- Orden de escritura (el EXCLUDE se verifica fila por fila): 1) desactivar, 2) actualizar /
+-- reactivar, 3) crear. El estado final no tiene solapes (validado arriba), las actualizaciones no
+-- cambian horarios y las bajas ya liberaron lugar, así que ningún paso intermedio es inválido.
 --
 -- Devuelve {ok:false, codigo, motivo[, errores]} o
---   {ok:true, aplicado, modo, resumen:{...}, detalle:{crear, actualizar, desactivar}}.
-create or replace function gimnasio_importar_franjas(p_filas jsonb, p_modo text, p_aplicar boolean)
+--   {ok:true, aplicado, modo, plan_hash, resumen:{...}, detalle:{crear, actualizar, desactivar}}.
+create or replace function gimnasio_importar_franjas(
+  p_filas     jsonb,
+  p_modo      text,
+  p_aplicar   boolean,
+  p_plan_hash text default null
+)
 returns jsonb
 language plpgsql
 security definer
@@ -140,6 +175,7 @@ declare
   v_n_des       integer;
   v_res_fut     integer;
   v_fijos       integer;
+  v_hash        text;
 begin
   if p_modo is null or p_modo not in ('agregar', 'reemplazar') then
     return gimnasio_fallo('modo_invalido', 'El modo debe ser "agregar" o "reemplazar".');
@@ -352,21 +388,21 @@ begin
     (select coalesce(jsonb_agg(jsonb_build_object(
         'dia_semana', n.dia, 'hora_desde', to_char(n.desde, 'HH24:MI'),
         'hora_hasta', to_char(n.hasta, 'HH24:MI'), 'cupo', n.cupo, 'profesor', n.profesor
-      ) order by n.dia, n.desde), '[]'::jsonb) from nuevas n),
+      ) order by n.dia, n.desde, n.hasta), '[]'::jsonb) from nuevas n),
     (select coalesce(jsonb_agg(jsonb_build_object(
         'dia_semana', c.dia, 'hora_desde', to_char(c.desde, 'HH24:MI'),
         'hora_hasta', to_char(c.hasta, 'HH24:MI'),
         'cupo_antes', c.cupo_antes, 'cupo', c.cupo,
         'profesor_antes', c.profesor_antes, 'profesor', c.profesor,
         'reactivada', not c.activa
-      ) order by c.dia, c.desde), '[]'::jsonb) from cambian c),
+      ) order by c.dia, c.desde, c.hasta), '[]'::jsonb) from cambian c),
     (select coalesce(jsonb_agg(jsonb_build_object(
         'id', c.id, 'cupo', c.cupo, 'profesor', c.profesor)), '[]'::jsonb) from cambian c),
     (select coalesce(jsonb_agg(jsonb_build_object(
         'dia_semana', b.dia_semana, 'hora_desde', to_char(b.hora_desde, 'HH24:MI'),
         'hora_hasta', to_char(b.hora_hasta, 'HH24:MI'), 'cupo', b.cupo, 'profesor', b.profesor,
         'reservas_futuras', b.reservas_futuras, 'turnos_fijos', b.turnos_fijos
-      ) order by b.dia_semana, b.hora_desde), '[]'::jsonb) from baja b),
+      ) order by b.dia_semana, b.hora_desde, b.hora_hasta), '[]'::jsonb) from baja b),
     (select coalesce(array_agg(b.id), '{}'::uuid[]) from baja b),
     (select coalesce(sum(b.reservas_futuras), 0)::integer from baja b),
     (select coalesce(sum(b.turnos_fijos), 0)::integer from baja b)
@@ -376,25 +412,63 @@ begin
   v_n_upd   := jsonb_array_length(v_actualizar);
   v_n_des   := jsonb_array_length(v_desactivar);
 
-  -- 6) Aplicar (todo o nada: es una sola transacción).
+  -- Huella del plan: md5 del texto canónico de modo + resumen + detalle. Cada lista del detalle sale
+  -- ordenada por (día, desde, hasta) y jsonb serializa sus claves en orden fijo, así que el mismo
+  -- plan da siempre la misma huella.
+  v_hash := md5(jsonb_build_object(
+    'modo', p_modo,
+    'resumen', jsonb_build_object(
+      'crear', v_n_crear,
+      'actualizar', v_n_upd,
+      'sin_cambios', v_total - v_n_crear - v_n_upd,
+      'desactivar', v_n_des,
+      'reservas_futuras_afectadas', v_res_fut,
+      'turnos_fijos_afectados', v_fijos
+    ),
+    'detalle', jsonb_build_object(
+      'crear', v_crear,
+      'actualizar', v_actualizar,
+      'desactivar', v_desactivar
+    )
+  )::text);
+
+  -- 6) Aplicar (todo o nada: es una sola transacción). Se exige que el plan recalculado bajo el lock
+  --    sea el mismo que el usuario vio en la vista previa.
   if p_aplicar then
-    insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo, profesor, activa)
-    select x.dia_semana, x.hora_desde, x.hora_hasta, x.cupo, x.profesor, true
-    from jsonb_to_recordset(v_crear)
-      as x(dia_semana smallint, hora_desde time, hora_hasta time, cupo integer, profesor text);
+    if p_plan_hash is null or p_plan_hash <> v_hash then
+      return gimnasio_fallo(
+        'plan_cambio',
+        'El calendario cambió mientras revisabas la vista previa. Volvé a hacer la vista previa.'
+      );
+    end if;
 
-    update gimnasio_franjas f
-       set cupo = x.cupo, profesor = x.profesor, activa = true
-      from jsonb_to_recordset(v_upd) as x(id uuid, cupo integer, profesor text)
-     where f.id = x.id;
+    begin
+      update gimnasio_franjas set activa = false where id = any(v_des_ids);
 
-    update gimnasio_franjas set activa = false where id = any(v_des_ids);
+      update gimnasio_franjas f
+         set cupo = x.cupo, profesor = x.profesor, activa = true
+        from jsonb_to_recordset(v_upd) as x(id uuid, cupo integer, profesor text)
+       where f.id = x.id;
+
+      insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo, profesor, activa)
+      select x.dia_semana, x.hora_desde, x.hora_hasta, x.cupo, x.profesor, true
+      from jsonb_to_recordset(v_crear)
+        as x(dia_semana smallint, hora_desde time, hora_hasta time, cupo integer, profesor text);
+    exception when exclusion_violation then
+      -- Otra escritura (alta desde el panel) metió una franja activa que se solapa. El bloque
+      -- begin/exception es una subtransacción: sus escrituras se deshacen y no queda nada a medias.
+      return gimnasio_fallo(
+        'solape',
+        'No se importó nada: una franja activa se superpone con otra del mismo día. Volvé a hacer la vista previa.'
+      );
+    end;
   end if;
 
   return jsonb_build_object(
     'ok', true,
     'aplicado', p_aplicar,
     'modo', p_modo,
+    'plan_hash', v_hash,
     'resumen', jsonb_build_object(
       'crear', v_n_crear,
       'actualizar', v_n_upd,
@@ -415,7 +489,7 @@ $$;
 -- Execute sólo para service_role (como el resto del módulo). El DROP de la disponibilidad
 -- perdió sus permisos, así que se vuelven a dar acá.
 revoke execute on function gimnasio_disponibilidad(date, date)            from public, anon, authenticated;
-revoke execute on function gimnasio_importar_franjas(jsonb, text, boolean) from public, anon, authenticated;
+revoke execute on function gimnasio_importar_franjas(jsonb, text, boolean, text) from public, anon, authenticated;
 
 grant execute on function gimnasio_disponibilidad(date, date)             to service_role;
-grant execute on function gimnasio_importar_franjas(jsonb, text, boolean) to service_role;
+grant execute on function gimnasio_importar_franjas(jsonb, text, boolean, text) to service_role;

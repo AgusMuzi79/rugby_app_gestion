@@ -6,9 +6,13 @@
 //   franja-guardar     — { id?, dia_semana, hora_desde, hora_hasta, cupo, profesor?, activa? } alta o edición.
 //                        `profesor` es texto libre opcional (máx. 80); null o '' lo borra; si no viene en una
 //                        edición, queda como estaba.
-//   franjas-importar   — { filas, modo, solo_vista_previa? } calendario completo (RPC gimnasio_importar_franjas):
-//                        modo 'agregar' | 'reemplazar'; con solo_vista_previa:true no escribe, sólo cuenta.
-//                        Validaciones del calendario => 200 { ok:false, errores:[{fila,motivo}] }.
+//   franjas-importar   — { filas, modo, solo_vista_previa?, plan_hash? } calendario completo (RPC
+//                        gimnasio_importar_franjas): modo 'agregar' | 'reemplazar'; con solo_vista_previa:true no
+//                        escribe, sólo cuenta y devuelve `plan_hash` (huella del plan). Al aplicar
+//                        (solo_vista_previa false) `plan_hash` es OBLIGATORIO: si el calendario cambió desde la vista
+//                        previa => 200 { ok:false, codigo:'plan_cambio' } sin escribir. Validaciones del calendario
+//                        => 200 { ok:false, errores:[{fila,motivo}] }; solape con otra franja activa => codigo 'solape'.
+//                        La validación de la entrada vive en _shared/calendario.ts (con su check).
 //   franja-desactivar  — { franja_id } baja lógica (activa=false). Sus reservas futuras NO se tocan:
 //                        se devuelve cuántas quedan para que el encargado decida.
 //   excepcion-guardar  — { fecha, franja_id|null, cerrado, cupo_override|null, motivo, solo_vista_previa? } una por
@@ -33,15 +37,19 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import {
+  CUPO_MAX,
+  esEntero,
+  hhmm,
+  normalizarHora,
+  normalizarProfesor,
+  validarImportacion,
+} from '../_shared/calendario.ts'
 
 const ROLES_PERMITIDOS = ['porteria', 'admin', 'subcomision']
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
-const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d(:00)?$/
 const MAX_DIAS_EXCEPCIONES = 366
-const CUPO_MAX = 500
-const PROFESOR_MAX = 80
-const IMPORT_MAX_FILAS = 300
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
 // Tope por chunk: el push corre después de cancelar y confirmar las reservas, así que si Expo
@@ -69,34 +77,20 @@ function diasEntre(desde: string, hasta: string): number {
   return Math.round((new Date(`${hasta}T00:00:00Z`).getTime() - new Date(`${desde}T00:00:00Z`).getTime()) / 86400000)
 }
 
-function hhmm(hora: string): string {
-  return hora.slice(0, 5)
-}
-
-// 'HH:MM' o 'HH:MM:00' => 'HH:MM:00'
-function normalizarHora(h: unknown): string | null {
-  if (typeof h !== 'string' || !HORA_RE.test(h)) return null
-  return `${h.slice(0, 5)}:00`
-}
-
-function esEntero(n: unknown, min: number, max: number): n is number {
-  return typeof n === 'number' && Number.isInteger(n) && n >= min && n <= max
-}
-
-// Profesor: texto libre opcional. Se recorta; vacío o null => null; más de PROFESOR_MAX => inválido.
-// `undefined` (campo ausente) se distingue antes de llamar: acá sólo llegan valores presentes.
-function normalizarProfesor(p: unknown): { valor: string | null } | { error: string } {
-  if (p === null) return { valor: null }
-  if (typeof p !== 'string') return { error: 'El profesor debe ser un texto.' }
-  const t = p.trim()
-  if (t.length > PROFESOR_MAX) return { error: `El profesor no puede superar ${PROFESOR_MAX} caracteres.` }
-  return { valor: t === '' ? null : t }
-}
+// hhmm, normalizarHora, esEntero, normalizarProfesor y CUPO_MAX viven en ../_shared/calendario.ts.
 
 // ─── Respuestas ───────────────────────────────────────────────────────────────
 
 function rechazo(motivo: string, extra: Record<string, unknown> = {}): Response {
   return jsonOk({ ok: false, motivo, ...extra })
+}
+
+// 23P01 = exclusion_violation: el EXCLUDE gimnasio_franjas_sin_solape (dos franjas activas del mismo
+// día no pueden pisarse). Es un rechazo de negocio (200), no un error de la base.
+const MOTIVO_SOLAPE = 'Esa franja se superpone con otra franja activa del mismo día.'
+
+function esSolape(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === '23P01'
 }
 
 function errorDb(contexto: string, err: unknown): Response {
@@ -225,7 +219,8 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
     }
   }
 
-  // Dos franjas activas del mismo día no pueden solaparse (no hay constraint en DB, se valida acá).
+  // Dos franjas activas del mismo día no pueden solaparse. Este chequeo da el mensaje amable; la garantía
+  // real es el EXCLUDE de la base (una escritura concurrente que se cuele sale como 23P01, ver abajo).
   if (activa) {
     let q = supabaseAdmin
       .from('gimnasio_franjas')
@@ -251,6 +246,7 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
   const { data: guardada, error: saveErr } = existente
     ? await supabaseAdmin.from('gimnasio_franjas').update(valores).eq('id', existente.id).select(cols).single()
     : await supabaseAdmin.from('gimnasio_franjas').insert(valores).select(cols).single()
+  if (saveErr && esSolape(saveErr)) return rechazo(MOTIVO_SOLAPE, { codigo: 'solapada' })
   if (saveErr || !guardada) return errorDb('guardar franja', saveErr)
 
   return jsonOk({
@@ -265,73 +261,27 @@ async function handleFranjaGuardar(body: Record<string, unknown>): Promise<Respo
 // Calendario completo: modo 'agregar' (conserva las franjas que el archivo no menciona) o 'reemplazar'
 // (desactiva las activas que faltan; nunca borra). La lógica y la atomicidad viven en la RPC
 // gimnasio_importar_franjas; acá se revalida el tipo de CADA campo antes de llamarla (el cliente
-// no es de fiar) y los rechazos de validación salen como HTTP 200 { ok:false, ... }.
+// no es de fiar; ver validarImportacion) y los rechazos de validación salen como HTTP 200 { ok:false, ... }.
+// La vista previa devuelve `plan_hash`; al aplicar hay que enviarlo de vuelta: la RPC rechaza con
+// codigo 'plan_cambio' si el plan recalculado ya no es el que el usuario revisó.
 async function handleFranjasImportar(body: Record<string, unknown>): Promise<Response> {
-  if (body.modo !== 'agregar' && body.modo !== 'reemplazar') {
-    return rechazo('El modo debe ser "agregar" o "reemplazar".')
-  }
-  if (body.solo_vista_previa !== undefined && typeof body.solo_vista_previa !== 'boolean') {
-    return rechazo('El campo "solo_vista_previa" es inválido.')
-  }
-  const soloVistaPrevia = body.solo_vista_previa === true
-
-  const filasRaw = body.filas
-  if (!Array.isArray(filasRaw) || filasRaw.length === 0) return rechazo('El calendario no tiene filas.')
-  if (filasRaw.length > IMPORT_MAX_FILAS) {
-    return rechazo(`El calendario no puede tener más de ${IMPORT_MAX_FILAS} filas.`)
-  }
-
-  // Todos los errores de tipo juntos (fila = posición 1-based), con el mismo formato que los de la RPC.
-  const errores: { fila: number; motivo: string }[] = []
-  const filas: Record<string, unknown>[] = []
-  filasRaw.forEach((raw, i) => {
-    const fila = i + 1
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-      errores.push({ fila, motivo: 'La fila no es válida.' })
-      return
-    }
-    const r = raw as Record<string, unknown>
-    let ok = true
-    if (!esEntero(r.dia_semana, 1, 7)) {
-      ok = false
-      errores.push({ fila, motivo: 'El día debe ser de 1 (lunes) a 7 (domingo).' })
-    }
-    const desde = normalizarHora(r.hora_desde)
-    const hasta = normalizarHora(r.hora_hasta)
-    if (!desde) { ok = false; errores.push({ fila, motivo: 'La hora de inicio debe tener formato HH:MM.' }) }
-    if (!hasta) { ok = false; errores.push({ fila, motivo: 'La hora de fin debe tener formato HH:MM.' }) }
-    if (desde && hasta && desde >= hasta) {
-      ok = false
-      errores.push({ fila, motivo: 'La hora de inicio debe ser anterior a la de fin.' })
-    }
-    if (!esEntero(r.cupo, 1, CUPO_MAX)) {
-      ok = false
-      errores.push({ fila, motivo: `El cupo debe ser un número entero entre 1 y ${CUPO_MAX}.` })
-    }
-    let profesor: string | null = null
-    if (r.profesor !== undefined) {
-      const p = normalizarProfesor(r.profesor)
-      if ('error' in p) { ok = false; errores.push({ fila, motivo: p.error }) } else profesor = p.valor
-    }
-    if (ok) {
-      filas.push({
-        dia_semana: r.dia_semana, hora_desde: hhmm(desde as string), hora_hasta: hhmm(hasta as string),
-        cupo: r.cupo, profesor,
-      })
-    }
-  })
-  if (errores.length > 0) {
-    return rechazo('El calendario tiene errores; no se importó nada.', { codigo: 'errores', errores })
+  const v = validarImportacion(body)
+  if (!v.ok) {
+    const { motivo, ...extra } = v
+    return rechazo(motivo, extra)
   }
 
   const { data, error } = await supabaseAdmin.rpc('gimnasio_importar_franjas', {
-    p_filas: filas,
-    p_modo: body.modo,
-    p_aplicar: !soloVistaPrevia,
+    p_filas: v.filas,
+    p_modo: v.modo,
+    p_aplicar: !v.soloVistaPrevia,
+    p_plan_hash: v.planHash,
   })
+  // Defensa en profundidad: la RPC ya atrapa el 23P01, pero si se escapara también es un rechazo.
+  if (error && esSolape(error)) return rechazo(MOTIVO_SOLAPE, { codigo: 'solape' })
   if (error) return errorDb('gimnasio_importar_franjas', error)
 
-  // {ok:false, codigo, motivo, errores?} es un rechazo de validación: 200, no 500.
+  // {ok:false, codigo, motivo, errores?} (errores, plan_cambio, solape...) es un rechazo: 200, no 500.
   return jsonOk(data)
 }
 
@@ -344,6 +294,7 @@ async function handleFranjaDesactivar(body: Record<string, unknown>): Promise<Re
     .update({ activa: false })
     .eq('id', franjaId)
     .select('id')
+  if (error && esSolape(error)) return rechazo(MOTIVO_SOLAPE, { codigo: 'solapada' })
   if (error) return errorDb('desactivar franja', error)
   if (!data?.length) return rechazo('La franja no existe.')
 

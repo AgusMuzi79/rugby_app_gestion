@@ -545,7 +545,7 @@ select pg_temp.espera(
 reset role;
 
 -- ═════════════════════════════════════════════════════════════════════════════
--- Profesor por franja + importación de calendario (migración 20261006000000)
+-- Profesor por franja + sin solapes + importación de calendario (migración 20261006000000)
 -- Arranca de cero: se vacían las tablas (todo se deshace con el ROLLBACK final).
 -- Hoy sigue siendo lunes 2026-10-05 10:00.
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -561,10 +561,15 @@ create function pg_temp.snap() returns text language sql as $$
                                            coalesce(profesor, '~')), ',' order by id)), 'vacio')
   from gimnasio_franjas
 $$;
-create function pg_temp.imp(p_filas jsonb, p_modo text, p_aplicar boolean) returns jsonb language plpgsql as $$
+-- Al aplicar sin huella explícita se usa la de la vista previa del mismo archivo (lo que hace la web).
+create function pg_temp.imp(p_filas jsonb, p_modo text, p_aplicar boolean, p_hash text default null)
+returns jsonb language plpgsql as $$
 declare v jsonb;
 begin
-  v := gimnasio_importar_franjas(p_filas, p_modo, p_aplicar);
+  if p_aplicar and p_hash is null then
+    p_hash := gimnasio_importar_franjas(p_filas, p_modo, false)->>'plan_hash';
+  end if;
+  v := gimnasio_importar_franjas(p_filas, p_modo, p_aplicar, p_hash);
   perform set_config('test.r', v::text, true);
   return v;
 end $$;
@@ -830,6 +835,206 @@ select pg_temp.espera(
   (select profesor from gimnasio_franjas where dia_semana = 6 and hora_desde = '09:00'), 'Pedro', 'el profesor se guarda recortado');
 select pg_temp.espera(
   (select char_length(profesor)::text from gimnasio_franjas where dia_semana = 6 and hora_desde = '10:00'), '80', 'profesor de 80 caracteres aceptado');
+
+-- ─── Sin solapes entre franjas activas (EXCLUDE gimnasio_franjas_sin_solape) ──
+-- Miércoles (3) y jueves (4) están libres en este punto del script.
+
+select pg_temp.espera(
+  (select count(*)::text from pg_constraint
+    where conname = 'gimnasio_franjas_sin_solape' and contype = 'x' and conrelid = 'gimnasio_franjas'::regclass),
+  '1', 'existe el EXCLUDE gimnasio_franjas_sin_solape');
+
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo)
+values (pg_temp.fr(31), 3, '09:00', '11:00', 5);
+
+do $$
+declare
+  v_ok boolean;
+begin
+  -- Solape parcial con una activa: rechazado.
+  begin insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '10:00', '12:00', 5); v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: franja activa solapada aceptada'; end if;
+  raise notice 'ok   - EXCLUDE: una franja activa que pisa a otra activa del mismo dia se rechaza (23P01)';
+
+  -- Contenida dentro de otra y que contiene a otra: rechazadas.
+  begin insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '09:30', '10:00', 5); v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: franja contenida en otra aceptada'; end if;
+  begin insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '08:00', '12:00', 5); v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: franja que contiene a otra aceptada'; end if;
+  raise notice 'ok   - EXCLUDE: contenida y contenedora tambien se rechazan';
+
+  -- Misma franja exacta: rechazada.
+  begin insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '09:00', '11:00', 5); v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: franja duplicada activa aceptada'; end if;
+  raise notice 'ok   - EXCLUDE: la misma franja activa dos veces se rechaza';
+
+  -- Pegadas (11:00 contra 11:00 y 09:00 contra 09:00 por el otro lado): permitido.
+  insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo)
+  values ('f0000000-0000-0000-0000-000000000032', 3, '11:00', '13:00', 5),
+         ('f0000000-0000-0000-0000-000000000033', 3, '07:00', '09:00', 5);
+  raise notice 'ok   - EXCLUDE: franjas pegadas (07-09, 09-11, 11-13) conviven';
+
+  -- Mismo horario en otro dia: permitido.
+  insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (4, '09:00', '11:00', 5);
+  raise notice 'ok   - EXCLUDE: el mismo horario en otro dia conviven';
+
+  -- Superpuesta pero INACTIVA: permitido.
+  insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo, activa)
+  values ('f0000000-0000-0000-0000-000000000034', 3, '10:00', '12:00', 5, false);
+  raise notice 'ok   - EXCLUDE: una franja inactiva puede solaparse con una activa';
+
+  -- Reactivarla pisando a una activa: rechazado. Y editar horarios de una activa para pisar: rechazado.
+  begin update gimnasio_franjas set activa = true where id = 'f0000000-0000-0000-0000-000000000034'; v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: reactivar una franja pisando a una activa fue aceptado'; end if;
+  begin update gimnasio_franjas set hora_hasta = '12:00' where id = pg_temp.fr(31); v_ok := true;
+  exception when exclusion_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: estirar una franja activa sobre otra fue aceptado'; end if;
+  raise notice 'ok   - EXCLUDE: reactivar o estirar una franja pisando a una activa se rechaza';
+
+  -- Desactivar una activa libera el lugar para una nueva.
+  update gimnasio_franjas set activa = false where id = pg_temp.fr(31);
+  insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '09:30', '10:30', 5);
+  raise notice 'ok   - EXCLUDE: desactivar una franja libera su horario para otra nueva';
+end $$;
+
+-- Se deja el miércoles/jueves limpio para lo que sigue.
+delete from gimnasio_franjas where dia_semana in (3, 4);
+
+-- ─── Huella del plan (plan_hash) ──────────────────────────────────────────────
+
+insert into _f values ('h1', $j$[
+  {"dia_semana":4,"hora_desde":"15:00","hora_hasta":"16:00","cupo":9,"profesor":"Lía"},
+  {"dia_semana":4,"hora_desde":"17:00","hora_hasta":"18:00","cupo":9,"profesor":null},
+  {"dia_semana":1,"hora_desde":"09:00","hora_hasta":"10:00","cupo":14,"profesor":"Ana / Luis"}
+]$j$::jsonb);
+-- Mismo archivo en otro orden de filas.
+insert into _f values ('h1b', $j$[
+  {"dia_semana":1,"hora_desde":"09:00","hora_hasta":"10:00","cupo":14,"profesor":"Ana / Luis"},
+  {"dia_semana":4,"hora_desde":"17:00","hora_hasta":"18:00","cupo":9,"profesor":null},
+  {"dia_semana":4,"hora_desde":"15:00","hora_hasta":"16:00","cupo":9,"profesor":"Lía"}
+]$j$::jsonb);
+
+select pg_temp.espera(
+  length(gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash')::text,
+  '32', 'la vista previa devuelve plan_hash (md5, 32 caracteres)');
+select pg_temp.espera(
+  (gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash' =
+   gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash')::text,
+  'true', 'el plan_hash es estable: la misma vista previa dos veces da la misma huella');
+select pg_temp.espera(
+  (gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash' =
+   gimnasio_importar_franjas((select j from _f where k = 'h1b'), 'agregar', false)->>'plan_hash')::text,
+  'true', 'el plan_hash no depende del orden de las filas del archivo');
+select pg_temp.espera(
+  (gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash' =
+   gimnasio_importar_franjas((select j from _f where k = 'h1'), 'reemplazar', false)->>'plan_hash')::text,
+  'false', 'el plan_hash cambia con el modo');
+
+-- Aplicar sin huella o con una huella equivocada: plan_cambio y no escribe nada.
+select set_config('test.snap', pg_temp.snap(), true);
+select pg_temp.espera(
+  gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', true)->>'codigo',
+  'plan_cambio', 'aplicar sin plan_hash: plan_cambio');
+select pg_temp.espera(
+  gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', true, 'no-es-la-huella')->>'codigo',
+  'plan_cambio', 'aplicar con un plan_hash equivocado: plan_cambio');
+select pg_temp.espera(
+  gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', true, '')->>'codigo',
+  'plan_cambio', 'aplicar con plan_hash vacio: plan_cambio');
+select pg_temp.espera(
+  gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', true, 'no-es-la-huella')->>'motivo',
+  'El calendario cambió mientras revisabas la vista previa. Volvé a hacer la vista previa.', 'plan_cambio trae el motivo para el usuario');
+select pg_temp.espera((pg_temp.snap() = current_setting('test.snap'))::text, 'true', 'plan_cambio no escribe nada');
+
+-- Vista previa vieja: el calendario cambia entre la vista previa y la confirmación.
+select set_config('test.hash', gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash', true);
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo)
+values (pg_temp.fr(41), 4, '15:00', '16:00', 3);   -- otro encargado la creó con otro cupo
+select set_config('test.snap', pg_temp.snap(), true);
+select pg_temp.espera(
+  gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', true, current_setting('test.hash'))->>'codigo',
+  'plan_cambio', 'vista previa vieja (alguien creo una franja del archivo): plan_cambio');
+select pg_temp.espera((pg_temp.snap() = current_setting('test.snap'))::text, 'true', 'la vista previa vieja no escribe nada');
+delete from gimnasio_franjas where id = pg_temp.fr(41);
+
+-- Con la huella correcta aplica y devuelve la misma huella.
+select pg_temp.espera(
+  pg_temp.imp((select j from _f where k = 'h1'), 'agregar', true,
+              gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash')->>'ok',
+  'true', 'aplicar con la plan_hash de la vista previa: ok');
+select pg_temp.espera(
+  (pg_temp.r('plan_hash') = gimnasio_importar_franjas((select j from _f where k = 'h1'), 'agregar', false)->>'plan_hash')::text,
+  'false', 'despues de aplicar el plan cambia (ya no hay nada que crear): la huella vieja no sirve de nuevo');
+select pg_temp.espera(
+  (select count(*)::text from gimnasio_franjas where dia_semana = 4 and activa), '2', 'aplicar con huella correcta crea las 2 franjas del jueves');
+select pg_temp.espera(
+  (select cupo::text from gimnasio_franjas where id = pg_temp.fr(21)), '14', 'aplicar con huella correcta actualiza el cupo de A');
+
+-- ─── Carrera con un alta concurrente (EXCLUDE dentro de la importación) ───────
+-- 1) La franja solapada ya existe al validar: la importación lo informa como error de la fila.
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo)
+values (pg_temp.fr(42), 3, '15:30', '16:30', 4);
+select set_config('test.snap', pg_temp.snap(), true);
+select pg_temp.espera(
+  pg_temp.imp('[{"dia_semana":3,"hora_desde":"15:00","hora_hasta":"16:00","cupo":5}]'::jsonb, 'agregar', true)->>'codigo',
+  'errores', 'solape con una franja activa ya existente: error de validacion de la fila');
+select pg_temp.espera((pg_temp.snap() = current_setting('test.snap'))::text, 'true', 'ese rechazo no escribe nada');
+delete from gimnasio_franjas where id = pg_temp.fr(42);
+
+-- 2) La franja solapada aparece DESPUES de validar y justo antes del insert: se simula con un trigger
+--    que, al crear la franja del jueves 16:00, mete antes una franja activa que la pisa (es lo que haria
+--    un franja-guardar concurrente). El archivo ademas actualiza A: eso tambien debe deshacerse.
+create function pg_temp.carrera() returns trigger language plpgsql as $$
+begin
+  if new.dia_semana = 3 and new.hora_desde = '20:00' then
+    insert into gimnasio_franjas (dia_semana, hora_desde, hora_hasta, cupo) values (3, '20:30', '21:30', 1);
+  end if;
+  return new;
+end $$;
+create trigger carrera_alta before insert on gimnasio_franjas
+  for each row execute function pg_temp.carrera();
+
+insert into _f values ('carrera', $j$[
+  {"dia_semana":1,"hora_desde":"09:00","hora_hasta":"10:00","cupo":20,"profesor":"Ana / Luis"},
+  {"dia_semana":3,"hora_desde":"20:00","hora_hasta":"21:00","cupo":5}
+]$j$::jsonb);
+select set_config('test.snap', pg_temp.snap(), true);
+select pg_temp.espera(
+  pg_temp.imp((select j from _f where k = 'carrera'), 'agregar', true)->>'codigo',
+  'solape', 'alta concurrente que se solapa durante la importacion: codigo solape');
+select pg_temp.espera(pg_temp.r('ok'), 'false', 'solape: ok=false');
+select pg_temp.espera(
+  (pg_temp.snap() = current_setting('test.snap'))::text, 'true',
+  'solape: no queda nada escrito (ni la actualizacion de A ni la franja que metio la carrera)');
+drop trigger carrera_alta on gimnasio_franjas;
+drop function pg_temp.carrera();
+
+-- ─── Orden de escritura bajo el EXCLUDE (se prueba dentro de un savepoint) ────
+-- E (lun 18:30-19:30, activa) pisa a B (lun 18-19, inactiva). Un reemplazar que reactiva B y desactiva
+-- E sólo funciona si se desactiva ANTES de reactivar. Además crea una franja nueva sobre una activa
+-- que se desactiva (lun 09:30-10:30 pisa a A).
+savepoint orden_escritura;
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo)
+values (pg_temp.fr(26), 1, '18:30', '19:30', 5);
+select pg_temp.espera(
+  pg_temp.imp('[{"dia_semana":1,"hora_desde":"18:00","hora_hasta":"19:00","cupo":8},
+                {"dia_semana":1,"hora_desde":"09:30","hora_hasta":"10:30","cupo":5}]'::jsonb, 'reemplazar', true)->>'ok',
+  'true', 'reemplazar: desactiva primero, reactiva y crea despues (sin choque con el EXCLUDE)');
+select pg_temp.espera(
+  (select string_agg(id::text || ':' || activa::text, ',' order by id) from gimnasio_franjas
+    where id in (pg_temp.fr(22), pg_temp.fr(26), pg_temp.fr(21))),
+  pg_temp.fr(21)::text || ':false,' || pg_temp.fr(22)::text || ':true,' || pg_temp.fr(26)::text || ':false',
+  'reemplazar: B reactivada, E y A desactivadas');
+select pg_temp.espera(
+  (select count(*)::text from gimnasio_franjas where dia_semana = 1 and hora_desde = '09:30' and activa), '1',
+  'reemplazar: la franja nueva que pisaba a una desactivada se creo');
+rollback to savepoint orden_escritura;
+release savepoint orden_escritura;
 
 -- ─── Permisos de la importación ───────────────────────────────────────────────
 
