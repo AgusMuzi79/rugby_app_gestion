@@ -37,6 +37,9 @@ const MAX_DIAS_EXCEPCIONES = 366
 const CUPO_MAX = 500
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
+// Tope por chunk: el push corre después de cancelar y confirmar las reservas, así que si Expo
+// se cuelga no debe llevarse puesta la respuesta (el chunk queda como no entregado).
+const EXPO_PUSH_TIMEOUT_MS = 8000
 const ID_CHUNK_SIZE = 100
 
 // ─── Fechas y horas (UTC-3 fijo) ──────────────────────────────────────────────
@@ -520,6 +523,7 @@ async function avisarCierre(
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate' },
         body: JSON.stringify(chunk.map((c) => c.msg)),
+        signal: AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS),
       })
       if (!res.ok) {
         console.error('gimnasio-turnos-admin: Expo push falló:', res.status, await res.text())
