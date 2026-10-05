@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "vercel-build": "next build --webpack",
-    "start": "next start"
+    "start": "next start",
+    "test:calendario": "npx --yes tsx lib/calendarioImport.check.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
