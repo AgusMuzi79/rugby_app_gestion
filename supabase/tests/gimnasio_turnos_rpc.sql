@@ -1727,7 +1727,7 @@ select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(21)::text, 'T7: 
 select pg_temp.ahora('2026-10-05 18:44:59');
 select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(21)::text, 'T7: 18:44:59 sólo entra la primera');
 select pg_temp.ahora('2026-10-05 18:45:00');
-select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(22)::text, 'T7: 18:45 coinciden dos -> la que ya empezó (la tardía)');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(21)::text, 'T7: 18:45 coinciden dos y sin reserva -> se reporta la que ya empezó (la primera)');
 select pg_temp.ahora('2026-10-05 19:00:00');
 select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(22)::text, 'T7: 19:00 la primera ya terminó -> la segunda');
 select pg_temp.ahora('2026-10-05 19:59:59');
@@ -1813,6 +1813,76 @@ select pg_temp.ahora('2026-10-05 19:10:00');
 select pg_temp.espera(pg_temp.tj(6, 'estado'), 'sin_reserva', 'T7: el cierre de una franja no afecta a la siguiente');
 select pg_temp.ahora('2026-10-05 18:10:00');
 delete from gimnasio_franjas_excepciones;
+
+-- Franjas pegadas (17-18 y 18-19, tolerancia 15) el miércoles 2026-10-07: durante la
+-- superposición de ventanas la reserva de la franja en curso debe contar.
+update gimnasio_config set modo_cupos = 'bloqueante';
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo, activa, profesor) values
+  (pg_temp.fx(25), 3, '17:00', '18:00', 6, true, 'Luis'),
+  (pg_temp.fx(26), 3, '18:00', '19:00', 7, true, null);
+select pg_temp.rv(7, 25, '2026-10-07', 'reservada');   -- sólo la franja en curso
+select pg_temp.rv(8, 26, '2026-10-07', 'reservada');   -- sólo la que viene
+select pg_temp.rv(10, 25, '2026-10-07', 'asistio');
+select pg_temp.rv(11, 25, '2026-10-07', 'reservada');  -- en las dos
+select pg_temp.rv(11, 26, '2026-10-07', 'reservada');
+
+select pg_temp.ahora('2026-10-07 17:50:00');
+select pg_temp.espera(pg_temp.tj(7, 'estado') || '/' || pg_temp.tj(7, 'franja', 'id'),
+  'con_reserva/' || pg_temp.fx(25), 'T7 solape: reserva en la franja en curso -> con_reserva de esa franja');
+select pg_temp.espera(pg_temp.tj(7, 'bloquear'), 'false', 'T7 solape: reserva en la franja en curso no bloquea en bloqueante');
+select pg_temp.espera(pg_temp.tj(7, 'mensaje'), 'Reserva: 17:00–18:00 · Prof. Luis', 'T7 solape: mensaje de la franja en curso');
+select pg_temp.espera(pg_temp.tj(8, 'estado') || '/' || pg_temp.tj(8, 'franja', 'id'),
+  'con_reserva/' || pg_temp.fx(26), 'T7 solape: reserva sólo en la próxima -> con_reserva de la próxima');
+select pg_temp.espera(pg_temp.tj(8, 'mensaje'), 'Reserva: 18:00–19:00', 'T7 solape: mensaje de la próxima franja');
+select pg_temp.espera(pg_temp.tj(9, 'estado') || '/' || pg_temp.tj(9, 'franja', 'id'),
+  'sin_reserva/' || pg_temp.fx(25), 'T7 solape: sin reserva se reporta la franja en curso');
+select pg_temp.espera(pg_temp.tj(9, 'bloquear'), 'true', 'T7 solape: sin reserva bloquea en bloqueante');
+select pg_temp.espera(pg_temp.tj(10, 'estado') || '/' || pg_temp.tj(10, 'franja', 'id'),
+  'con_reserva/' || pg_temp.fx(25), 'T7 solape: asistio en la franja en curso cuenta');
+select pg_temp.espera(pg_temp.tj(11, 'franja', 'id'), pg_temp.fx(25)::text, 'T7 solape: reservas en las dos -> la que ya empezó');
+update gimnasio_config set modo_cupos = 'informativo';
+select pg_temp.espera(pg_temp.tj(9, 'bloquear'), 'false', 'T7 solape: sin reserva en informativo no bloquea');
+select pg_temp.espera(pg_temp.tj(9, 'mensaje'), 'Sin reserva en este horario (17:00–18:00).', 'T7 solape: sin reserva informa la franja en curso');
+update gimnasio_config set modo_cupos = 'bloqueante';
+
+-- ocupados/capacidad corresponden a la franja reportada (y su cupo_override).
+select pg_temp.espera(pg_temp.tj(9, 'ocupados') || '/' || pg_temp.tj(9, 'capacidad'), '3/6', 'T7 solape: ocupados/capacidad de la franja en curso');
+select pg_temp.espera(pg_temp.tj(8, 'ocupados') || '/' || pg_temp.tj(8, 'capacidad'), '2/7', 'T7 solape: ocupados/capacidad de la próxima franja');
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, cupo_override)
+values ('2026-10-07', pg_temp.fx(26), false, 3);
+select pg_temp.espera(pg_temp.tj(8, 'capacidad'), '3', 'T7 solape: cupo_override de la franja reportada');
+select pg_temp.espera(pg_temp.tj(9, 'capacidad'), '6', 'T7 solape: el cupo_override de la otra franja no se mezcla');
+delete from gimnasio_franjas_excepciones;
+
+-- Bordes de la ventana de la segunda franja: 17:44:59 sólo la primera, 17:45:00 las dos.
+select pg_temp.ahora('2026-10-07 17:44:59');
+select pg_temp.espera(pg_temp.tj(7, 'estado') || '/' || pg_temp.tj(7, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(25), 'T7 solape 17:44:59: reserva en la franja en curso');
+select pg_temp.espera(pg_temp.tj(8, 'estado') || '/' || pg_temp.tj(8, 'franja', 'id'), 'sin_reserva/' || pg_temp.fx(25), 'T7 solape 17:44:59: sólo es candidata la primera, la reserva de la próxima aún no cuenta');
+select pg_temp.espera(pg_temp.tj(9, 'estado') || '/' || pg_temp.tj(9, 'franja', 'id'), 'sin_reserva/' || pg_temp.fx(25), 'T7 solape 17:44:59: sin reserva -> franja en curso');
+select pg_temp.ahora('2026-10-07 17:45:00');
+select pg_temp.espera(pg_temp.tj(7, 'estado') || '/' || pg_temp.tj(7, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(25), 'T7 solape 17:45:00: reserva en la franja en curso');
+select pg_temp.espera(pg_temp.tj(8, 'estado') || '/' || pg_temp.tj(8, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(26), 'T7 solape 17:45:00: reserva en la próxima ya cuenta');
+select pg_temp.espera(pg_temp.tj(9, 'estado') || '/' || pg_temp.tj(9, 'franja', 'id'), 'sin_reserva/' || pg_temp.fx(25), 'T7 solape 17:45:00: sin reserva -> franja en curso');
+
+-- A las 18:00 la primera ya no es candidata.
+select pg_temp.ahora('2026-10-07 18:00:00');
+select pg_temp.espera(pg_temp.tj(7, 'estado') || '/' || pg_temp.tj(7, 'franja', 'id'), 'sin_reserva/' || pg_temp.fx(26), 'T7 solape 18:00:00: la franja anterior ya no es candidata');
+select pg_temp.espera(pg_temp.tj(8, 'estado') || '/' || pg_temp.tj(8, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(26), 'T7 solape 18:00:00: reserva de la segunda franja');
+
+-- La franja en curso cerrada por excepción: su reserva no cuenta; la de la próxima sí.
+select pg_temp.ahora('2026-10-07 17:50:00');
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, motivo)
+values ('2026-10-07', pg_temp.fx(25), true, 'Mantenimiento');
+select pg_temp.espera(pg_temp.tj(11, 'estado') || '/' || pg_temp.tj(11, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(26), 'T7 solape: franja en curso cerrada, reserva en la próxima -> con_reserva de la próxima');
+select pg_temp.espera(pg_temp.tj(8, 'estado') || '/' || pg_temp.tj(8, 'franja', 'id'), 'con_reserva/' || pg_temp.fx(26), 'T7 solape: franja en curso cerrada, reserva sólo en la próxima');
+select pg_temp.espera(pg_temp.tj(7, 'estado') || '/' || pg_temp.tj(7, 'bloquear') || '/' || coalesce(pg_temp.tj(7, 'reserva_id'), 'null'),
+  'cerrada/false/null', 'T7 solape: reserva sólo en la franja cerrada -> cerrada, sin bloquear ni reserva_id');
+select pg_temp.espera(pg_temp.tj(7, 'mensaje'), 'Franja cerrada: Mantenimiento', 'T7 solape: mensaje de cierre de la franja en curso');
+select pg_temp.espera(pg_temp.tj(9, 'estado'), 'cerrada', 'T7 solape: sin reserva y franja en curso cerrada -> cerrada');
+delete from gimnasio_franjas_excepciones;
+delete from gimnasio_franjas where id in (pg_temp.fx(25), pg_temp.fx(26));
+select pg_temp.ahora('2026-10-05 18:10:00');
+update gimnasio_config set modo_cupos = 'bloqueante';
 
 -- Franjas todas inactivas -> no-op otra vez.
 update gimnasio_franjas set activa = false;
