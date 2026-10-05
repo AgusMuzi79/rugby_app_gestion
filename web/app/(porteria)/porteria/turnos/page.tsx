@@ -60,6 +60,7 @@ interface Config {
   faltas_baja: number
   semanas_fijos: number
   tolerancia_min: number
+  faltas_activas: boolean
 }
 
 type VistaPrevia = {
@@ -1024,7 +1025,7 @@ function ExcepcionesSeccion() {
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 
-type CampoNumerico = Exclude<keyof Config, 'modo_cupos' | 'ventana_reserva'>
+type CampoNumerico = Exclude<keyof Config, 'modo_cupos' | 'ventana_reserva' | 'faltas_activas'>
 
 const CAMPOS_CONFIG: { campo: CampoNumerico; label: string; min: number; max: number; ayuda: string }[] = [
   { campo: 'anticipacion_dias', label: 'ANTICIPACIÓN (DÍAS)', min: 0, max: 30, ayuda: 'Con cuántos días de anticipación se puede reservar (0 a 30).' },
@@ -1065,6 +1066,7 @@ function ConfigSeccion() {
       action: 'config-guardar',
       modo_cupos: cfg.modo_cupos,
       ventana_reserva: cfg.ventana_reserva,
+      faltas_activas: cfg.faltas_activas,
       ...Object.fromEntries(CAMPOS_CONFIG.map(x => [x.campo, Number(valores[x.campo])])),
     })
     if (r.ok) setAviso({ tipo: 'ok', texto: 'Configuración guardada.' })
@@ -1119,6 +1121,23 @@ function ConfigSeccion() {
               <p className="font-lora text-xs text-tinta/40">{x.ayuda}</p>
             </div>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-1 max-w-xl">
+          <label className="flex items-center gap-2 font-lora text-sm text-tinta">
+            <input
+              type="checkbox"
+              checked={cfg.faltas_activas}
+              onChange={e => setCfg({ ...cfg, faltas_activas: e.target.checked })}
+            />
+            Procesar faltas automáticamente
+          </label>
+          <p className="font-lora text-xs text-tinta/40">
+            Marca asistió o faltó según los ingresos al gimnasio, avisa por push tras las faltas seguidas y libera el horario fijo.
+          </p>
+          <p className="font-lora text-xs text-rojo">
+            Activalo recién cuando todos escaneen al entrar al gimnasio: si alguien entra sin escanear, se le cuenta como falta.
+          </p>
         </div>
 
         <div><button type="submit" disabled={enviando} className={BTN}>GUARDAR CONFIGURACIÓN</button></div>
