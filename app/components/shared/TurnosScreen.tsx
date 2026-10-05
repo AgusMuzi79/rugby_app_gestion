@@ -64,7 +64,9 @@ function FranjaRow({
       >
         <View style={{ flex: 1 }}>
           <Text style={s.horario}>{horario}</Text>
-          {!franja.cerrado && (
+          {franja.cerrado ? (
+            !!franja.motivo_cierre && <Text style={s.motivoCierre}>Cerrado: {franja.motivo_cierre}</Text>
+          ) : (
             <Text style={s.lugares}>{lugares(franja.disponibles)}</Text>
           )}
           {esFijo && <Text style={s.fijoTag}>TURNO FIJO</Text>}
@@ -86,7 +88,7 @@ function FranjaRow({
 export default function TurnosScreen() {
   const insets = useSafeAreaInsets()
   const {
-    dias, semanas, limiteSemanal, fijos, loading, error,
+    dias, fijos, loading, error,
     refetch, reservar, cancelar, crearFijo, cancelarFijo,
   } = useTurnos()
   const [ocupado, setOcupado] = useState(false)
@@ -138,19 +140,10 @@ export default function TurnosScreen() {
     )
   }
 
-  const usados = semanas[0]?.dias_usados ?? 0
   const diasConFranjas = dias.filter(d => d.franjas.length > 0)
 
   const encabezado = (
     <View style={s.encabezado}>
-      <View style={s.banner}>
-        <Text style={s.bannerText}>
-          {limiteSemanal === null
-            ? `Esta semana usaste ${usados} ${usados === 1 ? 'día' : 'días'}`
-            : `Usaste ${usados} de ${limiteSemanal} días esta semana`}
-        </Text>
-      </View>
-
       <Text style={s.seccion}>MIS TURNOS FIJOS</Text>
       {fijos.length === 0 ? (
         <Text style={s.vacio}>No tenés turnos fijos.</Text>
@@ -235,14 +228,6 @@ const s = StyleSheet.create({
   encabezado:  { gap: 10, paddingTop: 16 },
   centro:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
 
-  banner: {
-    borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
-    paddingVertical: 14, paddingHorizontal: 16, backgroundColor: colors.tinta,
-  },
-  bannerText: {
-    fontFamily: fonts.label, fontSize: 15, letterSpacing: 1, color: '#15110A', textAlign: 'center',
-  },
-
   seccion: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     color: colors.oroHondo, marginTop: 14,
@@ -266,6 +251,7 @@ const s = StyleSheet.create({
   franjaMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   horario:    { fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4' },
   lugares:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
+  motivoCierre: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
   fijoTag:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo, marginTop: 4 },
 
   estado:       { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5 },

@@ -12,6 +12,7 @@ export interface FranjaTurno {
   ocupados:    number
   disponibles: number
   cerrado:     boolean
+  motivo_cierre: string | null   // mensaje del encargado cuando la franja está cerrada
   pasada:      boolean
   reservada:   boolean
   reserva_id:  string | null
@@ -21,11 +22,6 @@ export interface DiaTurnos {
   fecha:      string    // YYYY-MM-DD
   dia_semana: number
   franjas:    FranjaTurno[]
-}
-
-export interface SemanaUso {
-  desde:       string
-  dias_usados: number
 }
 
 export interface TurnoFijo {
@@ -38,10 +34,7 @@ export interface TurnoFijo {
 }
 
 interface Disponibilidad {
-  anticipacion_dias: number
-  limite_semanal:    number | null   // null = sin límite
-  semanas:           SemanaUso[]
-  dias:              DiaTurnos[]
+  dias: DiaTurnos[]
 }
 
 export interface ResultadoAccion {
@@ -84,12 +77,7 @@ export function useTurnos() {
       setFijos([])
     } else {
       const l = listado as Disponibilidad
-      setDisp({
-        anticipacion_dias: l.anticipacion_dias,
-        limite_semanal:    l.limite_semanal,
-        semanas:           l.semanas ?? [],
-        dias:              l.dias ?? [],
-      })
+      setDisp({ dias: l.dias ?? [] })
       setFijos(mis.ok ? ((mis as { fijos?: TurnoFijo[] }).fijos ?? []) : [])
       setError(null)
     }
@@ -116,10 +104,7 @@ export function useTurnos() {
     ejecutar({ action: 'cancelar-fijo', turno_fijo_id: turnoFijoId }), [ejecutar])
 
   return {
-    dias:             disp?.dias ?? [],
-    semanas:          disp?.semanas ?? [],
-    limiteSemanal:    disp?.limite_semanal ?? null,
-    anticipacionDias: disp?.anticipacion_dias ?? 0,
+    dias: disp?.dias ?? [],
     fijos,
     loading,
     error,

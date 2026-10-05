@@ -34,6 +34,7 @@ interface FranjaOcupacion {
   ocupados: number
   ocupados_fijos: number
   cerrado: boolean
+  motivo_cierre: string | null
   inactiva: boolean
   reservas: ReservaOcupacion[]
 }
@@ -49,19 +50,26 @@ interface Excepcion {
 
 interface Config {
   modo_cupos: 'informativo' | 'bloqueante'
+  ventana_reserva: 'mes' | 'dias'
   anticipacion_dias: number
   pct_cupo_fijos: number
   faltas_aviso: number
+  faltas_baja: number
   semanas_fijos: number
   tolerancia_min: number
 }
 
-interface Limite {
-  servicio_id: string | null
-  categoria_nombre: string | null
-  nombre: string
-  dias_por_semana: number | null
-  configurado: boolean
+type VistaPrevia = {
+  reservas_a_cancelar: number
+  socios_a_avisar: number
+  socios_sin_token: number
+}
+
+type ResultadoCierre = {
+  reservas_canceladas: number
+  avisos_enviados: number
+  avisos_fallidos: number
+  avisos_sin_token: number
 }
 
 type Seccion = 'ocupacion' | 'franjas' | 'excepciones' | 'config'
@@ -80,7 +88,7 @@ const ESTADO_LABEL: Record<string, string> = {
   reservada: 'Reservada', cancelada: 'Cancelada', asistio: 'Asistió', falto: 'Faltó',
 }
 const ORIGEN_LABEL: Record<string, string> = {
-  socio: 'Socio', fijo: 'Turno fijo', encargado: 'Encargado',
+  socio: 'Socio', fijo: 'Turno fijo',
 }
 
 const INPUT = 'font-lora text-sm text-tinta bg-card border border-gris-claro px-3 py-2 outline-none focus:border-oro transition-colors'
@@ -158,9 +166,6 @@ function OcupacionSeccion() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [aviso, setAviso]     = useState<Aviso>(null)
-  const [dni, setDni]         = useState('')
-  const [franjaId, setFranjaId] = useState('')
-  const [enviando, setEnviando] = useState(false)
 
   const cargar = useCallback(async (f: string) => {
     setLoading(true)
@@ -171,26 +176,6 @@ function OcupacionSeccion() {
   }, [])
 
   useEffect(() => { cargar(fecha) }, [fecha, cargar])
-
-  const anotables = franjas.filter(f => !f.inactiva && !f.cerrado)
-
-  const anotar = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!franjaId) { setAviso({ tipo: 'error', texto: 'Elegí una franja.' }); return }
-    setEnviando(true)
-    setAviso(null)
-    const r = await callEdgeFunction<{ socio: { numero_socio: string; nombre: string } }>('gimnasio-turnos-admin', {
-      action: 'reserva-manual', dni: dni.trim(), franja_id: franjaId, fecha,
-    })
-    if (r.ok) {
-      setAviso({ tipo: 'ok', texto: `Anotado: ${r.socio?.nombre ?? ''} (Nº ${r.socio?.numero_socio ?? '—'}).` })
-      setDni('')
-      await cargar(fecha)
-    } else {
-      setAviso({ tipo: 'error', texto: mensajeError(r) })
-    }
-    setEnviando(false)
-  }
 
   const cancelar = async (reservaId: string, nombre: string) => {
     if (!window.confirm(`¿Cancelar la reserva de ${nombre}?`)) return
@@ -231,6 +216,9 @@ function OcupacionSeccion() {
                   </p>
                   <p className="font-lora text-sm text-tinta/60">{f.ocupados} / {f.capacidad} lugares</p>
                 </div>
+                {f.cerrado && f.motivo_cierre && (
+                  <p className="font-lora text-xs text-tinta/60 mb-2">Mensaje a los socios: {f.motivo_cierre}</p>
+                )}
                 <div className="h-2 bg-gris-claro mb-4">
                   <div className={`h-2 ${pct >= 100 ? 'bg-rojo' : 'bg-oro'}`} style={{ width: `${pct}%` }} />
                 </div>
@@ -272,24 +260,6 @@ function OcupacionSeccion() {
           })}
         </div>
       )}
-
-      <form onSubmit={anotar} className="mt-8 border border-gris-claro p-4 flex flex-wrap gap-4 items-end">
-        <p className="w-full font-lora text-xs tracking-widest text-oro">ANOTAR POR DNI ({fechaLarga(fecha)})</p>
-        <div className="flex flex-col gap-1">
-          <label className={LABEL}>DNI</label>
-          <input value={dni} onChange={e => setDni(e.target.value)} inputMode="numeric" maxLength={20} className={INPUT} required />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className={LABEL}>FRANJA</label>
-          <select value={franjaId} onChange={e => setFranjaId(e.target.value)} className={INPUT} required>
-            <option value="">Elegir…</option>
-            {anotables.map(f => (
-              <option key={f.franja_id} value={f.franja_id}>{f.hora_desde} – {f.hora_hasta}</option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" disabled={enviando || !dni.trim()} className={BTN}>ANOTAR</button>
-      </form>
     </div>
   )
 }
@@ -472,22 +442,52 @@ function ExcepcionesSeccion() {
     e.preventDefault()
     setEnviando(true)
     setAviso(null)
-    const r = await callEdgeFunction<{ reservas_afectadas: number }>('gimnasio-turnos-admin', {
+    const cuerpo = {
       action: 'excepcion-guardar',
       fecha,
       franja_id: franjaId || null,
       cerrado,
       cupo_override: cupo === '' ? null : Number(cupo),
       motivo: motivo.trim() || undefined,
-    })
+    }
+
+    // Un cierre cancela reservas y avisa por push: primero se pide la vista previa (no escribe ni
+    // envía nada) y sólo se guarda si el encargado confirma el conteo.
+    if (cerrado) {
+      const previa = await callEdgeFunction<VistaPrevia>('gimnasio-turnos-admin', { ...cuerpo, solo_vista_previa: true })
+      if (!previa.ok) {
+        setAviso({ tipo: 'error', texto: mensajeError(previa) })
+        setEnviando(false)
+        return
+      }
+      const nRes = previa.reservas_a_cancelar ?? 0
+      const nSoc = previa.socios_a_avisar ?? 0
+      const sinToken = previa.socios_sin_token ?? 0
+      const texto =
+        `Se cancelarán ${nRes} reserva${nRes === 1 ? '' : 's'} y se avisará a ${nSoc} socio${nSoc === 1 ? '' : 's'} ` +
+        `con este mensaje:\n\n"${motivo.trim()}"` +
+        (sinToken > 0 ? `\n\n${sinToken} socio${sinToken === 1 ? '' : 's'} no tiene${sinToken === 1 ? '' : 'n'} las notificaciones activadas y no se enterará${sinToken === 1 ? '' : 'n'} por push.` : '') +
+        '\n\n¿Confirmás el cierre?'
+      if (!window.confirm(texto)) { setEnviando(false); return }
+    }
+
+    const r = await callEdgeFunction<ResultadoCierre>('gimnasio-turnos-admin', cuerpo)
     if (r.ok) {
-      const n = r.reservas_afectadas ?? 0
-      setAviso({
-        tipo: 'ok',
-        texto: cerrado && n > 0
-          ? `Excepción guardada. Hay ${n} reserva${n === 1 ? '' : 's'} vigente${n === 1 ? '' : 's'} en ese cierre: no se cancelaron solas.`
-          : 'Excepción guardada.',
-      })
+      if (cerrado) {
+        const canceladas = r.reservas_canceladas ?? 0
+        const fallidos = r.avisos_fallidos ?? 0
+        const sinToken = r.avisos_sin_token ?? 0
+        setAviso({
+          tipo: fallidos > 0 ? 'error' : 'ok',
+          texto:
+            `Cierre guardado. Se cancelaron ${canceladas} reserva${canceladas === 1 ? '' : 's'}; ` +
+            `avisos enviados: ${r.avisos_enviados ?? 0}` +
+            (fallidos > 0 ? `, con error: ${fallidos} (las reservas igual quedaron canceladas)` : '') +
+            (sinToken > 0 ? `, sin notificaciones activadas: ${sinToken}` : '') + '.',
+        })
+      } else {
+        setAviso({ tipo: 'ok', texto: 'Excepción guardada.' })
+      }
       setCupo(''); setMotivo('')
       await cargar()
     } else {
@@ -529,11 +529,20 @@ function ExcepcionesSeccion() {
           <label className={LABEL}>CUPO ESPECIAL</label>
           <input type="number" min={1} max={500} value={cupo} onChange={e => setCupo(e.target.value)} className={`${INPUT} w-28`} placeholder="opcional" />
         </div>
-        <div className="flex flex-col gap-1">
-          <label className={LABEL}>MOTIVO</label>
-          <input value={motivo} onChange={e => setMotivo(e.target.value)} maxLength={200} className={INPUT} placeholder="opcional" />
+        <div className="flex flex-col gap-1 w-full max-w-xl">
+          <label className={LABEL}>{cerrado ? 'MENSAJE PARA LOS SOCIOS' : 'MOTIVO'}</label>
+          <input
+            value={motivo} onChange={e => setMotivo(e.target.value)} maxLength={300} className={INPUT}
+            placeholder={cerrado ? 'Ej: Feriado, abrimos el viernes' : 'opcional'}
+            required={cerrado} minLength={cerrado ? 3 : undefined}
+          />
         </div>
-        <button type="submit" disabled={enviando} className={BTN}>GUARDAR</button>
+        <button type="submit" disabled={enviando} className={BTN}>{cerrado ? 'CERRAR…' : 'GUARDAR'}</button>
+        {cerrado && (
+          <p className="w-full font-lora text-xs text-tinta/50">
+            Cerrar cancela las reservas de ese día o franja y les avisa por push a los socios con este mensaje. Borrar el cierre después no las restaura.
+          </p>
+        )}
         {!cerrado && cupo === '' && (
           <p className="w-full font-lora text-xs text-tinta/50">Una excepción abierta necesita un cupo especial.</p>
         )}
@@ -561,7 +570,7 @@ function ExcepcionesSeccion() {
               <th className={TH}>FECHA</th>
               <th className={TH}>FRANJA</th>
               <th className={TH}>EFECTO</th>
-              <th className={TH}>MOTIVO</th>
+              <th className={TH}>MENSAJE</th>
               <th className={TH}></th>
             </tr>
           </thead>
@@ -589,10 +598,13 @@ function ExcepcionesSeccion() {
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 
-const CAMPOS_CONFIG: { campo: keyof Omit<Config, 'modo_cupos'>; label: string; min: number; max: number; ayuda: string }[] = [
+type CampoNumerico = Exclude<keyof Config, 'modo_cupos' | 'ventana_reserva'>
+
+const CAMPOS_CONFIG: { campo: CampoNumerico; label: string; min: number; max: number; ayuda: string }[] = [
   { campo: 'anticipacion_dias', label: 'ANTICIPACIÓN (DÍAS)', min: 0, max: 30, ayuda: 'Con cuántos días de anticipación se puede reservar (0 a 30).' },
   { campo: 'pct_cupo_fijos',    label: '% DE CUPO PARA FIJOS', min: 0, max: 100, ayuda: 'Porcentaje del cupo de cada franja reservado a turnos fijos.' },
-  { campo: 'faltas_aviso',      label: 'FALTAS PARA AVISAR', min: 1, max: 20, ayuda: 'Faltas seguidas de un turno fijo antes del aviso por push.' },
+  { campo: 'faltas_aviso',      label: 'FALTAS PARA AVISAR', min: 1, max: 20, ayuda: 'Faltas seguidas antes del aviso por push de que se va a liberar el horario.' },
+  { campo: 'faltas_baja',       label: 'FALTAS PARA LIBERAR EL HORARIO', min: 2, max: 30, ayuda: 'Faltas seguidas tras las cuales se saca el horario. Tiene que ser mayor que las del aviso.' },
   { campo: 'semanas_fijos',     label: 'SEMANAS DE TURNOS FIJOS', min: 1, max: 12, ayuda: 'Cuántas semanas hacia adelante se reservan los turnos fijos.' },
   { campo: 'tolerancia_min',    label: 'TOLERANCIA (MIN)', min: 0, max: 120, ayuda: 'Minutos de margen alrededor del horario de la franja.' },
 ]
@@ -600,32 +612,18 @@ const CAMPOS_CONFIG: { campo: keyof Omit<Config, 'modo_cupos'>; label: string; m
 function ConfigSeccion() {
   const [cfg, setCfg]     = useState<Config | null>(null)
   const [valores, setValores] = useState<Record<string, string>>({})
-  const [limites, setLimites] = useState<Limite[]>([])
-  const [dias, setDias]   = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [aviso, setAviso] = useState<Aviso>(null)
   const [enviando, setEnviando] = useState(false)
 
-  const clave = (l: Limite) => l.servicio_id ?? `cat:${l.categoria_nombre}`
-
   const cargar = useCallback(async () => {
     setLoading(true)
-    const [c, l] = await Promise.all([
-      callEdgeFunction<{ config: Config }>('gimnasio-turnos-admin', { action: 'config-get' }),
-      callEdgeFunction<{ limites: Limite[] }>('gimnasio-turnos-admin', { action: 'limites-listar' }),
-    ])
+    const c = await callEdgeFunction<{ config: Config }>('gimnasio-turnos-admin', { action: 'config-get' })
     if (c.ok && c.config) {
       setCfg(c.config)
       setValores(Object.fromEntries(CAMPOS_CONFIG.map(x => [x.campo, String(c.config[x.campo])])))
     } else {
       setAviso({ tipo: 'error', texto: mensajeError(c) })
-    }
-    if (l.ok) {
-      const items = l.limites ?? []
-      setLimites(items)
-      setDias(Object.fromEntries(items.map(x => [clave(x), x.dias_por_semana === null ? '' : String(x.dias_por_semana)])))
-    } else {
-      setAviso({ tipo: 'error', texto: mensajeError(l) })
     }
     setLoading(false)
   }, [])
@@ -640,6 +638,7 @@ function ConfigSeccion() {
     const r = await callEdgeFunction<{ config: Config }>('gimnasio-turnos-admin', {
       action: 'config-guardar',
       modo_cupos: cfg.modo_cupos,
+      ventana_reserva: cfg.ventana_reserva,
       ...Object.fromEntries(CAMPOS_CONFIG.map(x => [x.campo, Number(valores[x.campo])])),
     })
     if (r.ok) setAviso({ tipo: 'ok', texto: 'Configuración guardada.' })
@@ -647,24 +646,11 @@ function ConfigSeccion() {
     setEnviando(false)
   }
 
-  const guardarLimite = async (l: Limite) => {
-    setAviso(null)
-    const v = dias[clave(l)]?.trim() ?? ''
-    const r = await callEdgeFunction('gimnasio-turnos-admin', {
-      action: 'limite-guardar',
-      ...(l.servicio_id ? { servicio_id: l.servicio_id } : { categoria_nombre: l.categoria_nombre }),
-      dias_por_semana: v === '' ? null : Number(v),
-    })
-    if (r.ok) {
-      setAviso({ tipo: 'ok', texto: `Límite de "${l.nombre}" guardado.` })
-      await cargar()
-    } else {
-      setAviso({ tipo: 'error', texto: mensajeError(r) })
-    }
-  }
-
   if (loading) return <Cargando />
   if (!cfg) return <AvisoBox aviso={aviso} />
+
+  // La anticipación sólo rige cuando la ventana es "próximos N días".
+  const campos = CAMPOS_CONFIG.filter(x => x.campo !== 'anticipacion_dias' || cfg.ventana_reserva === 'dias')
 
   return (
     <div>
@@ -681,8 +667,21 @@ function ConfigSeccion() {
           </select>
         </div>
 
+        <div className="flex flex-col gap-1">
+          <label className={LABEL}>VENTANA DE RESERVA</label>
+          <select value={cfg.ventana_reserva} onChange={e => setCfg({ ...cfg, ventana_reserva: e.target.value as Config['ventana_reserva'] })} className={`${INPUT} w-64`}>
+            <option value="mes">Todo el mes en curso</option>
+            <option value="dias">Próximos N días</option>
+          </select>
+          <p className="font-lora text-xs text-tinta/40">
+            {cfg.ventana_reserva === 'mes'
+              ? 'Los socios reservan cualquier día desde hoy hasta fin de mes. El mes siguiente se abre el día 1.'
+              : 'Los socios reservan desde hoy hasta la cantidad de días que indiques abajo.'}
+          </p>
+        </div>
+
         <div className="flex flex-wrap gap-6">
-          {CAMPOS_CONFIG.map(x => (
+          {campos.map(x => (
             <div key={x.campo} className="flex flex-col gap-1 w-56">
               <label className={LABEL}>{x.label}</label>
               <input
@@ -698,36 +697,6 @@ function ConfigSeccion() {
 
         <div><button type="submit" disabled={enviando} className={BTN}>GUARDAR CONFIGURACIÓN</button></div>
       </form>
-
-      <p className="font-lora text-xs tracking-widest text-oro mb-3">DÍAS POR SEMANA SEGÚN SERVICIO</p>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b-2 border-gris-claro">
-            <th className={TH}>SERVICIO / CATEGORÍA</th>
-            <th className={TH}>DÍAS POR SEMANA</th>
-            <th className={TH}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {limites.map(l => (
-            <tr key={clave(l)} className="border-b border-gris-claro">
-              <td className="font-lora text-sm text-tinta py-3 pr-4">{l.nombre}</td>
-              <td className="py-3 pr-4">
-                <input
-                  type="number" min={1} max={7} placeholder="sin límite"
-                  value={dias[clave(l)] ?? ''}
-                  onChange={e => setDias({ ...dias, [clave(l)]: e.target.value })}
-                  className={`${INPUT} w-28`}
-                />
-              </td>
-              <td className="py-3 text-right">
-                <button className={BTN} onClick={() => guardarLimite(l)}>GUARDAR</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="font-lora text-xs text-tinta/40 mt-2">Vacío = sin límite de días por semana.</p>
     </div>
   )
 }
