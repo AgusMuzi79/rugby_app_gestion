@@ -26,7 +26,8 @@
 //   reserva-cancelar   — { reserva_id }.
 //   config-get / config-guardar — modo_cupos (informativo|bloqueante), ventana de reserva (mes|dias),
 //                        anticipación (sólo modo 'dias'), % de fijos, faltas de aviso y de baja, tolerancia y el
-//                        interruptor `faltas_activas` (proceso automático de faltas: arranca apagado).
+//                        interruptor `faltas_activas` (proceso automático de faltas: arranca apagado) y, sólo de lectura,
+//                        `faltas_activas_desde` (hora local en que se encendió; lo fija un trigger de la base).
 //
 // Seguridad: JWT requerido; el rol sale de profiles.rol del caller (nunca del body) y debe ser
 // 'porteria' (el encargado, label "Gimnasio"), 'admin' o 'subcomision'. Todo lo escribe esta función con
@@ -777,7 +778,7 @@ async function handleReservaCancelar(body: Record<string, unknown>): Promise<Res
 // ─── config ───────────────────────────────────────────────────────────────────
 
 const CONFIG_COLS =
-  'modo_cupos, ventana_reserva, anticipacion_dias, pct_cupo_fijos, faltas_aviso, faltas_baja, semanas_fijos, tolerancia_min, faltas_activas'
+  'modo_cupos, ventana_reserva, anticipacion_dias, pct_cupo_fijos, faltas_aviso, faltas_baja, semanas_fijos, tolerancia_min, faltas_activas, faltas_activas_desde'
 
 async function handleConfigGet(): Promise<Response> {
   const { data, error } = await supabaseAdmin.from('gimnasio_config').select(CONFIG_COLS).eq('id', 1).single()

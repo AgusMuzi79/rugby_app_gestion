@@ -61,6 +61,8 @@ interface Config {
   semanas_fijos: number
   tolerancia_min: number
   faltas_activas: boolean
+  // Hora local del club ('AAAA-MM-DDTHH:MM:SS', sin zona) en que se encendió el proceso; null = nunca.
+  faltas_activas_desde: string | null
 }
 
 type VistaPrevia = {
@@ -1025,7 +1027,7 @@ function ExcepcionesSeccion() {
 
 // ─── Configuración ────────────────────────────────────────────────────────────
 
-type CampoNumerico = Exclude<keyof Config, 'modo_cupos' | 'ventana_reserva' | 'faltas_activas'>
+type CampoNumerico = Exclude<keyof Config, 'modo_cupos' | 'ventana_reserva' | 'faltas_activas' | 'faltas_activas_desde'>
 
 const CAMPOS_CONFIG: { campo: CampoNumerico; label: string; min: number; max: number; ayuda: string }[] = [
   { campo: 'anticipacion_dias', label: 'ANTICIPACIÓN (DÍAS)', min: 0, max: 30, ayuda: 'Con cuántos días de anticipación se puede reservar (0 a 30).' },
@@ -1035,6 +1037,12 @@ const CAMPOS_CONFIG: { campo: CampoNumerico; label: string; min: number; max: nu
   { campo: 'semanas_fijos',     label: 'SEMANAS DE TURNOS FIJOS', min: 1, max: 12, ayuda: 'Cuántas semanas hacia adelante se reservan los turnos fijos.' },
   { campo: 'tolerancia_min',    label: 'TOLERANCIA (MIN)', min: 0, max: 120, ayuda: 'Minutos de margen alrededor del horario de la franja.' },
 ]
+
+// 'AAAA-MM-DDTHH:MM:SS' (ya en hora de Argentina, sin zona) -> '07/10 18:30'. Sin conversión de zona.
+function desdeLegible(iso: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso)
+  return m ? `${m[2]}/${m[1]} ${m[3]}:${m[4]}` : iso
+}
 
 function ConfigSeccion() {
   const [cfg, setCfg]     = useState<Config | null>(null)
@@ -1134,7 +1142,14 @@ function ConfigSeccion() {
           </label>
           <p className="font-lora text-xs text-tinta/40">
             Marca asistió o faltó según los ingresos al gimnasio, avisa por push tras las faltas seguidas y libera el horario fijo.
+            Al activarlo sólo se evalúan los turnos desde ese momento: lo anterior no cuenta.
           </p>
+          {cfg.faltas_activas_desde && (
+            <p className="font-lora text-xs text-tinta/60">
+              Evaluando faltas desde el {desdeLegible(cfg.faltas_activas_desde)}
+              {cfg.faltas_activas ? '' : ' (hoy está apagado; al volver a activarlo se reinicia)'}
+            </p>
+          )}
           <p className="font-lora text-xs text-rojo">
             Activalo recién cuando todos escaneen al entrar al gimnasio: si alguien entra sin escanear, se le cuenta como falta.
           </p>

@@ -1127,6 +1127,7 @@ update gimnasio_config set ventana_reserva = 'mes', pct_cupo_fijos = 50, semanas
   faltas_aviso = 2, faltas_baja = 3, tolerancia_min = 15;
 
 select pg_temp.espera((select faltas_activas::text from gimnasio_config), 'false', 'T6: faltas_activas arranca apagado');
+select pg_temp.espera((select (faltas_activas_desde is null)::text from gimnasio_config), 'true', 'T6: faltas_activas_desde arranca en null');
 
 insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo, activa) values
   (pg_temp.fx(1), 1, '18:00', '19:00', 10, true),    -- lunes 18-19
@@ -1280,8 +1281,22 @@ select pg_temp.acc(7, '2026-09-28 17:44:59');                 -- 1 s antes: falt
 select pg_temp.acc(8, '2026-09-28 19:15:01');                 -- 1 s después: falta
 select pg_temp.acc(9, '2026-09-28 18:30:00', 'otro-punto');   -- otro punto de acceso: falta
 
--- Se evalúa sólo después de fin + tolerancia. Dry-run (no escribe), interruptor apagado.
+-- Corte en null (el interruptor nunca se encendió): el dry-run no evalúa NADA, ni la historia.
 select pg_temp.ahora('2026-09-28 19:14:59');
+insert into t6 select 'p0', gimnasio_procesar_faltas(false);
+select pg_temp.espera((select (v->>'evaluadas') || '/' || (v->>'falto') from t6 where k = 'p0'), '0/0', 'corte null: dry-run no evalúa nada');
+select pg_temp.espera((select (v->'desde' = 'null'::jsonb)::text from t6 where k = 'p0'), 'true', 'corte null: desde = null');
+select pg_temp.espera((select ((v->>'nota') like 'Todavía no se activó%')::text from t6 where k = 'p0'), 'true', 'corte null: trae la nota aclaratoria');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'corte null: no cambia reservas');
+-- Se enciende (y apaga) antes de todos los fixtures: el corte queda en 2026-09-14 00:00.
+select pg_temp.ahora('2026-09-14 00:00:00');
+update gimnasio_config set faltas_activas = true;
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-09-14 00:00:00', 'encender el interruptor fija faltas_activas_desde = ahora');
+update gimnasio_config set faltas_activas = false;
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-09-14 00:00:00', 'apagar el interruptor conserva faltas_activas_desde');
+select pg_temp.ahora('2026-09-28 19:14:59');
+
+-- Se evalúa sólo después de fin + tolerancia. Dry-run (no escribe), interruptor apagado.
 insert into t6 select 'p1', gimnasio_procesar_faltas(false);
 select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'p1'), '6',
   'antes de fin+tolerancia no se evalúa el lunes 09-28 (sólo 6 reservas anteriores)');
@@ -1300,7 +1315,9 @@ select pg_temp.espera((select v::text from t6 where k = 'p3'), '{"ok": true, "ac
 select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'interruptor apagado: no evalúa nada');
 
 -- Dry-run con el interruptor encendido: calcula todo y no escribe.
-update gimnasio_config set faltas_activas = true;
+select pg_temp.ahora('2026-09-14 00:00:00');
+update gimnasio_config set faltas_activas = true;   -- el corte vuelve a quedar en 09-14 00:00
+select pg_temp.ahora('2026-09-29 12:00:00');
 insert into t6 select 'p4', gimnasio_procesar_faltas(false);
 select pg_temp.espera((select jsonb_array_length(v->'avisos')::text from t6 where k = 'p4'), '2', 'dry-run: informa 2 avisos que aplicaría');
 select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'dry-run (encendido): sigue sin escribir reservas');
@@ -1372,6 +1389,71 @@ select pg_temp.espera((select v->'bajas'->0->>'franja_id' from t6 where k = 'p9'
 select pg_temp.espera((select largo::text from gimnasio_rachas() where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(1)), '1', 'F1: la racha post-baja es 1');
 select pg_temp.espera((select activo::text from gimnasio_turnos_fijos where id = pg_temp.tf(22)), 'false', 'F3: fijo desactivado por su propia baja');
 
+-- ─── Corte de evaluación (faltas_activas_desde) ───────────────────────────────
+
+-- El UPDATE no puede pisar el corte a mano; encender de nuevo lo mueve al momento actual.
+update gimnasio_config set faltas_activas_desde = null, faltas_activas = false;
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-09-14 00:00:00', 'el trigger impide pisar faltas_activas_desde con un UPDATE');
+select pg_temp.ahora('2026-10-20 12:00:00');
+update gimnasio_config set faltas_activas = true;
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-10-20 12:00:00', 'encender de nuevo mueve el corte al nuevo momento');
+update gimnasio_config set pct_cupo_fijos = 50;   -- otro cambio: el corte no se toca
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-10-20 12:00:00', 'un UPDATE sin cambiar el interruptor no mueve el corte');
+
+-- Franjas de martes 10-20 pegadas al corte (12:00): A termina 10 minutos antes, B 10 minutos después.
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo) values
+  (pg_temp.fx(7), 2, '10:00', '11:50', 10),
+  (pg_temp.fx(8), 2, '11:50', '12:10', 10);
+select pg_temp.rv(1, 7, '2026-10-20');   -- termina 11:50 < corte: NO se evalúa
+select pg_temp.rv(2, 8, '2026-10-20');   -- termina 12:10 >= corte: se evalúa
+-- Historia previa al corte: racha de 2 faltas ya evaluadas de s3 en la franja del martes 18-19, y un
+-- fijo activo con un contador viejo.
+select pg_temp.rv(3, 2, '2026-10-06', 'falto');
+select pg_temp.rv(3, 2, '2026-10-13', 'falto');
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id, faltas_consecutivas) values (pg_temp.tf(30), pg_temp.so(5), pg_temp.fx(2), 2);
+-- Reservas posteriores al corte, las evalúa el proceso según avance el reloj.
+select pg_temp.rv(3, 2, d::date) from unnest(array['2026-10-20', '2026-10-27', '2026-11-03']) d;
+
+select pg_temp.ahora('2026-10-20 12:30:00');
+insert into t6 select 'c1', gimnasio_procesar_faltas(false);
+select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'c1'), '1', 'corte: dry-run evalúa sólo la franja que terminó después del corte (B)');
+select pg_temp.espera((select v->>'desde' from t6 where k = 'c1'), '2026-10-20T12:00:00', 'corte: el resultado informa desde');
+select pg_temp.espera((select estado from gimnasio_reservas where socio_id = pg_temp.so(2) and franja_id = pg_temp.fx(8)), 'reservada', 'corte: el dry-run no escribió');
+insert into t6 select 'c2', gimnasio_procesar_faltas();
+select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'c2'), '1', 'corte: aplicado evalúa 1 (B, termina 10 min después del corte)');
+select pg_temp.espera((select estado from gimnasio_reservas where socio_id = pg_temp.so(2) and franja_id = pg_temp.fx(8)), 'falto', 'corte: B (termina después) quedó evaluada como falto');
+select pg_temp.espera((select estado from gimnasio_reservas where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(7)), 'reservada', 'corte: A (terminó 10 min antes) NO se evalúa y queda como estaba');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado = 'reservada' and fecha < '2026-10-20'), '0',
+  'corte: no se tocó ninguna reserva anterior (no hay actualización masiva)');
+select pg_temp.espera((select faltas_consecutivas::text from gimnasio_turnos_fijos where id = pg_temp.tf(30)), '0',
+  'corte: el contador faltas_consecutivas viejo del fijo se reinicia (la historia no cuenta)');
+
+-- La historia previa no cuenta para rachas: 2 faltas viejas + 1 nueva = racha 1 (no baja).
+select pg_temp.ahora('2026-10-20 19:30:00');
+insert into t6 select 'c3', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'c3'),
+  '1/0/0', 'corte: las faltas previas no suman; 1 falta nueva = sin aviso ni baja');
+select pg_temp.espera((select largo::text from gimnasio_rachas() where socio_id = pg_temp.so(3) and franja_id = pg_temp.fx(2)), '1',
+  'corte: la racha de s3 ignora lo anterior al corte');
+-- Después del corte todo funciona normal: aviso a racha 2 y baja a racha 3.
+select pg_temp.ahora('2026-10-27 19:30:00');
+insert into t6 select 'c4', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'c4'),
+  '1/1/0', 'corte: 2da falta posterior da el aviso');
+select pg_temp.espera((select v->'avisos'->0->>'racha' from t6 where k = 'c4'), '2', 'corte: el aviso es de racha 2');
+select pg_temp.ahora('2026-11-03 19:30:00');
+insert into t6 select 'c5', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'c5'),
+  '1/0/1', 'corte: 3ra falta posterior da la baja');
+select pg_temp.espera((select estado from gimnasio_reservas where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(7)), 'reservada', 'corte: A sigue sin evaluar al final');
+
+-- INSERT de la fila de config ya activa: el corte arranca en ese momento.
+select pg_temp.ahora('2026-12-01 08:00:00');
+delete from gimnasio_config;
+insert into gimnasio_config (id, faltas_activas) values (1, true);
+select pg_temp.espera((select faltas_activas_desde::text from gimnasio_config), '2026-12-01 08:00:00', 'INSERT ya activo fija el corte en ahora');
+update gimnasio_config set ventana_reserva = 'mes', pct_cupo_fijos = 50, semanas_fijos = 2, tolerancia_min = 15;
+
 -- ─── Permisos y RLS (T6) ──────────────────────────────────────────────────────
 
 set local role authenticated;
@@ -1415,7 +1497,7 @@ reset role;
 set local role service_role;
 select pg_temp.espera(gimnasio_materializar_fijos()->>'ok', 'true', 'service_role ejecuta gimnasio_materializar_fijos');
 select pg_temp.espera(gimnasio_procesar_faltas(false)->>'ok', 'true', 'service_role ejecuta gimnasio_procesar_faltas');
-select pg_temp.espera((select count(*)::text from gimnasio_rachas() where socio_id = pg_temp.so(3)), '1', 'service_role ejecuta gimnasio_rachas');
+select pg_temp.espera((select count(*)::text from gimnasio_rachas()), '0', 'service_role ejecuta gimnasio_rachas (el corte de 12-01 deja la historia afuera)');
 reset role;
 
 -- RLS de gimnasio_faltas_eventos: lectura sólo para el staff, sin escritura.

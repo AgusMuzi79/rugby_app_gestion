@@ -21,10 +21,44 @@
 -- ─── Interruptor de faltas ────────────────────────────────────────────────────
 
 alter table gimnasio_config
-  add column faltas_activas boolean not null default false;
+  add column faltas_activas       boolean   not null default false,
+  -- Desde cuándo se evalúan faltas (hora local del club, mismo tipo que gimnasio_ahora(): timestamp
+  -- sin zona). Lo fija el trigger de abajo al encender el interruptor; null = nunca se encendió.
+  add column faltas_activas_desde timestamp;
 
 comment on column gimnasio_config.faltas_activas is
   'Interruptor del proceso automático de faltas (avisos y baja del horario). Encenderlo recién cuando todos escaneen al entrar al gimnasio: la asistencia se deduce de los ingresos en accesos.';
+
+comment on column gimnasio_config.faltas_activas_desde is
+  'Momento (hora local del club) en que faltas_activas pasó de false a true la última vez. Sólo se evalúan reservas cuya franja terminó en ese momento o después: lo anterior nunca se evalúa ni cuenta para rachas. Apagar el interruptor no lo borra; volver a encenderlo lo mueve al nuevo momento.';
+
+-- La base garantiza el corte sea quien sea el que escribe (Edge Function, SQL editor, ...):
+--   · false -> true : faltas_activas_desde = ahora (gimnasio_ahora()).
+--   · true -> false o sin cambio del interruptor: se conserva el valor anterior (aunque el UPDATE
+--     intente pisarlo).
+--   · INSERT ya activo: ahora, salvo que venga con un valor explícito.
+create or replace function gimnasio_config_faltas_desde()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.faltas_activas and new.faltas_activas_desde is null then
+      new.faltas_activas_desde := gimnasio_ahora();
+    end if;
+  elsif new.faltas_activas and not old.faltas_activas then
+    new.faltas_activas_desde := gimnasio_ahora();
+  else
+    new.faltas_activas_desde := old.faltas_activas_desde;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger gimnasio_config_faltas_desde
+  before insert or update on gimnasio_config
+  for each row execute function gimnasio_config_faltas_desde();
 
 -- ─── Eventos de faltas (dedupe de avisos y bajas) ─────────────────────────────
 -- fecha_ref identifica la racha y hace único el evento:
@@ -188,7 +222,9 @@ $$;
 -- ─── Rachas de faltas ─────────────────────────────────────────────────────────
 -- Racha vigente por (socio, franja): faltas consecutivas YA evaluadas ('falto'), ordenadas por
 -- fecha, que vienen después del último 'asistio' y de la última baja registrada. Las reservas
--- 'cancelada' y 'reservada' no cuentan ni cortan la racha. Sólo devuelve pares con racha >= 1.
+-- 'cancelada' y 'reservada' no cuentan ni cortan la racha. Tampoco cuentan las reservas cuya franja
+-- terminó antes de gimnasio_config.faltas_activas_desde (la historia previa al encendido no entra
+-- nunca en una racha; con el corte en null no hay rachas). Sólo devuelve pares con racha >= 1.
 --   largo     — cantidad de faltas de la racha
 --   primera   — fecha de la primera falta
 --   ultima    — fecha de la última falta (es la fecha_ref de la baja)
@@ -220,8 +256,10 @@ as $$
   ev as (
     select r.socio_id as e_socio, r.franja_id as e_franja, r.fecha as e_fecha, r.estado as e_estado
     from gimnasio_reservas r
+    join gimnasio_franjas fr on fr.id = r.franja_id
     left join cortes c on c.c_socio = r.socio_id and c.c_franja = r.franja_id
     where r.estado in ('asistio', 'falto')
+      and (r.fecha + fr.hora_hasta) >= (select cf.faltas_activas_desde from gimnasio_config cf where cf.id = 1)
       and (c.corte is null or r.fecha > c.corte)
   ),
   ult as (
@@ -251,7 +289,9 @@ $$;
 
 -- ─── Proceso de faltas ────────────────────────────────────────────────────────
 -- 1. Evalúa cada reserva 'reservada' cuya franja ya terminó más la tolerancia
---    (ahora >= fecha + hora_hasta + tolerancia_min): 'asistio' si el socio tiene un ingreso en
+--    (ahora >= fecha + hora_hasta + tolerancia_min) Y terminó en o después de
+--    gimnasio_config.faltas_activas_desde (nunca se mira hacia atrás del momento en que se encendió
+--    el interruptor; las reservas anteriores quedan como están, sin actualización masiva): 'asistio' si el socio tiene un ingreso en
 --    `accesos` (punto 'gimnasio') dentro de [inicio - tolerancia, fin + tolerancia] de ese día
 --    (extremos incluidos; hora local UTC-3), si no 'falto'.
 -- 2. Recalcula gimnasio_turnos_fijos.faltas_consecutivas de los fijos activos con la racha vigente.
@@ -270,7 +310,10 @@ $$;
 -- ESTA corrida insertó se devuelve, así que una segunda corrida no devuelve ni cambia nada nuevo
 -- (tampoco dos corridas concurrentes: un lock advisory las serializa).
 --
--- Devuelve {ok, activo, aplicado, evaluadas, asistio, falto, avisos:[...], bajas:[...]}; cada item
+-- Si faltas_activas_desde es null (el interruptor nunca se encendió) el dry-run NO evalúa nada y
+-- devuelve desde:null con una `nota`: nunca cae a evaluar toda la historia.
+--
+-- Devuelve {ok, activo, aplicado, desde, evaluadas, asistio, falto, avisos:[...], bajas:[...]}; cada item
 -- trae socio_id, profile_id, franja_id, dia_semana, hora_desde, hora_hasta, profesor, fecha, racha y
 -- faltas_baja (las bajas además reservas_canceladas y fijo_desactivado).
 
@@ -286,6 +329,7 @@ declare
   v_ahora      timestamp := gimnasio_ahora();
   v_hoy        date := gimnasio_ahora()::date;
   v_tol        interval;
+  v_desde      timestamp;
   v_evaluadas  integer := 0;
   v_asistio    integer := 0;
   v_falto      integer := 0;
@@ -307,6 +351,16 @@ begin
     return jsonb_build_object('ok', true, 'activo', false);
   end if;
 
+  v_desde := v_cfg.faltas_activas_desde;
+  if v_desde is null then
+    -- Sólo se llega acá en dry-run (aplicando con el interruptor apagado ya se devolvió arriba).
+    return jsonb_build_object(
+      'ok', true, 'activo', v_cfg.faltas_activas, 'aplicado', v_aplicar, 'desde', null,
+      'nota', 'Todavía no se activó el proceso de faltas: no hay desde cuándo evaluar.',
+      'evaluadas', 0, 'asistio', 0, 'falto', 0, 'avisos', '[]'::jsonb, 'bajas', '[]'::jsonb
+    );
+  end if;
+
   v_tol := make_interval(mins => v_cfg.tolerancia_min);
 
   perform pg_advisory_xact_lock(hashtext('gimnasio_procesar_faltas'));
@@ -326,6 +380,7 @@ begin
       from gimnasio_reservas r
       join gimnasio_franjas f on f.id = r.franja_id
       where r.estado = 'reservada'
+        and (r.fecha + f.hora_hasta) >= v_desde
         and (r.fecha + f.hora_hasta) + v_tol <= v_ahora
     ),
     upd as (
@@ -430,6 +485,7 @@ begin
     'ok', true,
     'activo', v_cfg.faltas_activas,
     'aplicado', v_aplicar,
+    'desde', v_desde,
     'evaluadas', v_evaluadas,
     'asistio', v_asistio,
     'falto', v_falto,
