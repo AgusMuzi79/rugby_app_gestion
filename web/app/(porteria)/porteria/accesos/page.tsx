@@ -12,6 +12,7 @@ interface Acceso {
   punto: string
   semaforo: Semaforo | null
   sin_servicio: boolean
+  sin_reserva: boolean
   es_invitado: boolean
   invitado_dni: string | null
   veces_invitado: number | null
@@ -91,13 +92,14 @@ export default function AccesosPage() {
   useEffect(() => { fetchAccesos(fecha) }, [fecha, fetchAccesos])
 
   const handleExportar = () => {
-    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Invitado', 'DNI invitado', 'Veces (30 días)']
+    const columnas = ['Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Sin reserva', 'Invitado', 'DNI invitado', 'Veces (30 días)']
     const filas = accesos.map(a => [
       formatHora(a.creado_en),
       a.numero_socio,
       a.nombre,
       a.semaforo ? SEMAFORO_LABEL[a.semaforo] : '',
       a.sin_servicio ? 'Sí' : '',
+      a.sin_reserva ? 'Sí' : '',
       a.es_invitado ? 'Sí' : '',
       a.invitado_dni ?? '',
       a.veces_invitado != null ? String(a.veces_invitado) : '',
@@ -179,6 +181,11 @@ export default function AccesosPage() {
                   {a.sin_servicio && (
                     <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo">
                       SIN SERVICIO
+                    </span>
+                  )}
+                  {a.sin_reserva && (
+                    <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-sky-400 border-sky-400">
+                      SIN RESERVA
                     </span>
                   )}
                   {a.es_invitado && (

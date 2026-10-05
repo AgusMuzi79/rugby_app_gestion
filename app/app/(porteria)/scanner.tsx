@@ -17,6 +17,14 @@ function estadoVisual(result: ScanResult): string {
   return result.estado ?? ''
 }
 
+// Color de la línea del turnero bajo los datos del socio: verde con reserva, ámbar sin
+// reserva (modo informativo), apagado si la franja está cerrada.
+function colorTurno(estado: string): string {
+  if (estado === 'con_reserva') return '#5DBB63'
+  if (estado === 'sin_reserva') return colors.oro
+  return MUTED
+}
+
 // Sin que nadie toque la pantalla entre un escaneo y el siguiente, vuelve
 // sola a modo cámara — tiempo suficiente para leer el resultado (o, en modo
 // atendido, mostrárselo al socio) antes de que desaparezca.
@@ -210,11 +218,26 @@ export default function ScannerScreen() {
                       {estadoVisual(result).toUpperCase()}
                     </Text>
                   </View>
+                  {!!result.turno?.mensaje && (
+                    <Text style={[
+                      s.turnoLinea,
+                      esTablet && s.turnoLineaTablet,
+                      { color: colorTurno(result.turno.estado) },
+                    ]}>
+                      {result.turno.mensaje}
+                    </Text>
+                  )}
                 </View>
               </View>
             ) : (
               <View style={s.motivoContainer}>
-                <Text style={[s.motivoText, esTablet && s.motivoTextTablet]}>{result.motivo ?? 'QR inválido'}</Text>
+                <Text style={[
+                  s.motivoText,
+                  esTablet && s.motivoTextTablet,
+                  result.turno?.bloquear === true && { color: colors.rojoUrgente },
+                ]}>
+                  {result.motivo ?? 'QR inválido'}
+                </Text>
               </View>
             )}
 
@@ -565,6 +588,10 @@ const s = StyleSheet.create({
     fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
   },
   resultValorTablet: { fontSize: 32 },
+  turnoLinea: {
+    fontFamily: fonts.label, fontSize: 14, letterSpacing: 0.5, marginTop: 4,
+  },
+  turnoLineaTablet: { fontSize: 24, marginTop: 8 },
 
   motivoContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   motivoText: {

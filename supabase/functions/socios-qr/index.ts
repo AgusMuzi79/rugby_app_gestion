@@ -15,6 +15,12 @@
 //                    devuelve cuántas veces entró ese DNI en los últimos 30 días, para que
 //                    se lo derive a Secretaría cuando se repite (ver 20261003000001_accesos_invitados).
 //
+// Turnero (T7): en validate/validate-dni de una cuenta Lector (rol='porteria') la respuesta
+//   suma `turno` (franja vigente, reserva del socio, mensaje para la tablet; ver
+//   gimnasio_turno_actual en 20261008000000_gimnasio_lector_turno). Si el modo es
+//   'bloqueante' y no hay reserva, el escaneo se deniega como el gate de servicio. Es
+//   FAIL-OPEN: cualquier falla al calcular el turno se loguea y el escaneo sigue como antes.
+//
 // Seguridad:
 //   get-secret:   JWT requerido, rol='socio' o 'cliente_gimnasio', retorna su propio secret o
 //                 (con `socio_id`) el de un dependiente menor de 13 — validado server-side acá
@@ -241,18 +247,72 @@ async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | 
 
 // `sinServicio` marca el escaneo de un socio sin Gimnasio contratado (el
 // Lector igual le muestra el aviso, pero el intento queda visible en el panel).
+// `sinReserva` marca el escaneo dentro de una franja vigente sin reserva (turnero). La
+// columna sólo se escribe cuando es true: así un ingreso normal no depende de que la
+// migración 20261008000000 ya esté aplicada.
 async function registrarAcceso(
   socioId: string,
   semaforo: string | null,
   callerRol: string,
   sinServicio = false,
+  sinReserva = false,
 ): Promise<void> {
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return
   const { error } = await supabaseAdmin
     .from('accesos')
-    .insert({ socio_id: socioId, semaforo, punto, sin_servicio: sinServicio })
+    .insert({
+      socio_id: socioId,
+      semaforo,
+      punto,
+      sin_servicio: sinServicio,
+      ...(sinReserva ? { sin_reserva: true } : {}),
+    })
   if (error) console.error('registrarAcceso:', error.message)
+}
+
+// ─── Turno actual del socio (turnero, sólo Lector) ────────────────────────────
+//
+// Lo decide gimnasio_turno_actual en SQL. FAIL-OPEN: cualquier problema (error de la
+// RPC, función ausente, forma inesperada, excepción) devuelve null y el escaneo sigue
+// exactamente como antes — el turnero nunca puede negar una entrada por un bug propio.
+type TurnoActual = {
+  modo:       string
+  estado:     string
+  franja:     { id: string; hora_desde: string; hora_hasta: string; profesor: string | null } | null
+  reserva_id: string | null
+  ocupados:   number | null
+  capacidad:  number | null
+  bloquear:   boolean
+  mensaje:    string
+}
+
+async function obtenerTurno(socioId: string): Promise<TurnoActual | null> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('gimnasio_turno_actual', { p_socio_id: socioId })
+    if (error) {
+      console.error('turno-actual (rpc):', error.message)
+      return null
+    }
+    const t = data as Record<string, unknown> | null
+    if (!t || typeof t !== 'object' || t.ok !== true || typeof t.estado !== 'string') {
+      console.error('turno-actual: respuesta inesperada', JSON.stringify(data))
+      return null
+    }
+    return {
+      modo:       typeof t.modo === 'string' ? t.modo : 'informativo',
+      estado:     t.estado,
+      franja:     (t.franja ?? null) as TurnoActual['franja'],
+      reserva_id: typeof t.reserva_id === 'string' ? t.reserva_id : null,
+      ocupados:   typeof t.ocupados === 'number' ? t.ocupados : null,
+      capacidad:  typeof t.capacidad === 'number' ? t.capacidad : null,
+      bloquear:   t.bloquear === true,
+      mensaje:    typeof t.mensaje === 'string' ? t.mensaje : '',
+    }
+  } catch (e) {
+    console.error('turno-actual:', e instanceof Error ? e.message : String(e))
+    return null
+  }
 }
 
 async function handleValidate(
@@ -300,17 +360,31 @@ async function handleValidate(
 
   const row = socio as unknown as SocioRow
 
+  let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {
     const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
     if (!tieneGimnasio) {
       await registrarAcceso(row.id, row.semaforo, callerRol, true)
       return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
     }
+
+    // Turnero: sólo después del gate de servicio (que conserva la prioridad).
+    turno = await obtenerTurno(row.id)
+    if (turno?.bloquear) {
+      await registrarAcceso(row.id, row.semaforo, callerRol, false, true)
+      return jsonOk({
+        valido: false,
+        motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
+        turno,
+      })
+    }
   }
 
-  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
+  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {
+    await registrarAcceso(row.id, row.semaforo, callerRol, false, turno?.estado === 'sin_reserva')
+  }
 
-  return jsonOk(socioResponse(row))
+  return jsonOk({ ...socioResponse(row), turno })
 }
 
 // ─── Fallback sin QR: buscar directo por DNI ──────────────────────────────────
@@ -341,17 +415,31 @@ async function handleValidateDni(
 
   const row = socio as unknown as SocioRow
 
+  let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {
     const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
     if (!tieneGimnasio) {
       await registrarAcceso(row.id, row.semaforo, callerRol, true)
       return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
     }
+
+    // Turnero: sólo después del gate de servicio (que conserva la prioridad).
+    turno = await obtenerTurno(row.id)
+    if (turno?.bloquear) {
+      await registrarAcceso(row.id, row.semaforo, callerRol, false, true)
+      return jsonOk({
+        valido: false,
+        motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
+        turno,
+      })
+    }
   }
 
-  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) await registrarAcceso(row.id, row.semaforo, callerRol)
+  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {
+    await registrarAcceso(row.id, row.semaforo, callerRol, false, turno?.estado === 'sin_reserva')
+  }
 
-  return jsonOk(socioResponse(row))
+  return jsonOk({ ...socioResponse(row), turno })
 }
 
 // ─── Invitados (no-socios) en el gimnasio ─────────────────────────────────────
@@ -460,6 +548,7 @@ async function handleListarAccesos(
       punto,
       semaforo,
       sin_servicio,
+      sin_reserva,
       es_invitado,
       invitado_dni,
       invitado_nombre,
@@ -476,6 +565,7 @@ async function handleListarAccesos(
     punto: string
     semaforo: string | null
     sin_servicio: boolean
+    sin_reserva: boolean
     es_invitado: boolean
     invitado_dni: string | null
     invitado_nombre: string | null
@@ -514,6 +604,7 @@ async function handleListarAccesos(
     punto:           a.punto,
     semaforo:        a.semaforo,
     sin_servicio:    a.sin_servicio,
+    sin_reserva:     a.sin_reserva,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
     veces_invitado:  a.es_invitado && a.invitado_dni && vecesPorDni ? (vecesPorDni.get(a.invitado_dni) ?? null) : null,

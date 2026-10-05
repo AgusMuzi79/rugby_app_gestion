@@ -1101,6 +1101,12 @@ function ConfigSeccion() {
             <option value="informativo">Informativo (solo avisa)</option>
             <option value="bloqueante">Bloqueante (exige reserva)</option>
           </select>
+          <p className="font-lora text-xs text-tinta/40 max-w-xl">
+            Informativo: el Lector avisa si no hay reserva pero deja pasar. Bloqueante: el Lector no deja pasar a quien no reservó.
+          </p>
+          <p className="font-lora text-xs text-oro max-w-xl">
+            Atención: usá el modo bloqueante recién cuando todos estén acostumbrados a reservar; quien no tenga reserva en el horario no va a poder entrar.
+          </p>
         </div>
 
         <div className="flex flex-col gap-1">

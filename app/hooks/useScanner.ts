@@ -2,6 +2,19 @@ import { useState, useCallback } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
 
+// Turno del socio en la franja vigente (sólo lo manda socios-qr a la cuenta Lector y sólo
+// si hay franjas cargadas; null/ausente = no mostrar nada). Calculado en la base.
+export interface TurnoActual {
+  modo:       'informativo' | 'bloqueante' | string
+  estado:     'sin_franja' | 'cerrada' | 'con_reserva' | 'sin_reserva' | string
+  franja:     { id: string; hora_desde: string; hora_hasta: string; profesor: string | null } | null
+  reserva_id: string | null
+  ocupados:   number | null
+  capacidad:  number | null
+  bloquear:   boolean
+  mensaje:    string
+}
+
 export interface ScanResult {
   valido:        boolean
   motivo?:       string
@@ -13,6 +26,7 @@ export interface ScanResult {
   foto_path?:    string | null
   foto_validada?: boolean
   foto_url?:     string | null   // signed URL, resolved after validate
+  turno?:        TurnoActual | null
 }
 
 // Respuesta de la acción `registrar-invitado` de socios-qr. `ok: false` trae
