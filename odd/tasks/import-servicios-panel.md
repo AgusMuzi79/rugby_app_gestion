@@ -36,8 +36,8 @@ Not in scope: deploying to production (needs explicit confirmation), changing th
 ## Tasks
 
 - [x] T1 — Pure parser + mapping + diff in `_shared/parse-padron-servicios.ts` with `parse-padron-servicios.check.ts` (RED → GREEN, `npx --yes tsx`), validated also against the real sample `data/import/padron servicio socio.xls`. Route: delegated (writer).
-- [ ] T2 — Migration `importaciones_servicios` + RLS. Route: delegated (same writer).
-- [ ] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
+- [ ] T2 — Migration `importaciones_servicios` + RLS. Route: delegated (same writer). **Blocked:** the authorized name `20261005000000_importaciones_servicios.sql` duplicates the version of the existing `20261005000000_gimnasio_turnos.sql` (and 20261006/20261007 already exist); needs authorization for `20261008000000_importaciones_servicios.sql`. Draft ready outside the repo.
+- [x] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
 - [ ] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
 - [ ] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
 - [ ] T6 — Production deploy (migration + function) — only after user confirmation.
@@ -61,6 +61,9 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 - 2026-10-05: exploration done; feature document created.
 - T1: RED observed (`npx --yes tsx .../parse-padron-servicios.check.ts` → MODULE_NOT_FOUND before the module existed), GREEN 15/15 cases. Real sample (local one-off, not committed): 15 concepts, 2537 rows, 1525 distinct socios (the 1526 from exploration was off by one — the original `leerPadron` logic also gives 1525), GYM Mayor 182, GYM Menor 87, GYM Becado 2, RUGBY CUOTA DEPORTIVA 255, HOCKEY CUOTA DEPORTIVA 287, CARNET TENIS 152, RUGBY INCLUSIVO 8, HOCKEY INCLUSIVO 7, 0 unknown concepts, 1 conflict (GYM Mayor + GYM Menor). Same result with `raw: true` and `raw: false`.
 
+- T1 commit: `2d57f4e`.
+- T3: `deno` not on PATH → `deno check` unavailable. Substitute: `tsc --noEmit --strict` with Deno/npm shims over `importar-servicios/index.ts` → 0 errors. Writes go in batches of 500 (delete/insert) with per-row fallback to isolate errors; updates per row with concurrency 5. Rejects a file without any mapped service row (mirror safety). Catalog resolved by name; duplicate or missing mapped names abort with 500.
+
 ## Next step
 
-T2.
+T4, then T2 once the migration name is authorized.
