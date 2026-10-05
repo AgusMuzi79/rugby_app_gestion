@@ -6,15 +6,17 @@
 //   franja-guardar     — { id?, dia_semana, hora_desde, hora_hasta, cupo, activa? } alta o edición.
 //   franja-desactivar  — { franja_id } baja lógica (activa=false). Sus reservas futuras NO se tocan:
 //                        se devuelve cuántas quedan para que el encargado decida.
-//   excepcion-guardar  — { fecha, franja_id|null, cerrado, cupo_override|null, motivo? } una por fecha+franja
-//                        (franja_id null = toda la fecha); si ya existe se actualiza.
-//   excepcion-borrar   — { excepcion_id }.
+//   excepcion-guardar  — { fecha, franja_id|null, cerrado, cupo_override|null, motivo, solo_vista_previa? } una por
+//                        fecha+franja (franja_id null = toda la fecha); si ya existe se actualiza. Cerrar exige
+//                        `motivo` (3-300): cancela las reservas afectadas y avisa por push a sus socios. Con
+//                        solo_vista_previa:true no escribe ni envía nada, sólo cuenta (ver handleExcepcionGuardar).
+//   excepcion-borrar   — { excepcion_id }. No restaura reservas canceladas por un cierre.
 //   excepciones-listar — { desde, hasta }.
-//   ocupacion          — { fecha } por franja: capacidad, ocupados y la lista de reservas con datos del socio.
-//   reserva-manual     — { dni, franja_id, fecha } anota a un socio con origen 'encargado'.
+//   ocupacion          — { fecha } por franja: capacidad, ocupados y la lista de reservas con datos del socio
+//                        (sólo lectura: el encargado NO anota a nadie, reservan los socios).
 //   reserva-cancelar   — { reserva_id }.
-//   config-get / config-guardar — modo_cupos (informativo|bloqueante), anticipación, % de fijos, etc.
-//   limites-listar / limite-guardar — tope de días por semana por servicio o categoría (null = sin límite).
+//   config-get / config-guardar — modo_cupos (informativo|bloqueante), ventana de reserva (mes|dias),
+//                        anticipación (sólo modo 'dias'), % de fijos, faltas de aviso y de baja, tolerancia.
 //
 // Seguridad: JWT requerido; el rol sale de profiles.rol del caller (nunca del body) y debe ser
 // 'porteria' (el encargado, label "Gimnasio"), 'admin' o 'subcomision'. Todo lo escribe esta función con
@@ -33,22 +35,9 @@ const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/
 const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d(:00)?$/
 const MAX_DIAS_EXCEPCIONES = 366
 const CUPO_MAX = 500
-
-// Motivos para el encargado según el `codigo` de gimnasio_reservar (3ª persona: habla del socio).
-const MOTIVOS_RESERVA: Record<string, string> = {
-  parametros: 'Faltan datos para reservar.',
-  origen_invalido: 'Origen de reserva inválido.',
-  socio_inexistente: 'El socio no existe.',
-  franja_inexistente: 'La franja no existe.',
-  franja_inactiva: 'La franja está inactiva.',
-  dia_invalido: 'La fecha no corresponde al día de la franja.',
-  cerrado: 'El gimnasio está cerrado en esa fecha.',
-  pasado: 'Esa franja ya comenzó o ya pasó.',
-  duplicada: 'El socio ya tiene una reserva en esa franja.',
-  cupo_lleno: 'No quedan lugares en esa franja.',
-  cupo_fijos_lleno: 'No quedan lugares para turnos fijos en esa franja.',
-  tope_semanal: 'El socio alcanzó el máximo de días por semana de su servicio.',
-}
+const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+const EXPO_PUSH_CHUNK_SIZE = 100
+const ID_CHUNK_SIZE = 100
 
 // ─── Fechas y horas (UTC-3 fijo) ──────────────────────────────────────────────
 
@@ -128,12 +117,9 @@ Deno.serve(async (req: Request) => {
     case 'excepcion-borrar':   return handleExcepcionBorrar(body)
     case 'excepciones-listar': return handleExcepcionesListar(body)
     case 'ocupacion':          return handleOcupacion(body)
-    case 'reserva-manual':     return handleReservaManual(body)
     case 'reserva-cancelar':   return handleReservaCancelar(body)
     case 'config-get':         return handleConfigGet()
     case 'config-guardar':     return handleConfigGuardar(body)
-    case 'limites-listar':     return handleLimitesListar()
-    case 'limite-guardar':     return handleLimiteGuardar(body)
     default:                   return jsonError(400, `Acción desconocida: ${body.action}`)
   }
 })
@@ -275,6 +261,29 @@ async function handleFranjaDesactivar(body: Record<string, unknown>): Promise<Re
 
 // ─── excepciones ──────────────────────────────────────────────────────────────
 
+const MOTIVO_MIN = 3
+const MOTIVO_MAX = 300
+
+const DIAS_NOMBRE = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+interface ReservaAfectada {
+  reserva_id: string
+  socio_id: string
+  franja_id: string
+  hora_desde: string
+  hora_hasta: string
+}
+
+// Guarda (o actualiza) una excepción por fecha+franja.
+//   · cerrado=true EXIGE `motivo` (3 a 300 caracteres): es el mensaje que ven los socios.
+//   · Al confirmar un cierre se cancelan las reservas 'reservada' de la fecha (de la franja, o de
+//     todas las que no tengan excepción propia si franja_id es null) y se avisa por push a cada socio
+//     afectado. Una falla de push NO deshace la cancelación: se informa en `avisos_fallidos`.
+//   · `solo_vista_previa: true` no escribe ni envía nada: devuelve cuántas reservas se cancelarían y a
+//     cuántos socios se les avisaría, para que la web lo muestre antes de confirmar.
+//   · Editar o borrar un cierre existente NUNCA restaura reservas ni vuelve a avisar: lo único que
+//     cancela es lo que todavía esté 'reservada' (con la fecha ya cerrada no se puede reservar, así
+//     que repetir el guardado no encuentra nada y es seguro reintentar si algo falló a mitad).
 async function handleExcepcionGuardar(body: Record<string, unknown>): Promise<Response> {
   const fecha = body.fecha
   if (!fechaValida(fecha)) return rechazo('La fecha no es válida (AAAA-MM-DD).')
@@ -297,7 +306,21 @@ async function handleExcepcionGuardar(body: Record<string, unknown>): Promise<Re
   if (!cerrado && cupoOverride === null) {
     return rechazo('Una excepción abierta necesita un cupo especial; si no, no cambia nada.')
   }
-  const motivo = typeof body.motivo === 'string' ? body.motivo.trim().slice(0, 200) || null : null
+
+  const motivoTxt = typeof body.motivo === 'string' ? body.motivo.trim() : ''
+  if (cerrado && (motivoTxt.length < MOTIVO_MIN || motivoTxt.length > MOTIVO_MAX)) {
+    return rechazo(
+      `Para cerrar hace falta un mensaje para los socios (entre ${MOTIVO_MIN} y ${MOTIVO_MAX} caracteres).`,
+      { codigo: 'motivo_requerido' },
+    )
+  }
+  if (motivoTxt.length > MOTIVO_MAX) return rechazo(`El motivo no puede superar ${MOTIVO_MAX} caracteres.`)
+  const motivo = motivoTxt || null
+
+  if (body.solo_vista_previa !== undefined && typeof body.solo_vista_previa !== 'boolean') {
+    return rechazo('El campo "solo_vista_previa" es inválido.')
+  }
+  const soloVistaPrevia = body.solo_vista_previa === true
 
   if (franjaId) {
     const { data: franja, error } = await supabaseAdmin
@@ -312,6 +335,35 @@ async function handleExcepcionGuardar(body: Record<string, unknown>): Promise<Re
   const { data: previa, error: previaErr } = await q.maybeSingle()
   if (previaErr) return errorDb('buscar excepcion', previaErr)
 
+  // Reservas que el cierre dejaría sin lugar y los tokens de push de sus dueños. Se leen ANTES de
+  // escribir nada: si falla alguna lectura se responde 500 sin haber tocado la base.
+  let afectadas: ReservaAfectada[] = []
+  const tokensPorSocio = new Map<string, string[]>()
+  if (cerrado) {
+    const { data, error } = await supabaseAdmin.rpc('gimnasio_cierre_afectadas', {
+      p_fecha: fecha,
+      p_franja_id: franjaId,
+    })
+    if (error) return errorDb('gimnasio_cierre_afectadas', error)
+    afectadas = (data ?? []) as ReservaAfectada[]
+
+    const tokens = await leerTokensPorSocio([...new Set(afectadas.map((a) => a.socio_id))])
+    if (tokens === null) return errorDb('push_tokens', 'no se pudieron leer los tokens de los socios afectados')
+    for (const [socioId, lista] of tokens) tokensPorSocio.set(socioId, lista)
+  }
+
+  if (soloVistaPrevia) {
+    const socios = new Set(afectadas.map((a) => a.socio_id))
+    const conToken = [...socios].filter((id) => (tokensPorSocio.get(id) ?? []).length > 0).length
+    return jsonOk({
+      ok: true,
+      vista_previa: true,
+      reservas_a_cancelar: afectadas.length,
+      socios_a_avisar: conToken,
+      socios_sin_token: socios.size - conToken,
+    })
+  }
+
   const valores = { fecha, franja_id: franjaId, cerrado, cupo_override: cupoOverride, motivo }
   const cols = 'id, fecha, franja_id, cerrado, cupo_override, motivo'
   const { data: guardada, error: saveErr } = previa
@@ -325,21 +377,171 @@ async function handleExcepcionGuardar(body: Record<string, unknown>): Promise<Re
     return errorDb('guardar excepcion', saveErr)
   }
 
-  // Si cierra, avisar cuántas reservas vivas quedan en esa fecha (no se cancelan solas).
-  let reservasAfectadas = 0
-  if (cerrado) {
-    let rq = supabaseAdmin
-      .from('gimnasio_reservas')
-      .select('id', { count: 'exact', head: true })
-      .eq('fecha', fecha)
-      .eq('estado', 'reservada')
-    if (franjaId) rq = rq.eq('franja_id', franjaId)
-    const { count, error: cntErr } = await rq
-    if (cntErr) return errorDb('contar reservas afectadas', cntErr)
-    reservasAfectadas = count ?? 0
+  if (!cerrado) {
+    return jsonOk({
+      ok: true, excepcion: guardada, reservas_canceladas: 0, avisos_enviados: 0, avisos_fallidos: 0, avisos_sin_token: 0,
+    })
   }
 
-  return jsonOk({ ok: true, excepcion: guardada, reservas_afectadas: reservasAfectadas })
+  // Cancelación en una sola sentencia UPDATE ... RETURNING (con lock de las franjas), después de
+  // guardar el cierre: desde ahí gimnasio_reservar rechaza la fecha y no se cuela ninguna reserva.
+  const { data: canceladasRaw, error: cancelErr } = await supabaseAdmin.rpc('gimnasio_cancelar_por_cierre', {
+    p_fecha: fecha,
+    p_franja_id: franjaId,
+  })
+  if (cancelErr) return errorDb('gimnasio_cancelar_por_cierre', cancelErr)
+  const canceladas = (canceladasRaw ?? []) as ReservaAfectada[]
+
+  // Socios que reservaron entre la lectura previa y la cancelación (carrera poco probable): se
+  // buscan sus tokens ahora. Si esa lectura falla no se deshace nada: se cuentan como no avisados.
+  const faltantes = [...new Set(canceladas.map((c) => c.socio_id))].filter((id) => !tokensPorSocio.has(id))
+  let sinLectura = new Set<string>()
+  if (faltantes.length > 0) {
+    const extra = await leerTokensPorSocio(faltantes)
+    if (extra === null) {
+      console.error('gimnasio-turnos-admin: no se pudieron leer los tokens de socios que reservaron durante el cierre')
+      sinLectura = new Set(faltantes)
+    } else {
+      for (const [socioId, tokens] of extra) tokensPorSocio.set(socioId, tokens)
+    }
+  }
+
+  const resumen = await avisarCierre(canceladas, fecha, motivoTxt, tokensPorSocio, sinLectura)
+
+  return jsonOk({
+    ok: true,
+    excepcion: guardada,
+    reservas_canceladas: canceladas.length,
+    ...resumen,
+  })
+}
+
+// ─── push de cierre ───────────────────────────────────────────────────────────
+
+// socio_id -> tokens Expo válidos de SU propio perfil. Un socio sin perfil o sin token no tiene
+// entrada. Devuelve null si falla cualquiera de las lecturas: el caller NO debe tomarlo como
+// "sin tokens" (sería avisar a nadie en silencio).
+async function leerTokensPorSocio(socioIds: string[]): Promise<Map<string, string[]> | null> {
+  const perfilDe = new Map<string, string>() // socio_id -> profile_id
+  for (let i = 0; i < socioIds.length; i += ID_CHUNK_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('socios')
+      .select('id, profile_id')
+      .in('id', socioIds.slice(i, i + ID_CHUNK_SIZE))
+    if (error) { console.error('gimnasio-turnos-admin: socios:', error.message); return null }
+    for (const s of data ?? []) {
+      if (s.profile_id) perfilDe.set(s.id as string, s.profile_id as string)
+    }
+  }
+
+  const tokensPorPerfil = new Map<string, string[]>()
+  const perfiles = [...new Set(perfilDe.values())]
+  for (let i = 0; i < perfiles.length; i += ID_CHUNK_SIZE) {
+    const { data, error } = await supabaseAdmin
+      .from('push_tokens')
+      .select('usuario_id, token')
+      .in('usuario_id', perfiles.slice(i, i + ID_CHUNK_SIZE))
+    if (error) { console.error('gimnasio-turnos-admin: push_tokens:', error.message); return null }
+    for (const row of data ?? []) {
+      const token = row.token as string
+      if (!token.startsWith('ExponentPushToken[') && !token.startsWith('ExpoPushToken[')) continue
+      const arr = tokensPorPerfil.get(row.usuario_id as string) ?? []
+      arr.push(token)
+      tokensPorPerfil.set(row.usuario_id as string, arr)
+    }
+  }
+
+  const out = new Map<string, string[]>()
+  for (const [socioId, perfilId] of perfilDe) {
+    const tokens = tokensPorPerfil.get(perfilId)
+    if (tokens?.length) out.set(socioId, tokens)
+  }
+  return out
+}
+
+function unirLista(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`
+}
+
+// Un push por socio (no por reserva): si perdió varias franjas el mismo día van juntas en una línea.
+// 'Jueves 09/10 18:00–19:00: <mensaje>'.
+function armarMensajeCierre(fecha: string, franjas: ReservaAfectada[], motivo: string, to: string) {
+  const [, mm, dd] = fecha.split('-')
+  const dia = DIAS_NOMBRE[(new Date(`${fecha}T00:00:00Z`).getUTCDay() + 6) % 7]
+  const horarios = franjas
+    .slice()
+    .sort((a, b) => a.hora_desde.localeCompare(b.hora_desde))
+    .map((f) => `${hhmm(f.hora_desde)}–${hhmm(f.hora_hasta)}`)
+  return {
+    to,
+    title: franjas.length > 1 ? 'Gimnasio: turnos cancelados' : 'Gimnasio: turno cancelado',
+    body: `${dia} ${dd}/${mm} ${unirLista(horarios)}: ${motivo}`,
+    data: { type: 'gimnasio_turno_cancelado', fecha },
+    sound: 'default',
+  }
+}
+
+// Envía el aviso a cada socio con reservas canceladas. Entregado = al menos un ticket `ok` entre
+// los tokens de ESE socio. Expo responde 200 aunque algunos tickets fallen (p. ej.
+// DeviceNotRegistered): `data` es un array de tickets en el mismo orden que los mensajes. Un body
+// ausente o malformado cuenta como no entregado.
+async function avisarCierre(
+  canceladas: ReservaAfectada[],
+  fecha: string,
+  motivo: string,
+  tokensPorSocio: Map<string, string[]>,
+  sinLectura: Set<string>,
+): Promise<{ avisos_enviados: number; avisos_fallidos: number; avisos_sin_token: number }> {
+  const porSocio = new Map<string, ReservaAfectada[]>()
+  for (const c of canceladas) {
+    const lista = porSocio.get(c.socio_id) ?? []
+    lista.push(c)
+    porSocio.set(c.socio_id, lista)
+  }
+
+  let sinToken = 0
+  let fallidos = sinLectura.size
+  const mensajes: { socioId: string; msg: ReturnType<typeof armarMensajeCierre> }[] = []
+  const conMensaje = new Set<string>()
+  for (const [socioId, franjas] of porSocio) {
+    if (sinLectura.has(socioId)) continue
+    const tokens = tokensPorSocio.get(socioId) ?? []
+    if (tokens.length === 0) { sinToken++; continue }
+    conMensaje.add(socioId)
+    for (const to of tokens) mensajes.push({ socioId, msg: armarMensajeCierre(fecha, franjas, motivo, to) })
+  }
+
+  const entregados = new Set<string>()
+  for (let i = 0; i < mensajes.length; i += EXPO_PUSH_CHUNK_SIZE) {
+    const chunk = mensajes.slice(i, i + EXPO_PUSH_CHUNK_SIZE)
+    try {
+      const res = await fetch(EXPO_PUSH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Accept-Encoding': 'gzip, deflate' },
+        body: JSON.stringify(chunk.map((c) => c.msg)),
+      })
+      if (!res.ok) {
+        console.error('gimnasio-turnos-admin: Expo push falló:', res.status, await res.text())
+        continue
+      }
+      const json = await res.json().catch(() => null) as { data?: unknown } | null
+      const tickets = json?.data
+      if (!Array.isArray(tickets) || tickets.length !== chunk.length) {
+        console.error('gimnasio-turnos-admin: Expo push con formato inesperado, chunk tratado como no entregado')
+        continue
+      }
+      tickets.forEach((t, idx) => {
+        if ((t as { status?: string } | null)?.status === 'ok') entregados.add(chunk[idx].socioId)
+        else console.error('gimnasio-turnos-admin: ticket de Expo con error:', JSON.stringify(t))
+      })
+    } catch (e) {
+      console.error('gimnasio-turnos-admin: error enviando push:', e)
+    }
+  }
+
+  fallidos += [...conMensaje].filter((id) => !entregados.has(id)).length
+  return { avisos_enviados: entregados.size, avisos_fallidos: fallidos, avisos_sin_token: sinToken }
 }
 
 async function handleExcepcionBorrar(body: Record<string, unknown>): Promise<Response> {
@@ -391,6 +593,7 @@ interface FilaDisponibilidad {
   ocupados: number
   ocupados_fijos: number
   cerrado: boolean
+  motivo_cierre: string | null
 }
 
 type FranjaEmbed = { dia_semana: number; hora_desde: string; hora_hasta: string; cupo: number; activa: boolean } | null
@@ -424,6 +627,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
     ocupados: number
     ocupados_fijos: number
     cerrado: boolean
+    motivo_cierre: string | null
     inactiva: boolean
     reservas: unknown[]
   }
@@ -437,6 +641,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
       ocupados: f.ocupados,
       ocupados_fijos: f.ocupados_fijos,
       cerrado: f.cerrado,
+      motivo_cierre: f.motivo_cierre,
       inactiva: false,
       reservas: [],
     })
@@ -459,6 +664,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
         ocupados: 0,
         ocupados_fijos: 0,
         cerrado: false,
+        motivo_cierre: null,
         inactiva: true,
         reservas: [],
       }
@@ -480,48 +686,7 @@ async function handleOcupacion(body: Record<string, unknown>): Promise<Response>
   return jsonOk({ ok: true, fecha, franjas })
 }
 
-// ─── reservas manuales ────────────────────────────────────────────────────────
-
-async function handleReservaManual(body: Record<string, unknown>): Promise<Response> {
-  const dni = typeof body.dni === 'string' ? body.dni.trim() : ''
-  if (!dni || dni.length > 20) return rechazo('Ingresá un DNI válido.')
-  const franjaId = body.franja_id
-  const fecha = body.fecha
-  if (typeof franjaId !== 'string' || !UUID_RE.test(franjaId)) return rechazo('Franja inválida.')
-  if (!fechaValida(fecha)) return rechazo('La fecha no es válida (AAAA-MM-DD).')
-
-  const { data: socios, error: socioErr } = await supabaseAdmin
-    .from('socios')
-    .select('id, numero_socio, profiles!socios_profile_id_fkey(nombre)')
-    .eq('dni', dni)
-    .limit(2)
-  if (socioErr) return errorDb('socios', socioErr)
-  if (!socios?.length) return rechazo('No hay ningún socio con ese DNI.', { codigo: 'socio_inexistente' })
-  if (socios.length > 1) return rechazo('Hay más de un socio con ese DNI. Consultá con Secretaría.', { codigo: 'dni_repetido' })
-  const socio = socios[0] as unknown as { id: string; numero_socio: string; profiles: { nombre: string } | null }
-
-  const { data, error } = await supabaseAdmin.rpc('gimnasio_reservar', {
-    p_socio_id: socio.id,
-    p_franja_id: franjaId,
-    p_fecha: fecha,
-    p_origen: 'encargado',
-  })
-  if (error) return errorDb('gimnasio_reservar', error)
-
-  const r = data as Record<string, unknown>
-  if (!r?.ok) {
-    const codigo = String(r?.codigo ?? '')
-    return rechazo(MOTIVOS_RESERVA[codigo] ?? String(r?.motivo ?? 'No se pudo reservar.'), { codigo })
-  }
-
-  return jsonOk({
-    ok: true,
-    reserva_id: r.reserva_id,
-    capacidad: r.capacidad,
-    ocupados: r.ocupados,
-    socio: { numero_socio: socio.numero_socio, nombre: socio.profiles?.nombre ?? '—' },
-  })
-}
+// ─── cancelar reserva ─────────────────────────────────────────────────────────
 
 async function handleReservaCancelar(body: Record<string, unknown>): Promise<Response> {
   const id = body.reserva_id
@@ -550,7 +715,8 @@ async function handleReservaCancelar(body: Record<string, unknown>): Promise<Res
 
 // ─── config ───────────────────────────────────────────────────────────────────
 
-const CONFIG_COLS = 'modo_cupos, anticipacion_dias, pct_cupo_fijos, faltas_aviso, semanas_fijos, tolerancia_min'
+const CONFIG_COLS =
+  'modo_cupos, ventana_reserva, anticipacion_dias, pct_cupo_fijos, faltas_aviso, faltas_baja, semanas_fijos, tolerancia_min'
 
 async function handleConfigGet(): Promise<Response> {
   const { data, error } = await supabaseAdmin.from('gimnasio_config').select(CONFIG_COLS).eq('id', 1).single()
@@ -560,10 +726,12 @@ async function handleConfigGet(): Promise<Response> {
 
 // Rangos válidos por campo numérico de gimnasio_config (los CHECK de la tabla son más laxos).
 const RANGOS_CONFIG: Record<string, [number, number, string]> = {
-  // Máximo 30: el listado de turnos del socio cubre hasta 31 días (hoy + anticipación).
+  // Máximo 30: el listado de turnos del socio cubre hasta 31 días (hoy + anticipación). Sólo rige
+  // en ventana 'dias'.
   anticipacion_dias: [0, 30, 'La anticipación debe ser de 0 a 30 días.'],
   pct_cupo_fijos: [0, 100, 'El porcentaje de cupo para fijos debe ser de 0 a 100.'],
   faltas_aviso: [1, 20, 'Las faltas para avisar deben ser de 1 a 20.'],
+  faltas_baja: [2, 30, 'Las faltas para liberar el horario deben ser de 2 a 30.'],
   semanas_fijos: [1, 12, 'Las semanas de turnos fijos deben ser de 1 a 12.'],
   tolerancia_min: [0, 120, 'La tolerancia debe ser de 0 a 120 minutos.'],
 }
@@ -577,12 +745,34 @@ async function handleConfigGuardar(body: Record<string, unknown>): Promise<Respo
     }
     cambios.modo_cupos = body.modo_cupos
   }
+  if (body.ventana_reserva !== undefined) {
+    if (body.ventana_reserva !== 'mes' && body.ventana_reserva !== 'dias') {
+      return rechazo('La ventana de reserva debe ser "mes" o "dias".')
+    }
+    cambios.ventana_reserva = body.ventana_reserva
+  }
   for (const [campo, [min, max, mensaje]] of Object.entries(RANGOS_CONFIG)) {
     if (body[campo] === undefined) continue
     if (!esEntero(body[campo], min, max)) return rechazo(mensaje)
     cambios[campo] = body[campo] as number
   }
   if (Object.keys(cambios).length === 0) return rechazo('No hay cambios para guardar.')
+
+  // La baja tiene que venir DESPUÉS del aviso. Se valida con los valores resultantes (los que
+  // llegan más los guardados), porque el cambio puede traer sólo uno de los dos.
+  if (cambios.faltas_aviso !== undefined || cambios.faltas_baja !== undefined) {
+    const { data: actual, error: actualErr } = await supabaseAdmin
+      .from('gimnasio_config').select('faltas_aviso, faltas_baja').eq('id', 1).single()
+    if (actualErr || !actual) return errorDb('gimnasio_config', actualErr)
+    const aviso = (cambios.faltas_aviso as number | undefined) ?? actual.faltas_aviso
+    const baja = (cambios.faltas_baja as number | undefined) ?? actual.faltas_baja
+    if (baja <= aviso) {
+      return rechazo(
+        `Las faltas para liberar el horario (${baja}) tienen que ser más que las del aviso (${aviso}).`,
+        { codigo: 'faltas_orden' },
+      )
+    }
+  }
 
   const { data, error } = await supabaseAdmin
     .from('gimnasio_config')
@@ -593,101 +783,4 @@ async function handleConfigGuardar(body: Record<string, unknown>): Promise<Respo
   if (error || !data) return errorDb('guardar config', error)
 
   return jsonOk({ ok: true, config: data })
-}
-
-// ─── límites de días por semana ───────────────────────────────────────────────
-
-async function handleLimitesListar(): Promise<Response> {
-  const { data: servicios, error: servErr } = await supabaseAdmin
-    .from('servicios_opcionales')
-    .select('id, nombre')
-    .eq('activo', true)
-    .ilike('nombre', '%gimnasio%')
-    .order('nombre', { ascending: true })
-  if (servErr) return errorDb('servicios_opcionales', servErr)
-
-  const { data: limites, error: limErr } = await supabaseAdmin
-    .from('gimnasio_limites')
-    .select('servicio_id, categoria_nombre, dias_por_semana')
-  if (limErr) return errorDb('gimnasio_limites', limErr)
-
-  const porServicio = new Map<string, number | null>()
-  const porCategoria = new Map<string, number | null>()
-  for (const l of limites ?? []) {
-    if (l.servicio_id) porServicio.set(l.servicio_id, l.dias_por_semana)
-    if (l.categoria_nombre) porCategoria.set(l.categoria_nombre, l.dias_por_semana)
-  }
-
-  // dias_por_semana null = sin límite (con o sin fila configurada). `configurado` distingue si hay fila.
-  const items = [
-    ...(servicios ?? []).map((s) => ({
-      servicio_id: s.id,
-      categoria_nombre: null as string | null,
-      nombre: s.nombre,
-      dias_por_semana: porServicio.get(s.id) ?? null,
-      configurado: porServicio.has(s.id),
-    })),
-    // Cliente Gimnasio es una categoría, no tiene servicio propio: se lista siempre.
-    {
-      servicio_id: null as string | null,
-      categoria_nombre: 'Cliente Gimnasio' as string | null,
-      nombre: 'Cliente Gimnasio',
-      dias_por_semana: porCategoria.get('Cliente Gimnasio') ?? null,
-      configurado: porCategoria.has('Cliente Gimnasio'),
-    },
-  ]
-
-  return jsonOk({ ok: true, limites: items })
-}
-
-async function handleLimiteGuardar(body: Record<string, unknown>): Promise<Response> {
-  const servicioRaw = body.servicio_id
-  const categoriaRaw = body.categoria_nombre
-  const tieneServicio = servicioRaw !== undefined && servicioRaw !== null
-  const tieneCategoria = categoriaRaw !== undefined && categoriaRaw !== null
-  if (tieneServicio === tieneCategoria) {
-    return rechazo('Indicá un servicio o una categoría (sólo uno de los dos).')
-  }
-
-  const dias = body.dias_por_semana
-  if (dias !== null && !esEntero(dias, 1, 7)) {
-    return rechazo('Los días por semana deben ser de 1 a 7, o null para sin límite.')
-  }
-
-  let servicioId: string | null = null
-  let categoriaNombre: string | null = null
-  if (tieneServicio) {
-    if (typeof servicioRaw !== 'string' || !UUID_RE.test(servicioRaw)) return rechazo('Servicio inválido.')
-    const { data, error } = await supabaseAdmin
-      .from('servicios_opcionales').select('id').eq('id', servicioRaw).maybeSingle()
-    if (error) return errorDb('servicios_opcionales', error)
-    if (!data) return rechazo('El servicio no existe.')
-    servicioId = servicioRaw
-  } else {
-    if (typeof categoriaRaw !== 'string' || !categoriaRaw.trim()) return rechazo('Categoría inválida.')
-    const { data, error } = await supabaseAdmin
-      .from('categorias_socio').select('nombre').eq('nombre', categoriaRaw.trim()).limit(1)
-    if (error) return errorDb('categorias_socio', error)
-    if (!data?.length) return rechazo('La categoría no existe.')
-    categoriaNombre = categoriaRaw.trim()
-  }
-
-  let q = supabaseAdmin.from('gimnasio_limites').select('id')
-  q = servicioId ? q.eq('servicio_id', servicioId) : q.eq('categoria_nombre', categoriaNombre!)
-  const { data: previa, error: previaErr } = await q.maybeSingle()
-  if (previaErr) return errorDb('buscar limite', previaErr)
-
-  const valores = { servicio_id: servicioId, categoria_nombre: categoriaNombre, dias_por_semana: dias as number | null }
-  const cols = 'id, servicio_id, categoria_nombre, dias_por_semana'
-  const { data: guardado, error: saveErr } = previa
-    ? await supabaseAdmin.from('gimnasio_limites').update(valores).eq('id', previa.id).select(cols).single()
-    : await supabaseAdmin.from('gimnasio_limites').insert(valores).select(cols).single()
-  if (saveErr || !guardado) {
-    if ((saveErr as { code?: string } | null)?.code === '23505') {
-      return rechazo('Ya existe un límite para ese servicio o categoría. Probá de nuevo.')
-    }
-    return errorDb('guardar limite', saveErr)
-  }
-
-  return jsonOk({ ok: true, limite: guardado })
 }

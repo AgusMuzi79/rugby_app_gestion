@@ -2,15 +2,16 @@
 // Turnero del gimnasio para el socio / cliente de gimnasio (ver 20261005000000_gimnasio_turnos).
 //
 // Actions (body.action):
-//   listar        — { desde?, hasta? } disponibilidad por día y franja (default: hoy .. hoy + anticipacion_dias),
-//                   con si el caller ya reservó, su tope semanal y los días que usó cada semana.
-//   reservar      — { franja_id, fecha } reserva atómica vía RPC gimnasio_reservar (origen 'socio').
+//   listar        — { desde?, hasta? } disponibilidad por día y franja con si el caller ya reservó. Rango por
+//                   defecto: hoy .. último día del mes en curso (ventana 'mes') o hoy .. hoy + anticipacion_dias
+//                   (ventana 'dias'); nunca más de 31 días. Las franjas cerradas traen `motivo_cierre`.
+//   reservar      — { franja_id, fecha } reserva atómica vía RPC gimnasio_reservar (origen 'socio'). No hay tope
+//                   de días por semana: sólo rige la ventana de reserva de la config.
 //   cancelar      — { reserva_id } cancela UNA reserva propia que todavía no empezó. Si vino de un
 //                   turno fijo se cancela sólo esa ocurrencia, el turno fijo sigue activo.
 //   mis-reservas  — reservas vigentes (hoy en adelante) + turnos fijos activos del caller.
 //   crear-fijo    — { franja_id } alta de turno fijo. NO materializa reservas (eso lo hace el cron de
-//                   turnos fijos): valida elegibilidad, tope semanal (días de semana distintos de sus
-//                   fijos) y que quede lugar en el porcentaje de cupo reservado a fijos.
+//                   turnos fijos): valida elegibilidad y que quede lugar en el porcentaje de cupo reservado a fijos.
 //   cancelar-fijo — { turno_fijo_id } desactiva el turno fijo y cancela sus ocurrencias futuras 'reservada'.
 //
 // Seguridad: JWT requerido; rol 'socio' o 'cliente_gimnasio' (el rol sale de profiles.rol del caller,
@@ -38,10 +39,10 @@ const MOTIVOS: Record<string, string> = {
   dia_invalido: 'La fecha no corresponde al día de esa franja.',
   cerrado: 'El gimnasio está cerrado en esa fecha.',
   pasado: 'Ese horario ya comenzó o ya pasó.',
+  fuera_de_mes: 'Todavía no se pueden reservar turnos del mes que viene.',
   duplicada: 'Ya tenés una reserva en esa franja.',
   cupo_lleno: 'Ya no quedan lugares en esa franja.',
   cupo_fijos_lleno: 'Ya no quedan lugares para turnos fijos en esa franja.',
-  tope_semanal: 'Alcanzaste el máximo de días por semana de tu servicio.',
 }
 
 // ─── Fechas (UTC-3 fijo) ──────────────────────────────────────────────────────
@@ -65,8 +66,10 @@ function diaISO(fecha: string): number {
   return d === 0 ? 7 : d
 }
 
-function inicioSemana(fecha: string): string {
-  return sumarDias(fecha, -(diaISO(fecha) - 1))
+// Último día del mes de `fecha` ('AAAA-MM-DD'): el día 0 del mes siguiente en UTC.
+function finDeMes(fecha: string): string {
+  const [anio, mes] = fecha.split('-').map(Number)
+  return fechaISO(new Date(Date.UTC(anio, mes, 0)))
 }
 
 function fechaValida(f: unknown): f is string {
@@ -179,20 +182,16 @@ async function tieneServicioGimnasio(
 
 // ─── Lecturas compartidas ─────────────────────────────────────────────────────
 
-async function leerConfig(): Promise<{ anticipacion_dias: number; pct_cupo_fijos: number } | Response> {
+type ConfigTurnos = { ventana_reserva: 'mes' | 'dias'; anticipacion_dias: number; pct_cupo_fijos: number }
+
+async function leerConfig(): Promise<ConfigTurnos | Response> {
   const { data, error } = await supabaseAdmin
     .from('gimnasio_config')
-    .select('anticipacion_dias, pct_cupo_fijos')
+    .select('ventana_reserva, anticipacion_dias, pct_cupo_fijos')
     .eq('id', 1)
     .single()
   if (error || !data) return errorDb('gimnasio_config', error)
-  return data
-}
-
-async function leerLimite(socioId: string): Promise<number | null | Response> {
-  const { data, error } = await supabaseAdmin.rpc('gimnasio_limite_socio', { p_socio_id: socioId })
-  if (error) return errorDb('gimnasio_limite_socio', error)
-  return data === null || data === undefined ? null : Number(data)
+  return data as ConfigTurnos
 }
 
 // ─── listar ───────────────────────────────────────────────────────────────────
@@ -208,6 +207,7 @@ interface FilaDisponibilidad {
   ocupados: number
   ocupados_fijos: number
   cerrado: boolean
+  motivo_cierre: string | null
 }
 
 async function handleListar(socioId: string, body: Record<string, unknown>): Promise<Response> {
@@ -225,10 +225,13 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
   // No se listan días pasados: "desde" se acota a hoy.
   let desde = (body.desde as string | undefined | null) ?? hoy
   if (desde < hoy) desde = hoy
-  // El rango por defecto (hoy..hoy+anticipación) incluye anticipación+1 días: se acota para
-  // que nunca supere MAX_DIAS_RANGO aunque la config guardada tenga un valor más alto.
-  const hasta = (body.hasta as string | undefined | null)
-    ?? sumarDias(hoy, Math.min(cfg.anticipacion_dias, MAX_DIAS_RANGO - 1))
+  // Rango por defecto según la ventana de reserva. 'mes': hasta el último día del mes en curso
+  // (a lo sumo 31 días desde hoy). 'dias': hoy..hoy+anticipación incluye anticipación+1 días, y se
+  // acota para que nunca supere MAX_DIAS_RANGO aunque la config guardada tenga un valor más alto.
+  const hastaPorDefecto = cfg.ventana_reserva === 'mes'
+    ? finDeMes(hoy)
+    : sumarDias(hoy, Math.min(cfg.anticipacion_dias, MAX_DIAS_RANGO - 1))
+  const hasta = (body.hasta as string | undefined | null) ?? hastaPorDefecto
   if (hasta < desde) return rechazo('El rango de fechas es inválido.')
   const cantDias = Math.round((new Date(`${hasta}T00:00:00Z`).getTime() - new Date(`${desde}T00:00:00Z`).getTime()) / 86400000) + 1
   if (cantDias > MAX_DIAS_RANGO) return rechazo(`El rango no puede superar ${MAX_DIAS_RANGO} días.`)
@@ -239,30 +242,18 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
   })
   if (dispErr) return errorDb('gimnasio_disponibilidad', dispErr)
 
-  // Reservas vivas del caller desde el inicio de la primera semana hasta el fin de la última:
-  // sirven para marcar "ya reservada" y para contar los días usados por semana.
-  const semIni = inicioSemana(desde)
-  const semFin = sumarDias(inicioSemana(hasta), 6)
+  // Reservas vivas del caller en el rango: sirven para marcar "ya reservada".
   const { data: propias, error: propiasErr } = await supabaseAdmin
     .from('gimnasio_reservas')
     .select('id, franja_id, fecha')
     .eq('socio_id', socioId)
     .neq('estado', 'cancelada')
-    .gte('fecha', semIni)
-    .lte('fecha', semFin)
+    .gte('fecha', desde)
+    .lte('fecha', hasta)
   if (propiasErr) return errorDb('gimnasio_reservas', propiasErr)
 
-  const limite = await leerLimite(socioId)
-  if (limite instanceof Response) return limite
-
   const reservaPorFranjaFecha = new Map<string, string>()
-  const diasPorSemana = new Map<string, Set<string>>()
-  for (const r of propias ?? []) {
-    reservaPorFranjaFecha.set(`${r.franja_id}|${r.fecha}`, r.id)
-    const sem = inicioSemana(r.fecha)
-    if (!diasPorSemana.has(sem)) diasPorSemana.set(sem, new Set())
-    diasPorSemana.get(sem)!.add(r.fecha)
-  }
+  for (const r of propias ?? []) reservaPorFranjaFecha.set(`${r.franja_id}|${r.fecha}`, r.id)
 
   const porFecha = new Map<string, unknown[]>()
   for (const f of (disp ?? []) as FilaDisponibilidad[]) {
@@ -276,6 +267,8 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
       ocupados: f.ocupados,
       disponibles: Math.max(0, f.capacidad - f.ocupados),
       cerrado: f.cerrado,
+      // Mensaje que cargó el encargado al cerrar (la pantalla lo muestra bajo "Cerrado").
+      motivo_cierre: f.cerrado ? f.motivo_cierre : null,
       pasada: yaComenzo(f.fecha, f.hora_desde),
       reservada: reservaId !== null,
       reserva_id: reservaId,
@@ -289,19 +282,12 @@ async function handleListar(socioId: string, body: Record<string, unknown>): Pro
     dias.push({ fecha, dia_semana: diaISO(fecha), franjas: porFecha.get(fecha) ?? [] })
   }
 
-  // Semanas ISO que toca el rango, con cuántos días distintos usó el caller en cada una.
-  const semanas: { desde: string; dias_usados: number }[] = []
-  for (let s = inicioSemana(desde); s <= hasta; s = sumarDias(s, 7)) {
-    semanas.push({ desde: s, dias_usados: diasPorSemana.get(s)?.size ?? 0 })
-  }
-
   return jsonOk({
     ok: true,
     desde,
     hasta,
-    anticipacion_dias: cfg.anticipacion_dias,
-    limite_semanal: limite, // null = sin límite
-    semanas,
+    ventana_reserva: cfg.ventana_reserva,
+    anticipacion_dias: cfg.anticipacion_dias, // sólo rige en ventana 'dias'
     dias,
   })
 }
@@ -462,32 +448,16 @@ async function handleCrearFijo(socioId: string, body: Record<string, unknown>): 
   if (franjaErr) return errorDb('gimnasio_franjas', franjaErr)
   if (!franja || !franja.activa) return rechazo('Esa franja no está disponible.')
 
-  // Fijos activos del caller: ya tener uno en esta franja, y días distintos para el tope semanal.
+  // Fijos activos del caller: no puede tener dos en la misma franja.
   const { data: propios, error: propiosErr } = await supabaseAdmin
     .from('gimnasio_turnos_fijos')
-    .select('franja_id, gimnasio_franjas(dia_semana)')
+    .select('franja_id')
     .eq('socio_id', socioId)
     .eq('activo', true)
   if (propiosErr) return errorDb('gimnasio_turnos_fijos', propiosErr)
 
   if ((propios ?? []).some((p) => p.franja_id === franjaId)) {
     return rechazo('Ya tenés un turno fijo en esa franja.', { codigo: 'duplicado' })
-  }
-
-  const limite = await leerLimite(socioId)
-  if (limite instanceof Response) return limite
-  if (limite !== null) {
-    const dias = new Set<number>([franja.dia_semana])
-    for (const p of propios ?? []) {
-      const f = (p as unknown as { gimnasio_franjas: { dia_semana: number } | null }).gimnasio_franjas
-      if (f) dias.add(f.dia_semana)
-    }
-    if (dias.size > limite) {
-      return rechazo(
-        `Tu servicio permite ${limite} día${limite === 1 ? '' : 's'} por semana: ya tenés turnos fijos en ${limite}.`,
-        { codigo: 'tope_semanal' },
-      )
-    }
   }
 
   // Lugar para fijos: el cupo base de la franja reservado a fijos (pct_cupo_fijos). No es un lock:
