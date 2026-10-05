@@ -39,7 +39,7 @@ Not in scope: deploying to production (needs explicit confirmation), changing th
 - [ ] T2 — Migration `importaciones_servicios` + RLS. Route: delegated (same writer). **Blocked:** the authorized name `20261005000000_importaciones_servicios.sql` duplicates the version of the existing `20261005000000_gimnasio_turnos.sql` (and 20261006/20261007 already exist); needs authorization for `20261008000000_importaciones_servicios.sql`. Draft ready outside the repo.
 - [x] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
 - [x] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
-- [ ] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
+- [x] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
 - [ ] T6 — Production deploy (migration + function) — only after user confirmation.
 
 Route evidence: understanding required 4+ files (mapper ran, report received); implementation touches 2+ non-trivial files → one bounded writer.
@@ -67,6 +67,10 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 - T3 commit: `0d25bac`.
 - T4: new colocated component `socios-import/seccion-servicios.tsx` mounted at the end of the page (its own upload, preview, checkable deletions, confirm and history). `npm ci` + `npm run build` in `web/` (dummy NEXT_PUBLIC_SUPABASE_* vars) → build OK, `/secretaria/socios-import` prerendered.
 
+- T4 commit: `91e527f`.
+- T5: docs updated (`estado-web.md`, `estado-supabase.md`, `historial.md`); structural readback only. Commit: the `docs(socios-import)` commit after `91e527f`.
+- Open note: `historial.md` (2026-09-30) records stored importes per variant (Mayor 30000, Menor 22500, Rugby 28000, Hockey 35000, Carnet Tenis 70000, Inclusivos 21000) while the old migrations seed the catalog with lower prices; if the catalog `monto_mensual` is not aligned, the first preview will show those rows as "actualizados". Check the preview before confirming.
+
 ## Next step
 
-T5, then T2 once the migration name is authorized.
+T2 once a free migration version is authorized (proposed `supabase/migrations/20261008000000_importaciones_servicios.sql`), then T6 with user confirmation.

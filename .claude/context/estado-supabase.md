@@ -55,6 +55,7 @@ INSERT INTO categorias_socio (nombre, descripcion, monto_mensual) VALUES
 | `supabase/functions/admin-socios/` | ✅ deployada | `create` / `deactivate` / `reactivate` / `validate-photo` (Rekognition con fallback manual si AWS no configurado) |
 | `supabase/functions/socios-qr/` | ✅ deployada | `get-secret` (socio) / `validate` (portería) — TOTP server-side |
 | `supabase/functions/socios-pagos/` | ✅ deployada (`--no-verify-jwt`) | `checkout` / `webhook` / `manual` / `associate-card` / `remove-card` / `charge-card` / `cobro-mensual` (cron) |
+| `supabase/functions/importar-servicios/` | ⏳ escrita, sin deployar | Padrón de Servicios NUVIX desde el panel de Secretaría (FormData `archivo` + `modo` preview/confirmar + `bajas_omitidas`). Espejo de `socio_servicios` para Gimnasio/Rugby/Hockey/Carnet Tenis/Rugby Inclusivo/Hockey Inclusivo: agrega, actualiza importe/variante y borra lo que no figura (incluidas filas manuales). Importe = `monto_mensual` del catálogo de la variante. Parser/diff puro en `_shared/parse-padron-servicios.ts` (+ `.check.ts`). Historial en `importaciones_servicios` (migración pendiente de nombre, ver `odd/tasks/import-servicios-panel.md`). Sólo secretaria/admin |
 | `supabase/functions/_shared/totp.ts` | ✅ escrito | TOTP RFC 6238 puro (crypto.subtle, sin deps externas) |
 | `supabase/functions/_shared/` | ✅ | `supabase-admin.ts` (service role client) + `cors.ts` (headers + helpers) |
 
