@@ -36,7 +36,7 @@ Not in scope: deploying to production (needs explicit confirmation), changing th
 ## Tasks
 
 - [x] T1 — Pure parser + mapping + diff in `_shared/parse-padron-servicios.ts` with `parse-padron-servicios.check.ts` (RED → GREEN, `npx --yes tsx`), validated also against the real sample `data/import/padron servicio socio.xls`. Route: delegated (writer).
-- [ ] T2 — Migration `importaciones_servicios` + RLS. Route: delegated (same writer). **Blocked:** the authorized name `20261005000000_importaciones_servicios.sql` duplicates the version of the existing `20261005000000_gimnasio_turnos.sql` (and 20261006/20261007 already exist); needs authorization for `20261008000000_importaciones_servicios.sql`. Draft ready outside the repo.
+- [x] T2 — Migration `supabase/migrations/20261009000000_importaciones_servicios.sql` + RLS. Route: writer drafted, parent committed inline. 20261005/06/07 exist on main and 20261008 is taken by `gimnasio_lector_turno` on `feat/gimnasio-lector-turnos`, so 20261009 was used.
 - [x] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
 - [x] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
 - [x] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
@@ -73,4 +73,4 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 
 ## Next step
 
-T2 once a free migration version is authorized (proposed `supabase/migrations/20261008000000_importaciones_servicios.sql`), then T6 with user confirmation.
+T6 (production deploy of migration + function + web) with user confirmation.
