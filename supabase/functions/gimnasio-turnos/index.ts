@@ -10,8 +10,10 @@
 //   cancelar      — { reserva_id } cancela UNA reserva propia que todavía no empezó. Si vino de un
 //                   turno fijo se cancela sólo esa ocurrencia, el turno fijo sigue activo.
 //   mis-reservas  — reservas vigentes (hoy en adelante) + turnos fijos activos del caller.
-//   crear-fijo    — { franja_id } alta de turno fijo. NO materializa reservas (eso lo hace el cron de
-//                   turnos fijos): valida elegibilidad y que quede lugar en el porcentaje de cupo reservado a fijos.
+//   crear-fijo    — { franja_id } alta de turno fijo: valida elegibilidad y que quede lugar en el porcentaje de cupo
+//                   reservado a fijos y materializa YA las reservas de las próximas semanas (RPC
+//                   gimnasio_materializar_fijos; después las renueva el cron `gimnasio-turnos-fijos`). Devuelve
+//                   { ok, turno_fijo_id, reservas_creadas, motivo_parcial? }.
 //   cancelar-fijo — { turno_fijo_id } desactiva el turno fijo y cancela sus ocurrencias futuras 'reservada'.
 //
 // Seguridad: JWT requerido; rol 'socio' o 'cliente_gimnasio' (el rol sale de profiles.rol del caller,
@@ -489,7 +491,34 @@ async function handleCrearFijo(socioId: string, body: Record<string, unknown>): 
     return errorDb('crear turno fijo', insErr)
   }
 
-  return jsonOk({ ok: true, turno_fijo_id: creado.id })
+  // Reservas de las próximas semanas, de una vez (el cron sólo renueva). Si esto falla el turno fijo
+  // ya está creado: se responde 500 igual (no se oculta el error de la base) y el cron lo completa
+  // en su próxima corrida, porque la materialización es idempotente.
+  const { data: mat, error: matErr } = await supabaseAdmin.rpc('gimnasio_materializar_fijos', {
+    p_turno_fijo_id: creado.id,
+  })
+  if (matErr || !mat) return errorDb('materializar turno fijo', matErr)
+
+  // Fechas que no se pudieron reservar (cupo lleno, cerrado, ...). 'pasado' (hoy, franja ya empezada)
+  // no se cuenta: nadie espera reservar un horario que ya comenzó.
+  const porCodigo = (mat.omitidas?.por_codigo ?? {}) as Record<string, number>
+  const noReservadas = Object.entries(porCodigo)
+    .filter(([codigo]) => codigo !== 'pasado')
+    .reduce((acc, [, n]) => acc + n, 0)
+  const errores = (mat.errores ?? []) as unknown[]
+  if (errores.length > 0) {
+    console.error('gimnasio-turnos: error al materializar el turno fijo:', JSON.stringify(errores))
+  }
+
+  const out: Record<string, unknown> = { ok: true, turno_fijo_id: creado.id, reservas_creadas: mat.creadas ?? 0 }
+  if (errores.length > 0) {
+    out.motivo_parcial = 'No se pudieron reservar todas las fechas. Lo vamos a reintentar automáticamente.'
+  } else if (noReservadas > 0) {
+    out.motivo_parcial = noReservadas === 1
+      ? 'No se pudo reservar 1 fecha por cupo o cierre.'
+      : `No se pudieron reservar ${noReservadas} fechas por cupo o cierre.`
+  }
+  return jsonOk(out)
 }
 
 // ─── cancelar-fijo ────────────────────────────────────────────────────────────

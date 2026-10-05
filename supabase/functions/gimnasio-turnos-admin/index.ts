@@ -25,7 +25,8 @@
 //                        (sólo lectura: el encargado NO anota a nadie, reservan los socios).
 //   reserva-cancelar   — { reserva_id }.
 //   config-get / config-guardar — modo_cupos (informativo|bloqueante), ventana de reserva (mes|dias),
-//                        anticipación (sólo modo 'dias'), % de fijos, faltas de aviso y de baja, tolerancia.
+//                        anticipación (sólo modo 'dias'), % de fijos, faltas de aviso y de baja, tolerancia y el
+//                        interruptor `faltas_activas` (proceso automático de faltas: arranca apagado).
 //
 // Seguridad: JWT requerido; el rol sale de profiles.rol del caller (nunca del body) y debe ser
 // 'porteria' (el encargado, label "Gimnasio"), 'admin' o 'subcomision'. Todo lo escribe esta función con
@@ -776,7 +777,7 @@ async function handleReservaCancelar(body: Record<string, unknown>): Promise<Res
 // ─── config ───────────────────────────────────────────────────────────────────
 
 const CONFIG_COLS =
-  'modo_cupos, ventana_reserva, anticipacion_dias, pct_cupo_fijos, faltas_aviso, faltas_baja, semanas_fijos, tolerancia_min'
+  'modo_cupos, ventana_reserva, anticipacion_dias, pct_cupo_fijos, faltas_aviso, faltas_baja, semanas_fijos, tolerancia_min, faltas_activas'
 
 async function handleConfigGet(): Promise<Response> {
   const { data, error } = await supabaseAdmin.from('gimnasio_config').select(CONFIG_COLS).eq('id', 1).single()
@@ -797,7 +798,7 @@ const RANGOS_CONFIG: Record<string, [number, number, string]> = {
 }
 
 async function handleConfigGuardar(body: Record<string, unknown>): Promise<Response> {
-  const cambios: Record<string, string | number> = {}
+  const cambios: Record<string, string | number | boolean> = {}
 
   if (body.modo_cupos !== undefined) {
     if (body.modo_cupos !== 'informativo' && body.modo_cupos !== 'bloqueante') {
@@ -810,6 +811,12 @@ async function handleConfigGuardar(body: Record<string, unknown>): Promise<Respo
       return rechazo('La ventana de reserva debe ser "mes" o "dias".')
     }
     cambios.ventana_reserva = body.ventana_reserva
+  }
+  if (body.faltas_activas !== undefined) {
+    if (typeof body.faltas_activas !== 'boolean') {
+      return rechazo('El interruptor de faltas automáticas debe ser verdadero o falso.')
+    }
+    cambios.faltas_activas = body.faltas_activas
   }
   for (const [campo, [min, max, mensaje]] of Object.entries(RANGOS_CONFIG)) {
     if (body[campo] === undefined) continue
