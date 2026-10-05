@@ -1,6 +1,7 @@
 -- Pruebas de escenario para las migraciones 20261005000000_gimnasio_turnos y
 -- 20261006000000_gimnasio_franjas_profesor_import (profesor por franja + importación) y
--- 20261007000000_gimnasio_turnos_fijos_auto (materialización de fijos y proceso de faltas).
+-- 20261007000000_gimnasio_turnos_fijos_auto (materialización de fijos y proceso de faltas) y
+-- 20261008000000_gimnasio_lector_turno (turno actual del socio para el Lector + accesos.sin_reserva).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name gim-turnos-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -1679,6 +1680,174 @@ begin
   if v_ok then raise exception 'FALLO: evento duplicado aceptado'; end if;
   raise notice 'ok   - eventos: tipo válido y único por (socio, franja, tipo, fecha_ref)';
 end $$;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- T7 — Lector + turnos (20261008000000_gimnasio_lector_turno)
+-- ═════════════════════════════════════════════════════════════════════════════
+-- `accesos` ya existe (stub de la sección de faltas). La migración agrega sin_reserva y la
+-- RPC gimnasio_turno_actual.
+
+\ir ../migrations/20261008000000_gimnasio_lector_turno.sql
+
+delete from gimnasio_faltas_eventos;
+delete from gimnasio_reservas;
+delete from gimnasio_turnos_fijos;
+delete from gimnasio_franjas_excepciones;
+delete from gimnasio_franjas;
+update gimnasio_config set modo_cupos = 'informativo', tolerancia_min = 15;
+
+-- Turno del socio n; campo del resultado por ruta.
+create function pg_temp.tu(p_socio int) returns jsonb language sql as $$
+  select gimnasio_turno_actual(pg_temp.so(p_socio))
+$$;
+create function pg_temp.tj(p_socio int, variadic p_path text[]) returns text language sql as $$
+  select pg_temp.tu(p_socio) #>> p_path
+$$;
+
+-- Sin franjas cargadas (producción hoy): no-op total.
+select pg_temp.ahora('2026-10-05 18:10:00');   -- lunes
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: sin franjas -> sin_franja');
+select pg_temp.espera(pg_temp.tj(1, 'bloquear'), 'false', 'T7: sin franjas -> no bloquea');
+select pg_temp.espera(pg_temp.tj(1, 'mensaje'), '', 'T7: sin franjas -> mensaje vacío');
+select pg_temp.espera(pg_temp.tj(1, 'ok'), 'true', 'T7: sin franjas -> ok true');
+select pg_temp.espera((pg_temp.tu(1) -> 'franja')::text, 'null', 'T7: sin franjas -> franja null');
+select pg_temp.espera(pg_temp.tj(1, 'modo'), 'informativo', 'T7: modo por defecto informativo');
+
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo, activa, profesor) values
+  (pg_temp.fx(21), 1, '18:00', '19:00', 10, true,  'Ana'),    -- lunes 18-19
+  (pg_temp.fx(22), 1, '19:00', '20:00', 5,  true,  null),     -- lunes 19-20 (pegada a la anterior)
+  (pg_temp.fx(23), 2, '18:00', '19:00', 8,  true,  null),     -- martes 18-19
+  (pg_temp.fx(24), 1, '21:00', '22:00', 8,  false, null);     -- lunes 21-22 INACTIVA
+
+-- Ventana [hora_desde - tolerancia, hora_hasta).
+select pg_temp.ahora('2026-10-05 17:44:59');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: un segundo antes de hora_desde - tolerancia -> sin_franja');
+select pg_temp.ahora('2026-10-05 17:45:00');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(21)::text, 'T7: exactamente en hora_desde - tolerancia entra (inclusivo)');
+select pg_temp.ahora('2026-10-05 18:44:59');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(21)::text, 'T7: 18:44:59 sólo entra la primera');
+select pg_temp.ahora('2026-10-05 18:45:00');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(22)::text, 'T7: 18:45 coinciden dos -> la que ya empezó (la tardía)');
+select pg_temp.ahora('2026-10-05 19:00:00');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(22)::text, 'T7: 19:00 la primera ya terminó -> la segunda');
+select pg_temp.ahora('2026-10-05 19:59:59');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(22)::text, 'T7: un segundo antes de hora_hasta sigue en la franja');
+select pg_temp.ahora('2026-10-05 20:00:00');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: exactamente en hora_hasta sale (exclusivo, sin franja siguiente)');
+select pg_temp.ahora('2026-10-05 17:00:00');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: antes de la ventana -> sin_franja');
+select pg_temp.ahora('2026-10-05 21:30:00');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: franja inactiva no cuenta');
+select pg_temp.ahora('2026-10-07 18:30:00');   -- miércoles
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'sin_franja', 'T7: otro día de la semana sin franja -> sin_franja');
+select pg_temp.ahora('2026-10-06 18:30:00');   -- martes
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'id'), pg_temp.fx(23)::text, 'T7: martes usa la franja del martes, no la del lunes');
+
+-- Reservas del socio.
+select pg_temp.rv(1, 21, '2026-10-05', 'reservada');
+select pg_temp.rv(2, 21, '2026-10-05', 'asistio');
+select pg_temp.rv(3, 21, '2026-10-05', 'cancelada');
+select pg_temp.rv(4, 21, '2026-09-28', 'reservada');   -- el lunes anterior: no vale
+select pg_temp.rv(5, 21, '2026-10-05', 'falto');
+select pg_temp.ahora('2026-10-05 18:10:00');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'con_reserva', 'T7: reserva reservada -> con_reserva');
+select pg_temp.espera(pg_temp.tj(1, 'mensaje'), 'Reserva: 18:00–19:00 · Prof. Ana', 'T7: mensaje con profesor');
+select pg_temp.espera(pg_temp.tj(1, 'reserva_id'),
+  (select id::text from gimnasio_reservas where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(21)), 'T7: devuelve el reserva_id');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'profesor'), 'Ana', 'T7: franja.profesor');
+select pg_temp.espera(pg_temp.tj(1, 'franja', 'hora_desde') || '/' || pg_temp.tj(1, 'franja', 'hora_hasta'), '18:00/19:00', 'T7: franja.hora_desde/hasta en HH24:MI');
+select pg_temp.espera(pg_temp.tj(2, 'estado'), 'con_reserva', 'T7: reserva asistio -> con_reserva');
+select pg_temp.espera(pg_temp.tj(3, 'estado'), 'sin_reserva', 'T7: sólo cancelada -> sin_reserva');
+select pg_temp.espera(pg_temp.tj(3, 'reserva_id'), null, 'T7: sin_reserva -> reserva_id null');
+select pg_temp.espera(pg_temp.tj(4, 'estado'), 'sin_reserva', 'T7: reserva de otra fecha no cuenta');
+select pg_temp.espera(pg_temp.tj(5, 'estado'), 'sin_reserva', 'T7: reserva en estado falto no cuenta');
+select pg_temp.espera(pg_temp.tj(6, 'estado'), 'sin_reserva', 'T7: socio sin reservas -> sin_reserva');
+
+-- Mensaje sin profesor (franja 22) con reserva.
+select pg_temp.rv(1, 22, '2026-10-05', 'reservada');
+select pg_temp.ahora('2026-10-05 19:10:00');
+select pg_temp.espera(pg_temp.tj(1, 'mensaje'), 'Reserva: 19:00–20:00', 'T7: mensaje sin profesor omite la parte de Prof.');
+select pg_temp.ahora('2026-10-05 18:10:00');
+
+-- Ocupados y capacidad (cuentan reservada + asistio, no canceladas ni faltas).
+select pg_temp.espera(pg_temp.tj(6, 'ocupados'), '2', 'T7: ocupados = reservada + asistio de hoy');
+select pg_temp.espera(pg_temp.tj(6, 'capacidad'), '10', 'T7: capacidad = cupo de la franja');
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, cupo_override)
+values ('2026-10-05', pg_temp.fx(21), false, 3);
+select pg_temp.espera(pg_temp.tj(6, 'capacidad'), '3', 'T7: cupo_override de la excepción manda en capacidad');
+select pg_temp.espera(pg_temp.tj(6, 'estado'), 'sin_reserva', 'T7: la excepción abierta no cambia el estado');
+delete from gimnasio_franjas_excepciones;
+
+-- Modos: informativo nunca bloquea; bloqueante sólo sin reserva.
+select pg_temp.espera(pg_temp.tj(6, 'bloquear'), 'false', 'T7: informativo + sin_reserva -> no bloquea');
+select pg_temp.espera(pg_temp.tj(6, 'mensaje'), 'Sin reserva en este horario (18:00–19:00).', 'T7: mensaje informativo sin reserva');
+update gimnasio_config set modo_cupos = 'bloqueante';
+select pg_temp.espera(pg_temp.tj(6, 'modo'), 'bloqueante', 'T7: modo bloqueante reflejado');
+select pg_temp.espera(pg_temp.tj(6, 'bloquear'), 'true', 'T7: bloqueante + sin_reserva -> bloquea');
+select pg_temp.espera(pg_temp.tj(6, 'mensaje'), 'No tenés una reserva para este horario. Reservá desde la app.', 'T7: mensaje bloqueante sin reserva');
+select pg_temp.espera(pg_temp.tj(3, 'bloquear'), 'true', 'T7: bloqueante + sólo cancelada -> bloquea');
+select pg_temp.espera(pg_temp.tj(1, 'bloquear'), 'false', 'T7: bloqueante + con_reserva -> no bloquea');
+select pg_temp.espera(pg_temp.tj(2, 'bloquear'), 'false', 'T7: bloqueante + asistio -> no bloquea');
+select pg_temp.ahora('2026-10-05 17:00:00');
+select pg_temp.espera(pg_temp.tj(6, 'bloquear'), 'false', 'T7: bloqueante + sin_franja -> no bloquea');
+select pg_temp.espera(pg_temp.tj(6, 'mensaje'), '', 'T7: bloqueante + sin_franja -> mensaje vacío');
+select pg_temp.ahora('2026-10-05 18:10:00');
+
+-- Franja cerrada por excepción: general vs específica (la específica gana).
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, motivo)
+values ('2026-10-05', null, true, 'Feriado');
+select pg_temp.espera(pg_temp.tj(6, 'estado'), 'cerrada', 'T7: cierre general -> cerrada');
+select pg_temp.espera(pg_temp.tj(6, 'mensaje'), 'Franja cerrada: Feriado', 'T7: mensaje de cierre con motivo');
+select pg_temp.espera(pg_temp.tj(6, 'bloquear'), 'false', 'T7: bloqueante + cerrada -> no bloquea');
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'cerrada', 'T7: cerrada aunque el socio tuviera reserva');
+select pg_temp.espera(pg_temp.tj(1, 'reserva_id'), null, 'T7: cerrada -> reserva_id null');
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, cupo_override)
+values ('2026-10-05', pg_temp.fx(21), false, 4);
+select pg_temp.espera(pg_temp.tj(1, 'estado'), 'con_reserva', 'T7: excepción específica abierta gana sobre el cierre general');
+select pg_temp.espera(pg_temp.tj(1, 'capacidad'), '4', 'T7: capacidad de la excepción específica');
+delete from gimnasio_franjas_excepciones;
+insert into gimnasio_franjas_excepciones (fecha, franja_id, cerrado, motivo)
+values ('2026-10-05', pg_temp.fx(21), true, 'Mantenimiento');
+select pg_temp.espera(pg_temp.tj(6, 'mensaje'), 'Franja cerrada: Mantenimiento', 'T7: cierre específico con su motivo');
+select pg_temp.ahora('2026-10-05 19:10:00');
+select pg_temp.espera(pg_temp.tj(6, 'estado'), 'sin_reserva', 'T7: el cierre de una franja no afecta a la siguiente');
+select pg_temp.ahora('2026-10-05 18:10:00');
+delete from gimnasio_franjas_excepciones;
+
+-- Franjas todas inactivas -> no-op otra vez.
+update gimnasio_franjas set activa = false;
+select pg_temp.espera(pg_temp.tj(6, 'estado'), 'sin_franja', 'T7: todas las franjas inactivas -> sin_franja');
+select pg_temp.espera(pg_temp.tj(6, 'bloquear'), 'false', 'T7: todas inactivas -> no bloquea ni en bloqueante');
+update gimnasio_franjas set activa = true where id <> pg_temp.fx(24);
+
+-- Nunca falla: socio inexistente o null.
+select pg_temp.espera(
+  (gimnasio_turno_actual('00000000-0000-0000-0000-00000000dead') ->> 'estado'), 'sin_reserva', 'T7: socio inexistente no falla');
+select pg_temp.espera(
+  (gimnasio_turno_actual(null) ->> 'estado'), 'sin_reserva', 'T7: socio null no falla');
+
+-- accesos.sin_reserva.
+select pg_temp.espera(
+  (select (column_default || '/' || is_nullable) from information_schema.columns
+    where table_name = 'accesos' and column_name = 'sin_reserva'), 'false/NO', 'T7: accesos.sin_reserva default false, not null');
+insert into accesos (socio_id) values (pg_temp.so(1));
+select pg_temp.espera((select count(*)::text from accesos where socio_id = pg_temp.so(1) and sin_reserva), '0', 'T7: un acceso nuevo queda con sin_reserva = false');
+insert into accesos (socio_id, sin_reserva) values (pg_temp.so(2), true);
+select pg_temp.espera((select count(*)::text from accesos where socio_id = pg_temp.so(2) and sin_reserva), '1', 'T7: sin_reserva se puede marcar');
+
+-- Privilegios: sólo service_role.
+select pg_temp.espera(has_function_privilege('anon', 'gimnasio_turno_actual(uuid)', 'execute')::text, 'false', 'T7: anon no ejecuta gimnasio_turno_actual');
+select pg_temp.espera(has_function_privilege('authenticated', 'gimnasio_turno_actual(uuid)', 'execute')::text, 'false', 'T7: authenticated no ejecuta gimnasio_turno_actual');
+select pg_temp.espera(has_function_privilege('service_role', 'gimnasio_turno_actual(uuid)', 'execute')::text, 'true', 'T7: service_role ejecuta gimnasio_turno_actual');
+set local role authenticated;
+do $$
+begin
+  perform gimnasio_turno_actual(null);
+  raise exception 'FALLO: authenticated pudo ejecutar gimnasio_turno_actual';
+exception when insufficient_privilege then
+  raise notice 'ok   - T7: authenticated recibe insufficient_privilege al llamarla';
+end $$;
+reset role;
 
 rollback;
 
