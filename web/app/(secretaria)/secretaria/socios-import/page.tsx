@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import SeccionServicios from './seccion-servicios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -303,6 +304,8 @@ export default function ImportarSociosPage() {
       ) : (
         <SeccionHistorial historial={historial} />
       )}
+
+      <SeccionServicios />
     </div>
   )
 }

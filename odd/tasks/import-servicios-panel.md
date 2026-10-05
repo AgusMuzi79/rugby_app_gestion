@@ -38,7 +38,7 @@ Not in scope: deploying to production (needs explicit confirmation), changing th
 - [x] T1 — Pure parser + mapping + diff in `_shared/parse-padron-servicios.ts` with `parse-padron-servicios.check.ts` (RED → GREEN, `npx --yes tsx`), validated also against the real sample `data/import/padron servicio socio.xls`. Route: delegated (writer).
 - [ ] T2 — Migration `importaciones_servicios` + RLS. Route: delegated (same writer). **Blocked:** the authorized name `20261005000000_importaciones_servicios.sql` duplicates the version of the existing `20261005000000_gimnasio_turnos.sql` (and 20261006/20261007 already exist); needs authorization for `20261008000000_importaciones_servicios.sql`. Draft ready outside the repo.
 - [x] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
-- [ ] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
+- [x] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
 - [ ] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
 - [ ] T6 — Production deploy (migration + function) — only after user confirmation.
 
@@ -64,6 +64,9 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 - T1 commit: `2d57f4e`.
 - T3: `deno` not on PATH → `deno check` unavailable. Substitute: `tsc --noEmit --strict` with Deno/npm shims over `importar-servicios/index.ts` → 0 errors. Writes go in batches of 500 (delete/insert) with per-row fallback to isolate errors; updates per row with concurrency 5. Rejects a file without any mapped service row (mirror safety). Catalog resolved by name; duplicate or missing mapped names abort with 500.
 
+- T3 commit: `0d25bac`.
+- T4: new colocated component `socios-import/seccion-servicios.tsx` mounted at the end of the page (its own upload, preview, checkable deletions, confirm and history). `npm ci` + `npm run build` in `web/` (dummy NEXT_PUBLIC_SUPABASE_* vars) → build OK, `/secretaria/socios-import` prerendered.
+
 ## Next step
 
-T4, then T2 once the migration name is authorized.
+T5, then T2 once the migration name is authorized.
