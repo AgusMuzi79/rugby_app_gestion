@@ -1,5 +1,6 @@
 -- Pruebas de escenario para las migraciones 20261005000000_gimnasio_turnos y
--- 20261006000000_gimnasio_franjas_profesor_import (profesor por franja + importación).
+-- 20261006000000_gimnasio_franjas_profesor_import (profesor por franja + importación) y
+-- 20261007000000_gimnasio_turnos_fijos_auto (materialización de fijos y proceso de faltas).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name gim-turnos-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -60,6 +61,7 @@ from generate_series(1, 12) n;
 
 \ir ../migrations/20261005000000_gimnasio_turnos.sql
 \ir ../migrations/20261006000000_gimnasio_franjas_profesor_import.sql
+\ir ../migrations/20261007000000_gimnasio_turnos_fijos_auto.sql
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -1072,6 +1074,413 @@ select pg_temp.espera(
   (select count(*)::text from gimnasio_disponibilidad('2026-10-12', '2026-10-12')), '2',
   'service_role ejecuta gimnasio_disponibilidad recreada (A y N el lunes)');
 reset role;
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- T6 — Turnos fijos automáticos: materialización y proceso de faltas
+-- (migración 20261007000000_gimnasio_turnos_fijos_auto). Sección independiente: arranca de una
+-- base limpia de franjas/reservas/fijos y maneja el "ahora" con pg_temp.ahora().
+-- ═════════════════════════════════════════════════════════════════════════════
+
+reset role;
+select set_config('test.rol', '', true);
+
+delete from gimnasio_reservas;
+delete from gimnasio_turnos_fijos;
+delete from gimnasio_franjas_excepciones;
+delete from gimnasio_franjas;
+
+-- La tabla real (20260902000000_accesos_gimnasio) no está en el stub inicial.
+create table accesos (
+  id        uuid        primary key default gen_random_uuid(),
+  socio_id  uuid        references socios(id) on delete cascade,
+  punto     text        not null default 'gimnasio',
+  semaforo  text,
+  creado_en timestamptz not null default now()
+);
+
+create function pg_temp.fx(n int) returns uuid language sql as $$
+  select ('f7000000-0000-0000-0000-0000000000' || lpad(n::text, 2, '0'))::uuid
+$$;
+create function pg_temp.tf(n int) returns uuid language sql as $$
+  select ('d7000000-0000-0000-0000-0000000000' || lpad(n::text, 2, '0'))::uuid
+$$;
+create function pg_temp.ahora(p text) returns void language sql as $$
+  select set_config('test.ahora', p, true)
+$$;
+-- Inserta una reserva directo (para fechas pasadas / estados ya evaluados).
+create function pg_temp.rv(p_socio int, p_franja int, p_fecha date, p_estado text default 'reservada',
+                           p_origen text default 'socio', p_fijo uuid default null)
+returns void language sql as $$
+  insert into gimnasio_reservas (socio_id, franja_id, fecha, estado, origen, turno_fijo_id)
+  values (pg_temp.so(p_socio), pg_temp.fx(p_franja), p_fecha, p_estado, p_origen, p_fijo)
+$$;
+-- Ingreso al gimnasio a una hora LOCAL ('AAAA-MM-DD HH:MI:SS'); se guarda en UTC (+3 h).
+create function pg_temp.acc(p_socio int, p_local text, p_punto text default 'gimnasio')
+returns void language sql as $$
+  insert into accesos (socio_id, punto, creado_en)
+  values (pg_temp.so(p_socio), p_punto, ((p_local::timestamp + interval '3 hours') at time zone 'UTC'))
+$$;
+create temp table t6 (k text primary key, v jsonb);
+
+select pg_temp.ahora('2026-10-05 10:00:00');   -- lunes
+update gimnasio_config set ventana_reserva = 'mes', pct_cupo_fijos = 50, semanas_fijos = 2,
+  faltas_aviso = 2, faltas_baja = 3, tolerancia_min = 15;
+
+select pg_temp.espera((select faltas_activas::text from gimnasio_config), 'false', 'T6: faltas_activas arranca apagado');
+
+insert into gimnasio_franjas (id, dia_semana, hora_desde, hora_hasta, cupo, activa) values
+  (pg_temp.fx(1), 1, '18:00', '19:00', 10, true),    -- lunes 18-19
+  (pg_temp.fx(2), 2, '18:00', '19:00', 10, true),    -- martes 18-19
+  (pg_temp.fx(3), 3, '07:00', '08:00', 10, true),    -- miércoles 07-08
+  (pg_temp.fx(4), 4, '18:00', '19:00', 4,  true),    -- jueves 18-19, cupo 4 -> máx 2 fijos
+  (pg_temp.fx(5), 5, '18:00', '19:00', 10, false),   -- viernes, INACTIVA
+  (pg_temp.fx(6), 1, '09:00', '10:00', 10, true);    -- lunes 09-10: ya empezó hoy (10:00)
+
+-- ─── Materialización ──────────────────────────────────────────────────────────
+-- Hoy lunes 2026-10-05 10:00, semanas_fijos = 2 -> horizonte hasta 2026-10-19 inclusive.
+
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values (pg_temp.tf(1), pg_temp.so(1), pg_temp.fx(1));
+insert into t6 select 'm1', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'ok' from t6 where k = 'm1'), 'true', 'materializar: ok');
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm1'), '3', 'materializar: lunes 10-05 (hoy 18:00), 10-12 y 10-19');
+select pg_temp.espera((select v->>'fijos_procesados' from t6 where k = 'm1'), '1', 'materializar: 1 fijo procesado');
+select pg_temp.espera((select jsonb_array_length(v->'errores')::text from t6 where k = 'm1'), '0', 'materializar: sin errores');
+select pg_temp.espera(
+  (select count(*)::text from gimnasio_reservas
+    where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(1) and origen = 'fijo'
+      and turno_fijo_id = pg_temp.tf(1) and estado = 'reservada'),
+  '3', 'materializar: 3 reservas origen fijo con turno_fijo_id');
+
+insert into t6 select 'm2', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm2'), '0', 'materializar idempotente: segunda corrida no crea nada');
+select pg_temp.espera((select v->'omitidas'->>'ya_existia' from t6 where k = 'm2'), '3', 'materializar idempotente: 3 ya existian');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas), '3', 'materializar idempotente: siguen 3 reservas');
+
+-- El socio cancela 10-12 y un cierre canceló 10-19: no se recrean.
+update gimnasio_reservas set estado = 'cancelada' where fecha in ('2026-10-12', '2026-10-19');
+insert into t6 select 'm3', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm3'), '0', 'no recrea ocurrencias canceladas (por el socio o por cierre)');
+select pg_temp.espera((select v->'omitidas'->>'ya_existia' from t6 where k = 'm3'), '3', 'las canceladas cuentan como ya existentes');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado = 'reservada'), '1', 'sólo queda viva la de hoy');
+
+-- Horizonte: por defecto hoy + semanas_fijos*7 (10-19); martes -> 10-06 y 10-13, no 10-20.
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values (pg_temp.tf(2), pg_temp.so(2), pg_temp.fx(2));
+insert into t6 select 'm4a', gimnasio_materializar_fijos(pg_temp.tf(2), '2026-10-06');
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm4a'), '1', 'p_hasta acota el horizonte (solo 10-06)');
+insert into t6 select 'm4b', gimnasio_materializar_fijos(pg_temp.tf(2));
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm4b'), '1', 'horizonte por defecto: suma 10-13');
+select pg_temp.espera(
+  (select string_agg(fecha::text, ',' order by fecha) from gimnasio_reservas where socio_id = pg_temp.so(2)),
+  '2026-10-06,2026-10-13', 'horizonte semanas_fijos=2: no llega a 10-20');
+update gimnasio_config set semanas_fijos = 3;
+insert into t6 select 'm4c', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm4c'), '2', 'semanas_fijos=3: suma martes 10-20 y lunes 10-26');
+update gimnasio_config set semanas_fijos = 2;
+
+-- Un solo turno fijo por id.
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values
+  (pg_temp.tf(3), pg_temp.so(3), pg_temp.fx(1)), (pg_temp.tf(4), pg_temp.so(4), pg_temp.fx(1));
+insert into t6 select 'm5', gimnasio_materializar_fijos(pg_temp.tf(3));
+select pg_temp.espera((select v->>'fijos_procesados' from t6 where k = 'm5'), '1', 'por id: procesa sólo ese fijo');
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm5'), '3', 'por id: 3 reservas del fijo pedido');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where socio_id = pg_temp.so(4)), '0', 'por id: el otro fijo no se toca');
+
+-- Fecha cerrada: se saltea y se cuenta por codigo.
+insert into gimnasio_franjas_excepciones (fecha, cerrado, motivo) values ('2026-10-12', true, 'Feriado');
+insert into t6 select 'm6a', gimnasio_materializar_fijos(pg_temp.tf(4));
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm6a'), '2', 'cierre: reserva 10-05 y 10-19');
+select pg_temp.espera((select v->'omitidas'->'por_codigo'->>'cerrado' from t6 where k = 'm6a'), '1', 'cierre: 10-12 omitida por codigo cerrado');
+delete from gimnasio_franjas_excepciones;
+insert into t6 select 'm6b', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm6b'), '1', 'al reabrir, la corrida siguiente crea la fecha que faltaba (nunca hubo fila)');
+
+-- Tope de cupo de fijos: franja de cupo 4 -> máx floor(4*50%) = 2 fijos por fecha.
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values
+  (pg_temp.tf(5), pg_temp.so(5), pg_temp.fx(4)),
+  (pg_temp.tf(6), pg_temp.so(6), pg_temp.fx(4)),
+  (pg_temp.tf(7), pg_temp.so(7), pg_temp.fx(4));
+insert into t6 select 'm7', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm7'), '4', 'tope de fijos: 2 por fecha x 2 jueves');
+select pg_temp.espera((select v->'omitidas'->'por_codigo'->>'cupo_fijos_lleno' from t6 where k = 'm7'), '2', 'tope de fijos: el tercero queda afuera cada jueves');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where franja_id = pg_temp.fx(4)), '4', 'tope de fijos: 4 reservas en la franja');
+
+-- Un turno fijo que revienta no aborta a los demás.
+create function public.t6_boom() returns trigger language plpgsql as $$
+begin
+  if new.socio_id = '50c10000-0000-0000-0000-000000000009' then raise exception 'boom de prueba'; end if;
+  return new;
+end $$;
+create trigger t6_boom before insert on gimnasio_reservas for each row execute function public.t6_boom();
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values
+  (pg_temp.tf(9), pg_temp.so(9), pg_temp.fx(2)), (pg_temp.tf(10), pg_temp.so(10), pg_temp.fx(2));
+insert into t6 select 'm8', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'ok' from t6 where k = 'm8'), 'true', 'fijo fallido: la corrida termina ok');
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm8'), '2', 'fijo fallido: el otro fijo igual se materializa');
+select pg_temp.espera((select jsonb_array_length(v->'errores')::text from t6 where k = 'm8'), '1', 'fijo fallido: se informa 1 error');
+select pg_temp.espera((select v->'errores'->0->>'turno_fijo_id' from t6 where k = 'm8'), pg_temp.tf(9)::text, 'fijo fallido: error identifica al turno fijo');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where socio_id = pg_temp.so(9)), '0', 'fijo fallido: no deja reservas a medias');
+drop trigger t6_boom on gimnasio_reservas;
+drop function public.t6_boom();
+insert into t6 select 'm8b', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm8b'), '2', 'fijo fallido: sin el trigger se materializa en la corrida siguiente');
+
+-- Se ignoran fijos inactivos, franjas inactivas y se informa 'pasado'.
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id, activo) values
+  (pg_temp.tf(11), pg_temp.so(11), pg_temp.fx(2), false),
+  (pg_temp.tf(12), pg_temp.so(12), pg_temp.fx(5), true);
+insert into t6 select 'm9', gimnasio_materializar_fijos();
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm9'), '0', 'ignora fijos inactivos y franjas inactivas');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where socio_id in (pg_temp.so(11), pg_temp.so(12))), '0', 'inactivos: sin reservas');
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values (pg_temp.tf(13), pg_temp.so(12), pg_temp.fx(6));
+insert into t6 select 'm9b', gimnasio_materializar_fijos(pg_temp.tf(13));
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm9b'), '2', 'franja que ya empezó hoy: reserva 10-12 y 10-19');
+select pg_temp.espera((select v->'omitidas'->'por_codigo'->>'pasado' from t6 where k = 'm9b'), '1', 'franja que ya empezó hoy: hoy omitida como pasado');
+insert into t6 select 'm10', gimnasio_materializar_fijos(gen_random_uuid());
+select pg_temp.espera((select v->>'fijos_procesados' from t6 where k = 'm10'), '0', 'turno fijo inexistente: nada que procesar');
+
+-- Dry-run de la materialización: informa lo que crearía y no escribe.
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values (pg_temp.tf(14), pg_temp.so(12), pg_temp.fx(2));
+select count(*) as antes from gimnasio_reservas \gset
+insert into t6 select 'm11', gimnasio_materializar_fijos(pg_temp.tf(14), null, false);
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm11'), '2', 'dry-run materializar: informa las 2 que crearía (10-06 y 10-13)');
+select pg_temp.espera((select v->>'aplicado' from t6 where k = 'm11'), 'false', 'dry-run materializar: aplicado=false');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas), :'antes', 'dry-run materializar: no escribe ninguna reserva');
+insert into t6 select 'm12', gimnasio_materializar_fijos(pg_temp.tf(14));
+select pg_temp.espera((select v->>'creadas' from t6 where k = 'm12'), '2', 'materializar real tras el dry-run: crea las mismas 2');
+
+-- ─── Proceso de faltas ────────────────────────────────────────────────────────
+
+delete from gimnasio_reservas;
+delete from gimnasio_turnos_fijos;
+
+-- Fixtures (franja 1 = lunes 18-19, franja 3 = miércoles 07-08; ventana de ingreso = franja ± 15 min).
+insert into gimnasio_turnos_fijos (id, socio_id, franja_id) values
+  (pg_temp.tf(21), pg_temp.so(1), pg_temp.fx(1)),
+  (pg_temp.tf(22), pg_temp.so(1), pg_temp.fx(3));
+-- s1: racha en F1 y en F3 (independientes), con fijos y reservas futuras.
+select pg_temp.rv(1, 1, d::date, 'reservada', 'fijo', pg_temp.tf(21))
+  from unnest(array['2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19']) d;
+select pg_temp.rv(1, 3, d::date, 'reservada', 'fijo', pg_temp.tf(22))
+  from unnest(array['2026-09-23', '2026-09-30', '2026-10-07']) d;
+-- s2: asistió el 09-21 -> la racha se corta.
+select pg_temp.rv(2, 1, d::date) from unnest(array['2026-09-14', '2026-09-21', '2026-09-28']) d;
+select pg_temp.acc(2, '2026-09-21 18:30:00');
+-- s3: una cancelada en el medio no corta ni suma.
+select pg_temp.rv(3, 1, '2026-09-14');
+select pg_temp.rv(3, 1, '2026-09-21', 'cancelada');
+select pg_temp.rv(3, 1, '2026-09-28');
+-- s4: una falta y una cancelada -> racha 1.
+select pg_temp.rv(4, 1, '2026-09-21');
+select pg_temp.rv(4, 1, '2026-09-28', 'cancelada');
+-- s5..s9: bordes de la ventana de ingreso del lunes 09-28 (17:45:00 .. 19:15:00).
+select pg_temp.rv(n, 1, '2026-09-28') from generate_series(5, 9) n;
+select pg_temp.acc(5, '2026-09-28 17:45:00');                 -- justo al inicio de la ventana: asiste
+select pg_temp.acc(6, '2026-09-28 19:15:00');                 -- justo al final de la ventana: asiste
+select pg_temp.acc(7, '2026-09-28 17:44:59');                 -- 1 s antes: falta
+select pg_temp.acc(8, '2026-09-28 19:15:01');                 -- 1 s después: falta
+select pg_temp.acc(9, '2026-09-28 18:30:00', 'otro-punto');   -- otro punto de acceso: falta
+
+-- Se evalúa sólo después de fin + tolerancia. Dry-run (no escribe), interruptor apagado.
+select pg_temp.ahora('2026-09-28 19:14:59');
+insert into t6 select 'p1', gimnasio_procesar_faltas(false);
+select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'p1'), '6',
+  'antes de fin+tolerancia no se evalúa el lunes 09-28 (sólo 6 reservas anteriores)');
+select pg_temp.ahora('2026-09-28 19:15:00');
+insert into t6 select 'p2', gimnasio_procesar_faltas(false);
+select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'p2'), '14', 'a fin+tolerancia exactos ya se evalúa (14 reservas)');
+select pg_temp.espera((select v->>'activo' from t6 where k = 'p2'), 'false', 'dry-run con interruptor apagado informa activo=false');
+select pg_temp.espera((select v->>'aplicado' from t6 where k = 'p2'), 'false', 'dry-run informa aplicado=false');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'dry-run no cambia ninguna reserva');
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos), '0', 'dry-run no registra eventos');
+
+-- Interruptor apagado + aplicar: no hace nada.
+select pg_temp.ahora('2026-09-29 12:00:00');
+insert into t6 select 'p3', gimnasio_procesar_faltas();
+select pg_temp.espera((select v::text from t6 where k = 'p3'), '{"ok": true, "activo": false}', 'interruptor apagado: devuelve sólo activo=false');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'interruptor apagado: no evalúa nada');
+
+-- Dry-run con el interruptor encendido: calcula todo y no escribe.
+update gimnasio_config set faltas_activas = true;
+insert into t6 select 'p4', gimnasio_procesar_faltas(false);
+select pg_temp.espera((select jsonb_array_length(v->'avisos')::text from t6 where k = 'p4'), '2', 'dry-run: informa 2 avisos que aplicaría');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado in ('asistio', 'falto')), '0', 'dry-run (encendido): sigue sin escribir reservas');
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos), '0', 'dry-run (encendido): sigue sin registrar eventos');
+select pg_temp.espera((select string_agg(faltas_consecutivas::text, ',' order by franja_id) from gimnasio_turnos_fijos), '0,0', 'dry-run: no toca faltas_consecutivas');
+
+-- Aplicado.
+insert into t6 select 'p5', gimnasio_procesar_faltas();
+select pg_temp.espera((select v->>'evaluadas' from t6 where k = 'p5'), '14', 'aplicado: 14 reservas evaluadas');
+select pg_temp.espera((select v->>'asistio' from t6 where k = 'p5'), '3', 'aplicado: 3 asistieron (s2 el 09-21 y los dos bordes de ventana)');
+select pg_temp.espera((select v->>'falto' from t6 where k = 'p5'), '11', 'aplicado: 11 faltaron');
+select pg_temp.espera(
+  (select string_agg(estado, ',' order by socio_id) from gimnasio_reservas
+    where fecha = '2026-09-28' and socio_id in (pg_temp.so(5), pg_temp.so(6), pg_temp.so(7), pg_temp.so(8), pg_temp.so(9))),
+  'asistio,asistio,falto,falto,falto', 'bordes: 17:45:00 y 19:15:00 asisten; 1 s afuera y otro punto faltan');
+select pg_temp.espera((select jsonb_array_length(v->'avisos')::text from t6 where k = 'p5'), '2', 'aviso a racha 2: s1/F1 y s3/F1 (cancelada en el medio no corta)');
+select pg_temp.espera((select jsonb_array_length(v->'bajas')::text from t6 where k = 'p5'), '0', 'todavía ninguna baja');
+select pg_temp.espera(
+  (select string_agg((a->>'socio_id') || ':' || (a->>'racha') || ':' || (a->>'fecha') || ':' || (a->>'dia_semana') || ':' || (a->>'hora_desde'), '|' order by a->>'socio_id')
+     from t6, jsonb_array_elements(v->'avisos') a where k = 'p5'),
+  pg_temp.so(1)::text || ':2:2026-09-28:1:18:00:00|' || pg_temp.so(3)::text || ':2:2026-09-28:1:18:00:00',
+  'aviso: trae socio, racha, fecha de la falta que lo disparó y datos de la franja');
+select pg_temp.espera((select v->'avisos'->0->>'faltas_baja' from t6 where k = 'p5'), '3', 'aviso: trae faltas_baja para armar el texto del push');
+select pg_temp.espera((select string_agg(faltas_consecutivas::text, ',' order by dia_f) from (
+    select tf.faltas_consecutivas, f.dia_semana as dia_f from gimnasio_turnos_fijos tf join gimnasio_franjas f on f.id = tf.franja_id) q),
+  '2,1', 'faltas_consecutivas del fijo: 2 en F1 y 1 en F3');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where socio_id = pg_temp.so(2) and estado = 'falto'), '2', 's2: dos faltas sueltas, la racha vigente es 1');
+select pg_temp.espera((select largo::text from gimnasio_rachas() where socio_id = pg_temp.so(2)), '1', 'asistio reinicia la racha: s2 racha 1');
+select pg_temp.espera((select largo::text from gimnasio_rachas() where socio_id = pg_temp.so(4)), '1', 'cancelada no suma: s4 racha 1');
+
+-- Idempotencia: misma corrida otra vez.
+insert into t6 select 'p6', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'p6'),
+  '0/0/0', 'idempotente: segunda corrida no evalúa, no avisa ni da de baja');
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos), '2', 'idempotente: 2 eventos de aviso en total');
+
+-- Racha 3 -> baja. Martes 10-06 12:00: vencen s1 F1 10-05 y s1 F3 09-30.
+select pg_temp.ahora('2026-10-06 12:00:00');
+insert into t6 select 'p7', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || (v->>'falto') from t6 where k = 'p7'), '2/2', 'baja: se evalúan 2 faltas nuevas');
+select pg_temp.espera((select jsonb_array_length(v->'bajas')::text from t6 where k = 'p7'), '1', 'baja: 1 socio liberado');
+select pg_temp.espera((select v->'bajas'->0->>'franja_id' from t6 where k = 'p7'), pg_temp.fx(1)::text, 'baja: en la franja del lunes');
+select pg_temp.espera((select v->'bajas'->0->>'reservas_canceladas' from t6 where k = 'p7'), '2', 'baja: cancela las 2 reservas futuras (10-12 y 10-19)');
+select pg_temp.espera((select v->'bajas'->0->>'fijo_desactivado' from t6 where k = 'p7'), 'true', 'baja: informa fijo desactivado');
+select pg_temp.espera((select v->'bajas'->0->>'racha' from t6 where k = 'p7'), '3', 'baja: racha 3');
+select pg_temp.espera((select string_agg(estado, ',' order by fecha) from gimnasio_reservas where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(1) and fecha >= '2026-10-12'),
+  'cancelada,cancelada', 'baja: reservas futuras de la franja canceladas');
+select pg_temp.espera((select activo::text from gimnasio_turnos_fijos where id = pg_temp.tf(21)), 'false', 'baja: turno fijo de la franja desactivado');
+select pg_temp.espera((select activo::text from gimnasio_turnos_fijos where id = pg_temp.tf(22)), 'true', 'baja: el fijo de OTRA franja sigue activo');
+select pg_temp.espera((select estado from gimnasio_reservas where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(3) and fecha = '2026-10-07'),
+  'reservada', 'baja: reservas futuras de OTRA franja intactas');
+select pg_temp.espera((select jsonb_array_length(v->'avisos')::text from t6 where k = 'p7'), '1', 'F3 llega a racha 2: 1 aviso nuevo (F1 fue directo a baja)');
+select pg_temp.espera((select v->'avisos'->0->>'franja_id' from t6 where k = 'p7'), pg_temp.fx(3)::text, 'el aviso nuevo es de la franja del miércoles');
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos where tipo = 'baja'), '1', 'un evento de baja');
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos where tipo = 'aviso'), '3', 'tres eventos de aviso (s1/F1, s3/F1, s1/F3)');
+
+insert into t6 select 'p8', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'p8'),
+  '0/0/0', 'baja idempotente: nada nuevo en la segunda corrida');
+select pg_temp.espera((select count(*)::text from gimnasio_reservas where estado = 'cancelada' and socio_id = pg_temp.so(1)), '2', 'baja idempotente: no se cancela nada más');
+
+-- La baja reinicia el conteo de la franja; la de F3 llega a 3 con 10-07.
+select pg_temp.ahora('2026-10-13 12:00:00');
+select pg_temp.rv(1, 1, '2026-10-12');   -- nueva reserva suelta tras la baja (la anterior quedó cancelada)
+insert into t6 select 'p9', gimnasio_procesar_faltas();
+select pg_temp.espera((select (v->>'evaluadas') || '/' || jsonb_array_length(v->'avisos') || '/' || jsonb_array_length(v->'bajas') from t6 where k = 'p9'),
+  '2/0/1', 'tras la baja: F1 vuelve a empezar (racha 1) y F3 llega a baja');
+select pg_temp.espera((select v->'bajas'->0->>'franja_id' from t6 where k = 'p9'), pg_temp.fx(3)::text, 'la nueva baja es de F3');
+select pg_temp.espera((select largo::text from gimnasio_rachas() where socio_id = pg_temp.so(1) and franja_id = pg_temp.fx(1)), '1', 'F1: la racha post-baja es 1');
+select pg_temp.espera((select activo::text from gimnasio_turnos_fijos where id = pg_temp.tf(22)), 'false', 'F3: fijo desactivado por su propia baja');
+
+-- ─── Permisos y RLS (T6) ──────────────────────────────────────────────────────
+
+set local role authenticated;
+do $$
+begin
+  begin
+    perform gimnasio_materializar_fijos();
+    raise exception 'FALLO: authenticated pudo ejecutar gimnasio_materializar_fijos';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform gimnasio_procesar_faltas(false);
+    raise exception 'FALLO: authenticated pudo ejecutar gimnasio_procesar_faltas';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform * from gimnasio_rachas();
+    raise exception 'FALLO: authenticated pudo ejecutar gimnasio_rachas';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok   - authenticated no puede ejecutar las RPC de turnos fijos';
+end $$;
+reset role;
+
+set local role anon;
+do $$
+begin
+  begin
+    perform gimnasio_materializar_fijos();
+    raise exception 'FALLO: anon pudo ejecutar gimnasio_materializar_fijos';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform gimnasio_procesar_faltas(false);
+    raise exception 'FALLO: anon pudo ejecutar gimnasio_procesar_faltas';
+  exception when insufficient_privilege then null; end;
+  begin
+    perform * from gimnasio_rachas();
+    raise exception 'FALLO: anon pudo ejecutar gimnasio_rachas';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok   - anon no puede ejecutar las RPC de turnos fijos';
+end $$;
+reset role;
+
+set local role service_role;
+select pg_temp.espera(gimnasio_materializar_fijos()->>'ok', 'true', 'service_role ejecuta gimnasio_materializar_fijos');
+select pg_temp.espera(gimnasio_procesar_faltas(false)->>'ok', 'true', 'service_role ejecuta gimnasio_procesar_faltas');
+select pg_temp.espera((select count(*)::text from gimnasio_rachas() where socio_id = pg_temp.so(3)), '1', 'service_role ejecuta gimnasio_rachas');
+reset role;
+
+-- RLS de gimnasio_faltas_eventos: lectura sólo para el staff, sin escritura.
+select pg_temp.espera((select (count(*) > 0)::text from gimnasio_faltas_eventos), 'true', 'hay eventos para probar RLS');
+set local role authenticated;
+set local test.rol = 'socio';
+do $$
+begin
+  if (select count(*) from gimnasio_faltas_eventos) <> 0 then
+    raise exception 'FALLO RLS: un socio ve eventos de faltas';
+  end if;
+  begin
+    insert into gimnasio_faltas_eventos (socio_id, franja_id, tipo, fecha_ref)
+    values ('50c10000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'aviso', '2026-11-02');
+    raise exception 'FALLO RLS: un socio pudo insertar un evento';
+  exception when insufficient_privilege then null; end;
+  raise notice 'ok   - RLS eventos: socio no lee ni escribe';
+end $$;
+set local test.rol = 'porteria';
+do $$
+begin
+  if (select count(*) from gimnasio_faltas_eventos) = 0 then
+    raise exception 'FALLO RLS: porteria no ve eventos';
+  end if;
+  begin
+    insert into gimnasio_faltas_eventos (socio_id, franja_id, tipo, fecha_ref)
+    values ('50c10000-0000-0000-0000-000000000001', 'f7000000-0000-0000-0000-000000000001', 'aviso', '2026-11-02');
+    raise exception 'FALLO RLS: porteria pudo insertar un evento';
+  exception when insufficient_privilege then null; end;
+  delete from gimnasio_faltas_eventos;   -- sin policy de DELETE: RLS filtra todo, sin error ni cambios
+  if (select count(*) from gimnasio_faltas_eventos) = 0 then
+    raise exception 'FALLO RLS: porteria borro eventos';
+  end if;
+  raise notice 'ok   - RLS eventos: porteria lee y no escribe';
+end $$;
+set local test.rol = 'admin';
+select pg_temp.espera((select (count(*) > 0)::text from gimnasio_faltas_eventos), 'true', 'RLS eventos: admin lee');
+reset role;
+select set_config('test.rol', '', true);
+set local role anon;
+select pg_temp.espera((select count(*)::text from gimnasio_faltas_eventos), '0', 'RLS eventos: anon no ve nada');
+reset role;
+
+-- Constraints de eventos.
+do $$
+declare
+  v_ok boolean;
+begin
+  begin
+    insert into gimnasio_faltas_eventos (socio_id, franja_id, tipo, fecha_ref)
+    values (pg_temp.so(5), pg_temp.fx(1), 'otro', '2026-11-02');
+    v_ok := true;
+  exception when check_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: tipo de evento inválido aceptado'; end if;
+
+  insert into gimnasio_faltas_eventos (socio_id, franja_id, tipo, fecha_ref)
+  values (pg_temp.so(5), pg_temp.fx(1), 'aviso', '2026-11-02');
+  begin
+    insert into gimnasio_faltas_eventos (socio_id, franja_id, tipo, fecha_ref)
+    values (pg_temp.so(5), pg_temp.fx(1), 'aviso', '2026-11-02');
+    v_ok := true;
+  exception when unique_violation then v_ok := false; end;
+  if v_ok then raise exception 'FALLO: evento duplicado aceptado'; end if;
+  raise notice 'ok   - eventos: tipo válido y único por (socio, franja, tipo, fecha_ref)';
+end $$;
 
 rollback;
 
