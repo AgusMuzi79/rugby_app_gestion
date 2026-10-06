@@ -5,7 +5,9 @@
 // socio_servicios como espejo del archivo para Gimnasio, Rugby, Hockey,
 // Carnet Tenis, Rugby Inclusivo y Hockey Inclusivo. Las bajas se pueden
 // destildar una por una antes de confirmar; al confirmar se mandan las que
-// quedaron tildadas (`bajas_aprobadas`) y sólo esas se aplican.
+// quedaron tildadas (`bajas_aprobadas`) y sólo esas se aplican. Si el archivo
+// no trae ninguna fila de un servicio (`servicios_ausentes`, p. ej. un export
+// parcial), sus bajas arrancan destildadas y se muestra un aviso.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -28,6 +30,7 @@ interface ItemActualizado extends ItemServicio {
 interface ItemEliminado extends ItemServicio {
   clave: string
   manual: boolean
+  servicio_ausente: boolean
 }
 
 interface ItemConflicto {
@@ -59,6 +62,7 @@ interface PreviewServicios {
   sin_match: number
   conceptos_desconocidos: number
   errores: number
+  servicios_ausentes: string[]
   detalle: {
     agregados: ItemServicio[]
     actualizados: ItemActualizado[]
@@ -176,6 +180,8 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
       const json = await callImportarServicios<PreviewServicios>(archivo, 'preview')
       if (json.error) { setError(json.error); return }
       setPreview(json)
+      // Las bajas de servicios que el archivo no trae arrancan destildadas.
+      setOmitidas(new Set(json.detalle.eliminados.filter(e => e.servicio_ausente).map(e => e.clave)))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -211,7 +217,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
     })
   }
 
-  const bajasAAplicar = preview ? preview.eliminados - omitidas.size : 0
+  const bajasAAplicar = preview ? preview.detalle.eliminados.filter(e => !omitidas.has(e.clave)).length : 0
 
   return (
     <div className="border border-gris-claro bg-card p-6 mb-8">
@@ -311,6 +317,17 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             ))}
           </Lista>
 
+          {preview.servicios_ausentes.length > 0 && (
+            <div className="mt-3 p-4 border-2 border-rojo bg-rojo/10">
+              <p className="font-lora text-xs tracking-widest text-rojo mb-1">ATENCIÓN — POSIBLE EXPORT PARCIAL</p>
+              <p className="font-lora text-sm text-tinta">
+                El archivo no trae ninguna fila de: {preview.servicios_ausentes.join(', ')}. Si es un export parcial,
+                no conviene confirmar. Las bajas de esos servicios quedan destildadas; tildarlas sólo si el servicio
+                realmente dejó de existir.
+              </p>
+            </div>
+          )}
+
           {preview.detalle.eliminados.length > 0 && (
             <div className="mt-3">
               <p className="font-lora text-xs tracking-widest mb-1 text-rojo">
@@ -323,7 +340,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                 <table className="w-full border-collapse">
                   <tbody>
                     {preview.detalle.eliminados.map(e => (
-                      <tr key={e.clave} className="border-b border-gris-claro last:border-0">
+                      <tr key={e.clave} className={`border-b border-gris-claro last:border-0 ${e.servicio_ausente ? 'bg-rojo/5' : ''}`}>
                         <td className="py-1.5 px-3 w-8">
                           <input
                             type="checkbox"
@@ -334,7 +351,10 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                         </td>
                         <td className={tdNumero}>{e.numero_socio}</td>
                         <td className={tdNombre}>{e.nombre || '—'}</td>
-                        <td className={tdDato}>{e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}</td>
+                        <td className={tdDato}>
+                          {e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}
+                          {e.servicio_ausente && <span className="text-rojo"> · servicio ausente del archivo</span>}
+                        </td>
                         <td className={tdDerecha}>{formatImporte(e.importe)}</td>
                       </tr>
                     ))}

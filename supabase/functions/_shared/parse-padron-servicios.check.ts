@@ -257,4 +257,32 @@ caso('importe como texto numérico de PostgREST se compara por valor', () => {
   assert.ok(!d.actualizados.some((a) => a.vinculoId === 'x'))
 })
 
+caso('servicios ausentes del archivo base: los mapeados sin ninguna fila', () => {
+  const d = diffBase()
+  // El fixture trae bandas de Gimnasio (3 variantes), Rugby y Hockey.
+  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Rugby Inclusivo'])
+  // Las bajas del fixture (Gimnasio, Rugby) son de servicios presentes.
+  assert.ok(d.eliminados.length > 0)
+  assert.ok(d.eliminados.every((e) => e.servicioAusente === false))
+})
+
+caso('export parcial sin la banda de Rugby: Rugby ausente y sus bajas marcadas', () => {
+  const rows: unknown[][] = [
+    ...encabezado(),
+    ...banda('GYM Mayor', [['100', 'PEREZ JUAN'], [102, 'LOPEZ LUIS']]),
+    // Hockey presente sólo con un socio sin match: igual cuenta como presente.
+    ...banda('HOCKEY CUOTA DEPORTIVA', [['999', 'NADIE NN']]),
+    // Banda vacía (Casos: 0): no tiene filas, cuenta como ausente.
+    ...banda('CARNET TENIS', []),
+  ]
+  const d = calcularDiffServicios({ padron: parsePadronServicios(rows), socios: SOCIOS, precios: PRECIOS, vinculos: VINCULOS })
+  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Rugby', 'Rugby Inclusivo'])
+  const rugby = d.eliminados.filter((e) => e.servicio === 'Rugby')
+  assert.deepEqual(rugby.map((e) => e.vinculoId).sort(), ['v2', 'v4'])
+  assert.ok(rugby.every((e) => e.servicioAusente === true))
+  const presentes = d.eliminados.filter((e) => e.servicio !== 'Rugby')
+  assert.ok(presentes.length > 0)
+  assert.ok(presentes.every((e) => e.servicioAusente === false))
+})
+
 console.log(`\n${casos} casos ok`)

@@ -16,7 +16,10 @@
 // para cada servicio mapeado, `socio_servicios` queda igual al archivo — se
 // agrega lo que falta, se actualiza importe/variante distintos y se borra lo que
 // no figura, incluidas las filas cargadas a mano (variante_nuvix null). Los
-// servicios no mapeados nunca se tocan.
+// servicios no mapeados nunca se tocan. Si el archivo no trae ninguna fila de un
+// servicio mapeado (p. ej. un export parcial), ese servicio va en
+// `serviciosAusentes` y sus bajas se marcan con `servicioAusente`: la vista
+// previa las muestra destildadas.
 
 // ─── Mapeo ──────────────────────────────────────────────────────────────────
 
@@ -159,6 +162,8 @@ export interface DiffEliminado {
   servicio:      string
   importe:       number | null
   varianteNuvix: string | null
+  /** El archivo no trae ninguna fila de este servicio (posible export parcial). */
+  servicioAusente: boolean
 }
 
 export interface DiffConflicto {
@@ -195,6 +200,12 @@ export interface DiffServicios {
   sinMatch:              DiffSinMatch[]
   conceptosDesconocidos: DiffConceptoDesconocido[]
   errores:               DiffError[]
+  /**
+   * Servicios mapeados sin ninguna fila en el archivo (ordenados). Se calcula
+   * sobre las filas parseadas, no sobre los socios con match: una banda con
+   * sólo conflictos o socios sin match igual cuenta como presente.
+   */
+  serviciosAusentes:     string[]
 }
 
 export interface EntradaDiff {
@@ -217,7 +228,17 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
   const diff: DiffServicios = {
     agregados: [], actualizados: [], eliminados: [], sinCambio: 0,
     conflictos: [], sinMatch: [], conceptosDesconocidos: [], errores: [],
+    serviciosAusentes: [],
   }
+
+  // Servicios mapeados que el archivo no trae en ninguna variante.
+  const presentes = new Set<string>()
+  for (const f of padron.filas) {
+    const destino = MAPEO_CONCEPTOS[normalizarConcepto(f.concepto)]
+    if (destino) presentes.add(destino.servicio)
+  }
+  diff.serviciosAusentes = [...SERVICIOS_MAPEADOS].filter((s) => !presentes.has(s)).sort()
+  const ausentes = new Set(diff.serviciosAusentes)
 
   // Conceptos desconocidos (ni mapeados ni ignorados) — se reportan, nunca se aplican.
   const desconocidos = new Map<string, number>()
@@ -324,6 +345,7 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
       servicio:      v.servicio,
       importe:       aNumero(v.importe),
       varianteNuvix: v.varianteNuvix,
+      servicioAusente: ausentes.has(v.servicio),
     })
   }
 

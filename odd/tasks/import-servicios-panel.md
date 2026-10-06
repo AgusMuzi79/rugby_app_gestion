@@ -40,6 +40,7 @@ Not in scope: deploying to production (needs explicit confirmation), changing th
 - [x] T3 — Edge Function `importar-servicios` (preview/confirmar, omitted deletions, history row). Route: delegated (same writer).
 - [x] T4 — Web section in `socios-import` page: upload, preview with altas/cambios/bajas (bajas checkable), confirm, history. Route: delegated (same writer).
 - [x] T5 — Docs: `.claude/context/estado-web.md`, `estado-supabase.md`, `historial.md`. Route: delegated (same writer).
+- [x] T7 — Review finding R3-001: a partial export (e.g. only GYM bands) passed the zero-rows safety net and every link of the missing services became a deletion checked by default. Fix: `calcularDiffServicios` returns `serviciosAusentes` (mapped services with zero parsed rows) and `servicioAusente` per deletion; the preview exposes `servicios_ausentes` / `servicio_ausente`; the panel starts those deletions unchecked and shows a red warning. Confirm logic unchanged (`bajas_aprobadas`). Route: delegated (writer).
 - [ ] T6 — Production deploy (migration + function) — only after user confirmation.
 
 Route evidence: understanding required 4+ files (mapper ran, report received); implementation touches 2+ non-trivial files → one bounded writer.
@@ -73,6 +74,8 @@ Route evidence: understanding required 4+ files (mapper ran, report received); i
 - T2 commit: `a5a9543` (migration `20261009000000_importaciones_servicios.sql`; 20261008 is taken on `feat/gimnasio-lector-turnos`).
 - Native review (RDD on, assessed medium, consent granted by the user): approved and acknowledged (lineage review-b28e83951baa34e2), 1 reliability lens. Advisory findings fixed afterwards as separate work: (1) confirm now receives the explicit list of approved deletions `bajas_aprobadas` instead of the unchecked ones, so a deletion that appears between preview and confirm is never applied (`filtrarBajasAprobadas`, 2 new check cases); (2) socios pagination ordered by `id`. Not addressed: the Edge Function branches have no automated test (no Deno runner in the repo).
 - Fix checks: check RED (missing export) → GREEN 16/16; `npm run build` in `web/` with dummy NEXT_PUBLIC_SUPABASE_* → OK (without them it fails prerendering `/buffet/promos`, unrelated and pre-existing).
+
+- T7 (R3-001): check RED (`serviciosAusentes` undefined, 2 new cases) → GREEN 18/18; `npm run build` in `web/` with dummy NEXT_PUBLIC_SUPABASE_* → OK; `tsc --ignoreConfig --noEmit --strict` with Deno/npm shims over `importar-servicios/index.ts` → 0 errors. Commit: `fix(socios-import): las bajas de servicios ausentes del archivo quedan destildadas`.
 
 ## Next step
 

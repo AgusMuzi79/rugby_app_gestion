@@ -15,6 +15,9 @@
 //                 una llamada y otra) y lo aplica. `bajas_aprobadas` (JSON con
 //                 claves "numero_socio|Servicio") son las bajas que quedaron
 //                 tildadas en la vista previa: sólo esas se borran.
+// La vista previa informa `servicios_ausentes` (servicios mapeados sin ninguna
+// fila en el archivo, p. ej. un export parcial) y marca sus bajas con
+// `servicio_ausente`; el panel las muestra destildadas.
 // Cada fila se aplica por separado; un error puntual no aborta el resto y va a
 // `errores` en la respuesta.
 //
@@ -262,6 +265,7 @@ function resumenDiff(diff: DiffServicios) {
     sin_match:              diff.sinMatch.length,
     conceptos_desconocidos: diff.conceptosDesconocidos.length,
     errores:                diff.errores.length,
+    servicios_ausentes:     diff.serviciosAusentes,
     detalle: {
       agregados: diff.agregados.map((a) => ({
         numero_socio: a.numeroSocio, nombre: a.nombre, servicio: a.servicio,
@@ -277,6 +281,7 @@ function resumenDiff(diff: DiffServicios) {
         numero_socio: e.numeroSocio, nombre: e.nombre, servicio: e.servicio,
         variante: e.varianteNuvix, importe: e.importe,
         manual: e.varianteNuvix === null,
+        servicio_ausente: e.servicioAusente,
       })),
       conflictos: diff.conflictos.map((c) => ({
         numero_socio: c.numeroSocio, nombre: c.nombre, servicio: c.servicio, conceptos: c.conceptos,
