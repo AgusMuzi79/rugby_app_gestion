@@ -129,7 +129,16 @@ async function callImportarServicios<T>(
       body: formData,
     }
   )
-  return res.json()
+  // Un error del gateway (sesión vencida, timeout, archivo muy grande) puede
+  // venir sin `error` o sin JSON: se normaliza a `{ error }` para no guardar en
+  // el estado una respuesta que no es una vista previa ni un resultado.
+  let body: Record<string, unknown> | null = null
+  try { body = await res.json() } catch { body = null }
+  const mensaje = body && (body.error ?? body.msg ?? body.message)
+  if (!res.ok || !body || typeof body.detalle !== 'object' || body.detalle === null) {
+    return { error: typeof mensaje === 'string' && mensaje ? mensaje : `Error ${res.status} al llamar a importar-servicios` } as T & { error?: string }
+  }
+  return body as T & { error?: string }
 }
 
 function formatFecha(iso: string | null | undefined): string {
