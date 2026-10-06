@@ -17,7 +17,9 @@
 //                 tildadas en la vista previa: sólo esas se borran.
 // La vista previa informa `servicios_ausentes` (servicios mapeados sin ninguna
 // fila en el archivo, p. ej. un export parcial) y marca sus bajas con
-// `servicio_ausente`; el panel las muestra destildadas.
+// `servicio_ausente`; el panel las muestra destildadas. Lo mismo con
+// `servicios_baja_masiva` / `baja_masiva`: servicios presentes cuyas bajas
+// superan el 30% de sus vínculos actuales (p. ej. un export cortado por socio).
 // Cada fila se aplica por separado; un error puntual no aborta el resto y va a
 // `errores` en la respuesta.
 //
@@ -48,6 +50,10 @@ import XLSX from 'npm:xlsx@0.18.5'
 const ROLES_PERMITIDOS = ['secretaria', 'admin']
 const PAGINA = 1000
 const LOTE = 500
+// Las bajas van con `.in('id', …)`: los ids viajan en la query string, no en el
+// body. 500 UUIDs son ~19 KB de URL y pueden superar el límite del gateway (y el
+// fallback fila por fila puede agotar el tiempo); 100 quedan en ~4 KB.
+const LOTE_BAJAS = 100
 
 interface ErrorAplicacion {
   numero_socio: string
@@ -266,6 +272,7 @@ function resumenDiff(diff: DiffServicios) {
     conceptos_desconocidos: diff.conceptosDesconocidos.length,
     errores:                diff.errores.length,
     servicios_ausentes:     diff.serviciosAusentes,
+    servicios_baja_masiva:  diff.serviciosBajaMasiva,
     detalle: {
       agregados: diff.agregados.map((a) => ({
         numero_socio: a.numeroSocio, nombre: a.nombre, servicio: a.servicio,
@@ -282,6 +289,7 @@ function resumenDiff(diff: DiffServicios) {
         variante: e.varianteNuvix, importe: e.importe,
         manual: e.varianteNuvix === null,
         servicio_ausente: e.servicioAusente,
+        baja_masiva: e.bajaMasiva,
       })),
       conflictos: diff.conflictos.map((c) => ({
         numero_socio: c.numeroSocio, nombre: c.nombre, servicio: c.servicio, conceptos: c.conceptos,
@@ -323,7 +331,7 @@ async function aplicarDiff(diff: DiffServicios, servicioIdPorNombre: Map<string,
   }
 
   // Bajas — por lote; si un lote falla, fila por fila para aislar el error.
-  for (const lote of enLotes<DiffEliminado>(diff.eliminados, LOTE)) {
+  for (const lote of enLotes<DiffEliminado>(diff.eliminados, LOTE_BAJAS)) {
     const { error } = await supabaseAdmin.from('socio_servicios').delete().in('id', lote.map((e) => e.vinculoId))
     if (!error) { eliminadosOk += lote.length; continue }
     for (const e of lote) {

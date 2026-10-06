@@ -7,7 +7,9 @@
 // destildar una por una antes de confirmar; al confirmar se mandan las que
 // quedaron tildadas (`bajas_aprobadas`) y sólo esas se aplican. Si el archivo
 // no trae ninguna fila de un servicio (`servicios_ausentes`, p. ej. un export
-// parcial), sus bajas arrancan destildadas y se muestra un aviso.
+// parcial), sus bajas arrancan destildadas y se muestra un aviso. Lo mismo si
+// las bajas de un servicio superan el 30% de sus vínculos actuales
+// (`servicios_baja_masiva`, p. ej. un export cortado por socio).
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -31,6 +33,13 @@ interface ItemEliminado extends ItemServicio {
   clave: string
   manual: boolean
   servicio_ausente: boolean
+  baja_masiva: boolean
+}
+
+interface ServicioBajaMasiva {
+  servicio: string
+  bajas: number
+  actuales: number
 }
 
 interface ItemConflicto {
@@ -63,6 +72,7 @@ interface PreviewServicios {
   conceptos_desconocidos: number
   errores: number
   servicios_ausentes: string[]
+  servicios_baja_masiva: ServicioBajaMasiva[]
   detalle: {
     agregados: ItemServicio[]
     actualizados: ItemActualizado[]
@@ -180,8 +190,8 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
       const json = await callImportarServicios<PreviewServicios>(archivo, 'preview')
       if (json.error) { setError(json.error); return }
       setPreview(json)
-      // Las bajas de servicios que el archivo no trae arrancan destildadas.
-      setOmitidas(new Set(json.detalle.eliminados.filter(e => e.servicio_ausente).map(e => e.clave)))
+      // Las bajas de servicios que el archivo no trae o con bajas masivas arrancan destildadas.
+      setOmitidas(new Set(json.detalle.eliminados.filter(e => e.servicio_ausente || e.baja_masiva).map(e => e.clave)))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -317,14 +327,34 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             ))}
           </Lista>
 
-          {preview.servicios_ausentes.length > 0 && (
+          {(preview.servicios_ausentes.length > 0 || preview.servicios_baja_masiva.length > 0) && (
             <div className="mt-3 p-4 border-2 border-rojo bg-rojo/10">
               <p className="font-lora text-xs tracking-widest text-rojo mb-1">ATENCIÓN — POSIBLE EXPORT PARCIAL</p>
-              <p className="font-lora text-sm text-tinta">
-                El archivo no trae ninguna fila de: {preview.servicios_ausentes.join(', ')}. Si es un export parcial,
-                no conviene confirmar. Las bajas de esos servicios quedan destildadas; tildarlas sólo si el servicio
-                realmente dejó de existir.
-              </p>
+              {preview.servicios_ausentes.length > 0 && (
+                <p className="font-lora text-sm text-tinta">
+                  El archivo no trae ninguna fila de: {preview.servicios_ausentes.join(', ')}. Si es un export parcial,
+                  no conviene confirmar. Las bajas de esos servicios quedan destildadas; tildarlas sólo si el servicio
+                  realmente dejó de existir.
+                </p>
+              )}
+              {preview.servicios_baja_masiva.length > 0 && (
+                <div className={preview.servicios_ausentes.length > 0 ? 'mt-2' : ''}>
+                  <p className="font-lora text-sm text-tinta">
+                    En estos servicios se quitaría más del 30% de los vínculos actuales, lo que suele indicar un
+                    export cortado:
+                  </p>
+                  <ul className="font-lora text-sm text-tinta list-disc pl-5 my-1">
+                    {preview.servicios_baja_masiva.map(m => (
+                      <li key={m.servicio}>
+                        {m.servicio}: {m.bajas} de {m.actuales} socios ({Math.round((m.bajas / m.actuales) * 100)}%)
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="font-lora text-sm text-tinta">
+                    Esas bajas quedan destildadas; tildarlas sólo si la caída es real.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -340,7 +370,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                 <table className="w-full border-collapse">
                   <tbody>
                     {preview.detalle.eliminados.map(e => (
-                      <tr key={e.clave} className={`border-b border-gris-claro last:border-0 ${e.servicio_ausente ? 'bg-rojo/5' : ''}`}>
+                      <tr key={e.clave} className={`border-b border-gris-claro last:border-0 ${e.servicio_ausente || e.baja_masiva ? 'bg-rojo/5' : ''}`}>
                         <td className="py-1.5 px-3 w-8">
                           <input
                             type="checkbox"
@@ -354,6 +384,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                         <td className={tdDato}>
                           {e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}
                           {e.servicio_ausente && <span className="text-rojo"> · servicio ausente del archivo</span>}
+                          {e.baja_masiva && <span className="text-rojo"> · baja masiva (más del 30%)</span>}
                         </td>
                         <td className={tdDerecha}>{formatImporte(e.importe)}</td>
                       </tr>

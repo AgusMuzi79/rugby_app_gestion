@@ -12,6 +12,7 @@ import {
   normalizarConcepto,
   claveVinculo,
   SERVICIOS_MAPEADOS,
+  UMBRAL_BAJA_MASIVA,
   type SocioRef,
   type VinculoActual,
   type DiffServicios,
@@ -283,6 +284,66 @@ caso('export parcial sin la banda de Rugby: Rugby ausente y sus bajas marcadas',
   const presentes = d.eliminados.filter((e) => e.servicio !== 'Rugby')
   assert.ok(presentes.length > 0)
   assert.ok(presentes.every((e) => e.servicioAusente === false))
+})
+
+// ─── Tope de bajas masivas ───────────────────────────────────────────────────
+
+// 10 socios (200..209) con Carnet Tenis y Rugby cargados; el archivo trae la banda
+// de Carnet Tenis con los primeros `quedan` socios y la de Rugby completa (o
+// ninguna, para simular un servicio ausente).
+function escenarioMasivo(quedan: number, conRugby = true) {
+  const numeros = Array.from({ length: 10 }, (_, i) => String(200 + i))
+  const socios = new Map<string, SocioRef>(
+    numeros.map((n) => [n, { id: `s${n}`, nombre: `Socio ${n}`, excluirDeImport: false }]),
+  )
+  const vinculos: VinculoActual[] = numeros.flatMap((n) => [
+    { id: `t${n}`, numeroSocio: n, servicio: 'Carnet Tenis', importe: 60000, varianteNuvix: 'CARNET TENIS' },
+    { id: `r${n}`, numeroSocio: n, servicio: 'Rugby', importe: 25000, varianteNuvix: 'RUGBY CUOTA DEPORTIVA' },
+  ])
+  const rows: unknown[][] = [
+    ...encabezado(),
+    ...banda('CARNET TENIS', numeros.slice(0, quedan).map((n) => [n, `SOCIO ${n}`] as [string, string])),
+    ...(conRugby ? banda('RUGBY CUOTA DEPORTIVA', numeros.map((n) => [n, `SOCIO ${n}`] as [string, string])) : []),
+  ]
+  return calcularDiffServicios({ padron: parsePadronServicios(rows), socios, precios: PRECIOS, vinculos })
+}
+
+caso('el umbral de baja masiva es 30%', () => {
+  assert.equal(UMBRAL_BAJA_MASIVA, 0.3)
+})
+
+caso('baja masiva: el archivo deja 6 de 10 (40% de bajas) → servicio listado y bajas marcadas', () => {
+  const d = escenarioMasivo(6)
+  assert.deepEqual(d.serviciosBajaMasiva, [{ servicio: 'Carnet Tenis', bajas: 4, actuales: 10 }])
+  const tenis = d.eliminados.filter((e) => e.servicio === 'Carnet Tenis')
+  assert.equal(tenis.length, 4)
+  assert.ok(tenis.every((e) => e.bajaMasiva === true))
+  assert.ok(tenis.every((e) => e.servicioAusente === false))
+})
+
+caso('baja masiva: el archivo deja 8 de 10 (20%) → no se lista', () => {
+  const d = escenarioMasivo(8)
+  assert.deepEqual(d.serviciosBajaMasiva, [])
+  const tenis = d.eliminados.filter((e) => e.servicio === 'Carnet Tenis')
+  assert.equal(tenis.length, 2)
+  assert.ok(tenis.every((e) => e.bajaMasiva === false))
+})
+
+caso('baja masiva: exactamente 30% (7 de 10) no se lista (comparación estricta)', () => {
+  const d = escenarioMasivo(7)
+  assert.deepEqual(d.serviciosBajaMasiva, [])
+  const tenis = d.eliminados.filter((e) => e.servicio === 'Carnet Tenis')
+  assert.equal(tenis.length, 3)
+  assert.ok(tenis.every((e) => e.bajaMasiva === false))
+})
+
+caso('baja masiva: un servicio ausente no se repite en serviciosBajaMasiva', () => {
+  const d = escenarioMasivo(6, false)
+  assert.ok(d.serviciosAusentes.includes('Rugby'))
+  assert.deepEqual(d.serviciosBajaMasiva.map((s) => s.servicio), ['Carnet Tenis'])
+  const rugby = d.eliminados.filter((e) => e.servicio === 'Rugby')
+  assert.equal(rugby.length, 10)
+  assert.ok(rugby.every((e) => e.servicioAusente === true && e.bajaMasiva === false))
 })
 
 console.log(`\n${casos} casos ok`)

@@ -20,6 +20,12 @@
 // servicio mapeado (p. ej. un export parcial), ese servicio va en
 // `serviciosAusentes` y sus bajas se marcan con `servicioAusente`: la vista
 // previa las muestra destildadas.
+//
+// Tope de bajas masivas: un export cortado por socio (una sola página, un rango
+// filtrado) trae todos los servicios, así que el aviso de ausentes no salta. Si
+// las bajas de un servicio presente superan UMBRAL_BAJA_MASIVA de sus vínculos
+// actuales, el servicio va en `serviciosBajaMasiva` y sus bajas se marcan con
+// `bajaMasiva`: la vista previa también las muestra destildadas.
 
 // ─── Mapeo ──────────────────────────────────────────────────────────────────
 
@@ -61,6 +67,12 @@ export const SERVICIOS_MAPEADOS = new Set<string>(Object.values(MAPEO_CONCEPTOS)
 export const NOMBRES_CATALOGO = new Set<string>(
   Object.values(MAPEO_CONCEPTOS).flatMap((d) => [d.servicio, d.catalogoPrecio]),
 )
+
+/**
+ * Fracción de los vínculos actuales de un servicio por encima de la cual sus
+ * bajas se consideran sospechosas (comparación estricta: 30% justo no cuenta).
+ */
+export const UMBRAL_BAJA_MASIVA = 0.3
 
 export function normalizarConcepto(concepto: string): string {
   return concepto
@@ -164,6 +176,16 @@ export interface DiffEliminado {
   varianteNuvix: string | null
   /** El archivo no trae ninguna fila de este servicio (posible export parcial). */
   servicioAusente: boolean
+  /** Las bajas de este servicio superan UMBRAL_BAJA_MASIVA de sus vínculos actuales. */
+  bajaMasiva:      boolean
+}
+
+export interface DiffBajaMasiva {
+  servicio: string
+  /** Bajas calculadas para el servicio. */
+  bajas:    number
+  /** Vínculos actuales del servicio considerados por el diff (socio existente, no excluido). */
+  actuales: number
 }
 
 export interface DiffConflicto {
@@ -206,6 +228,11 @@ export interface DiffServicios {
    * sólo conflictos o socios sin match igual cuenta como presente.
    */
   serviciosAusentes:     string[]
+  /**
+   * Servicios presentes en el archivo cuyas bajas superan UMBRAL_BAJA_MASIVA de
+   * sus vínculos actuales (ordenados por servicio). Los ausentes no se repiten acá.
+   */
+  serviciosBajaMasiva:   DiffBajaMasiva[]
 }
 
 export interface EntradaDiff {
@@ -228,7 +255,7 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
   const diff: DiffServicios = {
     agregados: [], actualizados: [], eliminados: [], sinCambio: 0,
     conflictos: [], sinMatch: [], conceptosDesconocidos: [], errores: [],
-    serviciosAusentes: [],
+    serviciosAusentes: [], serviciosBajaMasiva: [],
   }
 
   // Servicios mapeados que el archivo no trae en ninguna variante.
@@ -299,6 +326,8 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
     if (!socio || socio.excluirDeImport) continue
     actual.set(claveVinculo(v.numeroSocio, v.servicio), v)
   }
+  const actualesPorServicio = new Map<string, number>()
+  for (const v of actual.values()) actualesPorServicio.set(v.servicio, (actualesPorServicio.get(v.servicio) ?? 0) + 1)
 
   // Altas / actualizaciones / sin cambio
   for (const [k, f] of deseado) {
@@ -346,8 +375,21 @@ export function calcularDiffServicios({ padron, socios, precios, vinculos }: Ent
       importe:       aNumero(v.importe),
       varianteNuvix: v.varianteNuvix,
       servicioAusente: ausentes.has(v.servicio),
+      bajaMasiva:      false,
     })
   }
+
+  // Tope de bajas masivas por servicio presente (los ausentes ya tienen su aviso).
+  const bajasPorServicio = new Map<string, number>()
+  for (const e of diff.eliminados) bajasPorServicio.set(e.servicio, (bajasPorServicio.get(e.servicio) ?? 0) + 1)
+  for (const [servicio, bajas] of bajasPorServicio) {
+    const actuales = actualesPorServicio.get(servicio) ?? 0
+    if (ausentes.has(servicio) || actuales === 0 || bajas / actuales <= UMBRAL_BAJA_MASIVA) continue
+    diff.serviciosBajaMasiva.push({ servicio, bajas, actuales })
+  }
+  diff.serviciosBajaMasiva.sort((a, b) => a.servicio.localeCompare(b.servicio))
+  const masivos = new Set(diff.serviciosBajaMasiva.map((m) => m.servicio))
+  for (const e of diff.eliminados) e.bajaMasiva = masivos.has(e.servicio)
 
   return diff
 }
