@@ -12,10 +12,10 @@
 -- Cambio: si la fecha de corte es anterior al corte del débito del mes
 -- (fecha de débito cargada por Secretaría en fechas_debito_automatico + 3
 -- días de margen para que NUVIX registre el cobro; si no hay fecha cargada
--- ese mes, el día 22), los comprobantes de este import de concepto 'cuota'
+-- ese mes, el día 20), los comprobantes de este import de concepto 'cuota'
 -- del período de la fecha de corte, con vencido > 0, de socios con débito
 -- automático, se reclasifican como "a vencer": vencido pasa a a_vencer,
--- mora_dias = 0 y vencimiento = la fecha de débito de ese mes (o el día 22).
+-- mora_dias = 0 y vencimiento = la fecha de débito de ese mes (o el día 20).
 -- Si la fecha de corte cae dentro de los 3 días de margen (el débito ya pasó
 -- pero NUVIX todavía no lo registra), el vencimiento es la fecha de corte:
 -- GREATEST(fecha de débito, fecha de corte), para no mostrar "a vencer" con
@@ -31,9 +31,10 @@
 -- 10:00, antes del import de ese día: usa el reporte del 21, que tiene que
 -- mostrar ya como deuda los débitos rechazados.
 --
--- El 22 de respaldo coincide con el día del aviso de deuda
--- (DIA_AVISO_DEUDA en supabase/functions/_shared/recordatorio-deuda.ts).
--- Las fechas de débito cargadas son <= 17 (corte <= 20).
+-- Respaldo sin fecha cargada: el día 20, no el 22. Tiene que ser anterior al
+-- 21 para que el reporte que usa el aviso del 22 (DIA_AVISO_DEUDA en
+-- supabase/functions/_shared/recordatorio-deuda.ts) ya cuente los débitos
+-- rechazados. Las fechas de débito cargadas son <= 17 (corte <= 20).
 --
 -- importaciones_deuda.total_vencido / total_a_vencer quedan como los informa
 -- NUVIX (son la reconciliación contra el Total General del archivo); la
@@ -53,7 +54,7 @@ DECLARE
   -- Días después de la fecha de débito hasta que NUVIX refleja el cobro.
   c_margen_debito_dias CONSTANT int := 3;
   -- Día de respaldo si Secretaría no cargó la fecha de débito del mes.
-  c_dia_debito_respaldo CONSTANT int := 22;
+  c_dia_debito_respaldo CONSTANT int := 20;
   v_fecha_debito   date;
   v_corte_debito   date;
 BEGIN
@@ -129,7 +130,7 @@ BEGIN
       vencido     = 0,
       mora_dias   = 0,
       -- CASE y no COALESCE(GREATEST(...)): GREATEST ignora los NULL, así que
-      -- sin fecha de débito devolvería la fecha de corte en vez del día 22.
+      -- sin fecha de débito devolvería la fecha de corte en vez del día de respaldo.
       vencimiento = CASE
         WHEN v_fecha_debito IS NULL THEN make_date(
           extract(year FROM v_fecha_corte)::int,

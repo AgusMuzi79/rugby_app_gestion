@@ -100,6 +100,9 @@ Deno.serve(async (req: Request) => {
   let fechaCorte: string | null = null
   // id de la fila 'enviando' una vez reservado el mes.
   let reservaId: string | null = null
+  // Una vez que arrancó el envío puede haber pushes ya entregados: desde ahí una
+  // falla no libera el mes, para no volver a avisar a quien ya recibió.
+  let envioIniciado = false
   try {
     const { data: ultima, error: ultimaErr } = await supabaseAdmin
       .from('importaciones_deuda')
@@ -133,6 +136,7 @@ Deno.serve(async (req: Request) => {
     reservaId = reserva.id as string
 
     const recordatorios = await construirRecordatoriosDeuda(supabaseAdmin, ahora)
+    envioIniciado = true
     const resumen = await enviarPushRecordatoriosDeuda(supabaseAdmin, recordatorios)
     console.log(
       `Recordatorios de deuda (push): ${resumen.enviados} enviados, ${resumen.sinToken} sin token, ` +
@@ -152,9 +156,12 @@ Deno.serve(async (req: Request) => {
   } catch (e) {
     const motivo = e instanceof Error ? e.message : String(e)
     console.error('recordatorio-deuda:', motivo)
-    // Si ya se había reservado el mes, se cierra esa fila como 'error' (libera el mes para
-    // reintentar); si no, se registra una fila nueva.
-    if (reservaId) await cerrarEnvio(reservaId, { estado: 'error', motivo })
+    // Falla durante el envío: puede haber pushes ya entregados, así que la fila se cierra como
+    // 'enviado' (bloquea el mes) con el error en el motivo — mejor que alguno se quede sin
+    // aviso que avisarle dos veces. Falla antes de enviar con el mes reservado: 'error', que
+    // libera el mes para reintentar. Sin reserva: fila nueva de error.
+    if (reservaId && envioIniciado) await cerrarEnvio(reservaId, { estado: 'enviado', motivo: `Envío interrumpido, puede estar incompleto: ${motivo}` })
+    else if (reservaId) await cerrarEnvio(reservaId, { estado: 'error', motivo })
     else await registrarEnvio({ estado: 'error', mes, motivo, fecha_corte: fechaCorte })
     return jsonError(500, motivo)
   }
