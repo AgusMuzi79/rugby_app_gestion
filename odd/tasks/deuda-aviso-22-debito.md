@@ -23,11 +23,11 @@ The debt reminder push reaches only socios who really owe, and socios with autom
 
 ## Tasks
 
-- [ ] T1 — `importar-deuda`: chunk/paginate the 3 socios queries (codes lookup, deudores, titulares); remove the reminder from the import path (keep the shared reminder builder reusable). Route: delegated writer.
-- [ ] T2 — Migration redefining `importar_deuda_nuvix`: reclassify automatic-debit current-period cuota before day 22, before computing the semáforo. Route: delegated writer.
-- [ ] T3 — New Edge Function `recordatorio-deuda` (x-cron-secret, day-22 send, freshness guard, paginated, log table `recordatorios_deuda_envios`) + migration for the log table + cron SQL documented (registered by hand). Route: delegated writer.
-- [ ] T4 — Web `/secretaria/deuda`: show the last reminder run (sent / skipped + reason) and that reminders go out on the 22nd. Route: delegated writer.
-- [ ] T5 — Docs (`.claude/context/estado-supabase.md`, `estado-web.md`, `historial.md`). Route: delegated writer.
+- [x] T1 — `importar-deuda`: chunk/paginate the 3 socios queries (codes lookup, deudores, titulares); remove the reminder from the import path (keep the shared reminder builder reusable). Route: delegated writer. Commit `b69a95b`.
+- [x] T2 — Migration redefining `importar_deuda_nuvix`: reclassify automatic-debit current-period cuota before day 22, before computing the semáforo. Route: delegated writer. Commit `6f01646` (SQL re-read only, no DB available).
+- [x] T3 — New Edge Function `recordatorio-deuda` (x-cron-secret, day-22 send, freshness guard, paginated, log table `recordatorios_deuda_envios`) + migration for the log table + cron SQL documented (registered by hand). Route: delegated writer. Commit `9915b58`.
+- [x] T4 — Web `/secretaria/deuda`: show the last reminder run (sent / skipped + reason) and that reminders go out on the 22nd. Route: delegated writer. Commit `429909a`.
+- [x] T5 — Docs (`.claude/context/estado-supabase.md`, `estado-web.md`, `historial.md`). Route: delegated writer. Commit: the `docs(deuda)` commit that also updates this document.
 - [ ] T6 — Production deploy (migrations, functions, cron registration, web) — run by the user (permission classifier blocks prod deploys), after review.
 
 ## Acceptance criteria
@@ -46,7 +46,14 @@ The debt reminder push reaches only socios who really owe, and socios with autom
 ## Progress / evidence
 
 - 2026-10-07: problem verified with read-only queries against production; mapping done; feature document created.
+- 2026-10-07: T1–T5 implemented by one delegated writer (commits `b69a95b`, `6f01646`, `9915b58`, `429909a`, plus the `docs(deuda)` commit).
+  - Shared module `supabase/functions/_shared/recordatorio-deuda.ts`: pure decision/grouping/date logic plus paginated/chunked queries that take the client as a parameter; delivery reuses `_shared/expoPush.ts`.
+  - `npx --yes tsx supabase/functions/_shared/recordatorio-deuda.check.ts`: RED (module not found) → GREEN, 14 cases OK, including 1305 codes resolved against a fake PostgREST capped at 1000 rows and more than 1000 deudores paginated.
+  - `tsc --noEmit --strict` (Deno shims) over `importar-deuda/index.ts` and `recordatorio-deuda/index.ts`: no errors.
+  - `npm run build --prefix web` with dummy NEXT_PUBLIC_SUPABASE_* vars: OK, `/secretaria/deuda` prerendered.
+  - Migrations re-read for syntax; the RPC body diff against `20260804000002` is only the new constant and the reclassification UPDATE.
+  - `forzar` skips only the day-22 check; monthly idempotency and freshness still apply (a forced send counts as the month's send).
 
 ## Next step
 
-T1–T5 via one writer.
+Review, then T6 (deploy by the user): apply `20261010000000` and `20261010000001`, deploy `importar-deuda` and `recordatorio-deuda --no-verify-jwt`, register the cron by hand (SQL in `20261010000001`), deploy web.

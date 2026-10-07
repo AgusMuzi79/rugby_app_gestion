@@ -41,6 +41,7 @@ Login (`/login`) es compartido — redirige a `/secretaria/socios` o `/dashboard
 | `/secretaria/socios` | Tabla con búsqueda + filtro por estado, detalle completo, alta via `admin-socios`, pago manual, asociar/quitar/cobrar tarjeta, servicios opcionales, validar foto, desactivar/reactivar |
 | `/secretaria/noticias` | Lista con filtro por deporte, publicar/despublicar, eliminar, modal nueva noticia (se guarda como borrador) |
 | `/secretaria/servicios` | Tabla CRUD completa: crear, editar nombre/descripción/monto, toggle activo/inactivo, eliminar |
+| `/secretaria/deuda` | Importar reporte de deuda NUVIX (subida + historial) y estado de la última corrida del aviso de deuda del día 22 (`recordatorios_deuda_envios`: enviado/salteado/error, motivo, enviados) |
 | `/secretaria/socios-import` | Dos importadores NUVIX con vista previa → confirmar e historial propio cada uno: Padrón Extendido (`importar-socios`: altas/bajas/reingresos/cambios de socios) y, debajo, Padrón de Servicios (`importar-servicios`, componente `seccion-servicios.tsx`: espejo de `socio_servicios` para Gimnasio/Rugby/Hockey/Carnet Tenis/Inclusivos, bajas destildables una por una). El de servicios se corre después del Padrón Extendido |
 
 ### Notas de implementación — Secretaría
