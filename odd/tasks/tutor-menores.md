@@ -55,7 +55,7 @@ row, so today there is no way for them to see their child's data (real case repo
   `tutor_menores_ids()`; SELECT policies for tutors on socios, profiles, cuotas, pagos_socios,
   socio_servicios, comprobantes_deuda, comprobantes storage; noticias/eventos/resultados accept
   `tutor`. Route: delegated (preparation + multi-policy write).
-- [ ] T2 — Edge Function `registro-tutor` (`solicitar`, `verificar`) using `_shared/email.ts`.
+- [x] T2 — Edge Function `registro-tutor` (`solicitar`, `verificar`) using `_shared/email.ts`.
   Route: delegated.
 - [ ] T3 — Edge Functions: `socios-qr` tutor branch; pushes to tutors in `notifications`
   (noticias + división), `importar-deuda`, `recordatorio-debito`. Route: delegated.
@@ -70,8 +70,10 @@ row, so today there is no way for them to see their child's data (real case repo
   Feature doc created.
 - 2026-10-07: T1 done (route: delegated) — migration written; SQL readback, idempotent
   DROP/CREATE, 12 new policy names unique across migrations. Not applied (no db push).
-  jugadores intentionally without tutor policy (socios have none either). Commit: see git log
-  `feat(tutores): esquema y permisos para tutores de menores`.
+  jugadores intentionally without tutor policy (socios have none either). Commit: dab3f77.
+- 2026-10-07: T2 done (route: delegated) — `registro-tutor` (solicitar/verificar) + shared
+  `_shared/tutores.ts`. Imports resolve; deno unavailable so no `deno check`. Deploy with
+  `--no-verify-jwt` (not deployed). Commit: see `feat(tutores): alta de tutor verificada…`.
 
 ## Next step
 
