@@ -346,6 +346,35 @@ async function main() {
     assert.deepEqual(sellados, ['s1'])
   })
 
+  const unRecordatorio = [{ profileId: 'p1', nombreDestinatario: 'Uno', items: [{ socioId: 's1', nombre: 'Uno', propio: true, mesesImpagos: 1, deudaVencida: 10 }] }]
+
+  await caso('enviarPushRecordatoriosDeuda: alIniciarEnvio se avisa recién antes del primer pedido a Expo', async () => {
+    const { db } = baseSimulada({ push_tokens: [{ usuario_id: 'p1', token: TOKEN(1) }] })
+    const orden: string[] = []
+    const fetchImpl: FetchLike = async (...args) => { orden.push('fetch'); return fetchOk([])(...args) }
+    await enviarPushRecordatoriosDeuda(db, unRecordatorio, { fetchImpl, log: () => {}, alIniciarEnvio: () => orden.push('inicio') })
+    assert.deepEqual(orden.slice(0, 2), ['inicio', 'fetch'])
+  })
+
+  await caso('enviarPushRecordatoriosDeuda: si falla la lectura de tokens no se avisa el inicio (no salió ningún push)', async () => {
+    const dbCaida = {
+      from: () => ({ select: () => ({ in: async () => ({ data: null, error: { message: 'caído' } }) }) }),
+    } as unknown as Parameters<typeof enviarPushRecordatoriosDeuda>[0]
+    let iniciado = false
+    await assert.rejects(
+      enviarPushRecordatoriosDeuda(dbCaida, unRecordatorio, { log: () => {}, alIniciarEnvio: () => { iniciado = true } }),
+      /push_tokens/,
+    )
+    assert.equal(iniciado, false)
+  })
+
+  await caso('enviarPushRecordatoriosDeuda: sin nadie con token no se avisa el inicio', async () => {
+    const { db } = baseSimulada({ push_tokens: [] })
+    let iniciado = false
+    await enviarPushRecordatoriosDeuda(db, unRecordatorio, { log: () => {}, alIniciarEnvio: () => { iniciado = true } })
+    assert.equal(iniciado, false)
+  })
+
   clearInterval(vivo)
   console.log(`\n${casos} casos OK`)
 }

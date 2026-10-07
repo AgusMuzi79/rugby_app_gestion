@@ -165,8 +165,9 @@ Deno.serve(async (req: Request) => {
     reservaId = reserva.id as string
 
     const recordatorios = await construirRecordatoriosDeuda(supabaseAdmin, ahora, resolverTutores)
-    envioIniciado = true
-    const resumen = await enviarPushRecordatoriosDeuda(supabaseAdmin, recordatorios)
+    const resumen = await enviarPushRecordatoriosDeuda(supabaseAdmin, recordatorios, {
+      alIniciarEnvio: () => { envioIniciado = true },
+    })
     console.log(
       `Recordatorios de deuda (push): ${resumen.enviados} enviados, ${resumen.sinToken} sin token, ` +
       `${resumen.fallidos} con error, de ${resumen.destinatarios} destinatarios.`,

@@ -16,9 +16,10 @@
 
 import { enviarPush, esTokenExpo, trocear, type FetchLike, type PushItem } from './expoPush.ts'
 
-// Día del mes en que sale el aviso. También es el corte de la migración
-// 20261011000000_deuda_debito_antes_del_22.sql (cuota del mes de un socio con débito automático
-// = a vencer hasta este día). Si cambia uno, cambia el otro.
+// Día del mes en que sale el aviso. NO es el corte del débito: la migración
+// 20261011000000_deuda_debito_antes_del_22.sql usa la fecha de débito del mes + 3 días (respaldo:
+// día 20), que tiene que ser anterior al día previo al aviso para que el reporte que usa el aviso
+// ya cuente los débitos rechazados. Si se mueve este día, revisar que eso se siga cumpliendo.
 export const DIA_AVISO_DEUDA = 22
 // Antigüedad máxima (en días) del último reporte NUVIX importado para mandar el aviso: mejor no
 // avisar que avisar con datos viejos.
@@ -288,7 +289,12 @@ export type ResumenEnvio = { destinatarios: number; enviados: number; sinToken: 
 export async function enviarPushRecordatoriosDeuda(
   db: Db,
   recordatorios: RecordatorioDeuda[],
-  opciones: { fetchImpl?: FetchLike; log?: (...args: unknown[]) => void } = {},
+  opciones: {
+    fetchImpl?: FetchLike
+    log?: (...args: unknown[]) => void
+    /** Se llama justo antes del primer pedido a Expo (sólo si hay algo para mandar). */
+    alIniciarEnvio?: () => void
+  } = {},
 ): Promise<ResumenEnvio> {
   const tokens = await tokensPorProfile(db, recordatorios.map((r) => r.profileId))
 
@@ -303,6 +309,7 @@ export async function enviarPushRecordatoriosDeuda(
     }
   }
 
+  if (items.length > 0) opciones.alIniciarEnvio?.()
   const { entregados, fallidos } = await enviarPush(items, { fetchImpl: opciones.fetchImpl, log: opciones.log })
 
   const socioIds = recordatorios.filter((r) => entregados.has(r.profileId)).flatMap((r) => r.items.map((it) => it.socioId))
