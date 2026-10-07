@@ -42,9 +42,9 @@ export function fechaArgentina(ahora: Date): string {
   }).format(ahora)
 }
 
-/** Inicio del mes (medianoche del día 1 en Argentina, UTC-3 fijo sin horario de verano) en ISO. */
-export function inicioMesArgentina(hoy: string): string {
-  return `${hoy.slice(0, 7)}-01T00:00:00-03:00`
+/** Mes calendario ('YYYY-MM') de una fecha argentina 'YYYY-MM-DD' (ver fechaArgentina). */
+export function mesArgentina(hoy: string): string {
+  return hoy.slice(0, 7)
 }
 
 function diasEntre(desde: string, hasta: string): number {
@@ -67,20 +67,18 @@ export function corteVigente(fechaCorte: string | null, hoy: string): boolean {
 export type DecisionEnvio = { enviar: true } | { enviar: false; motivo: string }
 
 /**
- * Decide si esta corrida manda el aviso. `forzar` (pruebas manuales) sólo saltea el chequeo del
- * día 22: el envío sigue siendo uno por mes y el reporte tiene que estar fresco igual.
+ * Decide si esta corrida intenta mandar el aviso. `forzar` (pruebas manuales) sólo saltea el
+ * chequeo del día 22: el reporte tiene que estar fresco igual. El "uno por mes" no se decide acá
+ * sino al reservar el mes (insert 'enviando' contra el índice único de
+ * recordatorios_deuda_envios), así dos corridas simultáneas no pueden mandar las dos.
  */
 export function decidirEnvio(p: {
   hoy: string
   forzar: boolean
   ultimoCorte: string | null
-  yaEnviadoEsteMes: boolean
 }): DecisionEnvio {
   if (!p.forzar && Number(p.hoy.slice(8, 10)) !== DIA_AVISO_DEUDA) {
     return { enviar: false, motivo: `Hoy no es día ${DIA_AVISO_DEUDA}: el aviso de deuda sólo sale ese día.` }
-  }
-  if (p.yaEnviadoEsteMes) {
-    return { enviar: false, motivo: 'El aviso de este mes ya se envió.' }
   }
   if (!p.ultimoCorte) {
     return { enviar: false, motivo: 'No hay ningún reporte de deuda importado.' }
@@ -93,6 +91,33 @@ export function decidirEnvio(p: {
     }
   }
   return { enviar: true }
+}
+
+/** Motivo de la corrida salteada porque otra ya reservó el mes ('enviando' o 'enviado'). */
+export const MOTIVO_MES_RESERVADO = 'El aviso de este mes ya se envió o está en curso.'
+
+/** Error de Postgres por violación de unicidad (23505): otra corrida ya reservó el mes. */
+export function esViolacionUnica(error: { code?: string } | null | undefined): boolean {
+  return error?.code === '23505'
+}
+
+/**
+ * Estado con el que se cierra una corrida que llegó a enviar. Si no llegó ningún aviso pero había
+ * destinatarios con la app (todos fallaron), queda 'error': no cuenta como el envío del mes y se
+ * puede reintentar. Con al menos uno entregado, o sin nadie a quien mandarle, queda 'enviado'.
+ */
+export function estadoFinalEnvio(r: ResumenEnvio): { estado: 'enviado' | 'error'; motivo: string | null } {
+  if (r.enviados === 0 && r.fallidos > 0) {
+    return {
+      estado: 'error',
+      motivo: `No llegó ningún aviso: falló el envío a los ${r.fallidos} destinatario(s) con la app. ` +
+        'El mes no queda marcado como enviado, se puede reintentar.',
+    }
+  }
+  return {
+    estado: 'enviado',
+    motivo: r.fallidos > 0 ? `${r.fallidos} destinatario(s) con error de envío.` : null,
+  }
 }
 
 // ─── Destinatarios (pura) ─────────────────────────────────────────────────────

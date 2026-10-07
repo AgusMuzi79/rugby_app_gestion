@@ -29,6 +29,7 @@ The debt reminder push reaches only socios who really owe, and socios with autom
 - [x] T4 — Web `/secretaria/deuda`: show the last reminder run (sent / skipped + reason) and that reminders go out on the 22nd. Route: delegated writer. Commit `429909a`.
 - [x] T5 — Docs (`.claude/context/estado-supabase.md`, `estado-web.md`, `historial.md`). Route: delegated writer. Commit: the `docs(deuda)` commit that also updates this document.
 - [x] T7 — Debit cutoff = debit date + 3 days (fallback 22) instead of a fixed day 22. Reason (found in parent review, user confirmed Secretaría imports daily): the day-22 job runs at 10:00 before that day's import, so it uses the 21st report; with a fixed 22 cutoff, rejected debits were reclassified as "a vencer" in that report and left out of the reminder. Route: inline (one SQL file + doc lines).
+- [x] T8 — Review fixes: (1) a run where no reminder was delivered but recipients with the app existed is recorded as `error` (pure `estadoFinalEnvio`), so it does not consume the month; (2) atomic monthly claim: `recordatorios_deuda_envios.mes` + estado `enviando` + unique partial index on `mes` WHERE estado IN ('enviando','enviado'); the function inserts `enviando` before sending (23505 → `salteado`, other error → no send, 500), then updates that row to `enviado`/`error` (a failed final update is logged and leaves `enviando`, fixed by hand); (3) reclassified cuota `vencimiento = GREATEST(debit date, fecha_corte)` so it is never in the past within the 3-day margin. Web panel renders `enviando` as "EN CURSO". Route: delegated writer (5 non-trivial files). Commit: the `fix(deuda): el aviso del 22 reserva el mes…` commit.
 - [ ] T6 — Production deploy (migrations, functions, cron registration, web) — run by the user (permission classifier blocks prod deploys), after review.
 
 ## Acceptance criteria
@@ -54,6 +55,8 @@ The debt reminder push reaches only socios who really owe, and socios with autom
   - `npm run build --prefix web` with dummy NEXT_PUBLIC_SUPABASE_* vars: OK, `/secretaria/deuda` prerendered.
   - Migrations re-read for syntax; the RPC body diff against `20260804000002` is only the new constant and the reclassification UPDATE.
   - `forzar` skips only the day-22 check; monthly idempotency and freshness still apply (a forced send counts as the month's send).
+
+- 2026-10-07: T8 — `npx --yes tsx supabase/functions/_shared/recordatorio-deuda.check.ts`: RED (`mesArgentina is not a function`) → GREEN, 17 cases OK (new: `mesArgentina`, `esViolacionUnica`, `estadoFinalEnvio` delivered / total failure / nobody to send). `decidirEnvio` no longer takes `yaEnviadoEsteMes` (the month rule moved to the DB claim). tsc (Deno shims) over both functions: no errors. Web build OK. Both migrations re-read for SQL syntax (not applied anywhere; no DB available).
 
 ## Next step
 

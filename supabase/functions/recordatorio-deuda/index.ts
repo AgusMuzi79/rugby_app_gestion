@@ -9,9 +9,18 @@
 //
 // Reglas (lógica pura en _shared/recordatorio-deuda.ts):
 //   - sólo el día 22 en Argentina, salvo `forzar` (pruebas manuales);
-//   - una vez por mes: si ya hay una corrida 'enviado' este mes, saltea;
 //   - el último reporte importado debe tener 2 días o menos, si no saltea
-//     (mejor no avisar que avisar con datos viejos).
+//     (mejor no avisar que avisar con datos viejos);
+//   - una vez por mes, de forma atómica: antes de mandar inserta una fila
+//     'enviando' con el mes (`mes`, 'YYYY-MM'); el índice único parcial de
+//     recordatorios_deuda_envios (mes, estado IN ('enviando','enviado'))
+//     hace que una segunda corrida del mismo mes falle con 23505 y saltee.
+//     Al terminar, esa misma fila pasa a 'enviado' (llegó al menos un aviso)
+//     o 'error' (no llegó ninguno, o falló algo): 'error' libera el mes para
+//     reintentar.
+// Si la actualización final falla, la fila queda 'enviando' y sigue
+// bloqueando el mes: hay que corregirla a mano (UPDATE a 'enviado' o 'error'
+// según lo que muestren los logs de la función).
 // Cada corrida queda registrada en recordatorios_deuda_envios (la ve
 // Secretaría en /secretaria/deuda).
 //
@@ -23,15 +32,21 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import {
+  MOTIVO_MES_RESERVADO,
   construirRecordatoriosDeuda,
   decidirEnvio,
   enviarPushRecordatoriosDeuda,
+  esViolacionUnica,
+  estadoFinalEnvio,
   fechaArgentina,
-  inicioMesArgentina,
+  mesArgentina,
 } from '../_shared/recordatorio-deuda.ts'
 
+const TABLA = 'recordatorios_deuda_envios'
+
 type Envio = {
-  estado: 'enviado' | 'salteado' | 'error'
+  estado: 'enviando' | 'enviado' | 'salteado' | 'error'
+  mes: string
   motivo: string | null
   fecha_corte: string | null
   destinatarios?: number
@@ -39,9 +54,24 @@ type Envio = {
   sin_token?: number
 }
 
+type Cierre = Pick<Envio, 'motivo' | 'destinatarios' | 'enviados' | 'sin_token'> & { estado: 'enviado' | 'error' }
+
+/** Fila de una corrida que no llegó a reservar el mes (salteada o con error previo). */
 async function registrarEnvio(envio: Envio): Promise<void> {
-  const { error } = await supabaseAdmin.from('recordatorios_deuda_envios').insert(envio)
-  if (error) console.error('Error registrando la corrida en recordatorios_deuda_envios:', error.message)
+  const { error } = await supabaseAdmin.from(TABLA).insert(envio)
+  if (error) console.error(`Error registrando la corrida en ${TABLA}:`, error.message)
+}
+
+/** Cierra la fila 'enviando' de esta corrida. Si falla, la fila queda 'enviando' y bloquea el mes. */
+async function cerrarEnvio(id: string, cierre: Cierre): Promise<void> {
+  const { error } = await supabaseAdmin.from(TABLA).update(cierre).eq('id', id)
+  if (error) {
+    console.error(
+      `ATENCIÓN: no se pudo cerrar la corrida ${id} de ${TABLA} como '${cierre.estado}' ` +
+      `(${error.message}). Quedó 'enviando' y bloquea el aviso del mes: corregirla a mano.`,
+      JSON.stringify(cierre),
+    )
+  }
 }
 
 async function leerForzar(req: Request): Promise<boolean> {
@@ -65,8 +95,11 @@ Deno.serve(async (req: Request) => {
   const forzar = await leerForzar(req)
   const ahora = new Date()
   const hoy = fechaArgentina(ahora)
+  const mes = mesArgentina(hoy)
 
   let fechaCorte: string | null = null
+  // id de la fila 'enviando' una vez reservado el mes.
+  let reservaId: string | null = null
   try {
     const { data: ultima, error: ultimaErr } = await supabaseAdmin
       .from('importaciones_deuda')
@@ -77,25 +110,27 @@ Deno.serve(async (req: Request) => {
     if (ultimaErr) throw new Error(`Error leyendo importaciones_deuda: ${ultimaErr.message}`)
     fechaCorte = (ultima?.fecha_corte as string | undefined) ?? null
 
-    const { data: envioDelMes, error: envioErr } = await supabaseAdmin
-      .from('recordatorios_deuda_envios')
-      .select('id')
-      .eq('estado', 'enviado')
-      .gte('ejecutado_at', inicioMesArgentina(hoy))
-      .limit(1)
-    if (envioErr) throw new Error(`Error leyendo recordatorios_deuda_envios: ${envioErr.message}`)
-
-    const decision = decidirEnvio({
-      hoy,
-      forzar,
-      ultimoCorte: fechaCorte,
-      yaEnviadoEsteMes: (envioDelMes ?? []).length > 0,
-    })
-
+    const decision = decidirEnvio({ hoy, forzar, ultimoCorte: fechaCorte })
     if (!decision.enviar) {
-      await registrarEnvio({ estado: 'salteado', motivo: decision.motivo, fecha_corte: fechaCorte })
+      await registrarEnvio({ estado: 'salteado', mes, motivo: decision.motivo, fecha_corte: fechaCorte })
       return jsonOk({ enviado: false, motivo: decision.motivo, fecha_corte: fechaCorte })
     }
+
+    // Reserva atómica del mes: si ya hay una fila 'enviando' o 'enviado' de este mes, el índice
+    // único rechaza el insert y esta corrida no manda nada.
+    const { data: reserva, error: reservaErr } = await supabaseAdmin
+      .from(TABLA)
+      .insert({ estado: 'enviando', mes, motivo: null, fecha_corte: fechaCorte })
+      .select('id')
+      .single()
+    if (reservaErr) {
+      if (esViolacionUnica(reservaErr)) {
+        await registrarEnvio({ estado: 'salteado', mes, motivo: MOTIVO_MES_RESERVADO, fecha_corte: fechaCorte })
+        return jsonOk({ enviado: false, motivo: MOTIVO_MES_RESERVADO, fecha_corte: fechaCorte })
+      }
+      throw new Error(`Error reservando el envío del mes en ${TABLA}: ${reservaErr.message}`)
+    }
+    reservaId = reserva.id as string
 
     const recordatorios = await construirRecordatoriosDeuda(supabaseAdmin, ahora)
     const resumen = await enviarPushRecordatoriosDeuda(supabaseAdmin, recordatorios)
@@ -104,19 +139,23 @@ Deno.serve(async (req: Request) => {
       `${resumen.fallidos} con error, de ${resumen.destinatarios} destinatarios.`,
     )
 
-    await registrarEnvio({
-      estado: 'enviado',
-      motivo: resumen.fallidos > 0 ? `${resumen.fallidos} destinatario(s) con error de envío.` : null,
-      fecha_corte: fechaCorte,
+    const final = estadoFinalEnvio(resumen)
+    await cerrarEnvio(reservaId, {
+      estado: final.estado,
+      motivo: final.motivo,
       destinatarios: resumen.destinatarios,
       enviados: resumen.enviados,
       sin_token: resumen.sinToken,
     })
+    if (final.estado === 'error') return jsonError(500, final.motivo ?? 'No llegó ningún aviso.')
     return jsonOk({ enviado: true, fecha_corte: fechaCorte, ...resumen })
   } catch (e) {
     const motivo = e instanceof Error ? e.message : String(e)
     console.error('recordatorio-deuda:', motivo)
-    await registrarEnvio({ estado: 'error', motivo, fecha_corte: fechaCorte })
+    // Si ya se había reservado el mes, se cierra esa fila como 'error' (libera el mes para
+    // reintentar); si no, se registra una fila nueva.
+    if (reservaId) await cerrarEnvio(reservaId, { estado: 'error', motivo })
+    else await registrarEnvio({ estado: 'error', mes, motivo, fecha_corte: fechaCorte })
     return jsonError(500, motivo)
   }
 })

@@ -35,7 +35,7 @@ interface ResultadoImport {
 // Una corrida del aviso mensual de deuda (Edge Function recordatorio-deuda).
 interface EnvioRecordatorio {
   ejecutado_at: string
-  estado: 'enviado' | 'salteado' | 'error'
+  estado: 'enviando' | 'enviado' | 'salteado' | 'error'
   motivo: string | null
   fecha_corte: string | null
   destinatarios: number
@@ -167,6 +167,7 @@ function SeccionImportar({
 // ─── Sección: aviso de deuda del día 22 ─────────────────────────────────────
 
 const ESTADO_ENVIO = {
+  enviando: { label: 'EN CURSO', color: 'text-tinta/60 border-gris-claro' },
   enviado: { label: 'ENVIADO', color: 'text-[#2ECC71] border-[#2ECC71]' },
   salteado: { label: 'SALTEADO', color: 'text-[#E67E22] border-[#E67E22]' },
   error: { label: 'ERROR', color: 'text-rojo border-rojo' },
@@ -204,7 +205,7 @@ function SeccionAvisoDeuda({ envio, error }: { envio: EnvioRecordatorio | null; 
           <p className="font-lora text-sm text-tinta">
             <span className="text-tinta/50">Reporte del:</span> {formatFecha(envio.fecha_corte)}
           </p>
-          {envio.estado === 'enviado' && (
+          {(envio.estado === 'enviado' || (envio.estado === 'error' && envio.destinatarios > 0)) && (
             <p className="font-lora text-sm text-tinta">
               <span className="text-tinta/50">Enviados:</span> {envio.enviados} de {envio.destinatarios}
               {envio.sin_token > 0 && <span className="text-tinta/50"> ({envio.sin_token} sin la app)</span>}

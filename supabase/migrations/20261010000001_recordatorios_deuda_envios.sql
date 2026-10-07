@@ -2,20 +2,36 @@
 --
 -- Registro de cada corrida del aviso mensual de deuda (Edge Function
 -- recordatorio-deuda, cron del día 22). Una fila por corrida, se envíe o no:
---   - 'enviado':  salió el push (destinatarios / enviados / sin_token).
---   - 'salteado': no correspondía mandarlo (no es día 22, ya se envió este
---                 mes, o el último reporte importado tiene más de 2 días);
---                 el motivo queda en `motivo`.
---   - 'error':    falló una consulta o el envío; detalle en `motivo`.
+--   - 'enviando': la corrida reservó el mes y está mandando el push.
+--   - 'enviado':  salió el push y llegó al menos un aviso (destinatarios /
+--                 enviados / sin_token).
+--   - 'salteado': no correspondía mandarlo (no es día 22, el último reporte
+--                 importado tiene más de 2 días, o el mes ya está enviado o
+--                 en curso); el motivo queda en `motivo`.
+--   - 'error':    falló una consulta, o no llegó ningún aviso (todos los
+--                 envíos fallaron); detalle en `motivo`.
 --
--- La función usa esta tabla para no mandar el aviso dos veces en el mismo mes
--- (si ya hay una fila 'enviado' desde el día 1, saltea). El panel de
--- Secretaría (/secretaria/deuda) muestra la última corrida.
+-- Uno por mes, atómico: antes de mandar, la función inserta una fila
+-- 'enviando' con `mes` ('YYYY-MM', mes calendario en Argentina). El índice
+-- único parcial de abajo sólo admite una fila 'enviando' o 'enviado' por mes,
+-- así que una segunda corrida simultánea o posterior falla con 23505 y
+-- saltea. Al terminar, la función pasa esa misma fila a 'enviado' o 'error'.
+-- 'error' y 'salteado' no entran en el índice: un error no bloquea reintentar.
+--
+-- Si la función no logra cerrar la fila (falla el UPDATE final o se corta la
+-- ejecución), queda 'enviando' y bloquea el aviso de ese mes. Se corrige a
+-- mano según los logs de la función, por ejemplo:
+--   UPDATE recordatorios_deuda_envios SET estado = 'error', motivo = '...'
+--    WHERE estado = 'enviando' AND mes = 'YYYY-MM';
+--
+-- El panel de Secretaría (/secretaria/deuda) muestra la última corrida.
 
 CREATE TABLE recordatorios_deuda_envios (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   ejecutado_at   timestamptz NOT NULL DEFAULT now(),
-  estado         text        NOT NULL CHECK (estado IN ('enviado', 'salteado', 'error')),
+  -- mes calendario en Argentina de la corrida ('YYYY-MM')
+  mes            text        NOT NULL CHECK (mes ~ '^[0-9]{4}-[0-9]{2}$'),
+  estado         text        NOT NULL CHECK (estado IN ('enviando', 'enviado', 'salteado', 'error')),
   motivo         text,
   -- fecha de corte del último reporte importado al momento de la corrida
   fecha_corte    date,
@@ -25,6 +41,11 @@ CREATE TABLE recordatorios_deuda_envios (
 );
 
 CREATE INDEX ON recordatorios_deuda_envios (ejecutado_at DESC);
+
+-- Una sola corrida 'enviando' o 'enviado' por mes (reserva atómica del envío).
+CREATE UNIQUE INDEX recordatorios_deuda_envios_un_envio_por_mes
+  ON recordatorios_deuda_envios (mes)
+  WHERE estado IN ('enviando', 'enviado');
 
 ALTER TABLE recordatorios_deuda_envios ENABLE ROW LEVEL SECURITY;
 
@@ -55,4 +76,5 @@ CREATE POLICY "secretaria_admin_subcomision_select_recordatorios_deuda_envios" O
 --
 -- Prueba manual fuera del día 22 (manda el push de verdad y cuenta como el
 -- envío del mes): POST a la misma URL con body '{"forzar": true}' o
--- ?forzar=true. Igual exige el reporte fresco y que no se haya enviado ya.
+-- ?forzar=true. Igual exige el reporte fresco y que el mes no esté ya
+-- enviado o en curso.

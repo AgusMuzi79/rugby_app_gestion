@@ -16,6 +16,10 @@
 -- del período de la fecha de corte, con vencido > 0, de socios con débito
 -- automático, se reclasifican como "a vencer": vencido pasa a a_vencer,
 -- mora_dias = 0 y vencimiento = la fecha de débito de ese mes (o el día 22).
+-- Si la fecha de corte cae dentro de los 3 días de margen (el débito ya pasó
+-- pero NUVIX todavía no lo registra), el vencimiento es la fecha de corte:
+-- GREATEST(fecha de débito, fecha de corte), para no mostrar "a vencer" con
+-- una fecha pasada.
 -- Se hace antes de calcular el semáforo, así que ese socio queda verde si no
 -- debe otra cosa. La app ya muestra a_vencer en "PRÓXIMOS VENCIMIENTOS —
 -- Vence el …" (app/hooks/useDeudaDetalle.ts), no hace falta build mobile.
@@ -124,14 +128,16 @@ BEGIN
       a_vencer    = cd.a_vencer + cd.vencido,
       vencido     = 0,
       mora_dias   = 0,
-      vencimiento = COALESCE(
-        v_fecha_debito,
-        make_date(
+      -- CASE y no COALESCE(GREATEST(...)): GREATEST ignora los NULL, así que
+      -- sin fecha de débito devolvería la fecha de corte en vez del día 22.
+      vencimiento = CASE
+        WHEN v_fecha_debito IS NULL THEN make_date(
           extract(year FROM v_fecha_corte)::int,
           extract(month FROM v_fecha_corte)::int,
           c_dia_debito_respaldo
         )
-      )
+        ELSE GREATEST(v_fecha_debito, v_fecha_corte)
+      END
     FROM socios s
     WHERE cd.importacion_id = v_importacion_id
       AND cd.socio_id = s.id

@@ -16,8 +16,10 @@ import {
   decidirEnvio,
   enviarPushRecordatoriosDeuda,
   esMenorDeEdad,
+  esViolacionUnica,
+  estadoFinalEnvio,
   fechaArgentina,
-  inicioMesArgentina,
+  mesArgentina,
   textoRecordatorio,
   type DeudorRow,
 } from './recordatorio-deuda.ts'
@@ -101,8 +103,9 @@ async function main() {
     assert.equal(fechaArgentina(new Date('2026-10-22T13:00:00Z')), '2026-10-22')
   })
 
-  await caso('inicioMesArgentina: medianoche del día 1 en Argentina, en ISO', () => {
-    assert.equal(inicioMesArgentina('2026-10-22'), '2026-10-01T00:00:00-03:00')
+  await caso('mesArgentina: mes calendario (YYYY-MM) de la fecha argentina', () => {
+    assert.equal(mesArgentina('2026-10-22'), '2026-10')
+    assert.equal(mesArgentina(fechaArgentina(new Date('2026-11-01T02:00:00Z'))), '2026-10')
   })
 
   // ─── Antigüedad del reporte ─────────────────────────────────────────────────
@@ -121,32 +124,57 @@ async function main() {
   await caso('decidirEnvio: el día 22 con reporte fresco y sin envío del mes, envía', () => {
     assert.equal(DIA_AVISO_DEUDA, 22)
     assert.deepEqual(
-      decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: '2026-10-21', yaEnviadoEsteMes: false }),
+      decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: '2026-10-21' }),
       { enviar: true },
     )
   })
 
   await caso('decidirEnvio: fuera del día 22 saltea, salvo que se fuerce', () => {
-    const d = decidirEnvio({ hoy: '2026-10-21', forzar: false, ultimoCorte: '2026-10-21', yaEnviadoEsteMes: false })
+    const d = decidirEnvio({ hoy: '2026-10-21', forzar: false, ultimoCorte: '2026-10-21' })
     assert.equal(d.enviar, false)
     assert.match(d.enviar ? '' : d.motivo, /día 22/)
     assert.deepEqual(
-      decidirEnvio({ hoy: '2026-10-21', forzar: true, ultimoCorte: '2026-10-21', yaEnviadoEsteMes: false }),
+      decidirEnvio({ hoy: '2026-10-21', forzar: true, ultimoCorte: '2026-10-21' }),
       { enviar: true },
     )
   })
 
-  await caso('decidirEnvio: si ya se envió este mes saltea (aunque se fuerce)', () => {
-    const d = decidirEnvio({ hoy: '2026-10-22', forzar: true, ultimoCorte: '2026-10-22', yaEnviadoEsteMes: true })
-    assert.equal(d.enviar, false)
-    assert.match(d.enviar ? '' : d.motivo, /ya se envió/)
+  // ─── Reserva del mes y estado final de la corrida ───────────────────────────
+
+  await caso('esViolacionUnica: sólo el código 23505 de Postgres', () => {
+    assert.equal(esViolacionUnica({ code: '23505', message: 'duplicate key' }), true)
+    assert.equal(esViolacionUnica({ code: '42P01', message: 'no existe la tabla' }), false)
+    assert.equal(esViolacionUnica(null), false)
+  })
+
+  await caso('estadoFinalEnvio: con al menos un entregado queda enviado', () => {
+    assert.deepEqual(
+      estadoFinalEnvio({ destinatarios: 3, enviados: 1, sinToken: 1, fallidos: 1 }),
+      { estado: 'enviado', motivo: '1 destinatario(s) con error de envío.' },
+    )
+    assert.deepEqual(
+      estadoFinalEnvio({ destinatarios: 2, enviados: 2, sinToken: 0, fallidos: 0 }),
+      { estado: 'enviado', motivo: null },
+    )
+  })
+
+  await caso('estadoFinalEnvio: si no llegó ninguno y hubo fallas queda error (no bloquea el mes)', () => {
+    const r = estadoFinalEnvio({ destinatarios: 5, enviados: 0, sinToken: 2, fallidos: 3 })
+    assert.equal(r.estado, 'error')
+    assert.match(r.motivo ?? '', /ningún aviso/i)
+    assert.match(r.motivo ?? '', /3/)
+  })
+
+  await caso('estadoFinalEnvio: sin deudores o todos sin la app queda enviado (no hay a quién reintentar)', () => {
+    assert.deepEqual(estadoFinalEnvio({ destinatarios: 0, enviados: 0, sinToken: 0, fallidos: 0 }), { estado: 'enviado', motivo: null })
+    assert.deepEqual(estadoFinalEnvio({ destinatarios: 4, enviados: 0, sinToken: 4, fallidos: 0 }), { estado: 'enviado', motivo: null })
   })
 
   await caso('decidirEnvio: reporte viejo o inexistente saltea con motivo', () => {
-    const viejo = decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: '2026-10-07', yaEnviadoEsteMes: false })
+    const viejo = decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: '2026-10-07' })
     assert.equal(viejo.enviar, false)
     assert.match(viejo.enviar ? '' : viejo.motivo, /07\/10\/2026/)
-    const nada = decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: null, yaEnviadoEsteMes: false })
+    const nada = decidirEnvio({ hoy: '2026-10-22', forzar: false, ultimoCorte: null })
     assert.equal(nada.enviar, false)
     assert.match(nada.enviar ? '' : nada.motivo, /No hay ningún reporte/)
   })
