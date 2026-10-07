@@ -59,7 +59,7 @@ row, so today there is no way for them to see their child's data (real case repo
   Route: delegated.
 - [x] T3 — Edge Functions: `socios-qr` tutor branch; pushes to tutors in `notifications`
   (noticias + división), `importar-deuda`, `recordatorio-debito`. Route: delegated.
-- [ ] T4 — Mobile: role `tutor` constants + routing; `registro-tutor` screen + link from
+- [x] T4 — Mobile: role `tutor` constants + routing; `registro-tutor` screen + link from
   `acceso-restringido`; `(tutor)` group reusing socio screens with a selected-minor store; hooks
   accept an explicit `socioId`. Route: delegated.
 - [ ] T5 — Docs: `.claude/context` (estado-expo, estado-supabase, historial). Route: inline.
@@ -79,6 +79,27 @@ row, so today there is no way for them to see their child's data (real case repo
   minors' debt reminders (importar-deuda) and débito reminder (recordatorio-debito). Not
   deployed. Commit: see `feat(tutores): carnet y notificaciones del menor llegan al tutor`.
 
+- 2026-10-07: T3 commit 27f491f. Native review (medium, lens reliability, user granted) over
+  5da1741..27f491f found R3-attempt-counter-race (CRITICAL: wrong-code attempt cap raceable by
+  parallel guesses). Bounded correction abe7421: SQL RPC `tutor_verificacion_consumir_intento`
+  consumes the attempt atomically before comparing. Targeted validation approved; acknowledged
+  (lineage review-9fed867530d0fe7b, authority burned). Reviewed boundary: abe7421.
+
+- 2026-10-07: T4 done (route: delegated — 2+ non-trivial files). Commits 73735ec (role `tutor`,
+  `(tutor)` group re-exporting socio carnet/cuotas/noticias/calendario + own read-only "sobre",
+  `useTutorStore` + `useSocioObjetivo`, `useCuotas`/`useDeudaDetalle`/`useCalendarioSocio` accept an
+  optional `socioId`; `useCarnet` already did) and 4d2470b (`registro-tutor` screen + link from
+  `acceso-restringido`; root guard skips the login redirect while `registroSinSesion` is set).
+  `npx tsc --noEmit` (app/): baseline 2 errors (`app/(secretaria)/socios.tsx` 112/113, pre-existing),
+  final 2 — same errors, none new. Socio regression readback: with `socioId` undefined every hook
+  queries `profile_id = auth.uid()` exactly as before; the selector renders null for non-tutors.
+  Decisions: birth date as DD/MM/AAAA text input (DatePickerField is light-styled and a calendar
+  picker is slow for adult dates); "Ver cómo pagar" (alias + WhatsApp, no DB write) stays visible to
+  tutors; no "turnos" tab; sign-out also clears the minors' cached TOTP secrets.
+  Known gaps: no `jugadores` RLS for tutors (as for socios) so "mi equipo" never highlights; noticia
+  author names depend on profiles RLS. Not built/run on a device (no EAS, no deploy).
+
 ## Next step
 
-T4.
+T5 (docs). Then deploy `registro-tutor` (`--no-verify-jwt`), `socios-qr` and the push functions,
+push the migration, and test the full flow on a device — all pending explicit user request.
