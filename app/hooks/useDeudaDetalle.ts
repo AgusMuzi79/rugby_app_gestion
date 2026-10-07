@@ -23,7 +23,9 @@ export interface DeudaDetalle {
   saldoAnterior:          number // filas es_saldo_anterior=true, sin período discreto
 }
 
-export function useDeudaDetalle() {
+// socioId: undefined = own socio (profile_id = auth.uid()); given = that socio
+// by id (tutor viewing a linked minor, RLS comprobantes_deuda_select_tutor).
+export function useDeudaDetalle(socioId?: string) {
   const { session } = useAuthStore()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -38,7 +40,7 @@ export function useDeudaDetalle() {
     const { data: socio } = await db
       .from('socios')
       .select('id')
-      .eq('profile_id', session.user.id)
+      .eq(socioId ? 'id' : 'profile_id', socioId ?? session.user.id)
       .single()
 
     if (!socio) { setLoading(false); return }
@@ -123,7 +125,7 @@ export function useDeudaDetalle() {
       saldoAnterior,
     })
     setLoading(false)
-  }, [session])
+  }, [session, socioId])
 
   useEffect(() => { fetch() }, [fetch])
 

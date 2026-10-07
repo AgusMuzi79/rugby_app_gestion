@@ -38,6 +38,7 @@ const ROL_RUTAS: Record<string, string> = {
   buffet:      '/(porteria)/scanner',
   cliente_gimnasio: '/(cliente-gimnasio)/carnet',
   socio:       '/(socio)/carnet',
+  tutor:       '/(tutor)/carnet',
 }
 
 export default function RootLayout() {
