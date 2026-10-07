@@ -57,7 +57,7 @@ row, so today there is no way for them to see their child's data (real case repo
   `tutor`. Route: delegated (preparation + multi-policy write).
 - [x] T2 — Edge Function `registro-tutor` (`solicitar`, `verificar`) using `_shared/email.ts`.
   Route: delegated.
-- [ ] T3 — Edge Functions: `socios-qr` tutor branch; pushes to tutors in `notifications`
+- [x] T3 — Edge Functions: `socios-qr` tutor branch; pushes to tutors in `notifications`
   (noticias + división), `importar-deuda`, `recordatorio-debito`. Route: delegated.
 - [ ] T4 — Mobile: role `tutor` constants + routing; `registro-tutor` screen + link from
   `acceso-restringido`; `(tutor)` group reusing socio screens with a selected-minor store; hooks
@@ -73,8 +73,12 @@ row, so today there is no way for them to see their child's data (real case repo
   jugadores intentionally without tutor policy (socios have none either). Commit: dab3f77.
 - 2026-10-07: T2 done (route: delegated) — `registro-tutor` (solicitar/verificar) + shared
   `_shared/tutores.ts`. Imports resolve; deno unavailable so no `deno check`. Deploy with
-  `--no-verify-jwt` (not deployed). Commit: see `feat(tutores): alta de tutor verificada…`.
+  `--no-verify-jwt` (not deployed). Commit: 2abaa35.
+- 2026-10-07: T3 done (route: delegated) — socios-qr `get-secret` tutor branch (link-checked,
+  no age gate); tutors added (deduped) to noticias 'todos' + división pushes (notifications),
+  minors' debt reminders (importar-deuda) and débito reminder (recordatorio-debito). Not
+  deployed. Commit: see `feat(tutores): carnet y notificaciones del menor llegan al tutor`.
 
 ## Next step
 
-T1.
+T4.

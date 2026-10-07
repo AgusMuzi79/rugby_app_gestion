@@ -26,6 +26,7 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { parseDeudaNuvix } from '../_shared/parse-deuda-nuvix.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
+import { tutoresPorSocio } from '../_shared/tutores.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export (module.exports),
 // mismo paquete y misma forma de leerlo que scripts/import-socios-masivo.mjs.
 import XLSX from 'npm:xlsx@0.18.5'
@@ -179,8 +180,9 @@ Deno.serve(async (req: Request) => {
 // migración 20260819000000) — evita duplicar si secretaría reimporta el
 // archivo varias veces en el mismo período. Un menor de edad nunca recibe el
 // mail a su propio nombre: la deuda se le atribuye al titular de su grupo
-// familiar (mismo criterio que la app, ver migración 20260813000000_titular_ve_deuda_menores.sql).
-// Si el menor no tiene titular resuelto, se omite (no hay fallback mandándoselo a él).
+// familiar (mismo criterio que la app, ver migración 20260813000000_titular_ve_deuda_menores.sql)
+// y a sus tutores (tutores_menores, migración 20261009000000_tutor_menores).
+// Si el menor no tiene titular ni tutor, se omite (no hay fallback mandándoselo a él).
 
 const CADENCIA_DIAS = 15
 
@@ -232,6 +234,22 @@ async function construirRecordatoriosDeuda(): Promise<RecordatorioDeuda[]> {
     }
   }
 
+  // Tutors (adults without a socios row, migration 20261009000000_tutor_menores) of the minors
+  // in debt also receive the reminder, in addition to the titular.
+  const menoresIds = deudores
+    .filter((d) => esMenorDeEdad(d.fecha_nacimiento as string | null))
+    .map((d) => d.id as string)
+  const tutoresDeMenor = await tutoresPorSocio(menoresIds)
+  const tutorIds = [...new Set([...tutoresDeMenor.values()].flat())]
+  const nombresTutores = new Map<string, string>()
+  if (tutorIds.length > 0) {
+    const { data: tutoresData } = await supabaseAdmin
+      .from('profiles')
+      .select('id, nombre')
+      .in('id', tutorIds)
+    for (const t of tutoresData ?? []) nombresTutores.set(t.id as string, (t.nombre as string) ?? 'Tutor')
+  }
+
   const porDestinatario = new Map<string, RecordatorioDeuda>()
 
   for (const d of deudores) {
@@ -239,30 +257,32 @@ async function construirRecordatoriosDeuda(): Promise<RecordatorioDeuda[]> {
     const perfil = d.profiles as { nombre: string } | null
     const nombre = perfil?.nombre ?? 'Socio'
 
-    let profileId: string | null
-    let nombreDestinatario: string
+    const destinatarios: { profileId: string; nombre: string }[] = []
 
     if (menor) {
       const titular = d.cabecera_id ? titulares.get(d.cabecera_id as string) : undefined
-      if (!titular) continue
-      profileId = titular.profileId
-      nombreDestinatario = titular.nombre
-    } else {
-      profileId = d.profile_id as string | null
-      nombreDestinatario = nombre
+      if (titular?.profileId) destinatarios.push({ profileId: titular.profileId, nombre: titular.nombre })
+      for (const tutorId of tutoresDeMenor.get(d.id as string) ?? []) {
+        destinatarios.push({ profileId: tutorId, nombre: nombresTutores.get(tutorId) ?? 'Tutor' })
+      }
+    } else if (d.profile_id) {
+      destinatarios.push({ profileId: d.profile_id as string, nombre })
     }
-    if (!profileId) continue
 
-    if (!porDestinatario.has(profileId)) {
-      porDestinatario.set(profileId, { profileId, nombreDestinatario, items: [] })
+    for (const dest of destinatarios) {
+      if (!porDestinatario.has(dest.profileId)) {
+        porDestinatario.set(dest.profileId, { profileId: dest.profileId, nombreDestinatario: dest.nombre, items: [] })
+      }
+      const items = porDestinatario.get(dest.profileId)!.items
+      if (items.some((it) => it.socioId === d.id)) continue
+      items.push({
+        socioId:      d.id as string,
+        nombre,
+        propio:       !menor,
+        mesesImpagos: (d.meses_impagos as number) ?? 0,
+        deudaVencida: Number(d.deuda_vencida) || 0,
+      })
     }
-    porDestinatario.get(profileId)!.items.push({
-      socioId:      d.id as string,
-      nombre,
-      propio:       !menor,
-      mesesImpagos: (d.meses_impagos as number) ?? 0,
-      deudaVencida: Number(d.deuda_vencida) || 0,
-    })
   }
 
   return [...porDestinatario.values()]

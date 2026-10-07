@@ -21,6 +21,7 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
+import { tutorProfileIds } from '../_shared/tutores.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
@@ -49,11 +50,11 @@ Deno.serve(async (req: Request) => {
   // Socios con cobro por tarjeta, activos o pendientes de validar foto —
   // paginado porque PostgREST devuelve máximo 1000 filas sin .range() (mismo
   // bug ya conocido en este proyecto, ver notifications/index.ts).
-  let socios: { profile_id: string | null }[] = []
+  let socios: { id: string; profile_id: string | null }[] = []
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabaseAdmin
       .from('socios')
-      .select('profile_id')
+      .select('id, profile_id')
       .eq('cobro_con_tarjeta', true)
       .in('estado', ['activo', 'pendiente'])
       .range(from, from + PAGE_SIZE - 1)
@@ -62,7 +63,13 @@ Deno.serve(async (req: Request) => {
     if (!data || data.length < PAGE_SIZE) break
   }
 
-  const profileIds = socios.map(s => s.profile_id).filter((id): id is string => !!id)
+  // Tutors of those socios (adults without a socios row, migration 20261009000000_tutor_menores)
+  // get the same reminder; deduplicated against the socios' own profiles.
+  const tutores = await tutorProfileIds(socios.map(s => s.id))
+  const profileIds = [...new Set([
+    ...socios.map(s => s.profile_id).filter((id): id is string => !!id),
+    ...tutores,
+  ])]
 
   const fechaLabel = formatFechaLabel(fecha.fecha)
   const pushResumen = await enviarPush(profileIds, fechaLabel)
