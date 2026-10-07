@@ -32,7 +32,18 @@ interface ResultadoImport {
   exento: number
 }
 
-const SEMAFORO_LABEL = { verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento' } as const
+// Una corrida del aviso mensual de deuda (Edge Function recordatorio-deuda).
+interface EnvioRecordatorio {
+  ejecutado_at: string
+  estado: 'enviado' | 'salteado' | 'error'
+  motivo: string | null
+  fecha_corte: string | null
+  destinatarios: number
+  enviados: number
+  sin_token: number
+}
+
+const SEMAFORO_LABEL ={ verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento' } as const
 
 const SEMAFORO_COLOR = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
@@ -153,6 +164,61 @@ function SeccionImportar({
   )
 }
 
+// ─── Sección: aviso de deuda del día 22 ─────────────────────────────────────
+
+const ESTADO_ENVIO = {
+  enviado: { label: 'ENVIADO', color: 'text-[#2ECC71] border-[#2ECC71]' },
+  salteado: { label: 'SALTEADO', color: 'text-[#E67E22] border-[#E67E22]' },
+  error: { label: 'ERROR', color: 'text-rojo border-rojo' },
+} as const
+
+function formatFechaHora(iso: string): string {
+  return new Date(iso).toLocaleString('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function SeccionAvisoDeuda({ envio, error }: { envio: EnvioRecordatorio | null; error: string | null }) {
+  const estado = envio ? ESTADO_ENVIO[envio.estado] : null
+  return (
+    <div className="border border-gris-claro bg-card p-6 mb-8">
+      <p className="font-lora text-xs tracking-widest text-tinta/50 mb-2">AVISO DE DEUDA A LOS SOCIOS</p>
+      <p className="font-lora text-sm text-tinta/60 mb-4">
+        El aviso de deuda se envía el día 22 de cada mes con el último reporte importado (debe tener 2 días o menos).
+      </p>
+
+      {error ? (
+        <div className="p-4 border border-rojo bg-rojo/5">
+          <p className="font-lora text-xs tracking-widest text-rojo mb-1">NO SE PUDO LEER EL ÚLTIMO ENVÍO</p>
+          <p className="font-lora text-sm text-tinta/70">{error}</p>
+        </div>
+      ) : !envio || !estado ? (
+        <p className="font-lora text-sm text-tinta/40 tracking-widest">TODAVÍA NO SE ENVIÓ NINGÚN AVISO</p>
+      ) : (
+        <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
+          <span className={`font-lora text-xs tracking-widest px-3 py-1 border ${estado.color}`}>{estado.label}</span>
+          <p className="font-lora text-sm text-tinta">
+            <span className="text-tinta/50">Última corrida:</span> {formatFechaHora(envio.ejecutado_at)}
+          </p>
+          <p className="font-lora text-sm text-tinta">
+            <span className="text-tinta/50">Reporte del:</span> {formatFecha(envio.fecha_corte)}
+          </p>
+          {envio.estado === 'enviado' && (
+            <p className="font-lora text-sm text-tinta">
+              <span className="text-tinta/50">Enviados:</span> {envio.enviados} de {envio.destinatarios}
+              {envio.sin_token > 0 && <span className="text-tinta/50"> ({envio.sin_token} sin la app)</span>}
+            </p>
+          )}
+          {envio.motivo && (
+            <p className="w-full font-lora text-sm text-tinta/60">{envio.motivo}</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Sección: historial de importaciones ────────────────────────────────────
 
 function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
@@ -236,6 +302,22 @@ export default function ImportarDeudaPage() {
 
   useEffect(() => { fetchHistorial() }, [fetchHistorial])
 
+  const [ultimoEnvio, setUltimoEnvio] = useState<EnvioRecordatorio | null>(null)
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('recordatorios_deuda_envios')
+      .select('ejecutado_at, estado, motivo, fecha_corte, destinatarios, enviados, sin_token')
+      .order('ejecutado_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) setErrorEnvio(error.message)
+        else setUltimoEnvio(data as EnvioRecordatorio | null)
+      })
+  }, [])
+
   return (
     <div>
       <div className="mb-6">
@@ -246,6 +328,8 @@ export default function ImportarDeudaPage() {
       </div>
 
       <SeccionImportar onImportado={fetchHistorial} />
+
+      <SeccionAvisoDeuda envio={ultimoEnvio} error={errorEnvio} />
 
       {loading ? (
         <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
