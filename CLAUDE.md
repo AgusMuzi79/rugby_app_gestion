@@ -26,6 +26,7 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 | **Canchero** | Mismo escaneo que Gimnasio pero atendido (cámara trasera) — hoy en tenis, a futuro gestiona turnos de cancha. |
 | **Buffet** | Mismo escaneo que Gimnasio + publica promociones/noticias a todos los socios. |
 | **Cliente Gimnasio** | No es socio del club — accede a la app únicamente para ver su carnet digital QR. |
+| **Familiar / Tutor** (rol interno `tutor`) | Adulto no socio vinculado a uno o más socios menores de 13. Se registra solo desde la pantalla de acceso restringido del menor (código por mail) y ve todos los datos del menor en sólo lectura + recibe sus pushes. |
 | **Socio** | Ve su carnet digital QR, cuotas, noticias del club y sus servicios contratados. |
 
 ## Stack tecnológico
@@ -76,9 +77,10 @@ rugby_app_gestion/
 La app está **en producción** en ambas stores desde agosto 2026 y se sigue iterando sobre ella. El historial completo de cómo se construyó cada feature (bugs, causas raíz, decisiones de negocio, sesión por sesión) vive en [`.claude/context/historial.md`](.claude/context/historial.md) — no hace falta leerlo entero, se busca por fecha o por feature.
 
 **Subsistemas en producción:**
-- Auth multi-rol (`profiles.roles[]`): socio, secretaría, gimnasio (`porteria`), canchero, buffet, cliente gimnasio, coordinador, entrenador, manager, subcomisión, admin.
+- Auth multi-rol (`profiles.roles[]`): socio, secretaría, gimnasio (`porteria`), canchero, buffet, cliente gimnasio, familiar/tutor (`tutor`), coordinador, entrenador, manager, subcomisión, admin.
 - Carnet QR (TOTP, paso de 60s) + escaneo por Gimnasio/Canchero/Buffet (el label del rol `porteria` pasó de "Lector" a "Gimnasio" el 2026-10-03) + historial de accesos al gimnasio. Gimnasio además exige que el socio tenga el servicio Gimnasio contratado (o sea Cliente Gimnasio) — Canchero/Buffet siguen validando solo "socio al día".
 - Titular de grupo familiar (`socios.cabecera_id`) ve el carnet QR de sus dependientes menores de 13 desde su propia cuenta — el link familiar depende de que el padrón NUVIX traiga `cabecera_cod_cliente`; hay ~176 menores de 13 sin ese link todavía (huecos de datos del padrón, no del código).
+- Familiar / tutor no socio de menores de 13 (2026-10-07, app 1.0.8): alta self-service desde la pantalla de acceso restringido, verificada por código al mail que el club tiene en la cuenta del menor (Edge Function `registro-tutor`, tabla `tutores_menores`). El menor pasa a mail sintético y el tutor ve carnet, cuotas, noticias, calendario y perfil del menor en sólo lectura, con sus pushes. Un segundo tutor o un hermano no pueden autoverificarse (no hay vínculo manual en Secretaría todavía).
 - Gestión de socios: alta manual + importador mensual recurrente del padrón NUVIX (`importar-socios`), 1528+ socios reales cargados.
 - Semáforo de morosidad: importador recurrente del reporte de deuda NUVIX (`importar-deuda`). Pago real vía alias + comprobante por WhatsApp (interino, hasta integrar Banco Macro).
 - Recordatorios por push (deuda, débito automático) — sin mail: NUVIX ya manda los transaccionales de pago.
@@ -86,13 +88,17 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-09-23):**
-- **Android:** versión 15 (1.0.7) aprobada y **disponible en Google Play** desde el 22/09 19:33.
-- **iOS:** versión 1.0.7 (build 21) **aprobada por Apple** — "Ready for Distribution" en App Store Connect. Verificar si el release es automático o si falta el trigger manual de "Release This Version" para que quede visible a todos los usuarios.
+**Estado de las stores (actualizado 2026-10-07):**
+- **Android:** versión 16 (1.0.8, familiar/tutor) **en revisión** en el track de Producción de Google Play; la 15 (1.0.7) sigue siendo la pública mientras tanto.
+- **iOS:** versión 1.0.8 (build 22) **"Waiting for Review"** en App Store Connect; la 1.0.7 sigue publicada. La 1.0.8 está en **publicación manual**: cuando Apple la apruebe hay que tocar "Release This Version".
+- URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
-- Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal.
+- Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal. Antes, revisar las URLs de la ficha de Play Console (las de App Store ya apuntan a `uncasapp.com`). Ese proyecto además deja un check "Vercel – web" en rojo en cada PR (no relacionado con los cambios).
+- Release 1.0.8: cuando Apple apruebe, publicarla a mano ("Release This Version"); probar el flujo de familiar/tutor en un teléfono con un menor real.
+- Familiar/tutor: herramienta en el panel de Secretaría para vincular a mano un segundo tutor o un hermano (hoy no pueden autoverificarse).
+- Play Console: la optimización de código DEX (ofuscación 1 %) está debajo del umbral de Google — corregir antes de feb 2027 (activar minificación/R8 en el build Android).
 - Supabase sigue en plan **Free** por decisión de Agus (2026-09-28, motivo económico): sin backups automáticos y con pausa tras 7 días de inactividad. Mitigación: `node scripts/backup-supabase.mjs` (requiere Docker Desktop abierto; guarda en `~/backups-uncas/`, fuera del repo) — correrlo semanalmente y SIEMPRE antes de un importador masivo. No respalda los archivos de Storage (fotos). Reevaluar Pro si crece el uso o pasa algo.
 - Rotar la `service_role` key de Supabase (buen momento tras la transferencia del 2026-09-28; ojo con env vars de Vercel y scripts). **Más urgente desde 2026-09-30**: quedó pegada varias veces en el chat.
 - Pendientes de la reconciliación de servicios (2026-09-30, ver `historial.md`): decidir si se borra el Rugby manual del 16823; revisar el DNI de 6 dígitos del 7110; confirmar que los 6 socios con contraseña reseteada a DNI (16340, 17988, 16072, 7110, 16557, 7269) pueden entrar.

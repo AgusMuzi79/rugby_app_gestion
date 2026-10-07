@@ -101,8 +101,10 @@ row, so today there is no way for them to see their child's data (real case repo
 
 ## Next step
 
-All tasks done. Next, pending explicit user request: deploy `registro-tutor` (`--no-verify-jwt`),
-`socios-qr` and the push functions, push the migration, and test the full flow on a device.
+All tasks done and shipped (2026-10-07, each step requested by the user): PR #2 merged (4e84f2d),
+migration applied, 5 Edge Functions deployed, app 1.0.8 built (Android vc 16, iOS build 22) and
+submitted to review in both stores. Remaining: release iOS manually after approval and test the full
+flow on a device with a real minor.
 
 ## Review evidence
 
