@@ -1,10 +1,34 @@
+import { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useSignOut } from '@/hooks/useSignOut'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 export default function AccesoRestringidoScreen() {
   const { signOut } = useSignOut()
+  const router = useRouter()
+  const userId = useAuthStore(s => s.session?.user.id)
+  const [abriendoRegistro, setAbriendoRegistro] = useState(false)
+
+  // The adult's sign-up (registro-tutor) runs without a session: that screen
+  // signs this minor's session out on mount. The minor's DNI is read here,
+  // while the session still exists, to prefill the form.
+  async function irARegistroTutor() {
+    setAbriendoRegistro(true)
+    let dni = ''
+    if (userId) {
+      const { data } = await supabase
+        .from('socios')
+        .select('dni')
+        .eq('profile_id', userId)
+        .maybeSingle()
+      dni = data?.dni ?? ''
+    }
+    router.replace({ pathname: '/(auth)/registro-tutor', params: { dni } })
+  }
 
   return (
     <View style={styles.container}>
@@ -22,6 +46,15 @@ export default function AccesoRestringidoScreen() {
 
       <TouchableOpacity style={styles.button} onPress={signOut} activeOpacity={0.85}>
         <Text style={styles.buttonText}>CERRAR SESIÓN</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.linkWrap}
+        onPress={irARegistroTutor}
+        disabled={abriendoRegistro}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text style={styles.linkText}>¿Sos su familiar o tutor? Creá tu cuenta</Text>
       </TouchableOpacity>
 
       <Text style={styles.footer}>UNCAS RUGBY APP</Text>
@@ -81,6 +114,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2.5,
     color: colors.oro,
+  },
+  linkWrap: {
+    marginTop: 24,
+  },
+  linkText: {
+    fontFamily: fonts.label,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.oro,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
   footer: {
     fontFamily: fonts.label,
