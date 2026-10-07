@@ -214,6 +214,16 @@ async function main() {
     assert.deepEqual(r.map((x) => x.profileId), ['p-ok'])
   })
 
+  await caso('agruparRecordatorios: un socio leído dos veces (paginación con un import en curso) cuenta una sola vez', () => {
+    const r = agruparRecordatorios([
+      deudor({ id: 'dup', profile_id: 'p-dup', meses_impagos: 1, deuda_vencida: 100 }),
+      deudor({ id: 'dup', profile_id: 'p-dup', meses_impagos: 1, deuda_vencida: 100 }),
+    ], new Map(), hoy)
+    assert.equal(r.length, 1)
+    assert.equal(r[0].items.length, 1)
+    assert.equal(textoRecordatorio(r[0].items).body.startsWith('Tenés 1 período pendiente por $100'), true)
+  })
+
   await caso('textoRecordatorio: mismo título y texto que antes, singular y plural', () => {
     const uno = textoRecordatorio([{ socioId: 'a', nombre: 'A', propio: true, mesesImpagos: 1, deudaVencida: 1500 }])
     assert.equal(uno.title, 'Cuotas pendientes')

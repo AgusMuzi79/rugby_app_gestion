@@ -148,8 +148,13 @@ export function esMenorDeEdad(fechaNacimiento: string | null, hoy: Date): boolea
 
 export function agruparRecordatorios(deudores: DeudorRow[], titulares: Map<string, Titular>, hoy: Date): RecordatorioDeuda[] {
   const porDestinatario = new Map<string, RecordatorioDeuda>()
+  // La paginación por offset puede leer dos veces un socio si un import cambia
+  // el semáforo entre páginas: cada socio cuenta una sola vez.
+  const vistos = new Set<string>()
 
   for (const d of deudores) {
+    if (vistos.has(d.id)) continue
+    vistos.add(d.id)
     const menor = esMenorDeEdad(d.fecha_nacimiento, hoy)
     const nombre = d.profiles?.nombre ?? 'Socio'
 
