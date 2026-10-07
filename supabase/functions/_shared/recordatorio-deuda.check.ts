@@ -224,6 +224,55 @@ async function main() {
     assert.equal(textoRecordatorio(r[0].items).body.startsWith('Tenés 1 período pendiente por $100'), true)
   })
 
+  // Tutores de menores (tutores_menores, migración 20261010000000_tutor_menores): reciben el aviso
+  // además del titular.
+
+  await caso('agruparRecordatorios: el menor con titular y tutor llega a los dos', () => {
+    const titulares = new Map([['tit', { profileId: 'p-tit', nombre: 'Titular' }]])
+    const tutores = new Map([['hijo', [{ profileId: 'p-tutor', nombre: 'Madre' }]]])
+    const r = agruparRecordatorios([
+      deudor({ id: 'hijo', profile_id: 'p-hijo', cabecera_id: 'tit', fecha_nacimiento: '2015-05-05' }),
+    ], titulares, hoy, tutores)
+    assert.deepEqual(r.map((x) => x.profileId).sort(), ['p-tit', 'p-tutor'])
+    for (const x of r) assert.deepEqual(x.items.map((i) => [i.socioId, i.propio]), [['hijo', false]])
+    assert.equal(r.find((x) => x.profileId === 'p-tutor')!.nombreDestinatario, 'Madre')
+  })
+
+  await caso('agruparRecordatorios: el menor sin titular pero con tutor llega al tutor', () => {
+    const tutores = new Map([['hijo', [{ profileId: 'p-tutor', nombre: 'Tutor' }]]])
+    const r = agruparRecordatorios([
+      deudor({ id: 'hijo', fecha_nacimiento: '2015-05-05' }),
+    ], new Map(), hoy, tutores)
+    assert.deepEqual(r.map((x) => [x.profileId, x.items.map((i) => i.socioId)]), [['p-tutor', ['hijo']]])
+  })
+
+  await caso('agruparRecordatorios: el mismo tutor de dos menores recibe un solo aviso con los dos', () => {
+    const tutor = { profileId: 'p-tutor', nombre: 'Tutor' }
+    const tutores = new Map([['h1', [tutor]], ['h2', [tutor]]])
+    const r = agruparRecordatorios([
+      deudor({ id: 'h1', fecha_nacimiento: '2015-05-05', meses_impagos: 1, deuda_vencida: 100 }),
+      deudor({ id: 'h2', fecha_nacimiento: '2016-05-05', meses_impagos: 2, deuda_vencida: 200 }),
+    ], new Map(), hoy, tutores)
+    assert.equal(r.length, 1)
+    assert.deepEqual(r[0].items.map((i) => i.socioId), ['h1', 'h2'])
+  })
+
+  await caso('agruparRecordatorios: el tutor nunca recibe el mismo item dos veces', () => {
+    const titulares = new Map([['tit', { profileId: 'p-tutor', nombre: 'Titular' }]])
+    // Mismo profile como titular y tutor, el tutor repetido y el menor leído dos veces.
+    const tutores = new Map([['hijo', [{ profileId: 'p-tutor', nombre: 'Tutor' }, { profileId: 'p-tutor', nombre: 'Tutor' }]]])
+    const fila = deudor({ id: 'hijo', cabecera_id: 'tit', fecha_nacimiento: '2015-05-05' })
+    const r = agruparRecordatorios([fila, fila], titulares, hoy, tutores)
+    assert.equal(r.length, 1)
+    assert.deepEqual(r[0].items.map((i) => i.socioId), ['hijo'])
+  })
+
+  await caso('agruparRecordatorios: los tutores de un adulto no reciben su deuda', () => {
+    const tutores = new Map([['adulto', [{ profileId: 'p-tutor', nombre: 'Tutor' }]]])
+    const r = agruparRecordatorios([deudor({ id: 'adulto', profile_id: 'p-adulto' })], new Map(), hoy, tutores)
+    assert.deepEqual(r.map((x) => x.profileId), ['p-adulto'])
+  })
+
   await caso('textoRecordatorio: mismo título y texto que antes, singular y plural', () => {
     const uno = textoRecordatorio([{ socioId: 'a', nombre: 'A', propio: true, mesesImpagos: 1, deudaVencida: 1500 }])
     assert.equal(uno.title, 'Cuotas pendientes')
@@ -264,10 +313,17 @@ async function main() {
     socios.push({ id: 'verde', profile_id: 'pv', estado: 'activo', semaforo: 'verde', profiles: null })
     socios.push({ id: 'baja', profile_id: 'pb', estado: 'baja', semaforo: 'rojo', profiles: null })
     const { db } = baseSimulada({ socios })
-    const r = await construirRecordatoriosDeuda(db, hoy)
-    assert.equal(r.length, 1200)
+    const pedidos: string[][] = []
+    const r = await construirRecordatoriosDeuda(db, hoy, async (menorIds) => {
+      pedidos.push(menorIds)
+      return new Map([['menor', [{ profileId: 'p-tutor', nombre: 'Tutor' }]]])
+    })
+    assert.equal(r.length, 1201)
     const tit = r.find((x) => x.profileId === 'p0')!
     assert.deepEqual(tit.items.map((i) => i.socioId).sort(), ['d0000', 'menor'])
+    assert.deepEqual(r.find((x) => x.profileId === 'p-tutor')!.items.map((i) => i.socioId), ['menor'])
+    // Sólo se piden los tutores de los menores en deuda.
+    assert.deepEqual(pedidos, [['menor']])
   })
 
   await caso('enviarPushRecordatoriosDeuda: cuenta enviados / sin token y sella sólo a los entregados', async () => {

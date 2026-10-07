@@ -1,4 +1,4 @@
--- Migration: 20261010000001_recordatorios_deuda_envios
+-- Migration: 20261011000001_recordatorios_deuda_envios
 --
 -- Registro de cada corrida del aviso mensual de deuda (Edge Function
 -- recordatorio-deuda, cron del día 22). Una fila por corrida, se envíe o no:

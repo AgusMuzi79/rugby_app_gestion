@@ -1,4 +1,4 @@
--- Migration: 20261010000000_deuda_debito_antes_del_22
+-- Migration: 20261011000000_deuda_debito_antes_del_22
 --
 -- Socios con débito automático (socios.cobro_con_tarjeta = true) no figuran
 -- como deudores de la cuota del mes antes de que se les cobre el débito.

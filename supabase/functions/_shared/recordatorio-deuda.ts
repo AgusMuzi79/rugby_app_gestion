@@ -17,7 +17,7 @@
 import { enviarPush, esTokenExpo, trocear, type FetchLike, type PushItem } from './expoPush.ts'
 
 // Día del mes en que sale el aviso. También es el corte de la migración
-// 20261010000000_deuda_debito_antes_del_22.sql (cuota del mes de un socio con débito automático
+// 20261011000000_deuda_debito_antes_del_22.sql (cuota del mes de un socio con débito automático
 // = a vencer hasta este día). Si cambia uno, cambia el otro.
 export const DIA_AVISO_DEUDA = 22
 // Antigüedad máxima (en días) del último reporte NUVIX importado para mandar el aviso: mejor no
@@ -124,7 +124,10 @@ export function estadoFinalEnvio(r: ResumenEnvio): { estado: 'enviado' | 'error'
 //
 // A quien tenga semáforo amarillo/rojo. Un menor de edad nunca recibe el aviso a su propio nombre:
 // la deuda se le atribuye al titular de su grupo familiar (mismo criterio que la app, ver migración
-// 20260813000000_titular_ve_deuda_menores.sql). Si el menor no tiene titular resuelto, se omite.
+// 20260813000000_titular_ve_deuda_menores.sql) y a cada tutor activo del menor (tutores_menores,
+// migración 20261010000000_tutor_menores). Si el menor no tiene ni titular ni tutor, se omite.
+// Los tutores se resuelven afuera (resolverTutores) porque _shared/tutores.ts importa el cliente
+// admin y este módulo tiene que poder correr con tsx.
 
 export type ItemDeuda = { socioId: string; nombre: string; propio: boolean; mesesImpagos: number; deudaVencida: number }
 export type RecordatorioDeuda = { profileId: string; nombreDestinatario: string; items: ItemDeuda[] }
@@ -138,6 +141,9 @@ export type DeudorRow = {
   profiles: { nombre: string } | null
 }
 export type Titular = { profileId: string; nombre: string }
+export type Tutor = { profileId: string; nombre: string }
+/** socios.id de cada menor → sus tutores activos. */
+export type ResolverTutores = (menorIds: string[]) => Promise<Map<string, Tutor[]>>
 
 export function esMenorDeEdad(fechaNacimiento: string | null, hoy: Date): boolean {
   if (!fechaNacimiento) return false
@@ -146,7 +152,12 @@ export function esMenorDeEdad(fechaNacimiento: string | null, hoy: Date): boolea
   return new Date(fechaNacimiento) > hace18
 }
 
-export function agruparRecordatorios(deudores: DeudorRow[], titulares: Map<string, Titular>, hoy: Date): RecordatorioDeuda[] {
+export function agruparRecordatorios(
+  deudores: DeudorRow[],
+  titulares: Map<string, Titular>,
+  hoy: Date,
+  tutores: Map<string, Tutor[]> = new Map(),
+): RecordatorioDeuda[] {
   const porDestinatario = new Map<string, RecordatorioDeuda>()
   // La paginación por offset puede leer dos veces un socio si un import cambia
   // el semáforo entre páginas: cada socio cuenta una sola vez.
@@ -158,27 +169,30 @@ export function agruparRecordatorios(deudores: DeudorRow[], titulares: Map<strin
     const menor = esMenorDeEdad(d.fecha_nacimiento, hoy)
     const nombre = d.profiles?.nombre ?? 'Socio'
 
-    let profileId: string | null
-    let nombreDestinatario: string
+    const destinatarios: { profileId: string; nombre: string }[] = []
     if (menor) {
       const titular = d.cabecera_id ? titulares.get(d.cabecera_id) : undefined
-      if (!titular) continue
-      profileId = titular.profileId
-      nombreDestinatario = titular.nombre
-    } else {
-      profileId = d.profile_id
-      nombreDestinatario = nombre
+      if (titular) destinatarios.push(titular)
+      destinatarios.push(...(tutores.get(d.id) ?? []))
+    } else if (d.profile_id) {
+      destinatarios.push({ profileId: d.profile_id, nombre })
     }
-    if (!profileId) continue
 
-    if (!porDestinatario.has(profileId)) porDestinatario.set(profileId, { profileId, nombreDestinatario, items: [] })
-    porDestinatario.get(profileId)!.items.push({
-      socioId: d.id,
-      nombre,
-      propio: !menor,
-      mesesImpagos: d.meses_impagos ?? 0,
-      deudaVencida: Number(d.deuda_vencida) || 0,
-    })
+    for (const dest of destinatarios) {
+      if (!porDestinatario.has(dest.profileId)) {
+        porDestinatario.set(dest.profileId, { profileId: dest.profileId, nombreDestinatario: dest.nombre, items: [] })
+      }
+      const items = porDestinatario.get(dest.profileId)!.items
+      // Mismo profile como titular y tutor, o tutor repetido: el item va una sola vez.
+      if (items.some((it) => it.socioId === d.id)) continue
+      items.push({
+        socioId: d.id,
+        nombre,
+        propio: !menor,
+        mesesImpagos: d.meses_impagos ?? 0,
+        deudaVencida: Number(d.deuda_vencida) || 0,
+      })
+    }
   }
 
   return [...porDestinatario.values()]
@@ -208,7 +222,11 @@ export async function buscarSociosPorNumero(db: Db, codigos: string[]): Promise<
   return mapa
 }
 
-export async function construirRecordatoriosDeuda(db: Db, hoy: Date): Promise<RecordatorioDeuda[]> {
+export async function construirRecordatoriosDeuda(
+  db: Db,
+  hoy: Date,
+  resolverTutores: ResolverTutores,
+): Promise<RecordatorioDeuda[]> {
   let deudores: DeudorRow[] = []
   for (let desde = 0; ; desde += PAGE_SIZE) {
     const { data, error } = await db
@@ -224,9 +242,8 @@ export async function construirRecordatoriosDeuda(db: Db, hoy: Date): Promise<Re
   }
   if (deudores.length === 0) return []
 
-  const cabeceraIds = [...new Set(
-    deudores.filter((d) => esMenorDeEdad(d.fecha_nacimiento, hoy) && d.cabecera_id).map((d) => d.cabecera_id as string),
-  )]
+  const menores = deudores.filter((d) => esMenorDeEdad(d.fecha_nacimiento, hoy))
+  const cabeceraIds = [...new Set(menores.filter((d) => d.cabecera_id).map((d) => d.cabecera_id as string))]
 
   const titulares = new Map<string, Titular>()
   for (const lote of trocear(cabeceraIds, LOTE_IN)) {
@@ -242,7 +259,9 @@ export async function construirRecordatoriosDeuda(db: Db, hoy: Date): Promise<Re
     }
   }
 
-  return agruparRecordatorios(deudores, titulares, hoy)
+  const tutores = menores.length > 0 ? await resolverTutores([...new Set(menores.map((d) => d.id))]) : new Map<string, Tutor[]>()
+
+  return agruparRecordatorios(deudores, titulares, hoy, tutores)
 }
 
 async function tokensPorProfile(db: Db, profileIds: string[]): Promise<Map<string, string[]>> {

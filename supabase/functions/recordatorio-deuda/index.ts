@@ -1,11 +1,12 @@
 // Edge Function: recordatorio-deuda
 //
 // Cron mensual (pg_cron, día 22 a las 10:00 de Argentina — ver migración
-// 20261010000001_recordatorios_deuda_envios.sql): manda el push "Cuotas
+// 20261011000001_recordatorios_deuda_envios.sql): manda el push "Cuotas
 // pendientes" a los socios con semáforo amarillo/rojo según el último reporte
 // NUVIX importado. Reemplaza al push que salía en cada import (importar-deuda)
 // desde 2026-10-07: el día 22 el débito automático ya se cobró, así que el
-// aviso le llega sólo a quien de verdad sigue debiendo.
+// aviso le llega sólo a quien de verdad sigue debiendo. La deuda de un menor
+// le llega al titular de su grupo familiar y a cada uno de sus tutores.
 //
 // Reglas (lógica pura en _shared/recordatorio-deuda.ts):
 //   - sólo el día 22 en Argentina, salvo `forzar` (pruebas manuales);
@@ -31,8 +32,12 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import { tutoresPorSocio } from '../_shared/tutores.ts'
+import { trocear } from '../_shared/expoPush.ts'
 import {
+  LOTE_IN,
   MOTIVO_MES_RESERVADO,
+  type Tutor,
   construirRecordatoriosDeuda,
   decidirEnvio,
   enviarPushRecordatoriosDeuda,
@@ -72,6 +77,30 @@ async function cerrarEnvio(id: string, cierre: Cierre): Promise<void> {
       JSON.stringify(cierre),
     )
   }
+}
+
+/**
+ * Tutores activos de cada menor en deuda (tutores_menores, migración 20261010000000_tutor_menores),
+ * con el nombre de su profile. Reciben el aviso además del titular. Si falla la lectura de tutores
+ * (tutoresPorSocio la loguea y devuelve vacío) el aviso sale igual al titular.
+ */
+async function resolverTutores(menorIds: string[]): Promise<Map<string, Tutor[]>> {
+  const idsPorMenor = await tutoresPorSocio(menorIds)
+  const tutorIds = [...new Set([...idsPorMenor.values()].flat())]
+  const nombres = new Map<string, string>()
+  for (const lote of trocear(tutorIds, LOTE_IN)) {
+    const { data, error } = await supabaseAdmin.from('profiles').select('id, nombre').in('id', lote)
+    if (error) {
+      console.error('Error leyendo nombres de tutores:', error.message)
+      continue
+    }
+    for (const p of data ?? []) nombres.set(p.id as string, (p.nombre as string | null) ?? 'Tutor')
+  }
+  const porMenor = new Map<string, Tutor[]>()
+  for (const [menorId, ids] of idsPorMenor) {
+    porMenor.set(menorId, ids.map((id) => ({ profileId: id, nombre: nombres.get(id) ?? 'Tutor' })))
+  }
+  return porMenor
 }
 
 async function leerForzar(req: Request): Promise<boolean> {
@@ -135,7 +164,7 @@ Deno.serve(async (req: Request) => {
     }
     reservaId = reserva.id as string
 
-    const recordatorios = await construirRecordatoriosDeuda(supabaseAdmin, ahora)
+    const recordatorios = await construirRecordatoriosDeuda(supabaseAdmin, ahora, resolverTutores)
     envioIniciado = true
     const resumen = await enviarPushRecordatoriosDeuda(supabaseAdmin, recordatorios)
     console.log(
