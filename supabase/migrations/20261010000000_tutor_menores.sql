@@ -87,6 +87,24 @@ CREATE INDEX IF NOT EXISTS tutor_verificaciones_socio_email_idx
 -- Service role only: RLS enabled and intentionally no policies.
 ALTER TABLE tutor_verificaciones ENABLE ROW LEVEL SECURITY;
 
+-- Atomically consumes one verification attempt. Returns the new attempt count,
+-- or no row when the code is already used or out of attempts. Concurrent
+-- guesses serialize on the row lock, so the attempt cap cannot be raced.
+CREATE OR REPLACE FUNCTION tutor_verificacion_consumir_intento(p_id uuid, p_max int)
+RETURNS int
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE tutor_verificaciones
+  SET intentos = intentos + 1
+  WHERE id = p_id AND usado_at IS NULL AND intentos < p_max
+  RETURNING intentos
+$$;
+
+REVOKE ALL ON FUNCTION tutor_verificacion_consumir_intento(uuid, int) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION tutor_verificacion_consumir_intento(uuid, int) TO service_role;
+
 
 -- ============================================================
 -- 3. Helper

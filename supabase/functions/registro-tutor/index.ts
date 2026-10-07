@@ -245,13 +245,18 @@ async function handleVerificar(body: Record<string, unknown>): Promise<Response>
   if (!verificacion) return falla('codigo_vencido')
   if (verificacion.intentos >= MAX_INTENTOS) return falla('bloqueado')
 
+  // Consume the attempt atomically BEFORE comparing, so parallel guesses can't
+  // all read the same stale counter and bypass the cap.
+  const { data: intentos, error: intentoErr } = await supabaseAdmin.rpc(
+    'tutor_verificacion_consumir_intento',
+    { p_id: verificacion.id, p_max: MAX_INTENTOS },
+  )
+  if (intentoErr) throw new Error(`consumir intento: ${intentoErr.message}`)
+  if (intentos === null || intentos === undefined) return falla('bloqueado')
+
   const hash = await hashCodigo(menor.id, email, codigo)
   if (!igualesTiempoConstante(hash, verificacion.codigo_hash as string)) {
-    await supabaseAdmin
-      .from('tutor_verificaciones')
-      .update({ intentos: verificacion.intentos + 1 })
-      .eq('id', verificacion.id)
-    return falla(verificacion.intentos + 1 >= MAX_INTENTOS ? 'bloqueado' : 'codigo_invalido')
+    return falla((intentos as number) >= MAX_INTENTOS ? 'bloqueado' : 'codigo_invalido')
   }
 
   // Claim the code atomically: a concurrent second request with the same code finds usado_at set.
