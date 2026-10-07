@@ -144,3 +144,10 @@ Llamada desde `app/lib/notifications.ts` via `supabase.rpc('register_push_token'
 - El socio NO puede insertar en `pagos_socios` — Mercado Pago usa webhook con service role.
 - `socios.foto_path` actualizable por el propio socio (policy `socios_update_own_foto`).
 - `numero_socio` auto-generado via secuencia `socios_numero_seq` (formato `0001`, `0002`…).
+
+## Tutores de menores (2026-10-07, rama `worktree-tutor-menores`, sin aplicar)
+
+- Migración `20261010000000_tutor_menores.sql`: rol `tutor` en los CHECK de `profiles`; tabla `tutores_menores` (tutor_profile_id, socio_id, relacion; sólo lectura propia + staff, escrituras sólo service role); tabla `tutor_verificaciones` (hash del código, vencimiento, intentos; RLS sin policies); `tutor_menores_ids()` SECURITY DEFINER; RPC `tutor_verificacion_consumir_intento` (consumo atómico del intento, sólo service_role).
+- Policies SELECT para `tutor` sobre socios, profiles (del menor), cuotas, pagos_socios, socio_servicios, comprobantes_deuda, storage `comprobantes`, noticias (`todos`), eventos y resultados. No exigen menor de 13: el vínculo es la autorización. `jugadores` sin policy (igual que socio).
+- Edge Function `registro-tutor` (pública, deploy con `--no-verify-jwt`): `solicitar` (match del mail contra `auth.users` del menor, código por Resend, 3/hora) y `verificar` (5 intentos, pasa al menor a `socio-{numero_socio}@uncas.local`, crea al tutor y el vínculo, rollback completo si algo falla).
+- `socios-qr` `get-secret` con rama tutor; pushes de noticias, división, deuda (`importar-deuda`) y débito (`recordatorio-debito`) también llegan a los tutores.

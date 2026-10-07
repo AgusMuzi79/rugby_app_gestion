@@ -62,7 +62,7 @@ row, so today there is no way for them to see their child's data (real case repo
 - [x] T4 — Mobile: role `tutor` constants + routing; `registro-tutor` screen + link from
   `acceso-restringido`; `(tutor)` group reusing socio screens with a selected-minor store; hooks
   accept an explicit `socioId`. Route: delegated.
-- [ ] T5 — Docs: `.claude/context` (estado-expo, estado-supabase, historial). Route: inline.
+- [x] T5 — Docs: `.claude/context` (estado-expo, estado-supabase, historial). Route: inline.
 
 ## Progress / evidence
 
@@ -101,5 +101,12 @@ row, so today there is no way for them to see their child's data (real case repo
 
 ## Next step
 
-T5 (docs). Then deploy `registro-tutor` (`--no-verify-jwt`), `socios-qr` and the push functions,
-push the migration, and test the full flow on a device — all pending explicit user request.
+All tasks done. Next, pending explicit user request: deploy `registro-tutor` (`--no-verify-jwt`),
+`socios-qr` and the push functions, push the migration, and test the full flow on a device.
+
+## Review evidence
+
+- Mobile slice abe7421..98117c9: native review (medium, lens reliability, user granted), approved
+  with no findings; acknowledged (lineage review-fcff79840a8d03f1, authority burned).
+- T5 done (route: inline): estado-expo, estado-supabase and historial updated. Passive docs:
+  structural readback only.
