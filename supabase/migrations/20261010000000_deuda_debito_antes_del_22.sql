@@ -9,22 +9,27 @@
 -- el 15/10 (fechas_debito_automatico). Para el semáforo y la app aparecían
 -- como deudores de algo que todavía no se les podía haber cobrado.
 --
--- Cambio: si el día de la fecha de corte es anterior al 22, los comprobantes
--- de este import de concepto 'cuota' del período de la fecha de corte, con
--- vencido > 0, de socios con débito automático, se reclasifican como "a
--- vencer": vencido pasa a a_vencer, mora_dias = 0 y vencimiento = la fecha
--- de débito de ese mes cargada por Secretaría (o el día 22 si no hay
--- ninguna cargada). Se hace antes de calcular el semáforo, así que ese
--- socio queda verde si no debe otra cosa. La app ya muestra a_vencer en
--- "PRÓXIMOS VENCIMIENTOS — Vence el …" (app/hooks/useDeudaDetalle.ts), no
--- hace falta build mobile.
+-- Cambio: si la fecha de corte es anterior al corte del débito del mes
+-- (fecha de débito cargada por Secretaría en fechas_debito_automatico + 3
+-- días de margen para que NUVIX registre el cobro; si no hay fecha cargada
+-- ese mes, el día 22), los comprobantes de este import de concepto 'cuota'
+-- del período de la fecha de corte, con vencido > 0, de socios con débito
+-- automático, se reclasifican como "a vencer": vencido pasa a a_vencer,
+-- mora_dias = 0 y vencimiento = la fecha de débito de ese mes (o el día 22).
+-- Se hace antes de calcular el semáforo, así que ese socio queda verde si no
+-- debe otra cosa. La app ya muestra a_vencer en "PRÓXIMOS VENCIMIENTOS —
+-- Vence el …" (app/hooks/useDeudaDetalle.ts), no hace falta build mobile.
 --
--- Desde el día 22 no se reclasifica nada: el débito ya se cobró y quien
--- sigue debiendo la cuota del mes queda amarillo, igual que antes.
+-- Desde el corte no se reclasifica nada: el débito ya se cobró y quien sigue
+-- debiendo la cuota del mes (débito rechazado) queda amarillo, igual que
+-- antes. El corte depende de la fecha del débito y no del día 22 porque
+-- Secretaría importa el reporte todos los días y el aviso del 22 sale a las
+-- 10:00, antes del import de ese día: usa el reporte del 21, que tiene que
+-- mostrar ya como deuda los débitos rechazados.
 --
--- El 22 es el mismo día en que sale el aviso de deuda
+-- El 22 de respaldo coincide con el día del aviso de deuda
 -- (DIA_AVISO_DEUDA en supabase/functions/_shared/recordatorio-deuda.ts).
--- Todas las fechas de débito cargadas son <= 17. Si cambia uno, cambia el otro.
+-- Las fechas de débito cargadas son <= 17 (corte <= 20).
 --
 -- importaciones_deuda.total_vencido / total_a_vencer quedan como los informa
 -- NUVIX (son la reconciliación contra el Total General del archivo); la
@@ -41,8 +46,12 @@ AS $$
 DECLARE
   v_importacion_id uuid;
   v_fecha_corte    date := (p_payload->>'fecha_corte')::date;
-  -- Día del mes desde el que el débito automático ya se cobró (ver arriba).
-  c_dia_debito_cobrado CONSTANT int := 22;
+  -- Días después de la fecha de débito hasta que NUVIX refleja el cobro.
+  c_margen_debito_dias CONSTANT int := 3;
+  -- Día de respaldo si Secretaría no cargó la fecha de débito del mes.
+  c_dia_debito_respaldo CONSTANT int := 22;
+  v_fecha_debito   date;
+  v_corte_debito   date;
 BEGIN
   IF NOT COALESCE((p_payload->>'reconcilia')::boolean, false) THEN
     RAISE EXCEPTION 'importar_deuda_nuvix: el payload no reconcilia, no se debería haber llamado a esta función';
@@ -97,20 +106,30 @@ BEGIN
   FROM jsonb_array_elements(p_payload->'comprobantes') AS c;
 
   -- Débito automático todavía sin cobrar: la cuota del mes es "a vencer".
-  IF extract(day FROM v_fecha_corte) < c_dia_debito_cobrado THEN
+  SELECT min(f.fecha) INTO v_fecha_debito
+    FROM fechas_debito_automatico f
+   WHERE to_char(f.fecha, 'YYYY-MM') = to_char(v_fecha_corte, 'YYYY-MM');
+  v_corte_debito := COALESCE(
+    v_fecha_debito + c_margen_debito_dias,
+    make_date(
+      extract(year FROM v_fecha_corte)::int,
+      extract(month FROM v_fecha_corte)::int,
+      c_dia_debito_respaldo
+    )
+  );
+
+  IF v_fecha_corte < v_corte_debito THEN
     UPDATE comprobantes_deuda cd
     SET
       a_vencer    = cd.a_vencer + cd.vencido,
       vencido     = 0,
       mora_dias   = 0,
       vencimiento = COALESCE(
-        (SELECT min(f.fecha)
-           FROM fechas_debito_automatico f
-          WHERE to_char(f.fecha, 'YYYY-MM') = cd.periodo),
+        v_fecha_debito,
         make_date(
           extract(year FROM v_fecha_corte)::int,
           extract(month FROM v_fecha_corte)::int,
-          c_dia_debito_cobrado
+          c_dia_debito_respaldo
         )
       )
     FROM socios s

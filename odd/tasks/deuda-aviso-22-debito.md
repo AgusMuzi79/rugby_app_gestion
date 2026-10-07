@@ -17,7 +17,7 @@ The debt reminder push reaches only socios who really owe, and socios with autom
 - Reminder moves to a monthly job on **day 22** (Secretaría's idea, user-approved 2026-10-07): by then the automatic debit was charged, so whoever still owes did not pay manually or the debit failed.
 - Freshness guard: the day-22 send is skipped if the latest `importaciones_deuda.fecha_corte` is more than 2 days old; the skip is recorded and shown in the panel. Better no reminder than a wrong one.
 - Debt import no longer sends pushes; it only recomputes the semáforo.
-- Automatic-debit socios (`socios.cobro_con_tarjeta = true`): when the import's `fecha_corte` day is < 22, their comprobantes of concept `cuota` for the current period (`periodo = to_char(fecha_corte, 'YYYY-MM')`) with `vencido > 0` are reclassified as `a_vencer` (vencido moved to a_vencer) and their `vencimiento` set to that month's date in `fechas_debito_automatico` (fallback: day 22 of that month). Server-only: the mobile app already renders `a_vencer` under "PRÓXIMOS VENCIMIENTOS — Vence el …", and the semáforo stays verde. No mobile build needed.
+- Automatic-debit socios (`socios.cobro_con_tarjeta = true`): when the import's `fecha_corte` is before the debit cutoff (that month's date in `fechas_debito_automatico` + 3 days; fallback day 22 if no date is loaded — revised 2026-10-07, see T7), their comprobantes of concept `cuota` for the current period (`periodo = to_char(fecha_corte, 'YYYY-MM')`) with `vencido > 0` are reclassified as `a_vencer` (vencido moved to a_vencer) and their `vencimiento` set to that month's date in `fechas_debito_automatico` (fallback: day 22 of that month). Server-only: the mobile app already renders `a_vencer` under "PRÓXIMOS VENCIMIENTOS — Vence el …", and the semáforo stays verde. No mobile build needed.
 - Day 22 is a business constant (all loaded debit dates are ≤ 17).
 - Reminder recipients and text unchanged (amarillo + rojo; minors attributed to the titular via `cabecera_id`; "Cuotas pendientes / Tenés N período(s) pendiente(s) por $X"). The 15-day cadence is dropped (monthly job); `recordatorio_deuda_enviado_at` keeps being stamped.
 
@@ -28,13 +28,14 @@ The debt reminder push reaches only socios who really owe, and socios with autom
 - [x] T3 — New Edge Function `recordatorio-deuda` (x-cron-secret, day-22 send, freshness guard, paginated, log table `recordatorios_deuda_envios`) + migration for the log table + cron SQL documented (registered by hand). Route: delegated writer. Commit `9915b58`.
 - [x] T4 — Web `/secretaria/deuda`: show the last reminder run (sent / skipped + reason) and that reminders go out on the 22nd. Route: delegated writer. Commit `429909a`.
 - [x] T5 — Docs (`.claude/context/estado-supabase.md`, `estado-web.md`, `historial.md`). Route: delegated writer. Commit: the `docs(deuda)` commit that also updates this document.
+- [x] T7 — Debit cutoff = debit date + 3 days (fallback 22) instead of a fixed day 22. Reason (found in parent review, user confirmed Secretaría imports daily): the day-22 job runs at 10:00 before that day's import, so it uses the 21st report; with a fixed 22 cutoff, rejected debits were reclassified as "a vencer" in that report and left out of the reminder. Route: inline (one SQL file + doc lines).
 - [ ] T6 — Production deploy (migrations, functions, cron registration, web) — run by the user (permission classifier blocks prod deploys), after review.
 
 ## Acceptance criteria
 
 - Importing a report with > 1000 distinct codes matches every code that exists in `socios`.
-- With fecha_corte before day 22, an automatic-debit socio owing only the current cuota ends verde and its comprobante shows as a_vencer with the debit date; a manual-payment socio in the same situation ends amarillo.
-- From day 22 on, the same automatic-debit socio ends amarillo.
+- With fecha_corte before the debit cutoff (debit date + 3, or day 22), an automatic-debit socio owing only the current cuota ends verde and its comprobante shows as a_vencer with the debit date; a manual-payment socio in the same situation ends amarillo.
+- From the debit cutoff on (October: 18/10), the same automatic-debit socio ends amarillo, so the 21st report used by the day-22 reminder includes rejected debits.
 - The import response no longer reports sent reminders; the day-22 function sends them, or skips with a recorded reason when data is stale.
 
 ## Checks
