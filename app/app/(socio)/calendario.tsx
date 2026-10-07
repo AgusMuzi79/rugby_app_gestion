@@ -12,6 +12,7 @@ import {
   type ResultadoCalendario,
 } from '@/hooks/useCalendarioSocio'
 import { Header } from '@/components/shared/Header'
+import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -127,13 +128,16 @@ function CardResultado({ resultado }: { resultado: ResultadoCalendario }) {
 
 export default function CalendarioSocioScreen() {
   const insets = useSafeAreaInsets()
+  // Tutor (also served from app/(tutor)/calendario.tsx): "mi equipo" is the
+  // selected minor's. Other roles: socioId undefined -> unchanged.
+  const { socioId } = useSocioObjetivo()
   const {
     loading, error,
     jugadorDivisionNombre,
     partidos, resultados,
     filtroDeporte, setFiltroDeporte,
     recargar,
-  } = useCalendarioSocio()
+  } = useCalendarioSocio(socioId)
 
   const listRef = useRef<FlatList>(null)
   useScrollToTop(listRef)

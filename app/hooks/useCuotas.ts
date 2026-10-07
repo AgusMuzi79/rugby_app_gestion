@@ -23,7 +23,10 @@ function periodoHoy(): string {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 }
 
-export function useCuotas() {
+// socioId: undefined = the logged-in member's own socio (profile_id = auth.uid(),
+// unchanged behavior). Given = that socio by id (tutor viewing a linked minor;
+// RLS cuotas/socio_servicios/pagos_socios _select_tutor decides access).
+export function useCuotas(socioId?: string) {
   const { session } = useAuthStore()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -47,7 +50,7 @@ export function useCuotas() {
     const { data: socio } = await db
       .from('socios')
       .select('id, categorias_socio(nombre, monto_mensual), semaforo, deuda_actualizada_at, cobro_con_tarjeta')
-      .eq('profile_id', session.user.id)
+      .eq(socioId ? 'id' : 'profile_id', socioId ?? session.user.id)
       .single()
 
     if (!socio) { setLoading(false); return }
@@ -120,7 +123,7 @@ export function useCuotas() {
 
     setCuotas(normalized)
     setLoading(false)
-  }, [session])
+  }, [session, socioId])
 
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)

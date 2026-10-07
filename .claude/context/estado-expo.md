@@ -128,6 +128,20 @@ fetch `profiles` + join `divisiones`. `cambiarFoto()`: expo-image-picker → bas
 | `(socio)/noticias.tsx` | `useNoticias(true)` | Solo noticias publicadas |
 | `(socio)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
 
+## Pantallas — Familiar / Tutor (rol `tutor`, 2026-10-07)
+
+Adulto no socio vinculado a uno o más menores (`tutores_menores`). Sin fila en `socios`: los hooks reciben el `socioId` del menor seleccionado.
+
+| Pantalla | Notas clave |
+|---|---|
+| `(auth)/acceso-restringido.tsx` | Link "¿Sos su familiar o tutor?" → `registro-tutor` con el DNI del menor; cierra la sesión del menor. |
+| `(auth)/registro-tutor.tsx` | 2 pasos: datos (nombre, relación, mail, fecha nac., DNI menor) → código de 6 dígitos + contraseña. `useRegistroTutor` llama a la Edge Function `registro-tutor`; flag `registroSinSesion` en `authStore` evita que el guard raíz redirija al login. |
+| `(tutor)/_layout.tsx` | Tabs carnet, cuotas, noticias, calendario, sobre (sin turnos). Carga menores con `useMenoresTutor`; estado vacío/error con reintentar y cerrar sesión. |
+| `(tutor)/carnet|cuotas|noticias|calendario` | Re-exportan las pantallas de socio. `useSocioObjetivo()` devuelve el menor seleccionado (`tutorStore`) sólo si `rol === 'tutor'`. `TutorMenorSelector` en carnet/cuotas. Sólo lectura (sin subir comprobante ni foto). |
+| `(tutor)/sobre.tsx` | Datos propios del tutor + menores vinculados + reset de contraseña + cerrar sesión. |
+
+Al cerrar sesión se limpia `tutorStore` y los secretos QR cacheados de los menores.
+
 ## Hooks v2
 
 - `useCarnet` — secret SecureStore → socios-qr → TOTP cada 60s. `CarnetData` incluye `roles[]`, `division`, `deporte` (query a `jugadores → divisiones`). Foto gestionada en `useSobre`.

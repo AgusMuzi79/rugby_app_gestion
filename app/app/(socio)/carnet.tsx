@@ -10,7 +10,9 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
+import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCarnet, useDependientesMenores } from '@/hooks/useCarnet'
+import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 import { SOCIOS_BADGE_J } from '@/constants/carnetBadge'
 
@@ -189,7 +191,11 @@ export default function CarnetScreen() {
   const insets = useSafeAreaInsets()
   const { dependientes } = useDependientesMenores()
   const [verComoId, setVerComoId] = useState<string | null>(null)
-  const { loading, error, data, refresh } = useCarnet(verComoId ?? undefined)
+  // Tutor (also served from app/(tutor)/carnet.tsx): always the selected minor's
+  // carnet. For every other role socioIdTutor is undefined -> unchanged.
+  const { esTutor, socioId: socioIdTutor } = useSocioObjetivo()
+  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
+  const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
 
@@ -223,13 +229,15 @@ export default function CarnetScreen() {
 
       <View style={s.saludoContainer}>
         <Text style={s.saludoTexto}>
-          {verComoId ? 'Carnet' : 'Tu carnet'}{data ? `, ${data.nombre.split(' ')[0]}.` : '.'}
+          {esCarnetAjeno ? 'Carnet' : 'Tu carnet'}{data ? `, ${data.nombre.split(' ')[0]}.` : '.'}
         </Text>
         <View style={s.divider} />
       </View>
 
+      <TutorMenorSelector />
+
       {/* ── Selector "MI CARNET" / dependientes menores de 13 a cargo ── */}
-      {dependientes.length > 0 && (
+      {!esTutor && dependientes.length > 0 && (
         <View style={s.familiaRow}>
           <TouchableOpacity
             style={[s.familiaChip, !verComoId && s.familiaChipActivo]}
@@ -263,7 +271,7 @@ export default function CarnetScreen() {
         <>
           {/* ── AVISO: falta foto de perfil (solo mi propio carnet — no hay
               forma de subirle la foto a un dependiente todavía) ── */}
-          {!verComoId && !data.fotoUrl && (
+          {!esCarnetAjeno && !data.fotoUrl && (
             <TouchableOpacity
               style={[s.banner, s.bannerFoto]}
               onPress={() => router.navigate('/(socio)/sobre')}

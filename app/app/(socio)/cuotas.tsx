@@ -7,8 +7,10 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
+import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
 import { useDeudaDetalle } from '@/hooks/useDeudaDetalle'
+import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Config club ──────────────────────────────────────────────────────────────
@@ -152,8 +154,8 @@ function PagoModal({
 
 // ─── Modal detalle de deuda (registros del club, vía NUVIX) ────────────────────
 
-function DeudaClubModal({ onClose }: { onClose: () => void }) {
-  const { data, loading } = useDeudaDetalle()
+function DeudaClubModal({ onClose, socioId }: { onClose: () => void; socioId?: string }) {
+  const { data, loading } = useDeudaDetalle(socioId)
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -369,11 +371,15 @@ export default function CuotasScreen() {
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
+  // Tutor (also served from app/(tutor)/cuotas.tsx): the selected minor's
+  // cuotas. "Ver cómo pagar" stays: it only shows the alias and opens WhatsApp,
+  // no write to the club's data. Other roles: socioId undefined -> unchanged.
+  const { socioId } = useSocioObjetivo()
   const {
     cuotas, loading, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
     alDia, deudaActualizadaAt,
-  } = useCuotas()
+  } = useCuotas(socioId)
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
   const [deudaModal, setDeudaModal] = useState(false)
@@ -389,6 +395,7 @@ export default function CuotasScreen() {
           <Text style={s.edicionLabel}>SECCIÓN · SOCIOS</Text>
           <Text style={s.edicionFecha}>{fechaEdicion()}</Text>
         </View>
+        <TutorMenorSelector />
       </View>
 
       {loading ? (
@@ -498,7 +505,7 @@ export default function CuotasScreen() {
         />
       )}
 
-      {deudaModal && <DeudaClubModal onClose={() => setDeudaModal(false)} />}
+      {deudaModal && <DeudaClubModal socioId={socioId} onClose={() => setDeudaModal(false)} />}
     </View>
   )
 }

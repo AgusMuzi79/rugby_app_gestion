@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import { tutorProfileIds } from '../_shared/tutores.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
@@ -255,6 +256,8 @@ async function getDestinatariosRol(
 
 // Para noticias de audiencia 'todos': busca por el array roles[] en vez de rol activo,
 // así llega a socios cuyo rol activo es staff (entrenador, coordinador, etc.)
+// Tutors (role 'tutor', see migration 20261009000000_tutor_menores) also read audiencia 'todos'
+// news, so they are included via the same roles[] overlap.
 async function getDestinatariosSocio(): Promise<{ ids: string[]; tokens: string[] }> {
   // PostgREST devuelve máximo 1000 filas por default — con 1500+ socios hay que paginar.
   let profiles: { id: string }[] = []
@@ -264,7 +267,7 @@ async function getDestinatariosSocio(): Promise<{ ids: string[]; tokens: string[
     const { data } = await supabaseAdmin
       .from('profiles')
       .select('id')
-      .contains('roles', ['socio'])
+      .overlaps('roles', ['socio', 'tutor'])
       .eq('activo', true)
       .range(from, from + pageSize - 1)
     profiles = profiles.concat(data ?? [])
@@ -297,7 +300,12 @@ async function getTokensJugadoresDivision(divisionId: string): Promise<string[]>
     .in('id', socioIds)
     .not('profile_id', 'is', null)
 
-  const profileIds = (socios ?? []).map(s => s.profile_id as string).filter(Boolean)
+  // Tutors of those socios (adults without a socios row) get the same push.
+  const tutores = await tutorProfileIds(socioIds)
+  const profileIds = [...new Set([
+    ...(socios ?? []).map(s => s.profile_id as string).filter(Boolean),
+    ...tutores,
+  ])]
   if (!profileIds.length) return []
 
   return await fetchPushTokens(profileIds)

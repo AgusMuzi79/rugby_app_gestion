@@ -10,6 +10,7 @@ export const ROLES = {
   BUFFET:      'buffet',
   CLIENTE_GIMNASIO: 'cliente_gimnasio',
   SOCIO:       'socio',
+  TUTOR:       'tutor',
 } as const
 
 export type Rol = (typeof ROLES)[keyof typeof ROLES]
@@ -26,6 +27,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   buffet:      'Buffet',
   cliente_gimnasio: 'Cliente Gimnasio',
   socio:       'Socio',
+  tutor:       'Familiar / Tutor',
 }
 
 // Canchero y Buffet reusan hoy la misma pantalla de escaneo que Gimnasio
@@ -44,4 +46,7 @@ export const ROL_RUTA_INICIAL: Record<Rol, string> = {
   buffet:      '/(porteria)/scanner',
   cliente_gimnasio: '/(cliente-gimnasio)/carnet',
   socio:       '/(socio)/carnet',
+  // Adult of a minor member, not a member themselves (migration
+  // 20261010000000_tutor_menores): read-only socio screens for the minor.
+  tutor:       '/(tutor)/carnet',
 }

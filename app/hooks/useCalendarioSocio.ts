@@ -29,7 +29,9 @@ export interface ResultadoCalendario {
   es_mi_division:  boolean
 }
 
-export function useCalendarioSocio() {
+// socioId: undefined = own socio (profile_id = auth.uid()); given = that socio
+// by id (tutor viewing a linked minor). Only used to highlight "mi equipo".
+export function useCalendarioSocio(socioId?: string) {
   const { session } = useAuthStore()
 
   const [loading, setLoading]                         = useState(true)
@@ -42,7 +44,7 @@ export function useCalendarioSocio() {
 
   useEffect(() => {
     if (session) fetchDatos()
-  }, [session])
+  }, [session, socioId])
   useRefreshOnFocus(fetchDatos)
 
   async function fetchDatos() {
@@ -55,7 +57,7 @@ export function useCalendarioSocio() {
       const { data: socio } = await supabase
         .from('socios')
         .select('id, dni')
-        .eq('profile_id', session.user.id)
+        .eq(socioId ? 'id' : 'profile_id', socioId ?? session.user.id)
         .maybeSingle()
 
       if (socio?.dni) {

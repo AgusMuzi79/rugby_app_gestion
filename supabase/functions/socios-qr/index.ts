@@ -27,6 +27,8 @@
 //                 mismo (cabecera_id + edad), no delegado a RLS: socios_secrets no tiene ninguna
 //                 policy de SELECT ni para el propio socio ni para el titular, sólo el
 //                 service_role de esta función puede leerla.
+//                 rol='tutor' (adulto no socio, ver 20261009000000_tutor_menores): `socio_id`
+//                 obligatorio y vinculado al caller en tutores_menores (ver handleGetSecretTutor).
 //   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero'/'buffet' (o secretaria/admin/subcomision).
 //                   El caller NUNCA recibe el secret — solo info del socio.
 //                   validate-dni no tiene el TOTP como segundo factor — confía en que el
@@ -45,6 +47,7 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { verifyTOTP } from '../_shared/totp.ts'
+import { esTutorDe } from '../_shared/tutores.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -101,6 +104,8 @@ async function handleGetSecret(
   callerId: string,
   body: Record<string, unknown>,
 ): Promise<Response> {
+  if (callerRol === 'tutor') return handleGetSecretTutor(callerId, body)
+
   // 'cliente_gimnasio' también es una fila real de `socios` (ver migración
   // 20260911000000_rol_cliente_gimnasio) — mismo carnet QR/TOTP que un socio.
   if (callerRol !== 'socio' && callerRol !== 'cliente_gimnasio') {
@@ -145,6 +150,42 @@ async function handleGetSecret(
   if (estadoSocio === 'inactivo') return jsonError(403, 'Socio inactivo')
 
   // Leer secret de socios_secrets (sin RLS → service role lo puede leer)
+  const { data: secretData, error: secretErr } = await supabaseAdmin
+    .from('socios_secrets')
+    .select('totp_secret')
+    .eq('socio_id', socioId)
+    .single()
+
+  if (secretErr || !secretData) {
+    return jsonError(500, 'Secret TOTP no encontrado. Contactá a Secretaría.')
+  }
+
+  return jsonOk({ secret: secretData.totp_secret })
+}
+
+// Tutor (adult without a `socios` row, see migration 20261009000000_tutor_menores): `socio_id`
+// is mandatory and must be one of the minors linked to the caller in tutores_menores. No age
+// check here — the link itself is the authorization and survives the minor turning 13.
+async function handleGetSecretTutor(
+  callerId: string,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const socioId = (body.socio_id as string | undefined)?.trim()
+  if (!socioId) return jsonError(400, 'socio_id es requerido')
+
+  if (!(await esTutorDe(callerId, socioId))) {
+    return jsonError(403, 'Ese socio no está vinculado a tu cuenta')
+  }
+
+  const { data: menor, error: menorErr } = await supabaseAdmin
+    .from('socios')
+    .select('id, estado')
+    .eq('id', socioId)
+    .single()
+
+  if (menorErr || !menor) return jsonError(404, 'Socio no encontrado')
+  if (menor.estado === 'inactivo') return jsonError(403, 'Socio inactivo')
+
   const { data: secretData, error: secretErr } = await supabaseAdmin
     .from('socios_secrets')
     .select('totp_secret')

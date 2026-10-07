@@ -9,6 +9,9 @@ interface AuthState {
   loading: boolean
   isPasswordRecovery: boolean
   isNuevoUsuario: boolean
+  // True while app/(auth)/registro-tutor.tsx is open: a screen that works
+  // without a session, so the root guard must not redirect it to the login.
+  registroSinSesion: boolean
   setSession: (session: Session | null) => void
   setRol: (rol: Rol | null) => void
   setRoles: (roles: Rol[]) => void
@@ -16,6 +19,7 @@ interface AuthState {
   clearAuth: () => void
   setPasswordRecovery: (v: boolean) => void
   setNuevoUsuario: (v: boolean) => void
+  setRegistroSinSesion: (v: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -25,6 +29,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
   isPasswordRecovery: false,
   isNuevoUsuario: false,
+  registroSinSesion: false,
   setSession: (session) => set({ session, loading: false }),
   setRol: (rol) => set({ rol }),
   setRoles: (roles) => set({ roles }),
@@ -33,4 +38,5 @@ export const useAuthStore = create<AuthState>((set) => ({
   clearAuth: () => set({ session: null, rol: null, roles: [], loading: false, isPasswordRecovery: false, isNuevoUsuario: false }),
   setPasswordRecovery: (v) => set({ isPasswordRecovery: v }),
   setNuevoUsuario: (v) => set({ isNuevoUsuario: v }),
+  setRegistroSinSesion: (v) => set({ registroSinSesion: v }),
 }))

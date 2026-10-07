@@ -38,6 +38,7 @@ const ROL_RUTAS: Record<string, string> = {
   buffet:      '/(porteria)/scanner',
   cliente_gimnasio: '/(cliente-gimnasio)/carnet',
   socio:       '/(socio)/carnet',
+  tutor:       '/(tutor)/carnet',
 }
 
 export default function RootLayout() {
@@ -173,6 +174,11 @@ export default function RootLayout() {
       return
     }
     if (!session) {
+      // registro-tutor runs without a session and signs out the restricted
+      // minor on mount: that sign-out must not bounce it to the login. Read
+      // from getState(), not as a dependency, so toggling the flag never
+      // re-runs the guard by itself.
+      if (useAuthStore.getState().registroSinSesion) return
       router.replace('/(auth)/login')
     } else if (rol) {
       if (restringidoLoading) return
