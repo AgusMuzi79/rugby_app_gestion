@@ -8,6 +8,7 @@ import {
   FILTROS_VACIOS,
   MAX_DIAS_RANGO,
   accesosACsv,
+  crearSecuenciador,
   filtrarAccesos,
   respuestaCubreRango,
   validarRango,
@@ -107,6 +108,24 @@ caso('una Edge Function vieja (sólo `fecha`) no cubre el rango', () => {
 })
 caso('un rango distinto al pedido no lo cubre', () => {
   assert.equal(respuestaCubreRango({ desde: '2026-10-08', hasta: '2026-10-08' }, '2026-10-01', '2026-10-08'), false)
+})
+
+// ─── Pedidos fuera de orden ───────────────────────────────────────────────────
+
+caso('sólo el último pedido es vigente', () => {
+  const secuencia = crearSecuenciador()
+  const primero = secuencia.nuevo()
+  assert.equal(primero(), true)
+  const segundo = secuencia.nuevo()
+  assert.equal(primero(), false, 'una respuesta del rango anterior se descarta')
+  assert.equal(segundo(), true)
+})
+caso('cada secuenciador es independiente', () => {
+  const a = crearSecuenciador()
+  const b = crearSecuenciador()
+  const pedidoA = a.nuevo()
+  b.nuevo()
+  assert.equal(pedidoA(), true)
 })
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────

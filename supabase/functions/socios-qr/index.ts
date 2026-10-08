@@ -48,7 +48,7 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { verifyTOTP } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
-import { contarVecesInvitadoPorVisita, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
+import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -564,7 +564,7 @@ async function handleRegistrarInvitado(
   return jsonOk({ ok: true, dni, nombre, veces })
 }
 
-// ─── Panel web de Lector: historial de accesos de un día ─────────────────────
+// ─── Panel web de Lector: historial de accesos de un rango ───────────────────
 //
 // `fecha` en formato YYYY-MM-DD, interpretada en horario de Argentina
 // (UTC-3 fijo, sin horario de verano) — no en UTC, para que "hoy" en el
@@ -626,24 +626,34 @@ async function handleListarAccesos(
   let vecesPorFila: (number | null)[] = rows.map(() => null)
   if (dnisInvitados.length > 0) {
     const historialDesde = new Date(inicio.getTime() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
-    const historial = await traerTodasLasPaginas((filaDesde, filaHasta) =>
-      supabaseAdmin
-        .from('accesos')
-        .select('creado_en, invitado_dni')
-        .eq('es_invitado', true)
-        .in('invitado_dni', dnisInvitados)
-        .gte('creado_en', historialDesde.toISOString())
-        .lt('creado_en', fin.toISOString())
-        .order('creado_en', { ascending: true })
-        .order('id', { ascending: true })
-        .range(filaDesde, filaHasta)
-    )
-    if ('error' in historial) {
-      console.error('listar-accesos (veces invitado):', historial.error)
+    // De a 100 DNIs: el `.in()` viaja en la URL y un trimestre puede tener cientos.
+    const historialData: { creado_en: string; invitado_dni: string | null }[] = []
+    let historialError: string | null = null
+    for (const tanda of enTandas(dnisInvitados, 100)) {
+      const historial = await traerTodasLasPaginas((filaDesde, filaHasta) =>
+        supabaseAdmin
+          .from('accesos')
+          .select('creado_en, invitado_dni')
+          .eq('es_invitado', true)
+          .in('invitado_dni', tanda)
+          .gte('creado_en', historialDesde.toISOString())
+          .lt('creado_en', fin.toISOString())
+          .order('creado_en', { ascending: true })
+          .order('id', { ascending: true })
+          .range(filaDesde, filaHasta)
+      )
+      if ('error' in historial) {
+        historialError = historial.error
+        break
+      }
+      historialData.push(...(historial.data as { creado_en: string; invitado_dni: string | null }[]))
+    }
+    if (historialError) {
+      console.error('listar-accesos (veces invitado):', historialError)
     } else {
       vecesPorFila = contarVecesInvitadoPorVisita(
         rows.map(a => ({ creado_en: a.creado_en, invitado_dni: a.es_invitado ? a.invitado_dni : null })),
-        historial.data as { creado_en: string; invitado_dni: string | null }[],
+        historialData,
         VENTANA_INVITADO_DIAS,
       )
     }

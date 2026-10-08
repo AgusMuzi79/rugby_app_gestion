@@ -110,3 +110,14 @@ export function contarVecesInvitadoPorVisita(
     return (porDni.get(v.invitado_dni) ?? []).filter(t => t >= desde && t < fin).length
   })
 }
+
+/**
+ * Parte una lista en tandas de `tamano`. PostgREST manda el `.in()` en la URL:
+ * con todos los DNIs de invitados de un trimestre puede pasarse del largo que
+ * acepta el gateway.
+ */
+export function enTandas<T>(items: T[], tamano: number): T[][] {
+  const tandas: T[][] = []
+  for (let i = 0; i < items.length; i += tamano) tandas.push(items.slice(i, i + tamano))
+  return tandas
+}

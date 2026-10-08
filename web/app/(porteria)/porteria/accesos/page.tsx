@@ -9,6 +9,7 @@ import {
   FILTROS_VACIOS,
   SEMAFORO_LABEL,
   accesosACsv,
+  crearSecuenciador,
   filtrarAccesos,
   formatFecha,
   formatHora,
@@ -95,14 +96,14 @@ export default function AccesosPage() {
   // Un rango largo tarda más que uno corto: si el usuario cambia el rango antes
   // de que vuelva la respuesta anterior, esa respuesta vieja se descarta para
   // que la tabla y el CSV no muestren otro rango que el elegido.
-  const ultimoPedido = useRef(0)
+  const secuencia = useRef(crearSecuenciador())
 
   const fetchAccesos = useCallback(async (d: string, h: string) => {
-    const pedido = ++ultimoPedido.current
+    const esVigente = secuencia.current.nuevo()
     setLoading(true)
     setError('')
     const json = await callEdgeFunction('socios-qr', { action: 'listar-accesos', desde: d, hasta: h })
-    if (pedido !== ultimoPedido.current) return
+    if (!esVigente()) return
     if (json.error) {
       setError(typeof json.error === 'string' ? json.error : 'No se pudo cargar el historial.')
       setAccesos([])

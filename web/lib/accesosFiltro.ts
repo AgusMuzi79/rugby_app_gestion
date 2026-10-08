@@ -121,3 +121,19 @@ export function accesosACsv(accesos: Acceso[]): string {
   const lineas = [columnas, ...filas].map(fila => fila.map(csvEscape).join(';'))
   return '﻿' + lineas.join('\r\n') // BOM: fuerza UTF-8 en Excel
 }
+
+/**
+ * Descarta respuestas fuera de orden: un rango largo tarda más que uno corto,
+ * así que la respuesta de un rango anterior puede llegar después de la del
+ * actual. Cada `nuevo()` devuelve una función que dice si ese pedido sigue
+ * siendo el último.
+ */
+export function crearSecuenciador() {
+  let ultimo = 0
+  return {
+    nuevo(): () => boolean {
+      const pedido = ++ultimo
+      return () => pedido === ultimo
+    },
+  }
+}

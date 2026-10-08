@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import {
   MAX_DIAS_LISTAR_ACCESOS,
   contarVecesInvitadoPorVisita,
+  enTandas,
   hoyAR,
   resolverRango,
   traerTodasLasPaginas,
@@ -128,6 +129,16 @@ await caso('un error en una página corta y lo devuelve', async () => {
       : { data: null, error: { message: 'boom' } }
   }, 10)
   assert.deepEqual(r, { error: 'boom' })
+})
+
+// ─── Tandas ───────────────────────────────────────────────────────────────────
+
+await caso('enTandas parte respetando el tamaño y el orden', () => {
+  assert.deepEqual(enTandas([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]])
+})
+await caso('enTandas con lista exacta o vacía', () => {
+  assert.deepEqual(enTandas([1, 2], 2), [[1, 2]])
+  assert.deepEqual(enTandas([], 2), [])
 })
 
 // ─── Veces invitado (ventana de 30 días por visita) ──────────────────────────
