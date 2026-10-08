@@ -85,12 +85,14 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Semáforo de morosidad: importador recurrente del reporte de deuda NUVIX (`importar-deuda`). Pago real vía alias + comprobante por WhatsApp (interino, hasta integrar Banco Macro).
 - Recordatorios por push (deuda, débito automático) — sin mail: NUVIX ya manda los transaccionales de pago.
 - Calendario, asistencia, lesiones, fichajes, cobranzas e informes — flujo completo por rol (coordinador/entrenador/manager).
+- Divisiones por edad (2026-10-08): `divisiones.edad_min/edad_max` (edad en la temporada = año − año de nacimiento), `linea` A/B, `rama` y `siguiente_division_id`. Pase de temporada automático (`pase_de_temporada()`, cron `pase-de-temporada` el 1/1) que mantiene la línea; el coordinador mueve jugadores desde la pestaña "Jugadores" (RPC `mover_jugador_division`: baja en origen + alta en destino, el historial queda en la división vieja). Rugby: rangos en M6–M19 (M19 → Mayores). Hockey cargado desde el Excel de las entrenadoras (`scripts/import-jugadores-hockey.mjs`): 16 divisiones, 307 jugadores; la subco de hockey asigna a sus coordinadoras.
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-10-07):**
-- **Android:** versión 16 (1.0.8, familiar/tutor) **en revisión** en el track de Producción de Google Play; la 15 (1.0.7) sigue siendo la pública mientras tanto.
-- **iOS:** versión 1.0.8 (build 22) **"Waiting for Review"** en App Store Connect; la 1.0.7 sigue publicada. La 1.0.8 está en **publicación manual**: cuando Apple la apruebe hay que tocar "Release This Version".
+**Estado de las stores (actualizado 2026-10-08):**
+- **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10).
+- **iOS:** versión 1.0.8 (build 22) **"In Review"** en App Store Connect; la 1.0.7 sigue publicada. La 1.0.8 está en **publicación manual**: cuando Apple la apruebe hay que tocar "Release This Version".
+- **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad). Llega a quien tenga la 1.0.8 instalada; en iOS recién cuando se publique la 1.0.8.
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
