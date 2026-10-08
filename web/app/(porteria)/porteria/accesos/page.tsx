@@ -213,17 +213,25 @@ export default function AccesosPage() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>ESTADO DE CUOTA</label>
-          <select
-            value={filtros.estado}
-            onChange={e => setFiltro('estado', e.target.value as FiltrosAccesos['estado'])}
-            className={inputClass}
-          >
-            <option value="todos">Todos</option>
-            {(Object.keys(SEMAFORO_LABEL) as Semaforo[]).map(s => (
-              <option key={s} value={s}>{SEMAFORO_LABEL[s]}</option>
-            ))}
-          </select>
+          <span className={labelClass}>ESTADO DE CUOTA</span>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(SEMAFORO_LABEL) as Semaforo[]).map(s => {
+              const activo = filtros.estados.includes(s)
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={activo}
+                  onClick={() => setFiltro('estados', activo ? filtros.estados.filter(e => e !== s) : [...filtros.estados, s])}
+                  className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
+                    activo ? SEMAFORO_COLOR[s] + ' bg-oro/10' : 'border-gris-claro text-tinta/50 hover:border-oro'
+                  }`}
+                >
+                  {SEMAFORO_LABEL[s].toUpperCase()}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div className="flex flex-col gap-1">
           <label className={labelClass}>TIPO</label>
