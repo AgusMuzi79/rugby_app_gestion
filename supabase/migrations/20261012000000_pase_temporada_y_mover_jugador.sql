@@ -161,6 +161,11 @@ begin
   end if;
 
   v_nueva_id := _mover_jugador_division(p_jugador_id, p_division_destino, false);
+  -- null = la fila se desactivó entre la validación y el lock (otro movimiento
+  -- o el pase de temporada en paralelo): no se movió nada.
+  if v_nueva_id is null then
+    raise exception 'El jugador ya no está activo en esta división; actualizá la lista';
+  end if;
 
   return jsonb_build_object('ok', true, 'jugador_id', v_nueva_id);
 end;

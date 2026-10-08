@@ -163,6 +163,7 @@ export function useJugadoresDivision(): UseJugadoresDivisionReturn {
     error,
     sinDivisiones,
     seleccionarDivision: setDivisionId,
-    recargar: () => { if (divisionSeleccionada) fetchJugadores(divisionSeleccionada) },
+    // Sin división seleccionada (falló la carga de divisiones) se reintenta desde el principio.
+    recargar: () => { if (divisionSeleccionada) fetchJugadores(divisionSeleccionada); else fetchDivisiones() },
   }
 }
