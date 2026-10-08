@@ -72,6 +72,15 @@ export function validarRango(desde: string, hasta: string): string | null {
   return null
 }
 
+/**
+ * La Edge Function devuelve el rango que efectivamente consultó. Una versión
+ * vieja ignora desde/hasta (sólo conoce `fecha`) y devuelve el día de hoy:
+ * sin este chequeo el panel mostraría y exportaría un historial incompleto.
+ */
+export function respuestaCubreRango(respuesta: { desde?: unknown; hasta?: unknown }, desde: string, hasta: string): boolean {
+  return respuesta.desde === desde && respuesta.hasta === hasta
+}
+
 export function formatFecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', {
     day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ,
@@ -85,7 +94,7 @@ export function formatHora(iso: string): string {
 }
 
 export function accesosACsv(accesos: Acceso[]): string {
-  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Sin reserva', 'Invitado', 'DNI invitado', 'Veces (30 días)']
+  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Sin reserva', 'Invitado', 'DNI invitado', 'Veces en los 30 días previos a la visita']
   const filas = accesos.map(a => [
     formatFecha(a.creado_en),
     formatHora(a.creado_en),

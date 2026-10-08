@@ -9,6 +9,7 @@ import {
   MAX_DIAS_RANGO,
   accesosACsv,
   filtrarAccesos,
+  respuestaCubreRango,
   validarRango,
 } from './accesosFiltro'
 
@@ -90,6 +91,18 @@ caso(`rango de ${MAX_DIAS_RANGO} días es válido, uno más no`, () => {
 })
 caso('fecha mal formada es inválida', () => {
   assert.notEqual(validarRango('', '2026-10-08'), null)
+})
+
+// ─── Respuesta del servidor ───────────────────────────────────────────────────
+
+caso('la respuesta cubre el rango si devuelve el mismo desde/hasta', () => {
+  assert.equal(respuestaCubreRango({ desde: '2026-10-01', hasta: '2026-10-08', accesos: [] }, '2026-10-01', '2026-10-08'), true)
+})
+caso('una Edge Function vieja (sólo `fecha`) no cubre el rango', () => {
+  assert.equal(respuestaCubreRango({ fecha: '2026-10-08', accesos: [] }, '2026-10-01', '2026-10-08'), false)
+})
+caso('un rango distinto al pedido no lo cubre', () => {
+  assert.equal(respuestaCubreRango({ desde: '2026-10-08', hasta: '2026-10-08' }, '2026-10-01', '2026-10-08'), false)
 })
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────

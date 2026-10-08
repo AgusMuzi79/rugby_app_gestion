@@ -48,6 +48,7 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { verifyTOTP } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
+import { contarVecesInvitadoPorVisita, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -490,8 +491,6 @@ async function handleValidateDni(
 // la tablet necesita mostrarle el motivo real al encargado.
 
 const VENTANA_INVITADO_DIAS = 30
-// Tope del rango de listar-accesos (≈ un trimestre); mismo valor en web/lib/accesosFiltro.ts.
-const MAX_DIAS_LISTAR_ACCESOS = 92
 
 // null = no se pudo contar (error de la consulta): el caller no debe mostrar un 0 falso.
 async function contarVecesInvitado(dni: string): Promise<number | null> {
@@ -578,25 +577,12 @@ async function handleListarAccesos(
   const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para ver el historial de accesos')
 
-  // Rango `desde`..`hasta` (ambos inclusive). `fecha` sola se sigue aceptando
-  // como rango de un día, por compatibilidad con clientes viejos.
-  const fecha = (body.fecha as string | undefined)?.trim() || new Date().toISOString().slice(0, 10)
-  const desde = (body.desde as string | undefined)?.trim() || fecha
-  const hasta = (body.hasta as string | undefined)?.trim() || desde
-  const FORMATO = /^\d{4}-\d{2}-\d{2}$/
-  if (!FORMATO.test(desde) || !FORMATO.test(hasta)) return jsonError(400, 'desde/hasta deben tener formato YYYY-MM-DD')
-  if (desde > hasta) return jsonError(400, 'desde no puede ser posterior a hasta')
+  const rango = resolverRango(body, hoyAR())
+  if ('error' in rango) return jsonError(400, rango.error)
+  const { desde, hasta, inicio, fin } = rango
 
-  const inicio = new Date(`${desde}T00:00:00-03:00`)
-  const fin    = new Date(new Date(`${hasta}T00:00:00-03:00`).getTime() + 24 * 60 * 60 * 1000)
-  const dias   = Math.round((fin.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000))
-  if (dias > MAX_DIAS_LISTAR_ACCESOS) return jsonError(400, `El rango no puede superar los ${MAX_DIAS_LISTAR_ACCESOS} días`)
-
-  // PostgREST corta en 1000 filas por request: un rango de semanas las supera.
-  const PAGINA = 1000
-  const data: unknown[] = []
-  for (let desdeFila = 0; ; desdeFila += PAGINA) {
-    const { data: pagina, error } = await supabaseAdmin
+  const resultado = await traerTodasLasPaginas((filaDesde, filaHasta) =>
+    supabaseAdmin
       .from('accesos')
       .select(`
         creado_en,
@@ -613,12 +599,9 @@ async function handleListarAccesos(
       .lt('creado_en', fin.toISOString())
       .order('creado_en', { ascending: true })
       .order('id', { ascending: true })
-      .range(desdeFila, desdeFila + PAGINA - 1)
-
-    if (error) return jsonError(500, error.message)
-    data.push(...(pagina ?? []))
-    if (!pagina || pagina.length < PAGINA) break
-  }
+      .range(filaDesde, filaHasta)
+  )
+  if ('error' in resultado) return jsonError(500, resultado.error)
 
   type AccesoRow = {
     creado_en: string
@@ -632,34 +615,41 @@ async function handleListarAccesos(
     socios: { numero_socio: string; profiles: { nombre: string } | null } | null
   }
 
-  const rows = data as unknown as AccesoRow[]
+  const rows = resultado.data as unknown as AccesoRow[]
 
-  // Repeticiones de cada invitado en los 30 días que terminan al cierre del rango
-  // consultado (incluido el último día, no sólo ese día): es lo que dispara el "Derivar
-  // a Secretaría" en el panel. Si la consulta falla, `veces_invitado` va null en
-  // vez de un número equivocado, sin tirar abajo el listado.
+  // Repeticiones de cada invitado en los 30 días que terminan al cierre del día
+  // de CADA visita (no del rango: en un rango largo, una visita vieja tiene que
+  // ver su propia ventana). Es lo que dispara el "Derivar a Secretaría" del panel.
+  // Si la consulta falla, `veces_invitado` va null en vez de un número
+  // equivocado, sin tirar abajo el listado.
   const dnisInvitados = [...new Set(rows.filter(a => a.es_invitado && a.invitado_dni).map(a => a.invitado_dni as string))]
-  let vecesPorDni: Map<string, number> | null = new Map<string, number>()
+  let vecesPorFila: (number | null)[] = rows.map(() => null)
   if (dnisInvitados.length > 0) {
-    const desde = new Date(fin.getTime() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
-    const { data: previos, error: previosError } = await supabaseAdmin
-      .from('accesos')
-      .select('invitado_dni')
-      .eq('es_invitado', true)
-      .in('invitado_dni', dnisInvitados)
-      .gte('creado_en', desde.toISOString())
-      .lt('creado_en', fin.toISOString())
-    if (previosError) {
-      console.error('listar-accesos (veces invitado):', previosError.message)
-      vecesPorDni = null
+    const historialDesde = new Date(inicio.getTime() - VENTANA_INVITADO_DIAS * 24 * 60 * 60 * 1000)
+    const historial = await traerTodasLasPaginas((filaDesde, filaHasta) =>
+      supabaseAdmin
+        .from('accesos')
+        .select('creado_en, invitado_dni')
+        .eq('es_invitado', true)
+        .in('invitado_dni', dnisInvitados)
+        .gte('creado_en', historialDesde.toISOString())
+        .lt('creado_en', fin.toISOString())
+        .order('creado_en', { ascending: true })
+        .order('id', { ascending: true })
+        .range(filaDesde, filaHasta)
+    )
+    if ('error' in historial) {
+      console.error('listar-accesos (veces invitado):', historial.error)
     } else {
-      for (const p of (previos ?? []) as { invitado_dni: string }[]) {
-        vecesPorDni.set(p.invitado_dni, (vecesPorDni.get(p.invitado_dni) ?? 0) + 1)
-      }
+      vecesPorFila = contarVecesInvitadoPorVisita(
+        rows.map(a => ({ creado_en: a.creado_en, invitado_dni: a.es_invitado ? a.invitado_dni : null })),
+        historial.data as { creado_en: string; invitado_dni: string | null }[],
+        VENTANA_INVITADO_DIAS,
+      )
     }
   }
 
-  const accesos = rows.map(a => ({
+  const accesos = rows.map((a, i) => ({
     creado_en:       a.creado_en,
     punto:           a.punto,
     semaforo:        a.semaforo,
@@ -667,7 +657,7 @@ async function handleListarAccesos(
     sin_reserva:     a.sin_reserva,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
-    veces_invitado:  a.es_invitado && a.invitado_dni && vecesPorDni ? (vecesPorDni.get(a.invitado_dni) ?? null) : null,
+    veces_invitado:  vecesPorFila[i],
     numero_socio:    a.es_invitado ? '—' : (a.socios?.numero_socio ?? '—'),
     nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : (a.socios?.profiles?.nombre ?? '—'),
   }))

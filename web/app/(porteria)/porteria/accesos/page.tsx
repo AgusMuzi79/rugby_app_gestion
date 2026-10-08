@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   type Acceso,
@@ -12,6 +12,7 @@ import {
   filtrarAccesos,
   formatFecha,
   formatHora,
+  respuestaCubreRango,
   validarRango,
 } from '@/lib/accesosFiltro'
 
@@ -91,12 +92,24 @@ export default function AccesosPage() {
   const errorRango = validarRango(desde, hasta)
   const esUnDia = desde === hasta
 
+  // Un rango largo tarda más que uno corto: si el usuario cambia el rango antes
+  // de que vuelva la respuesta anterior, esa respuesta vieja se descarta para
+  // que la tabla y el CSV no muestren otro rango que el elegido.
+  const ultimoPedido = useRef(0)
+
   const fetchAccesos = useCallback(async (d: string, h: string) => {
+    const pedido = ++ultimoPedido.current
     setLoading(true)
     setError('')
     const json = await callEdgeFunction('socios-qr', { action: 'listar-accesos', desde: d, hasta: h })
+    if (pedido !== ultimoPedido.current) return
     if (json.error) {
       setError(typeof json.error === 'string' ? json.error : 'No se pudo cargar el historial.')
+      setAccesos([])
+    } else if (!respuestaCubreRango(json, d, h)) {
+      // Una versión vieja de la Edge Function ignora desde/hasta y devuelve
+      // sólo el día de hoy: mejor un error que un historial incompleto.
+      setError('El servidor no devolvió el rango pedido. Avisá al administrador.')
       setAccesos([])
     } else {
       setAccesos(json.accesos ?? [])
