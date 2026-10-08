@@ -13,6 +13,7 @@ interface Division {
   edad_max: number | null
   linea: string | null
   rama: string | null
+  siguiente_division_id: string | null
 }
 
 const DEPORTE_LABEL: Record<string, string> = {
@@ -29,15 +30,19 @@ const RAMA_LABEL: Record<string, string> = {
 
 const ANIO_ACTUAL = new Date().getFullYear()
 
-// Resumen compacto para la lista: "9–10 · A · Damas" o "—".
-function resumenDivision(div: Division): string {
+// Resumen compacto para la lista: "9–10 · A · Damas → Primera" o "—".
+function resumenDivision(div: Division, todas: Division[]): string {
   const partes: string[] = []
   if (div.edad_min !== null && div.edad_max !== null) {
     partes.push(div.edad_min === div.edad_max ? `${div.edad_min}` : `${div.edad_min}–${div.edad_max}`)
   }
   if (div.linea) partes.push(div.linea)
   if (div.rama) partes.push(RAMA_LABEL[div.rama] ?? div.rama)
-  return partes.length > 0 ? partes.join(' · ') : '—'
+  const base = partes.length > 0 ? partes.join(' · ') : '—'
+  const siguiente = div.siguiente_division_id
+    ? todas.find(d => d.id === div.siguiente_division_id)
+    : undefined
+  return siguiente ? `${base} → ${siguiente.nombre}` : base
 }
 
 const inputClass = 'font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors'
@@ -55,13 +60,14 @@ export default function DivisionesPage() {
   const [nuevaEdadMax, setNuevaEdadMax] = useState('')
   const [nuevaLinea, setNuevaLinea] = useState('')
   const [nuevaRama, setNuevaRama] = useState('')
+  const [nuevaSiguienteId, setNuevaSiguienteId] = useState('')
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
 
   const fetchDivisiones = async () => {
     const { data } = await supabase
       .from('divisiones')
-      .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama')
+      .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama, siguiente_division_id')
       .order('nombre')
     setDivisiones(data ?? [])
     setLoading(false)
@@ -89,6 +95,7 @@ export default function DivisionesPage() {
     setNuevaEdadMax('')
     setNuevaLinea('')
     setNuevaRama('')
+    setNuevaSiguienteId('')
     setError('')
   }
 
@@ -101,6 +108,7 @@ export default function DivisionesPage() {
     setNuevaEdadMax(div.edad_max !== null ? String(div.edad_max) : '')
     setNuevaLinea(div.linea ?? '')
     setNuevaRama(div.rama ?? '')
+    setNuevaSiguienteId(div.siguiente_division_id ?? '')
     setError('')
   }
 
@@ -139,6 +147,7 @@ export default function DivisionesPage() {
       edad_max: edades.edadMax,
       linea: nuevaLinea || null,
       rama: nuevaRama || null,
+      siguiente_division_id: nuevaSiguienteId || null,
     }
 
     const { error: err } = editandoId
@@ -170,6 +179,17 @@ export default function DivisionesPage() {
   const activas = divisiones.filter(d => d.activa)
   const inactivas = divisiones.filter(d => !d.activa)
 
+  // Opciones de "División siguiente": activas del mismo deporte, sin la que se edita.
+  // Si la ya guardada quedó inactiva se sigue mostrando para no perderla en silencio.
+  const opcionesSiguiente = divisiones.filter(d =>
+    d.deporte === nuevaDeporte && d.id !== editandoId && (d.activa || d.id === nuevaSiguienteId))
+
+  const cambiarDeporte = (deporte: string) => {
+    setNuevaDeporte(deporte)
+    const actual = divisiones.find(d => d.id === nuevaSiguienteId)
+    if (actual && actual.deporte !== deporte) setNuevaSiguienteId('')
+  }
+
   const edadMinNum = nuevaEdadMin.trim() === '' ? NaN : Number(nuevaEdadMin)
   const edadMaxNum = nuevaEdadMax.trim() === '' ? NaN : Number(nuevaEdadMax)
   const rangoValido = Number.isInteger(edadMinNum) && Number.isInteger(edadMaxNum)
@@ -200,7 +220,7 @@ export default function DivisionesPage() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-lora text-sm text-tinta">{div.nombre}</span>
                     <span className="font-lora text-xs text-tinta/40 tracking-widest">{DEPORTE_LABEL[div.deporte] ?? div.deporte}</span>
-                    <span className="font-lora text-xs text-tinta/60">{resumenDivision(div)}</span>
+                    <span className="font-lora text-xs text-tinta/60">{resumenDivision(div, divisiones)}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -232,7 +252,7 @@ export default function DivisionesPage() {
                   <div key={div.id} className="bg-card border border-gris-claro/50 flex items-center justify-between px-5 py-4 opacity-60">
                     <div className="flex items-center gap-3 flex-wrap">
                       <span className="font-lora text-sm text-tinta line-through">{div.nombre}</span>
-                      <span className="font-lora text-xs text-tinta/60">{resumenDivision(div)}</span>
+                      <span className="font-lora text-xs text-tinta/60">{resumenDivision(div, divisiones)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -291,7 +311,7 @@ export default function DivisionesPage() {
               <label className={labelClass}>DEPORTE</label>
               <select
                 value={nuevaDeporte}
-                onChange={e => setNuevaDeporte(e.target.value)}
+                onChange={e => cambiarDeporte(e.target.value)}
                 className={selectClass}
               >
                 <option value="rugby">Rugby</option>
@@ -362,6 +382,23 @@ export default function DivisionesPage() {
                   <option value="mixto">Mixto</option>
                 </select>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className={labelClass}>DIVISIÓN SIGUIENTE</label>
+              <select
+                value={nuevaSiguienteId}
+                onChange={e => setNuevaSiguienteId(e.target.value)}
+                className={selectClass}
+              >
+                <option value="">— Ninguna —</option>
+                {opcionesSiguiente.map(d => (
+                  <option key={d.id} value={d.id}>{d.activa ? d.nombre : `${d.nombre} (inactiva)`}</option>
+                ))}
+              </select>
+              <p className="font-lora text-xs text-tinta/40 mt-1">
+                Adónde pasan los jugadores que superan la edad máxima cuando ninguna otra división les corresponde por edad (ej.: Sub 19 → Primera). El pase es automático el 1 de enero.
+              </p>
             </div>
 
             {error && <p className="font-lora text-rojo text-xs">{error}</p>}
