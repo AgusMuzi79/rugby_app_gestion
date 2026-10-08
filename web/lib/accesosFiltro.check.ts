@@ -59,8 +59,14 @@ caso('búsqueda por número de socio', () => {
 caso('búsqueda por DNI del invitado', () => {
   assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, busqueda: '30111' })), ['Diego Invitado'])
 })
-caso('estado de cuota', () => {
-  assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, estado: 'rojo' })), ['Beto Gómez'])
+caso('estado de cuota: uno solo', () => {
+  assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, estados: ['rojo'] })), ['Beto Gómez'])
+})
+caso('estado de cuota: varios a la vez dejan afuera al resto (amarillo + rojo sin verdes)', () => {
+  assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, estados: ['amarillo', 'rojo'] })), ['Beto Gómez', 'Carla Ruiz'])
+})
+caso('estado de cuota: lista vacía es "todos", incluidos los invitados sin semáforo', () => {
+  assert.deepEqual(filtrarAccesos(todos, { ...FILTROS_VACIOS, estados: [] }), todos)
 })
 caso('tipo socios excluye invitados', () => {
   assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, tipo: 'socios' })), ['Ana Pérez', 'Beto Gómez', 'Carla Ruiz'])
@@ -75,7 +81,7 @@ caso('sólo sin reserva', () => {
   assert.deepEqual(nombres(filtrarAccesos(todos, { ...FILTROS_VACIOS, soloSinReserva: true })), ['Carla Ruiz'])
 })
 caso('los filtros se combinan (AND)', () => {
-  assert.deepEqual(filtrarAccesos(todos, { ...FILTROS_VACIOS, estado: 'rojo', soloSinReserva: true }), [])
+  assert.deepEqual(filtrarAccesos(todos, { ...FILTROS_VACIOS, estados: ['rojo'], soloSinReserva: true }), [])
 })
 
 // ─── Rango ────────────────────────────────────────────────────────────────────

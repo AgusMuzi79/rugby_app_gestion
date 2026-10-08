@@ -26,7 +26,8 @@ export const MAX_DIAS_RANGO = 92
 
 export interface FiltrosAccesos {
   busqueda: string
-  estado: 'todos' | Semaforo
+  // Vacío = todos (incluye invitados sin semáforo); si no, sólo esos estados.
+  estados: Semaforo[]
   tipo: 'todos' | 'socios' | 'invitados'
   soloSinServicio: boolean
   soloSinReserva: boolean
@@ -34,7 +35,7 @@ export interface FiltrosAccesos {
 
 export const FILTROS_VACIOS: FiltrosAccesos = {
   busqueda: '',
-  estado: 'todos',
+  estados: [],
   tipo: 'todos',
   soloSinServicio: false,
   soloSinReserva: false,
@@ -49,7 +50,7 @@ function normalizar(texto: string): string {
 export function filtrarAccesos(accesos: Acceso[], filtros: FiltrosAccesos): Acceso[] {
   const busqueda = normalizar(filtros.busqueda.trim())
   return accesos.filter(a => {
-    if (filtros.estado !== 'todos' && a.semaforo !== filtros.estado) return false
+    if (filtros.estados.length > 0 && (!a.semaforo || !filtros.estados.includes(a.semaforo))) return false
     if (filtros.tipo === 'socios' && a.es_invitado) return false
     if (filtros.tipo === 'invitados' && !a.es_invitado) return false
     if (filtros.soloSinServicio && !a.sin_servicio) return false
