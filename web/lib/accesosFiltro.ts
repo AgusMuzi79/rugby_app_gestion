@@ -85,7 +85,7 @@ export function validarRango(desde: string, hasta: string): string | null {
  * vieja ignora desde/hasta (sólo conoce `fecha`) y devuelve el día de hoy:
  * sin este chequeo el panel mostraría y exportaría un historial incompleto.
  */
-export function respuestaCubreRango(respuesta: { desde?: unknown; hasta?: unknown }, desde: string, hasta: string): boolean {
+export function respuestaCubreRango(respuesta: Record<string, unknown>, desde: string, hasta: string): boolean {
   return respuesta.desde === desde && respuesta.hasta === hasta
 }
 
