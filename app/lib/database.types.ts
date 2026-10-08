@@ -42,24 +42,39 @@ export type Database = {
       accesos: {
         Row: {
           creado_en: string
+          es_invitado: boolean
           id: string
+          invitado_dni: string | null
+          invitado_nombre: string | null
           punto: string
           semaforo: string | null
-          socio_id: string
+          sin_reserva: boolean
+          sin_servicio: boolean
+          socio_id: string | null
         }
         Insert: {
           creado_en?: string
+          es_invitado?: boolean
           id?: string
+          invitado_dni?: string | null
+          invitado_nombre?: string | null
           punto?: string
           semaforo?: string | null
-          socio_id: string
+          sin_reserva?: boolean
+          sin_servicio?: boolean
+          socio_id?: string | null
         }
         Update: {
           creado_en?: string
+          es_invitado?: boolean
           id?: string
+          invitado_dni?: string | null
+          invitado_nombre?: string | null
           punto?: string
           semaforo?: string | null
-          socio_id?: string
+          sin_reserva?: boolean
+          sin_servicio?: boolean
+          socio_id?: string | null
         }
         Relationships: [
           {
@@ -381,26 +396,49 @@ export type Database = {
           categoria: string
           created_at: string
           deporte: string
+          edad_max: number | null
+          edad_min: number | null
           id: string
+          linea: string | null
           nombre: string
+          rama: string | null
+          siguiente_division_id: string | null
         }
         Insert: {
           activa?: boolean
           categoria: string
           created_at?: string
           deporte?: string
+          edad_max?: number | null
+          edad_min?: number | null
           id?: string
+          linea?: string | null
           nombre: string
+          rama?: string | null
+          siguiente_division_id?: string | null
         }
         Update: {
           activa?: boolean
           categoria?: string
           created_at?: string
           deporte?: string
+          edad_max?: number | null
+          edad_min?: number | null
           id?: string
+          linea?: string | null
           nombre?: string
+          rama?: string | null
+          siguiente_division_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "divisiones_siguiente_division_id_fkey"
+            columns: ["siguiente_division_id"]
+            isOneToOne: false
+            referencedRelation: "divisiones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       documentos_fichaje: {
         Row: {
@@ -674,6 +712,273 @@ export type Database = {
           },
         ]
       }
+      gimnasio_config: {
+        Row: {
+          anticipacion_dias: number
+          faltas_activas: boolean
+          faltas_activas_desde: string | null
+          faltas_aviso: number
+          faltas_baja: number
+          id: number
+          modo_cupos: string
+          pct_cupo_fijos: number
+          semanas_fijos: number
+          tolerancia_min: number
+          updated_at: string
+          ventana_reserva: string
+        }
+        Insert: {
+          anticipacion_dias?: number
+          faltas_activas?: boolean
+          faltas_activas_desde?: string | null
+          faltas_aviso?: number
+          faltas_baja?: number
+          id?: number
+          modo_cupos?: string
+          pct_cupo_fijos?: number
+          semanas_fijos?: number
+          tolerancia_min?: number
+          updated_at?: string
+          ventana_reserva?: string
+        }
+        Update: {
+          anticipacion_dias?: number
+          faltas_activas?: boolean
+          faltas_activas_desde?: string | null
+          faltas_aviso?: number
+          faltas_baja?: number
+          id?: number
+          modo_cupos?: string
+          pct_cupo_fijos?: number
+          semanas_fijos?: number
+          tolerancia_min?: number
+          updated_at?: string
+          ventana_reserva?: string
+        }
+        Relationships: []
+      }
+      gimnasio_faltas_eventos: {
+        Row: {
+          creado_en: string
+          fecha_ref: string
+          franja_id: string
+          id: string
+          socio_id: string
+          tipo: string
+        }
+        Insert: {
+          creado_en?: string
+          fecha_ref: string
+          franja_id: string
+          id?: string
+          socio_id: string
+          tipo: string
+        }
+        Update: {
+          creado_en?: string
+          fecha_ref?: string
+          franja_id?: string
+          id?: string
+          socio_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gimnasio_faltas_eventos_franja_id_fkey"
+            columns: ["franja_id"]
+            isOneToOne: false
+            referencedRelation: "gimnasio_franjas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gimnasio_faltas_eventos_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gimnasio_franjas: {
+        Row: {
+          activa: boolean
+          created_at: string
+          cupo: number
+          dia_semana: number
+          hora_desde: string
+          hora_hasta: string
+          id: string
+          profesor: string | null
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean
+          created_at?: string
+          cupo: number
+          dia_semana: number
+          hora_desde: string
+          hora_hasta: string
+          id?: string
+          profesor?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean
+          created_at?: string
+          cupo?: number
+          dia_semana?: number
+          hora_desde?: string
+          hora_hasta?: string
+          id?: string
+          profesor?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gimnasio_franjas_excepciones: {
+        Row: {
+          cerrado: boolean
+          created_at: string
+          cupo_override: number | null
+          fecha: string
+          franja_id: string | null
+          id: string
+          motivo: string | null
+          updated_at: string
+        }
+        Insert: {
+          cerrado?: boolean
+          created_at?: string
+          cupo_override?: number | null
+          fecha: string
+          franja_id?: string | null
+          id?: string
+          motivo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cerrado?: boolean
+          created_at?: string
+          cupo_override?: number | null
+          fecha?: string
+          franja_id?: string | null
+          id?: string
+          motivo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gimnasio_franjas_excepciones_franja_id_fkey"
+            columns: ["franja_id"]
+            isOneToOne: false
+            referencedRelation: "gimnasio_franjas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gimnasio_reservas: {
+        Row: {
+          created_at: string
+          estado: string
+          fecha: string
+          franja_id: string
+          id: string
+          origen: string
+          socio_id: string
+          turno_fijo_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          fecha: string
+          franja_id: string
+          id?: string
+          origen?: string
+          socio_id: string
+          turno_fijo_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          fecha?: string
+          franja_id?: string
+          id?: string
+          origen?: string
+          socio_id?: string
+          turno_fijo_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gimnasio_reservas_franja_id_fkey"
+            columns: ["franja_id"]
+            isOneToOne: false
+            referencedRelation: "gimnasio_franjas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gimnasio_reservas_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gimnasio_reservas_turno_fijo_id_fkey"
+            columns: ["turno_fijo_id"]
+            isOneToOne: false
+            referencedRelation: "gimnasio_turnos_fijos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gimnasio_turnos_fijos: {
+        Row: {
+          activo: boolean
+          created_at: string
+          faltas_consecutivas: number
+          franja_id: string
+          id: string
+          socio_id: string
+          updated_at: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          faltas_consecutivas?: number
+          franja_id: string
+          id?: string
+          socio_id: string
+          updated_at?: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          faltas_consecutivas?: number
+          franja_id?: string
+          id?: string
+          socio_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gimnasio_turnos_fijos_franja_id_fkey"
+            columns: ["franja_id"]
+            isOneToOne: false
+            referencedRelation: "gimnasio_franjas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gimnasio_turnos_fijos_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grtp_etapas: {
         Row: {
           descripcion: string
@@ -756,6 +1061,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "importaciones_deuda_importado_por_fkey"
+            columns: ["importado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      importaciones_servicios: {
+        Row: {
+          actualizados: number
+          agregados: number
+          archivo_nombre: string | null
+          created_at: string
+          eliminados: number
+          errores: number
+          id: string
+          importado_por: string | null
+          omitidos: number
+          sin_cambio: number
+        }
+        Insert: {
+          actualizados?: number
+          agregados?: number
+          archivo_nombre?: string | null
+          created_at?: string
+          eliminados?: number
+          errores?: number
+          id?: string
+          importado_por?: string | null
+          omitidos?: number
+          sin_cambio?: number
+        }
+        Update: {
+          actualizados?: number
+          agregados?: number
+          archivo_nombre?: string | null
+          created_at?: string
+          eliminados?: number
+          errores?: number
+          id?: string
+          importado_por?: string | null
+          omitidos?: number
+          sin_cambio?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importaciones_servicios_importado_por_fkey"
             columns: ["importado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -1531,6 +1883,42 @@ export type Database = {
           },
         ]
       }
+      recordatorios_deuda_envios: {
+        Row: {
+          destinatarios: number
+          ejecutado_at: string
+          enviados: number
+          estado: string
+          fecha_corte: string | null
+          id: string
+          mes: string
+          motivo: string | null
+          sin_token: number
+        }
+        Insert: {
+          destinatarios?: number
+          ejecutado_at?: string
+          enviados?: number
+          estado: string
+          fecha_corte?: string | null
+          id?: string
+          mes: string
+          motivo?: string | null
+          sin_token?: number
+        }
+        Update: {
+          destinatarios?: number
+          ejecutado_at?: string
+          enviados?: number
+          estado?: string
+          fecha_corte?: string | null
+          id?: string
+          mes?: string
+          motivo?: string | null
+          sin_token?: number
+        }
+        Relationships: []
+      }
       resultados: {
         Row: {
           created_at: string
@@ -1660,6 +2048,7 @@ export type Database = {
       }
       socios: {
         Row: {
+          aviso_inactividad_enviado_at: string | null
           cabecera_id: string | null
           categoria_id: string
           cobro_con_tarjeta: boolean
@@ -1689,6 +2078,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aviso_inactividad_enviado_at?: string | null
           cabecera_id?: string | null
           categoria_id: string
           cobro_con_tarjeta?: boolean
@@ -1718,6 +2108,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aviso_inactividad_enviado_at?: string | null
           cabecera_id?: string | null
           categoria_id?: string
           cobro_con_tarjeta?: boolean
@@ -1877,11 +2268,105 @@ export type Database = {
           },
         ]
       }
+      tutor_verificaciones: {
+        Row: {
+          codigo_hash: string
+          created_at: string
+          email: string
+          expires_at: string
+          fecha_nacimiento_tutor: string
+          id: string
+          intentos: number
+          relacion: string
+          socio_id: string
+          usado_at: string | null
+        }
+        Insert: {
+          codigo_hash: string
+          created_at?: string
+          email: string
+          expires_at: string
+          fecha_nacimiento_tutor: string
+          id?: string
+          intentos?: number
+          relacion: string
+          socio_id: string
+          usado_at?: string | null
+        }
+        Update: {
+          codigo_hash?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          fecha_nacimiento_tutor?: string
+          id?: string
+          intentos?: number
+          relacion?: string
+          socio_id?: string
+          usado_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_verificaciones_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutores_menores: {
+        Row: {
+          created_at: string
+          id: string
+          relacion: string
+          socio_id: string
+          tutor_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          relacion: string
+          socio_id: string
+          tutor_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          relacion?: string
+          socio_id?: string
+          tutor_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutores_menores_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutores_menores_tutor_profile_id_fkey"
+            columns: ["tutor_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      _mover_jugador_division: {
+        Args: {
+          p_division_destino: string
+          p_jugador_id: string
+          p_reset_fichado: boolean
+        }
+        Returns: string
+      }
       buscar_socios_por_nombre: {
         Args: { q: string }
         Returns: {
@@ -1889,16 +2374,124 @@ export type Database = {
           nombre: string
         }[]
       }
+      dependientes_menores_13_ids: { Args: never; Returns: string[] }
+      es_menor_de_13: { Args: { p_fecha_nacimiento: string }; Returns: boolean }
+      get_deporte_subcomision: { Args: never; Returns: string }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
+      gimnasio_ahora: { Args: never; Returns: string }
+      gimnasio_cancelar_por_cierre: {
+        Args: { p_fecha: string; p_franja_id: string }
+        Returns: {
+          franja_id: string
+          hora_desde: string
+          hora_hasta: string
+          reserva_id: string
+          socio_id: string
+        }[]
+      }
+      gimnasio_cierre_afectadas: {
+        Args: { p_fecha: string; p_franja_id: string }
+        Returns: {
+          franja_id: string
+          hora_desde: string
+          hora_hasta: string
+          reserva_id: string
+          socio_id: string
+        }[]
+      }
+      gimnasio_disponibilidad: {
+        Args: { p_desde: string; p_hasta: string }
+        Returns: {
+          capacidad: number
+          cerrado: boolean
+          cupo_base: number
+          dia_semana: number
+          fecha: string
+          franja_id: string
+          hora_desde: string
+          hora_hasta: string
+          motivo_cierre: string
+          ocupados: number
+          ocupados_fijos: number
+          profesor: string
+        }[]
+      }
+      gimnasio_estado_franja: {
+        Args: { p_fecha: string; p_franja_id: string }
+        Returns: {
+          capacidad: number
+          cerrado: boolean
+          motivo: string
+        }[]
+      }
+      gimnasio_fallo: {
+        Args: { p_codigo: string; p_extra?: Json; p_motivo: string }
+        Returns: Json
+      }
+      gimnasio_importar_franjas: {
+        Args: {
+          p_aplicar: boolean
+          p_filas: Json
+          p_modo: string
+          p_plan_hash?: string
+        }
+        Returns: Json
+      }
+      gimnasio_liberar_fijo: {
+        Args: { p_turno_fijo_id: string }
+        Returns: Json
+      }
+      gimnasio_materializar_fijos: {
+        Args: {
+          p_aplicar?: boolean
+          p_hasta?: string
+          p_turno_fijo_id?: string
+        }
+        Returns: Json
+      }
+      gimnasio_procesar_faltas: { Args: { p_aplicar?: boolean }; Returns: Json }
+      gimnasio_rachas: {
+        Args: never
+        Returns: {
+          franja_id: string
+          largo: number
+          primera: string
+          ref_aviso: string
+          socio_id: string
+          ultima: string
+        }[]
+      }
+      gimnasio_reservar: {
+        Args: {
+          p_fecha: string
+          p_franja_id: string
+          p_origen: string
+          p_socio_id: string
+          p_turno_fijo_id?: string
+        }
+        Returns: Json
+      }
+      gimnasio_turno_actual: { Args: { p_socio_id: string }; Returns: Json }
       importar_deuda_nuvix: { Args: { p_payload: Json }; Returns: Json }
+      mover_jugador_division: {
+        Args: { p_division_destino: string; p_jugador_id: string }
+        Returns: Json
+      }
+      pase_de_temporada: { Args: { p_temporada?: number }; Returns: Json }
       register_push_token: {
         Args: { p_plataforma: string; p_token: string }
         Returns: undefined
       }
+      tiene_acceso_deporte: { Args: { p_deporte: string }; Returns: boolean }
       tiene_acceso_division: {
         Args: { p_division_id: string }
         Returns: boolean
+      }
+      tutor_menores_ids: { Args: never; Returns: string[] }
+      tutor_verificacion_consumir_intento: {
+        Args: { p_id: string; p_max: number }
+        Returns: number
       }
       unaccent: { Args: { "": string }; Returns: string }
     }
