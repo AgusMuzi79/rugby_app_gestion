@@ -273,7 +273,7 @@ async function cargarEstadoDb() {
     divisionesHockey = await selectAll('divisiones', 'id, nombre, categoria, deporte, activa, edad_min, edad_max, linea, rama', (q) => q.eq('deporte', 'hockey'))
   } catch (e) {
     if (/edad_min|linea|rama|column/i.test(e.message)) {
-      throw new Error(`${e.message}\n¿Está aplicada la migración 20261011000000_divisiones_rango_edad.sql en la base?`)
+      throw new Error(`${e.message}\n¿Está aplicada la migración 20261013000000_divisiones_rango_edad.sql en la base?`)
     }
     throw e
   }

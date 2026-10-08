@@ -20,7 +20,7 @@ export function useMoverJugador(): UseMoverJugadorReturn {
     setMoviendo(true)
     setError(null)
 
-    // RPC nuevo (migración 20261012000000): todavía no está en los tipos generados
+    // RPC nuevo (migración 20261013000001): todavía no está en los tipos generados
     const { error: rpcError } = await supabase.rpc('mover_jugador_division' as never, {
       p_jugador_id: jugadorId,
       p_division_destino: divisionDestinoId,
