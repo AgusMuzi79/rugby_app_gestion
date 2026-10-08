@@ -98,8 +98,11 @@ export function useJugadoresDivision(): UseJugadoresDivisionReturn {
       return
     }
 
-    // Los tipos generados todavía no incluyen edad_min/edad_max/linea (migración 1c40819)
-    const divs = (divsData ?? []) as unknown as DivisionCoordinador[]
+    // linea viene tipada como string: la acotamos al check de la base (A | B)
+    const divs: DivisionCoordinador[] = (divsData ?? []).map(d => ({
+      ...d,
+      linea: d.linea === 'A' || d.linea === 'B' ? d.linea : null,
+    }))
     setDivisiones(divs)
     setSinDivisiones(divs.length === 0)
     // Mantener la selección si sigue siendo válida
