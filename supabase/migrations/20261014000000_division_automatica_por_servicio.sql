@@ -147,18 +147,45 @@ begin
     return;
   end if;
 
+  -- Tuvo división en el deporte y quedó inactivo (baja del coordinador o del
+  -- manager): no se lo vuelve a meter. Dar de baja es decisión de ellos, y un
+  -- cambio de sexo/fecha o un re-alta del servicio no la revierte.
+  -- También una fila inactiva sin socio con su mismo DNI (si no, el alta la
+  -- reactivaría por el upsert on conflict (dni, division_id)).
+  v_dni_norm := regexp_replace(coalesce(v_socio.dni, ''), '\D', '', 'g');
+  if upper(coalesce(v_socio.dni, '')) like 'SD%' then
+    v_dni_norm := '';
+  end if;
+
+  select j.id, j.division_id into v_jug, v_id
+  from jugadores j
+  join divisiones d on d.id = j.division_id
+  where not j.activo
+    and d.activa
+    and d.deporte = p_deporte
+    and (j.socio_id = p_socio_id
+         or (j.socio_id is null and v_dni_norm <> ''
+             and regexp_replace(j.dni, '\D', '', 'g') = v_dni_norm))
+  order by j.updated_at desc
+  limit 1;
+
+  if v_jug is not null then
+    return query select 'nada'::text, v_id, v_jug, 'dado_de_baja'::text;
+    return;
+  end if;
+
   -- Jugador cargado antes (fichaje / carga masiva) con su DNI y sin socio.
   -- Los DNIs sintéticos (SD...) no se usan para matchear.
-  v_dni_norm := regexp_replace(coalesce(v_socio.dni, ''), '\D', '', 'g');
-  if v_dni_norm <> '' and upper(coalesce(v_socio.dni, '')) not like 'SD%' then
+  if v_dni_norm <> '' then
     select j.id, j.division_id into v_jug, v_id
     from jugadores j
     join divisiones d on d.id = j.division_id
     where j.socio_id is null
+      and j.activo  -- una fila dada de baja no se reactiva al vincular
       and d.activa
       and d.deporte = p_deporte
       and regexp_replace(j.dni, '\D', '', 'g') = v_dni_norm
-    order by j.activo desc, j.updated_at desc
+    order by j.updated_at desc
     limit 1;
 
     if v_jug is not null then
