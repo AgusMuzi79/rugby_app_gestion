@@ -89,6 +89,10 @@ caso(`rango de ${MAX_DIAS_RANGO} días es válido, uno más no`, () => {
   assert.equal(validarRango('2026-01-01', '2026-04-02'), null) // 92 días
   assert.match(validarRango('2026-01-01', '2026-04-03') ?? '', /92/)
 })
+caso('fechas imposibles son inválidas', () => {
+  assert.notEqual(validarRango('2026-13-01', '2026-13-02'), null)
+  assert.notEqual(validarRango('2026-02-30', '2026-03-01'), null)
+})
 caso('fecha mal formada es inválida', () => {
   assert.notEqual(validarRango('', '2026-10-08'), null)
 })

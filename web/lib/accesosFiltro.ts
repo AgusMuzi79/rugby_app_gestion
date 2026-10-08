@@ -62,10 +62,18 @@ export function filtrarAccesos(accesos: Acceso[], filtros: FiltrosAccesos): Acce
   })
 }
 
+const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/
+
+function esFechaValida(fecha: string): boolean {
+  if (!FORMATO_FECHA.test(fecha)) return false
+  // El regex deja pasar 2026-13-01 o 2026-02-30: la ida y vuelta por Date los descarta.
+  const d = new Date(`${fecha}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === fecha
+}
+
 /** Devuelve un mensaje de error, o null si el rango es válido. */
 export function validarRango(desde: string, hasta: string): string | null {
-  const formato = /^\d{4}-\d{2}-\d{2}$/
-  if (!formato.test(desde) || !formato.test(hasta)) return 'Elegí una fecha de inicio y de fin.'
+  if (!esFechaValida(desde) || !esFechaValida(hasta)) return 'Elegí una fecha de inicio y de fin.'
   if (desde > hasta) return 'La fecha de inicio no puede ser posterior a la de fin.'
   const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000 + 1
   if (dias > MAX_DIAS_RANGO) return `El rango no puede superar los ${MAX_DIAS_RANGO} días.`

@@ -11,6 +11,13 @@ const DIA_MS = 24 * 60 * 60 * 1000
 const OFFSET_AR_MS = 3 * 60 * 60 * 1000
 const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/
 
+function esFechaValida(fecha: string): boolean {
+  if (!FORMATO_FECHA.test(fecha)) return false
+  // El regex deja pasar 2026-13-01 o 2026-02-30: la ida y vuelta por Date los descarta.
+  const d = new Date(`${fecha}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === fecha
+}
+
 export interface RangoAccesos {
   desde: string
   hasta: string
@@ -36,7 +43,7 @@ export function resolverRango(
   const desde = texto(body.desde) || fecha
   const hasta = texto(body.hasta) || desde
 
-  if (!FORMATO_FECHA.test(desde) || !FORMATO_FECHA.test(hasta)) {
+  if (!esFechaValida(desde) || !esFechaValida(hasta)) {
     return { error: 'desde/hasta deben tener formato YYYY-MM-DD' }
   }
   if (desde > hasta) return { error: 'desde no puede ser posterior a hasta' }

@@ -61,6 +61,11 @@ await caso('los límites son medianoche de Argentina (UTC-3)', () => {
 await caso('formato inválido', () => {
   assert.match(errorDe({ desde: '01/10/2026' }), /formato/)
 })
+await caso('fechas imposibles (mes 13, día 00, 30/02) se rechazan', () => {
+  for (const desde of ['2026-13-01', '2026-10-00', '2026-02-30']) {
+    assert.match(errorDe({ desde }), /formato/, desde)
+  }
+})
 await caso('desde posterior a hasta', () => {
   assert.match(errorDe({ desde: '2026-10-02', hasta: '2026-10-01' }), /posterior/)
 })
