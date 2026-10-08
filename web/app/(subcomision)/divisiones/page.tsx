@@ -14,6 +14,7 @@ interface Division {
   linea: string | null
   rama: string | null
   siguiente_division_id: string | null
+  recibe_adultos: boolean
 }
 
 const DEPORTE_LABEL: Record<string, string> = {
@@ -38,6 +39,7 @@ function resumenDivision(div: Division, todas: Division[]): string {
   }
   if (div.linea) partes.push(div.linea)
   if (div.rama) partes.push(RAMA_LABEL[div.rama] ?? div.rama)
+  if (div.recibe_adultos) partes.push('Recibe adultos')
   const base = partes.length > 0 ? partes.join(' · ') : '—'
   const siguiente = div.siguiente_division_id
     ? todas.find(d => d.id === div.siguiente_division_id)
@@ -61,13 +63,14 @@ export default function DivisionesPage() {
   const [nuevaLinea, setNuevaLinea] = useState('')
   const [nuevaRama, setNuevaRama] = useState('')
   const [nuevaSiguienteId, setNuevaSiguienteId] = useState('')
+  const [nuevaRecibeAdultos, setNuevaRecibeAdultos] = useState(false)
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
 
   const fetchDivisiones = async () => {
     const { data } = await supabase
       .from('divisiones')
-      .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama, siguiente_division_id')
+      .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama, siguiente_division_id, recibe_adultos')
       .order('nombre')
     setDivisiones(data ?? [])
     setLoading(false)
@@ -96,6 +99,7 @@ export default function DivisionesPage() {
     setNuevaLinea('')
     setNuevaRama('')
     setNuevaSiguienteId('')
+    setNuevaRecibeAdultos(false)
     setError('')
   }
 
@@ -109,6 +113,7 @@ export default function DivisionesPage() {
     setNuevaLinea(div.linea ?? '')
     setNuevaRama(div.rama ?? '')
     setNuevaSiguienteId(div.siguiente_division_id ?? '')
+    setNuevaRecibeAdultos(div.recibe_adultos ?? false)
     setError('')
   }
 
@@ -148,6 +153,7 @@ export default function DivisionesPage() {
       linea: nuevaLinea || null,
       rama: nuevaRama || null,
       siguiente_division_id: nuevaSiguienteId || null,
+      recibe_adultos: nuevaRecibeAdultos,
     }
 
     const { error: err } = editandoId
@@ -398,6 +404,21 @@ export default function DivisionesPage() {
               </select>
               <p className="font-lora text-xs text-tinta/40 mt-1">
                 Adónde pasan los jugadores que superan la edad máxima cuando ninguna otra división les corresponde por edad (ej.: Sub 19 → Primera). El pase es automático el 1 de enero.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="flex items-center gap-2 font-lora text-xs tracking-widest text-tinta/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={nuevaRecibeAdultos}
+                  onChange={e => setNuevaRecibeAdultos(e.target.checked)}
+                  className="accent-oro"
+                />
+                RECIBE ADULTOS
+              </label>
+              <p className="font-lora text-xs text-tinta/40">
+                Los socios adultos que contratan el servicio de este deporte (y de esta rama) se asignan solos a esta división. Marcar una sola por deporte y rama (ej.: Mayores, Primera Damas).
               </p>
             </div>
 
