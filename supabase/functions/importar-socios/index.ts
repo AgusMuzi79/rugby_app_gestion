@@ -19,13 +19,15 @@
 //     (padrón de servicios, archivo aparte, Crystal Reports con bandas)
 //   - Resolución de cabecera_id (el archivo lo da por NOMBRE, no código —
 //     matchear por nombre es frágil, se decide aparte)
-//   - Vínculo con jugadores/UAR (fuera de alcance, ver proposal.md)
+//   - Vínculo con UAR (fuera de alcance, ver proposal.md). El vínculo con
+//     `jugadores` por DNI sí se hace al crear altas (mismo criterio que
+//     admin-socios), ver vincularJugadoresPorDni().
 //
 // Callers permitidos: secretaria, admin.
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { parsePadronSocios, categoriaNombreDb, type SocioPadron } from '../_shared/parse-padron-socios.ts'
+import { parsePadronSocios, categoriaNombreDb, type SocioPadron, type Sexo } from '../_shared/parse-padron-socios.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 import { generateSecret } from '../_shared/totp.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export, mismo patrón
@@ -46,6 +48,7 @@ interface SocioDb {
   cobroConTarjeta: boolean
   dni:             string
   nombre:          string
+  sexo:            Sexo | null
 }
 
 interface DiffAlta {
@@ -57,6 +60,7 @@ interface DiffAlta {
   email:       string
   cobroConTarjeta: boolean
   clienteGimnasio: boolean
+  sexo:        Sexo | null
 }
 
 interface DiffBaja {
@@ -86,6 +90,7 @@ interface DiffActualizar {
   cobroConTarjeta: boolean | null
   dni:         string | null
   nombreNuevo: string | null
+  sexo:        Sexo | null
 }
 
 interface DiffError {
@@ -166,7 +171,7 @@ Deno.serve(async (req: Request) => {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from('socios')
-      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta, dni, profiles!socios_profile_id_fkey(nombre)')
+      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta, dni, sexo, profiles!socios_profile_id_fkey(nombre)')
       .range(from, from + 999)
     if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
     sociosDbRaw = sociosDbRaw.concat(data ?? [])
@@ -186,6 +191,7 @@ Deno.serve(async (req: Request) => {
         cobroConTarjeta: s.cobro_con_tarjeta as boolean,
         dni:             s.dni as string,
         nombre:          (s.profiles as { nombre: string } | null)?.nombre ?? '',
+        sexo:            (s.sexo as Sexo | null) ?? null,
       }])
   )
 
@@ -288,7 +294,7 @@ function calcularDiff(
       diff.altas.push({
         numeroSocio, nombre: fila.nombre, categoriaId, clienteGimnasio,
         dni: fila.dni, fechaNacimiento: fila.fechaNacimiento, email: fila.email,
-        cobroConTarjeta: fila.pagaConTarjeta,
+        cobroConTarjeta: fila.pagaConTarjeta, sexo: fila.sexo,
       })
       continue
     }
@@ -318,7 +324,9 @@ function calcularDiff(
     const cambioTarjeta   = fila.pagaConTarjeta !== existente.cobroConTarjeta
     const cambioDni       = !fila.dniSintetico && fila.dni !== existente.dni
     const cambioNombre    = !!fila.nombre && fila.nombre !== existente.nombre
-    if (cambioCategoria || cambioFecha || cambioTarjeta || cambioDni || cambioNombre) {
+    // Sexo: nunca se pisa con null (columna faltante o valor inválido en el export).
+    const cambioSexo      = !!fila.sexo && fila.sexo !== existente.sexo
+    if (cambioCategoria || cambioFecha || cambioTarjeta || cambioDni || cambioNombre || cambioSexo) {
       diff.actualizados.push({
         numeroSocio, nombre: fila.nombre, socioId: existente.id, profileId: existente.profileId,
         categoriaId:     cambioCategoria ? categoriaId : null,
@@ -326,6 +334,7 @@ function calcularDiff(
         cobroConTarjeta: cambioTarjeta ? fila.pagaConTarjeta : null,
         dni:             cambioDni ? fila.dni : null,
         nombreNuevo:     cambioNombre ? fila.nombre : null,
+        sexo:            cambioSexo ? fila.sexo : null,
       })
     } else {
       diff.sinCambio++
@@ -380,6 +389,7 @@ async function aplicarDiff(diff: Diff) {
   const reingresosOk: DiffReingreso[] = []
   const actualizadosOk: DiffActualizar[] = []
   const errores: DiffError[] = []
+  const altasParaVincular: { socioId: string; dni: string; numeroSocio: string }[] = []
 
   for (const alta of diff.altas) {
     try {
@@ -431,6 +441,7 @@ async function aplicarDiff(diff: Diff) {
           estado:           'pendiente',
           foto_validada:    false,
           cobro_con_tarjeta: alta.cobroConTarjeta,
+          sexo:             alta.sexo,
         })
         .select('id')
         .single()
@@ -443,6 +454,7 @@ async function aplicarDiff(diff: Diff) {
 
       socioIdsAfectados.push(socioData.id)
       altasOk.push(alta)
+      if (!alta.dni.startsWith('SD')) altasParaVincular.push({ socioId: socioData.id, dni: alta.dni, numeroSocio: alta.numeroSocio })
     } catch (e) {
       const motivo = e instanceof Error ? e.message : String(e)
       errores.push({ numeroSocio: alta.numeroSocio, nombre: alta.nombre, motivo })
@@ -495,6 +507,7 @@ async function aplicarDiff(diff: Diff) {
       if (u.fechaNacimiento)         patch.fecha_nacimiento = u.fechaNacimiento
       if (u.cobroConTarjeta !== null) patch.cobro_con_tarjeta = u.cobroConTarjeta
       if (u.dni)                     patch.dni              = u.dni
+      if (u.sexo)                    patch.sexo             = u.sexo
 
       if (Object.keys(patch).length > 0) {
         const { error } = await supabaseAdmin.from('socios').update(patch).eq('id', u.socioId)
@@ -516,7 +529,53 @@ async function aplicarDiff(diff: Diff) {
     }
   }
 
+  await vincularJugadoresPorDni(altasParaVincular)
+
   return { altasOk, bajasOk, reingresosOk, actualizadosOk, errores, socioIdsAfectados, bajasParaMail }
+}
+
+// ─── Vínculo con jugadores ───────────────────────────────────────────────────
+//
+// Mismo criterio que admin-socios (alta manual): un jugador cargado antes que
+// su socio (ej. import de hockey por planilla) queda con socio_id null y DNI;
+// al dar de alta al socio se lo vincula. Sólo altas nuevas con DNI real (los
+// sintéticos "SD…" no pueden matchear a nadie). Una búsqueda en lote para
+// encontrar los candidatos y un update por socio (cada DNI apunta a un
+// socio_id distinto). Un error acá no aborta el import: se loguea y sigue.
+
+async function vincularJugadoresPorDni(altas: { socioId: string; dni: string; numeroSocio: string }[]): Promise<void> {
+  if (altas.length === 0) return
+  const altaPorDni = new Map(altas.map(a => [a.dni, a]))
+  const dnis = [...altaPorDni.keys()]
+
+  const dnisConJugador = new Set<string>()
+  for (let i = 0; i < dnis.length; i += 200) {
+    const { data, error } = await supabaseAdmin
+      .from('jugadores')
+      .select('dni')
+      .in('dni', dnis.slice(i, i + 200))
+      .is('socio_id', null)
+    if (error) {
+      console.error('Error buscando jugadores por DNI para vincular:', error.message)
+      return
+    }
+    for (const j of data ?? []) if (j.dni) dnisConJugador.add(String(j.dni))
+  }
+
+  let vinculados = 0
+  for (const dni of dnisConJugador) {
+    const alta = altaPorDni.get(dni)
+    if (!alta) continue
+    const { error } = await supabaseAdmin
+      .from('jugadores')
+      .update({ socio_id: alta.socioId })
+      .eq('dni', dni)
+      .is('socio_id', null)
+    if (error) console.error(`Error vinculando jugadores con DNI de ${alta.numeroSocio}:`, error.message)
+    else vinculados++
+  }
+
+  console.log(`Vínculo jugadores por DNI: ${vinculados} socios nuevos vinculados, de ${dnisConJugador.size} con jugador sin socio.`)
 }
 
 // ─── Mail de baja ─────────────────────────────────────────────────────────────
