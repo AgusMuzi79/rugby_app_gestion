@@ -14,6 +14,10 @@ export default function CoordinadorLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="jugadores"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
         name="cronica"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={color} /> }}
       />
