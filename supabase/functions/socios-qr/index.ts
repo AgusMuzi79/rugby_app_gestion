@@ -10,7 +10,7 @@
 //   validate       — Lector escanea el QR y recibe estado del socio + foto.
 //   validate-dni   — Fallback sin QR (socio sin el celular encima): busca directo por DNI,
 //                    sin código TOTP. Misma respuesta que validate.
-//   listar-accesos — Panel web de Lector: historial de ingresos de un día (tabla `accesos`).
+//   listar-accesos — Panel web de Lector: historial de ingresos de un rango de días (tabla `accesos`).
 //   registrar-invitado — Anota el ingreso de un no-socio (DNI obligatorio, nombre opcional) y
 //                    devuelve cuántas veces entró ese DNI en los últimos 30 días, para que
 //                    se lo derive a Secretaría cuando se repite (ver 20261003000001_accesos_invitados).
@@ -490,6 +490,8 @@ async function handleValidateDni(
 // la tablet necesita mostrarle el motivo real al encargado.
 
 const VENTANA_INVITADO_DIAS = 30
+// Tope del rango de listar-accesos (≈ un trimestre); mismo valor en web/lib/accesosFiltro.ts.
+const MAX_DIAS_LISTAR_ACCESOS = 92
 
 // null = no se pudo contar (error de la consulta): el caller no debe mostrar un 0 falso.
 async function contarVecesInvitado(dni: string): Promise<number | null> {
@@ -576,30 +578,47 @@ async function handleListarAccesos(
   const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para ver el historial de accesos')
 
+  // Rango `desde`..`hasta` (ambos inclusive). `fecha` sola se sigue aceptando
+  // como rango de un día, por compatibilidad con clientes viejos.
   const fecha = (body.fecha as string | undefined)?.trim() || new Date().toISOString().slice(0, 10)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return jsonError(400, 'fecha debe tener formato YYYY-MM-DD')
+  const desde = (body.desde as string | undefined)?.trim() || fecha
+  const hasta = (body.hasta as string | undefined)?.trim() || desde
+  const FORMATO = /^\d{4}-\d{2}-\d{2}$/
+  if (!FORMATO.test(desde) || !FORMATO.test(hasta)) return jsonError(400, 'desde/hasta deben tener formato YYYY-MM-DD')
+  if (desde > hasta) return jsonError(400, 'desde no puede ser posterior a hasta')
 
-  const inicio = new Date(`${fecha}T00:00:00-03:00`)
-  const fin    = new Date(inicio.getTime() + 24 * 60 * 60 * 1000)
+  const inicio = new Date(`${desde}T00:00:00-03:00`)
+  const fin    = new Date(new Date(`${hasta}T00:00:00-03:00`).getTime() + 24 * 60 * 60 * 1000)
+  const dias   = Math.round((fin.getTime() - inicio.getTime()) / (24 * 60 * 60 * 1000))
+  if (dias > MAX_DIAS_LISTAR_ACCESOS) return jsonError(400, `El rango no puede superar los ${MAX_DIAS_LISTAR_ACCESOS} días`)
 
-  const { data, error } = await supabaseAdmin
-    .from('accesos')
-    .select(`
-      creado_en,
-      punto,
-      semaforo,
-      sin_servicio,
-      sin_reserva,
-      es_invitado,
-      invitado_dni,
-      invitado_nombre,
-      socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
-    `)
-    .gte('creado_en', inicio.toISOString())
-    .lt('creado_en', fin.toISOString())
-    .order('creado_en', { ascending: true })
+  // PostgREST corta en 1000 filas por request: un rango de semanas las supera.
+  const PAGINA = 1000
+  const data: unknown[] = []
+  for (let desdeFila = 0; ; desdeFila += PAGINA) {
+    const { data: pagina, error } = await supabaseAdmin
+      .from('accesos')
+      .select(`
+        creado_en,
+        punto,
+        semaforo,
+        sin_servicio,
+        sin_reserva,
+        es_invitado,
+        invitado_dni,
+        invitado_nombre,
+        socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
+      `)
+      .gte('creado_en', inicio.toISOString())
+      .lt('creado_en', fin.toISOString())
+      .order('creado_en', { ascending: true })
+      .order('id', { ascending: true })
+      .range(desdeFila, desdeFila + PAGINA - 1)
 
-  if (error) return jsonError(500, error.message)
+    if (error) return jsonError(500, error.message)
+    data.push(...(pagina ?? []))
+    if (!pagina || pagina.length < PAGINA) break
+  }
 
   type AccesoRow = {
     creado_en: string
@@ -615,8 +634,8 @@ async function handleListarAccesos(
 
   const rows = data as unknown as AccesoRow[]
 
-  // Repeticiones de cada invitado en los 30 días que terminan al cierre del día
-  // consultado (incluido ese día, no sólo ese día): es lo que dispara el "Derivar
+  // Repeticiones de cada invitado en los 30 días que terminan al cierre del rango
+  // consultado (incluido el último día, no sólo ese día): es lo que dispara el "Derivar
   // a Secretaría" en el panel. Si la consulta falla, `veces_invitado` va null en
   // vez de un número equivocado, sin tirar abajo el listado.
   const dnisInvitados = [...new Set(rows.filter(a => a.es_invitado && a.invitado_dni).map(a => a.invitado_dni as string))]
@@ -653,5 +672,5 @@ async function handleListarAccesos(
     nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : (a.socios?.profiles?.nombre ?? '—'),
   }))
 
-  return jsonOk({ fecha, accesos })
+  return jsonOk({ fecha: desde, desde, hasta, accesos })
 }
