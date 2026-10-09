@@ -1,7 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  Modal, TextInput, ActivityIndicator, StyleSheet, Alert,
-  KeyboardAvoidingView, Platform,
+  Modal, ActivityIndicator, StyleSheet, Platform,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -81,34 +80,20 @@ function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
 export function CronicaScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, items, rol, enviarNotificacion } = useCronica()
+  const { loading, items, rol } = useCronica()
   const { colors: tc } = useTheme()
   const esSubcomision = ['subcomision', 'admin'].includes(rol)
 
-  const [modalVisible, setModalVisible] = useState(false)
-  const [titulo,       setTitulo]       = useState('')
-  const [mensaje,      setMensaje]      = useState('')
-  const [enviando,     setEnviando]     = useState(false)
+  // INFO rows (manual notifications) have no route: they open in a sheet that
+  // shows the full title and message instead of the truncated preview.
+  const [detalle, setDetalle] = useState<FeedItem | null>(null)
 
-  function handleCerrarModal() {
-    setModalVisible(false)
-    setTitulo('')
-    setMensaje('')
-  }
-
-  async function handleEnviar() {
-    if (!titulo.trim() || !mensaje.trim()) {
-      Alert.alert('Campos requeridos', 'Completá título y mensaje.')
-      return
+  function onPressItem(item: FeedItem): (() => void) | undefined {
+    if (item.route) {
+      return () => router.navigate(item.route as Parameters<typeof router.navigate>[0])
     }
-    setEnviando(true)
-    const ok = await enviarNotificacion(titulo.trim(), mensaje.trim())
-    setEnviando(false)
-    if (ok) {
-      handleCerrarModal()
-    } else {
-      Alert.alert('Error', 'No se pudo enviar la notificación.')
-    }
+    if (item.tipo === 'INFO') return () => setDetalle(item)
+    return undefined
   }
 
   return (
@@ -132,15 +117,15 @@ export function CronicaScreen() {
           <View style={[s.tituloDivider, { backgroundColor: tc.grisClaro }]} />
         </View>
 
-        {/* Nueva notificación — subcomision only */}
+        {/* Nueva noticia — subcomision only, opens the Noticias tab */}
         {esSubcomision && (
           <View style={s.nuevaSection}>
             <TouchableOpacity
               style={s.nuevaBtn}
-              onPress={() => setModalVisible(true)}
+              onPress={() => router.navigate('/(subcomision)/noticias')}
               activeOpacity={0.8}
             >
-              <Text style={s.nuevaBtnText}>+ NUEVA NOTIFICACIÓN</Text>
+              <Text style={s.nuevaBtnText}>+ NUEVA NOTICIA</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -155,35 +140,24 @@ export function CronicaScreen() {
         ) : (
           <View style={s.feedList}>
             {items.map(item => (
-              <FilaFeed
-                key={item.id}
-                item={item}
-                onPress={
-                  item.route
-                    ? () => router.navigate(item.route as Parameters<typeof router.navigate>[0])
-                    : undefined
-                }
-              />
+              <FilaFeed key={item.id} item={item} onPress={onPressItem(item)} />
             ))}
           </View>
         )}
       </ScrollView>
 
-      {/* Modal: nueva notificación */}
+      {/* Modal: detalle de una notificación */}
       <Modal
-        visible={modalVisible}
+        visible={detalle !== null}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={handleCerrarModal}
+        onRequestClose={() => setDetalle(null)}
       >
-        <KeyboardAvoidingView
-          style={[s.modalRoot, { backgroundColor: tc.fondo }]}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <View style={[s.modalRoot, { backgroundColor: tc.fondo, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
           <View style={s.modalHeaderRow}>
-            <Text style={[s.modalTitulo, { color: tc.texto }]}>Nueva Notificación</Text>
+            <Text style={[s.modalTitulo, { color: tc.texto }]}>Notificación</Text>
             <TouchableOpacity
-              onPress={handleCerrarModal}
+              onPress={() => setDetalle(null)}
               hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
             >
               <Text style={s.modalCerrar}>✕</Text>
@@ -191,53 +165,16 @@ export function CronicaScreen() {
           </View>
           <View style={[s.modalDivider, { backgroundColor: tc.grisClaro }]} />
 
-          <ScrollView style={s.modalBody} keyboardShouldPersistTaps="handled">
-            <Text style={s.inputLabel}>TÍTULO</Text>
-            <TextInput
-              style={[s.input, { backgroundColor: tc.card, borderColor: tc.grisClaro, color: tc.texto }]}
-              value={titulo}
-              onChangeText={setTitulo}
-              placeholder="Ej: Asamblea anual de socios"
-              placeholderTextColor="#9B9183"
-              maxLength={80}
-              returnKeyType="next"
-            />
-
-            <Text style={[s.inputLabel, { marginTop: 20 }]}>MENSAJE</Text>
-            <TextInput
-              style={[s.input, s.inputMultiline, { backgroundColor: tc.card, borderColor: tc.grisClaro, color: tc.texto }]}
-              value={mensaje}
-              onChangeText={setMensaje}
-              placeholder="Escribí el mensaje para todos los usuarios…"
-              placeholderTextColor="#9B9183"
-              multiline
-              numberOfLines={5}
-              maxLength={300}
-              textAlignVertical="top"
-            />
-            <Text style={s.charCount}>{mensaje.length}/300</Text>
-
-            <TouchableOpacity
-              style={[s.enviarBtn, enviando && { opacity: 0.6 }]}
-              onPress={handleEnviar}
-              activeOpacity={0.8}
-              disabled={enviando}
-            >
-              {enviando
-                ? <ActivityIndicator color={colors.tinta} size="small" />
-                : <Text style={s.enviarBtnText}>ENVIAR A TODOS →</Text>
-              }
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={s.cancelarBtn}
-              onPress={handleCerrarModal}
-              activeOpacity={0.75}
-            >
-              <Text style={s.cancelarBtnText}>CANCELAR</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          {detalle && (
+            <ScrollView style={s.modalBody} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
+              <Text style={s.inputLabel}>{`${detalle.autor} · ${tiempoRelativo(detalle.createdAt)}`}</Text>
+              <Text style={[s.detalleTitulo, { color: tc.texto }]}>{detalle.titulo}</Text>
+              {detalle.mensaje ? (
+                <Text style={[s.detalleMensaje, { color: tc.texto }]}>{detalle.mensaje}</Text>
+              ) : null}
+            </ScrollView>
+          )}
+        </View>
       </Modal>
     </>
   )
@@ -346,34 +283,10 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oroHondo, marginBottom: 8,
   },
-  input: {
-    borderWidth: 1, borderColor: colors.grisClaro, borderRadius: 4,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
-    backgroundColor: colors.blanco,
+  detalleTitulo: {
+    fontFamily: fonts.titulo, fontSize: 22, lineHeight: 28, marginBottom: 16,
   },
-  inputMultiline: {
-    height: 120, paddingTop: 12,
-  },
-  charCount: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
-    color: '#9B9183', textAlign: 'right', marginTop: 6, marginBottom: 24,
-  },
-
-  enviarBtn: {
-    backgroundColor: colors.oro,
-    paddingVertical: 16, alignItems: 'center', borderRadius: 4, marginBottom: 12,
-  },
-  enviarBtnText: {
-    fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
-  },
-  cancelarBtn: {
-    borderWidth: 1, borderColor: colors.grisClaro,
-    paddingVertical: 14, alignItems: 'center', borderRadius: 4, marginBottom: 40,
-  },
-  cancelarBtnText: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: '#9B9183',
+  detalleMensaje: {
+    fontFamily: fonts.cuerpo, fontSize: 16, lineHeight: 23,
   },
 })

@@ -42,13 +42,15 @@ interface CancelacionPayload {
 // Edge Functions). 'manual' con rolDestinatario != 'todos' queda reservado
 // a subcomisión/admin — manager/entrenador/coordinador (crónica) solo envían
 // con 'todos'.
+// 'noticia_publicada' is sent by every role that publishes noticias to members:
+// secretaria, buffet (promos) and subcomision (club news, mobile + web).
 
 const ROLES_POR_TIPO: Record<NotificationType, string[]> = {
   lesion:                    ['entrenador'],
   fichaje:                   ['manager'],
   ausencias_consecutivas:    ['entrenador'],
   cancelacion_entrenamiento: ['coordinador'],
-  noticia_publicada:         ['secretaria', 'buffet'],
+  noticia_publicada:         ['secretaria', 'buffet', 'subcomision'],
   manual:                    ['subcomision', 'manager', 'entrenador', 'coordinador'],
 }
 

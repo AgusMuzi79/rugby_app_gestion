@@ -14,6 +14,8 @@ export interface FeedItem {
   createdAt: string
   urgente:   boolean
   route:     string | null
+  // Full message for INFO rows (desc is truncated to a preview); null otherwise.
+  mensaje:   string | null
 }
 
 function hace7Dias() {
@@ -107,6 +109,7 @@ export function useCronica() {
         createdAt: row.created_at,
         urgente:   row.grado >= 3,
         route:     routeForTipo('LESIÓN', rol),
+        mensaje:   null,
       }))
 
       // Fichajes
@@ -119,6 +122,7 @@ export function useCronica() {
         createdAt: row.created_at,
         urgente:   false,
         route:     routeForTipo('FICHAJE', rol),
+        mensaje:   null,
       }))
 
       // Resultados — filtrar por división client-side para no-subcomision
@@ -137,6 +141,7 @@ export function useCronica() {
         createdAt: row.created_at,
         urgente:   false,
         route:     routeForTipo('RESULTADO', rol),
+        mensaje:   null,
       }))
 
       // Notificaciones
@@ -151,6 +156,7 @@ export function useCronica() {
           createdAt: row.created_at,
           urgente:   false,
           route:     routeForTipo(feedTipo, rol),
+          mensaje:   feedTipo === 'INFO' ? row.mensaje : null,
         }
       })
 
@@ -163,18 +169,5 @@ export function useCronica() {
     setLoading(false)
   }
 
-  async function enviarNotificacion(titulo: string, mensaje: string): Promise<boolean> {
-    try {
-      await supabase.from('notificaciones').insert({ titulo, mensaje, tipo: 'manual' })
-      await supabase.functions.invoke('notifications', {
-        body: { type: 'manual', payload: { titulo, mensaje, rolDestinatario: 'todos' } },
-      })
-      void fetchTodo()
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  return { loading, items, rol: rol ?? '', enviarNotificacion }
+  return { loading, items, rol: rol ?? '' }
 }
