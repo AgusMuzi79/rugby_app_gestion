@@ -19,6 +19,14 @@ export interface SocioPadron {
   emailSintetico:  boolean
   esTitular:       boolean // "Socio Cabecera" se autorreferencia (mismo patrón que cabecera_cod_cliente en la carga masiva de julio)
   pagaConTarjeta:  boolean // Vendedor='VISA' — débito o crédito, ambas se cobran automáticamente el mismo día (ver project-forma-pago-padron)
+  sexo:            Sexo | null // columna "Sexo" (M/F); cualquier otro valor o vacío → null
+}
+
+export type Sexo = 'M' | 'F'
+
+export function parseSexo(raw: unknown): Sexo | null {
+  const v = String(raw ?? '').trim().toUpperCase()
+  return v === 'M' || v === 'F' ? v : null
 }
 
 // Nombres exactos en categorias_socio — ver design.md §5, verificado contra
@@ -104,6 +112,7 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
   const iEdad      = idx('Edad')
   const iCabecera  = idx('Socio Cabecera')
   const iVendedor  = idx('Vendedor')
+  const iSexo      = idx('Sexo')
 
   if (iCod === -1 || iEstado === -1) return []
 
@@ -137,6 +146,7 @@ export function parsePadronSocios(rows: unknown[][]): SocioPadron[] {
       // propio grupo familiar.
       esTitular:       !!cabecera && normalizarNombre(cabecera) === normalizarNombre(nombre),
       pagaConTarjeta:  String(r[iVendedor] ?? '').trim().toUpperCase() === 'VISA',
+      sexo:            iSexo === -1 ? null : parseSexo(r[iSexo]),
     })
   }
   return resolverEmailsDuplicados(out)
