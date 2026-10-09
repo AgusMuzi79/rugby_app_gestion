@@ -90,17 +90,18 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-10-08):**
+**Estado de las stores (actualizado 2026-10-09):**
 - **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10).
-- **iOS:** versión 1.0.8 (build 22) **"In Review"** en App Store Connect; la 1.0.7 sigue publicada. La 1.0.8 está en **publicación manual**: cuando Apple la apruebe hay que tocar "Release This Version".
-- **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad). Llega a quien tenga la 1.0.8 instalada; en iOS recién cuando se publique la 1.0.8.
+- **iOS:** versión 1.0.8 (build 22) **publicada** en el App Store (8/10).
+- **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad).
 - **OTA sobre 1.0.8** (2026-10-09, `eas update --branch production`, Android + iOS, grupo `36c30c7b`): Manager crea viajes/tercer tiempos, eventos con varias divisiones, monto sugerido en cobranzas. Las OTA se publican desde el checkout principal (necesitan `app/.env.local`, que los worktrees no tienen).
+- **OTA sobre 1.0.8** (2026-10-09, grupo `02918d37`, desde `main` tras el PR #16): pestaña Noticias de Subcomisión (título, descripción, imagen + push a socios); Crónica abre notificaciones. Es la última OTA: cubre todo `main` a esa fecha.
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Integración Banco Macro (reemplazaría el alias manual de pago).
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal. Antes, revisar las URLs de la ficha de Play Console (las de App Store ya apuntan a `uncasapp.com`). Ese proyecto además deja un check "Vercel – web" en rojo en cada PR (no relacionado con los cambios).
-- Release 1.0.8: cuando Apple apruebe, publicarla a mano ("Release This Version"); probar el flujo de familiar/tutor en un teléfono con un menor real.
+- Probar el flujo de familiar/tutor (1.0.8) en un teléfono con un menor real.
 - Familiar/tutor: herramienta en el panel de Secretaría para vincular a mano un segundo tutor o un hermano (hoy no pueden autoverificarse).
 - Play Console: la optimización de código DEX (ofuscación 1 %) está debajo del umbral de Google — corregir antes de feb 2027 (activar minificación/R8 en el build Android).
 - Supabase sigue en plan **Free** por decisión de Agus (2026-09-28, motivo económico): sin backups automáticos y con pausa tras 7 días de inactividad. Mitigación: `node scripts/backup-supabase.mjs` (requiere Docker Desktop abierto; guarda en `~/backups-uncas/`, fuera del repo) — correrlo semanalmente y SIEMPRE antes de un importador masivo. No respalda los archivos de Storage (fotos). Reevaluar Pro si crece el uso o pasa algo.
