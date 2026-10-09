@@ -23,6 +23,18 @@ caso('montoSugeridoDe: número entero y decimal con coma', () => {
   assert.equal(montoSugeridoDe('2500,50'), 2500.5)
 })
 
+caso('montoSugeridoDe: punto como separador de miles', () => {
+  assert.equal(montoSugeridoDe('2.500'), 2500)
+  assert.equal(montoSugeridoDe('1.250.000'), 1250000)
+  assert.equal(montoSugeridoDe('2.500,50'), 2500.5)
+  assert.equal(montoSugeridoDe('$ 2.500'), 2500)
+})
+
+caso('montoSugeridoDe: punto decimal sin miles se respeta', () => {
+  assert.equal(montoSugeridoDe('2500.5'), 2500.5)
+  assert.equal(montoSugeridoDe('12.75'), 12.75)
+})
+
 caso('montoSugeridoDe: cero, negativo o texto → null', () => {
   assert.equal(montoSugeridoDe('0'), null)
   assert.equal(montoSugeridoDe('-100'), null)
