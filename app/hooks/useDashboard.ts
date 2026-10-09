@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import {
+  SELECT_DIVISIONES_EVENTO,
+  divisionesDeEvento,
+  etiquetaDivisiones,
+  type EventoDivisionesRow,
+} from './useEventos'
 
 export interface DivisionOpcion {
   id:        string
@@ -41,6 +47,7 @@ export interface EventoFinancieroResumen {
   tipo:            string
   divisionId:      string | null
   divisionNombre:  string | null
+  divisionIds:     string[]  // divisiones del evento; vacío = todo el club
   totalCobrado:    number
   countPagados:    number
   countPendientes: number
@@ -260,23 +267,27 @@ export function useDashboard() {
   async function fetchFinanciero() {
     const { data } = await supabase
       .from('eventos_financieros')
-      .select('id, nombre, tipo, division_id, divisiones(nombre), cobranzas(estado, monto)')
+      .select(`id, nombre, tipo, ${SELECT_DIVISIONES_EVENTO}, cobranzas(estado, monto)`)
       .eq('estado', 'activo')
       .order('fecha', { ascending: false, nullsFirst: false })
 
-    type DivJoin      = { nombre: string } | null
     type CobranzaJoin = Array<{ estado: string; monto: number | null }>
+    type FilaFinanciero = EventoDivisionesRow & {
+      id: string; nombre: string; tipo: string; cobranzas: CobranzaJoin | null
+    }
 
     setFinanciero(
-      (data ?? []).map(ef => {
-        const cobrs   = (ef.cobranzas as CobranzaJoin) ?? []
+      ((data ?? []) as unknown as FilaFinanciero[]).map(ef => {
+        const divs    = divisionesDeEvento(ef)
+        const cobrs   = ef.cobranzas ?? []
         const pagados = cobrs.filter(c => c.estado === 'pagado')
         return {
           id:              ef.id,
           nombre:          ef.nombre,
           tipo:            ef.tipo,
           divisionId:      ef.division_id,
-          divisionNombre:  (ef.divisiones as DivJoin)?.nombre ?? null,
+          divisionIds:     divs.map(d => d.id),
+          divisionNombre:  etiquetaDivisiones(divs),
           totalCobrado:    pagados.reduce((s, c) => s + (c.monto ?? 0), 0),
           countPagados:    pagados.length,
           countPendientes: cobrs.filter(c => c.estado === 'pendiente').length,
@@ -299,9 +310,9 @@ export function useDashboard() {
     ? fichajes.filter(f => f.divisionId === divisionFiltro)
     : fichajes
 
-  // Eventos globales (division_id null) siempre visibles; los de división filtrada también
+  // Eventos globales (sin divisiones) siempre visibles; también los que incluyen la división filtrada
   const financieroFiltrado = divisionFiltro
-    ? financiero.filter(ef => ef.divisionId === divisionFiltro || ef.divisionId === null)
+    ? financiero.filter(ef => ef.divisionIds.length === 0 || ef.divisionIds.includes(divisionFiltro))
     : financiero
 
   return {

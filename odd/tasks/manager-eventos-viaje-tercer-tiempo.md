@@ -24,6 +24,23 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - [x] T4 Review advisories (user asked to fix them): manager UPDATE limited to closing (trigger guard: only estado activo→cerrado); useEventos error state for profile load + loading never stuck without session; SQL scenario test `supabase/tests/eventos_financieros_manager_rls.sql` (Docker, RED before GREEN). Route: delegated writer (3+ non-trivial files).
 - [x] T5 Cobranzas: amount field defaults to the event's suggested amount (stored in `descripcion`) when the player has no registered amount; still editable. `app/lib/montoSugerido.ts` + `montoSugerido.check.ts` (RED: module missing → GREEN 6 cases); `useCobranzas.ts` uses it; eventos screen reuses the parser. Parser accepts local format ("2.500" = 2500, "2.500,50") after review warning (RED 2.5 -> GREEN 8 cases). Route: inline (small, understood).
 
+### Phase 2 — multi-division events (branch `feat/eventos-financieros-multi-division`, 2026-10-09)
+User request: viaje, tercer tiempo and recaudación can include several divisions. Decision (user): a Manager may pick any division of **its sport** (sport of its assigned divisions); each manager sees the event and charges only players of its own divisions in the event. Also: Cobranzas showed players not in the event's division (likely stale `jugadores` data before 2026-10-08 division cleanup; code always used manager `divisiones[0]`).
+
+Design (assumed, user may override):
+- New table `eventos_financieros_divisiones(evento_financiero_id, division_id)` = source of truth. No rows on a recaudación = whole club (global).
+- `eventos_financieros.division_id` kept for compatibility with the published app: first chosen division (null for global). Backfill join table from it.
+- Creation through RPC `crear_evento_financiero(...)` (SECURITY INVOKER, atomic, RLS applies).
+- Manager: insert viaje/tercer_tiempo with ≥1 division, all of its sport; closes events where it is creator or has access to any event division (still only activo→cerrado). Event divisions immutable for managers.
+- Subcomisión: recaudación for whole club or chosen divisions (deporte filter).
+- Visibility: manager/coordinador/entrenador see events that are global, include one of their divisions, or they created.
+- Cobranzas: manager sees events touching any of its divisions (all of them, not just `[0]`) or global; player list = active players of (event divisions ∩ manager divisions), or all manager divisions for global. RLS on cobranzas insert/update also requires the player's division to be in the event (or event global).
+
+- [x] T6 Migration `20261016000000_eventos_financieros_multi_division.sql` + test `supabase/tests/eventos_financieros_multi_division.sql` (RED 29 failing → GREEN 51/51; existing manager test still GREEN; parent re-ran both GREEN). Deviations: surrogate PK + UNIQUE on the join table (avoid PostgREST ambiguous embed for the published app — verify after push); AFTER INSERT sync trigger copies `division_id` into the join table so inserts from the published app stay visible. Route: delegated writer.
+- [x] T7 Mobile multi-select (manager: its sports, own preselected; subco: todo el club / elegir), RPC `crear_evento_financiero`, Cobranzas uses all manager divisions and event∩mine players, diario/dashboard/informes + web informes read the join table. Checks: app tsc exit 0, web tsc exit 0, montoSugerido check 8 OK. Route: same writer.
+- [x] T8 Docs updated (spec financiero, reglas-negocio, estado-supabase/expo/web).
+- Known limits: subcomisión select/update/delete still keyed on `division_id` sport (multi-sport recaudación visible to a single-sport subco only if its first division matches); old cobranza rows for players outside the event's divisions can no longer be updated by managers.
+
 ## Delivery
 - PR #13 https://github.com/AgusMuzi79/rugby_app_gestion/pull/13 (origin/main merged into branch; migration renamed 20261014→20261015 to avoid collision with division_automatica_por_servicio). Review approved + acknowledged on the full diff vs origin/main.
 - Production steps blocked for the agent by the permission classifier (production reads/writes): backup, `supabase db push`, `eas update --branch production` pending, to be run by the user or after granting permission.

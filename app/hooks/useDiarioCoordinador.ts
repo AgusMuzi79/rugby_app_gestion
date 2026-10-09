@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import {
+  SELECT_DIVISIONES_EVENTO,
+  divisionesDeEvento,
+  type EventoDivisionesRow,
+} from './useEventos'
 
 export interface EventoSemana {
   id:             string
@@ -71,9 +76,8 @@ export function useDiarioCoordinador() {
 
       type DivJoin = { nombre: string } | null
 
-      // Cobranzas activas: eventos globales + por división
-      const divFilter = divIds.map(id => `division_id.eq.${id}`).join(',')
-
+      // Cobranzas activas: eventos globales + los que incluyen alguna división
+      // (la RLS ya acota a eso; las divisiones salen de eventos_financieros_divisiones)
       const [divsRes, semanaRes, eventos30Res, cobranzasActivasRes] = await Promise.all([
         supabase.from('divisiones').select('id, nombre').in('id', divIds).order('nombre'),
         supabase.from('eventos')
@@ -88,17 +92,17 @@ export function useDiarioCoordinador() {
           .eq('cancelado', false)
           .order('fecha', { ascending: false }),
         supabase.from('eventos_financieros')
-          .select('division_id')
-          .eq('estado', 'activo')
-          .or(`${divFilter},division_id.is.null`),
+          .select(SELECT_DIVISIONES_EVENTO)
+          .eq('estado', 'activo'),
       ])
 
       const divs = divsRes.data ?? []
 
-      // Set de divisiones con cobranza activa (null = global → todas)
-      const tieneGlobalActiva = (cobranzasActivasRes.data ?? []).some(e => e.division_id === null)
-      const activeDivIds      = new Set((cobranzasActivasRes.data ?? [])
-        .filter(e => e.division_id !== null).map(e => e.division_id as string))
+      // Set de divisiones con cobranza activa (sin divisiones = global → todas)
+      const divsPorEvento     = ((cobranzasActivasRes.data ?? []) as unknown as EventoDivisionesRow[])
+        .map(divisionesDeEvento)
+      const tieneGlobalActiva = divsPorEvento.some(d => d.length === 0)
+      const activeDivIds      = new Set(divsPorEvento.flat().map(d => d.id))
 
       // Eventos semana con cobranza
       const eventosSemana: EventoSemana[] = (semanaRes.data ?? []).map(ev => ({

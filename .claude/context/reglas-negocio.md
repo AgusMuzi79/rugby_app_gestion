@@ -7,7 +7,8 @@
 - **Cuotas de socios:** pago por alias bancario `cuenta.uncas.rugby`. El socio sube foto del comprobante desde la app → estado pasa a `en_revision`. Secretaría aprueba manualmente desde el panel web. Sin integración bancaria en MVP; Banco Macro previsto para el futuro.
 - **Fichajes:** el Manager tiene autoridad directa. Sin flujo de aprobación.
 - **Eventos de recaudación:** los crea la Subcomisión y los cierra manualmente. Sin vencimiento automático.
-- **Viajes y tercer tiempos (2026-10-09):** los crea y cierra el Manager de cada división, sólo para su división. La Subcomisión ya no los crea (sí los ve, cierra y borra como supervisión).
+- **Viajes y tercer tiempos (2026-10-09):** los crea el Manager. La Subcomisión ya no los crea (sí los ve, cierra y borra como supervisión).
+- **Eventos multi-división (2026-10-09):** viaje, tercer tiempo y recaudación pueden incluir varias divisiones. El Manager elige cualquier división de su disciplina (las suyas preseleccionadas, mínimo una) y ve/cierra los eventos que creó o que incluyen alguna división suya. La recaudación de Subcomisión es de todo el club (sin divisiones) o de divisiones elegidas. En Cobranzas cada Manager cobra sólo a los jugadores de sus divisiones incluidas en el evento (todas las suyas si es de todo el club), usando todas sus divisiones, no sólo la primera.
 - **Resultados deportivos:** solo disponibles para divisiones juveniles en adelante. Infantiles no tienen marcador.
 - **Alerta de inasistencias:** se dispara al superar 4 ausencias **consecutivas** (no acumuladas). Notifica al Coordinador.
 - **Administración del sistema:** la Subcomisión gestiona alta y baja de todos los usuarios. Sin perfil técnico separado.

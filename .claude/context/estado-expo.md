@@ -54,7 +54,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 |---|---|---|
 | `(subcomision)/diario.tsx` | `useDiarioSubcomision.ts` | 5 queries paralelas — asistencia±30D/variación, lesiones activas grado≥3, fichajes 7D, notif recientes |
 | `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | Lista/detalle/crear/desactivar/reactivar. Detalle invoca `getUser` para email. Edición divisiones in-place + actualización optimista |
-| `(subcomision)/eventos.tsx` | `useEventos.ts` | `EventoItem` con join `cobranzas(estado,monto)`. `monto_sugerido` en campo `descripcion`. Cerrar = UPDATE estado='cerrado' con confirmación. Exporta `EventosPantalla({ modo })`; en modo `subcomision` lista todos los eventos y sólo crea recaudaciones globales |
+| `(subcomision)/eventos.tsx` | `useEventos.ts` | `EventoItem` con join `cobranzas(estado,monto)`. `monto_sugerido` en campo `descripcion`. Cerrar = UPDATE estado='cerrado' con confirmación. Exporta `EventosPantalla({ modo })`; en modo `subcomision` lista todos los eventos y sólo crea recaudaciones (toggle "Todo el club" o elegir divisiones). Alta vía RPC `crear_evento_financiero`. Divisiones del evento desde `eventos_financieros_divisiones` (helpers `divisionesDeEvento`/`etiquetaDivisiones` exportados por `useEventos.ts`, etiqueta "M15 · M16"; los usan también diarios, dashboard, informes y cobranzas) |
 | `(subcomision)/informes.tsx` | `useInformes.ts` | Asistencia per-jugador (join 3-nivel), W/L/D, fichajes+financiero con `forma_de_pago` breakdown. Filtro client-side por `divisionFiltro` |
 | `(subcomision)/notificaciones.tsx` | `useNotificaciones.ts` | Modal nueva notif (título/mensaje/rol), historial, push via Edge Function |
 | `(subcomision)/cronica.tsx` | `useCronica.ts` | Compartido |
@@ -66,7 +66,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 
 | Pantalla | Hook | Notas clave |
 |---|---|---|
-| `(coordinador)/diario.tsx` | `useDiarioCoordinador.ts` | 4 queries paralelas — divisiones, eventos próximos 7D, eventos últimos 30D, cobranzas activas. Calcula `EventoSemana[]`, `AlertaJugador[]`, `BarraAsistencia[]`. `.or()` dinámico para cobranzas por división + globales |
+| `(coordinador)/diario.tsx` | `useDiarioCoordinador.ts` | 4 queries paralelas — divisiones, eventos próximos 7D, eventos últimos 30D, cobranzas activas. Calcula `EventoSemana[]`, `AlertaJugador[]`, `BarraAsistencia[]`. Cobranzas activas = globales + las que incluyen alguna de sus divisiones (tabla `eventos_financieros_divisiones`) |
 | `(coordinador)/calendario.tsx` | `useCalendario.ts` | Divisiones desde `profile.divisiones`. Rango -30/+60 días. `crearEvento` con validación; inserta una fila por división elegida (varias en entrenamientos, hasta 2 sólo en partidos de rugby). `cancelarEvento` titula "Partido/Entrenamiento cancelado" según el tipo |
 | `(coordinador)/asistencia.tsx` | `useAsistenciaCoordinador.ts` | 3 queries paralelas. Consecutivas: últimos 4 eventos de la división todos 'ausente'. Selector división con refetch |
 | `(coordinador)/cronica.tsx` | `useCronica.ts` | Compartido |
@@ -87,9 +87,9 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 
 | Pantalla | Hook | Notas clave |
 |---|---|---|
-| `(manager)/diario.tsx` | `useDiarioManager.ts` | 3 queries paralelas. `EventoProgreso` incluye `esGlobal` (division_id IS NULL), `pct`, `montoCobrado`, `montoTotal` |
-| `(manager)/cobranzas.tsx` | `useCobranzas.ts` | Upsert por `evento_financiero_id,jugador_id`. Barra progreso ORO, modal PAGADO/PENDIENTE, forma de pago (3 botones) |
-| `(manager)/eventos.tsx` | `useEventos.ts` (modo `manager`) | Tab oculto. Reusa `EventosPantalla` de `(subcomision)/eventos.tsx`: lista viajes/tercer tiempos de su división (`profiles.divisiones[0]`), crea (tipo viaje/tercer tiempo, división fija) y cierra. Accesos: botón en `(manager)/diario.tsx` y `(manager)/cobranzas.tsx` |
+| `(manager)/diario.tsx` | `useDiarioManager.ts` | 3 queries paralelas. Usa todas las divisiones del manager. `EventoProgreso` incluye `esGlobal` (evento sin divisiones), `pct`, `montoCobrado`, `montoTotal` |
+| `(manager)/cobranzas.tsx` | `useCobranzas.ts` | Upsert por `evento_financiero_id,jugador_id`. Barra progreso ORO, modal PAGADO/PENDIENTE, forma de pago (3 botones). Usa todas las divisiones del manager: eventos globales o que incluyen alguna suya; jugadores = activos de (divisiones del evento ∩ suyas), o todas las suyas si es global, con la división de cada jugador cuando hay más de una; % cobrado sobre ese mismo conjunto |
+| `(manager)/eventos.tsx` | `useEventos.ts` (modo `manager`) | Tab oculto. Reusa `EventosPantalla` de `(subcomision)/eventos.tsx`: lista viajes/tercer tiempos que creó o que incluyen alguna de sus divisiones (todas, no sólo `[0]`), crea (tipo viaje/tercer tiempo + chips multi-selección de divisiones activas de su disciplina, las suyas preseleccionadas, mínimo una) y cierra. Accesos: botón en `(manager)/diario.tsx` y `(manager)/cobranzas.tsx` |
 | `(manager)/fichajes.tsx` | `useFichajes.ts` | Upload docs a Storage bucket `fichajes` (base64 via expo-file-system). `abrirDocumento`: signed URL 60s → `Linking.openURL`. Validación fecha: `if (!fechaNacimiento)` (no regex) |
 | `(manager)/cronica.tsx` | `useCronica.ts` | Compartido |
 | `(manager)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
