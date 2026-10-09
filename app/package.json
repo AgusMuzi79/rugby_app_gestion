@@ -7,7 +7,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "version:bump": "node scripts/bump-version.mjs"
+    "version:bump": "node scripts/bump-version.mjs",
+    "test:admin": "npx --yes tsx@4.20.6 lib/comunicadosAdmin.check.ts && npx --yes tsx@4.20.6 lib/sistemaAdmin.check.ts"
   },
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",

@@ -31,7 +31,7 @@ const ROL_RUTAS: Record<string, string> = {
   coordinador: '/(coordinador)/diario',
   entrenador:  '/(entrenador)/diario',
   manager:     '/(manager)/diario',
-  admin:       '/(subcomision)/diario',
+  admin:       '/(admin)/usuarios',
   secretaria:  '/(secretaria)/diario',
   porteria:    '/(porteria)/scanner',
   canchero:    '/(porteria)/scanner',

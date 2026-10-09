@@ -39,7 +39,8 @@ export const ROL_RUTA_INICIAL: Record<Rol, string> = {
   coordinador: '/(coordinador)/diario',
   entrenador:  '/(entrenador)/diario',
   manager:     '/(manager)/diario',
-  admin:       '/(subcomision)/diario',
+  // Own group since 2026-10-09: no player/attendance data, see (admin)/_layout.
+  admin:       '/(admin)/usuarios',
   secretaria:  '/(secretaria)/diario',
   porteria:    '/(porteria)/scanner',
   canchero:    '/(porteria)/scanner',
