@@ -94,7 +94,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10).
 - **iOS:** versión 1.0.8 (build 22) **"In Review"** en App Store Connect; la 1.0.7 sigue publicada. La 1.0.8 está en **publicación manual**: cuando Apple la apruebe hay que tocar "Release This Version".
 - **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad). Llega a quien tenga la 1.0.8 instalada; en iOS recién cuando se publique la 1.0.8.
-- **OTA de eventos financieros PENDIENTE** (2026-10-09): las migraciones ya están en prod pero al 2026-10-09 la última OTA en `production` es "Icono y deporte en el calendario del socio". Hasta publicarla, la app de Subcomisión no puede crear viajes/tercer tiempos y el Manager no tiene la pantalla. Publicar desde el checkout principal (necesita `app/.env.local`): `cd app && npx eas update --branch production`.
+- **OTA sobre 1.0.8** (2026-10-09, `eas update --branch production`, Android + iOS, grupo `36c30c7b`): Manager crea viajes/tercer tiempos, eventos con varias divisiones, monto sugerido en cobranzas. Las OTA se publican desde el checkout principal (necesitan `app/.env.local`, que los worktrees no tienen).
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):

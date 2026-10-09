@@ -45,7 +45,7 @@ Design (assumed, user may override):
 - PR #13 https://github.com/AgusMuzi79/rugby_app_gestion/pull/13 (origin/main merged into branch; migration renamed 20261014→20261015 to avoid collision with division_automatica_por_servicio). Review approved + acknowledged on the full diff vs origin/main.
 - PR #13 merged (116e86a) and PR #15 merged (df0b618), 2026-10-09.
 - 2026-10-09, run by the agent with user authorization: backup OK at `~/backups-uncas/2026-10-09-15-56-12` (first attempt failed on auth.sql with a pooler timeout; retry succeeded); `supabase migration list` showed only 20261015000000 and 20261016000000 pending; `supabase db push` applied both.
-- OTA still PENDING: the agent cannot create `app/.env.local` in the worktree (deny rule), so the user publishes from the main checkout. As of 2026-10-09 the latest `production` update is "Icono y deporte en el calendario del socio", not this feature.
+- OTA published by the user from the main checkout (the agent cannot create `app/.env.local` in the worktree): 2026-10-09, branch `production`, runtime 1.0.8, android+ios, group 36c30c7b-a4cf-4ead-85ba-113c961a33e3. Verified with `eas update:list`. Feature delivered.
 
 ## Follow-ups
 - Apply migration to production (pending user approval; run backup first).
