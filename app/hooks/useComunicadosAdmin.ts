@@ -36,21 +36,27 @@ export function useComunicadosAdmin() {
 
   const fetchComunicados = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('noticias')
-      .select('id, titulo, cuerpo, audiencia, publicada, created_at')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    try {
+      const { data, error } = await supabase
+        .from('noticias')
+        .select('id, titulo, cuerpo, audiencia, publicada, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50)
 
-    // A failed read clears the list so it is not mistaken for current data.
-    if (error) {
-      setErrorCarga(error.message)
+      // A failed read clears the list so it is not mistaken for current data.
+      if (error) {
+        setErrorCarga(error.message)
+        setComunicados([])
+      } else {
+        setErrorCarga(null)
+        setComunicados((data ?? []).map(n => ({ ...n, audiencia: normalizarAudiencia(n.audiencia) })))
+      }
+    } catch (e) {
+      setErrorCarga(e instanceof Error ? e.message : 'Error de conexión.')
       setComunicados([])
-    } else {
-      setErrorCarga(null)
-      setComunicados((data ?? []).map(n => ({ ...n, audiencia: normalizarAudiencia(n.audiencia) })))
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => { fetchComunicados() }, [fetchComunicados])
@@ -99,7 +105,14 @@ export function useComunicadosAdmin() {
   }, [session, fetchComunicados])
 
   const eliminar = useCallback(async (id: string): Promise<boolean> => {
-    const { data, error } = await supabase.from('noticias').delete().eq('id', id).select('id')
+    let data: { id: string }[] | null = null
+    let error: { message: string } | null = null
+    try {
+      ({ data, error } = await supabase.from('noticias').delete().eq('id', id).select('id'))
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el comunicado.')
+      return false
+    }
     const resultado = resultadoBorrado(error, data)
 
     if (resultado === 'error') {

@@ -23,6 +23,7 @@ Admin is routed to `/(subcomision)/diario` and sees the same tabs as subcomisió
 - [x] T2 — Comunicados tab (delegated writer) — `708ff35`
 - [x] T3 — Sistema tab (delegated writer) — `efcdbcc`
 - [x] T4 — Review fixes in Comunicados/Sistema: visible load error, confirmed delete, unknown audience, publicando reset, tsx checks (delegated writer) — `38a81c9`
+- [x] T5 — Second review advisories: header label fallback, try/finally in fetches, guarded delete, tsx pinned to 4.20.6 (inline, mechanical)
 
 ## Checks
 - `npx tsc --noEmit` in `app/`
@@ -36,7 +37,10 @@ Admin is routed to `/(subcomision)/diario` and sees the same tabs as subcomisió
 - 2026-10-09 T3 (`efcdbcc`): `(admin)/sistema.tsx` + `hooks/useSistemaAdmin.ts`. Last 5 imports per table, last 10 debt-reminder runs, push token count. RLS allows admin SELECT on all five tables; a failed read is rendered as "No disponible".
 - 2026-10-09 T4 (`38a81c9`): review fixes. Comunicados load error now shows "No se pudieron cargar los comunicados." + REINTENTAR (list cleared) instead of the empty state. Delete uses `.select('id')`; zero rows (RLS or already removed) alerts and refetches, only a returned row removes it locally. Unknown `audiencia` values render as "SIN DEFINIR" (`AudienciaMostrada`), no longer coerced to `todos`. `publicar` uses try/finally so `publicando` always resets; a throw alerts and returns false. Pure logic in `app/lib/comunicadosAdmin.ts` / `app/lib/sistemaAdmin.ts` (no RN/supabase imports), used by both hooks.
 
+- 2026-10-09 T5: UsuariosScreen header uses ROL_LABELS[rol]?.toUpperCase() ?? ''; fetchComunicados/fetchSistema use try/finally (thrown errors show error state / "No disponible"); eliminar catches thrown errors; test:admin pins tsx@4.20.6 (not added as devDependency because the worktree node_modules is a junction to the main checkout).
+
 ## Verification evidence
+- T5: npm run test:admin -> 7 + 6 casos ok; npx tsc --noEmit -> only the 2 pre-existing socios.tsx errors.
 - `npx tsc --noEmit` (app/): only 2 pre-existing errors in `app/(secretaria)/socios.tsx` (lines 112-113), identical on base; no new errors.
 - No `test` script in `app/package.json` before T4; no runnable RED for navigation/UI screens (structural + typecheck only).
 - T4 RED: `npx --yes tsx lib/comunicadosAdmin.check.ts` → `Error: Cannot find module './comunicadosAdmin'`, exit 1 (same for sistemaAdmin) before the lib files existed.

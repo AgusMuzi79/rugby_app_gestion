@@ -90,7 +90,7 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   return (
     <View style={s.root}>
       <View style={s.header}>
-        <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol].toUpperCase() : ''}</Text>
+        <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
         <Text style={s.headerTitle}>Usuarios</Text>
         <Text style={s.headerSub}>{activos.length} activos · {inactivos.length} inactivos</Text>
       </View>

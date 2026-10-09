@@ -52,40 +52,52 @@ export function useSistemaAdmin() {
 
   const fetchSistema = useCallback(async () => {
     setLoading(true)
-    const [socios, deuda, servicios, recordatorios, tokens] = await Promise.all([
-      supabase
-        .from('importaciones_socios')
-        .select('id, created_at, archivo_nombre, altas, bajas, actualizados, sin_cambio, errores')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('importaciones_deuda')
-        .select('id, created_at, fecha_corte, archivo_nombre, personas, socios_matcheados, sin_match, reconcilia')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('importaciones_servicios')
-        .select('id, created_at, archivo_nombre, agregados, actualizados, eliminados, omitidos, sin_cambio, errores')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('recordatorios_deuda_envios')
-        .select('id, ejecutado_at, mes, estado, motivo, destinatarios, enviados, sin_token')
-        .order('ejecutado_at', { ascending: false })
-        .limit(10),
-      supabase
-        .from('push_tokens')
-        .select('id', { count: 'exact', head: true }),
-    ])
+    try {
+      const [socios, deuda, servicios, recordatorios, tokens] = await Promise.all([
+        supabase
+          .from('importaciones_socios')
+          .select('id, created_at, archivo_nombre, altas, bajas, actualizados, sin_cambio, errores')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('importaciones_deuda')
+          .select('id, created_at, fecha_corte, archivo_nombre, personas, socios_matcheados, sin_match, reconcilia')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('importaciones_servicios')
+          .select('id, created_at, archivo_nombre, agregados, actualizados, eliminados, omitidos, sin_cambio, errores')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('recordatorios_deuda_envios')
+          .select('id, ejecutado_at, mes, estado, motivo, destinatarios, enviados, sin_token')
+          .order('ejecutado_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('push_tokens')
+          .select('id', { count: 'exact', head: true }),
+      ])
 
-    setSistema({
-      importacionesSocios:    seccionOVacia(socios),
-      importacionesDeuda:     seccionOVacia(deuda),
-      importacionesServicios: seccionOVacia(servicios),
-      recordatoriosDeuda:     seccionOVacia(recordatorios),
-      pushTokens:             conteoOVacio(tokens),
-    })
-    setLoading(false)
+      setSistema({
+        importacionesSocios:    seccionOVacia(socios),
+        importacionesDeuda:     seccionOVacia(deuda),
+        importacionesServicios: seccionOVacia(servicios),
+        recordatoriosDeuda:     seccionOVacia(recordatorios),
+        pushTokens:             conteoOVacio(tokens),
+      })
+    } catch {
+      // A thrown query (network, abort) marks every section as unavailable.
+      setSistema({
+        importacionesSocios:    null,
+        importacionesDeuda:     null,
+        importacionesServicios: null,
+        recordatoriosDeuda:     null,
+        pushTokens:             null,
+      })
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchSistema() }, [fetchSistema])
