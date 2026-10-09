@@ -24,7 +24,8 @@ export interface EventoCalendario {
 
 export interface NuevoEventoForm {
   tipo: TipoEvento
-  division_id: string
+  // One event row is created per selected division.
+  division_ids: string[]
   fecha: string
   hora: string
   lugar: string
@@ -32,9 +33,28 @@ export interface NuevoEventoForm {
   modalidad: ModalidadPartido | ''
 }
 
+// Only rugby plays partidos shared by two divisions; other sports use one division per partido.
+export const MAX_DIVISIONES_PARTIDO = 2
+
+type DivisionDeporte = { id: string; deporte: string }
+
+export function partidoMultiDivisionValido(ids: string[], divisiones: DivisionDeporte[]): boolean {
+  if (ids.length <= 1) return true
+  return ids.length <= MAX_DIVISIONES_PARTIDO
+    && ids.every(id => divisiones.find(d => d.id === id)?.deporte === 'rugby')
+}
+
+// Keeps the first selected division, plus the next rugby one when the first is rugby.
+export function recortarParaPartido(ids: string[], divisiones: DivisionDeporte[]): string[] {
+  const esRugby = (id: string) => divisiones.find(d => d.id === id)?.deporte === 'rugby'
+  if (ids.length === 0) return ids
+  if (!esRugby(ids[0])) return [ids[0]]
+  return ids.filter(esRugby).slice(0, MAX_DIVISIONES_PARTIDO)
+}
+
 const FORM_VACIO: NuevoEventoForm = {
   tipo: 'entrenamiento',
-  division_id: '',
+  division_ids: [],
   fecha: '',
   hora: '',
   lugar: '',
@@ -53,7 +73,7 @@ export interface UseCalendarioReturn {
   setForm: (form: NuevoEventoForm) => void
   resetForm: () => void
   crearEvento: () => Promise<boolean>
-  cancelarEvento: (id: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
+  cancelarEvento: (id: string, tipo: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
   cancelando: boolean
   errorCancelacion: string | null
   recargar: () => void
@@ -100,7 +120,7 @@ export function useCalendario(): UseCalendarioReturn {
 
     setForm(prev => ({
       ...prev,
-      division_id: prev.division_id || (divs[0]?.id ?? ''),
+      division_ids: prev.division_ids.length > 0 ? prev.division_ids : (divs[0] ? [divs[0].id] : []),
     }))
 
     const hace30 = new Date()
@@ -167,15 +187,19 @@ export function useCalendario(): UseCalendarioReturn {
   function resetForm() {
     setForm({
       ...FORM_VACIO,
-      division_id: divisiones[0]?.id ?? '',
+      division_ids: divisiones[0] ? [divisiones[0].id] : [],
     })
     setErrorGuardado(null)
   }
 
   async function crearEvento(): Promise<boolean> {
     if (!session) return false
-    if (!form.division_id || !form.fecha) {
+    if (form.division_ids.length === 0 || !form.fecha) {
       setErrorGuardado('División y fecha son obligatorias.')
+      return false
+    }
+    if (form.tipo === 'partido' && !partidoMultiDivisionValido(form.division_ids, divisiones)) {
+      setErrorGuardado(`Solo un partido de rugby puede tener hasta ${MAX_DIVISIONES_PARTIDO} divisiones.`)
       return false
     }
     if (form.tipo === 'partido' && !form.rival.trim()) {
@@ -186,19 +210,23 @@ export function useCalendario(): UseCalendarioReturn {
     setGuardando(true)
     setErrorGuardado(null)
 
-    console.log('[calendario] Creando evento:', { tipo: form.tipo, division_id: form.division_id, fecha: form.fecha })
+    console.log('[calendario] Creando evento:', { tipo: form.tipo, division_ids: form.division_ids, fecha: form.fecha })
 
-    const { error } = await supabase.from('eventos').insert({
+    // Single insert: either every division gets its event or none does.
+    const { error } = await supabase.from('eventos').insert(form.division_ids.map(divisionId => ({
       tipo: form.tipo,
-      division_id: form.division_id,
+      division_id: divisionId,
       fecha: form.fecha,
       hora: form.hora.trim() || null,
       lugar: form.lugar.trim() || null,
       rival: form.tipo === 'partido' ? (form.rival.trim() || null) : null,
-      modalidad: form.tipo === 'partido' ? (form.modalidad || null) : null,
+      // A partido may mix a tennis and a non-tennis division; modalidad only applies to tennis.
+      modalidad: form.tipo === 'partido' && divisiones.find(d => d.id === divisionId)?.deporte === 'tenis'
+        ? (form.modalidad || null)
+        : null,
       creado_por: session.user.id,
       cancelado: false,
-    })
+    })))
 
     setGuardando(false)
 
@@ -215,6 +243,7 @@ export function useCalendario(): UseCalendarioReturn {
 
   async function cancelarEvento(
     id: string,
+    tipo: string,
     divisionId: string,
     divisionNombre: string,
     fecha: string,
@@ -240,8 +269,9 @@ export function useCalendario(): UseCalendarioReturn {
     setEventos(prev => prev.filter(e => e.id !== id))
 
     // Publicar noticia automática
+    const etiqueta = tipo === 'partido' ? 'Partido' : 'Entrenamiento'
     await supabase.from('noticias').insert({
-      titulo:                  `Entrenamiento cancelado — ${divisionNombre}`,
+      titulo:                  `${etiqueta} cancelado — ${divisionNombre}`,
       cuerpo:                  mensaje,
       autor_id:                session.user.id,
       publicada:               true,
@@ -254,7 +284,7 @@ export function useCalendario(): UseCalendarioReturn {
     void supabase.functions.invoke('notifications', {
       body: {
         type: 'cancelacion_entrenamiento',
-        payload: { divisionId, divisionNombre, mensaje, fecha },
+        payload: { divisionId, divisionNombre, mensaje, fecha, tipoEvento: tipo },
       },
     })
 

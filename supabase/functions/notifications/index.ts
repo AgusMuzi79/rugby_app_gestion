@@ -33,6 +33,8 @@ interface CancelacionPayload {
   divisionNombre: string
   mensaje:        string
   fecha:          string
+  // Older app builds don't send it; they only cancelled trainings.
+  tipoEvento?:    string
 }
 
 // ─── Caller autorizado por tipo de notificación ─────────────────────────────────
@@ -193,7 +195,8 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen
 }
 
 async function notificarCancelacion(p: CancelacionPayload): Promise<void> {
-  const titulo  = `Entrenamiento cancelado — ${p.divisionNombre}`
+  const etiqueta = p.tipoEvento === 'partido' ? 'Partido' : 'Entrenamiento'
+  const titulo  = `${etiqueta} cancelado — ${p.divisionNombre}`
   const mensaje = p.mensaje
   const tokens  = await getTokensJugadoresDivision(p.divisionId)
   await enviarExpoPush(tokens, titulo, mensaje, {
