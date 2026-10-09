@@ -43,5 +43,8 @@ Subcomisión (rugby, hockey, tenis) needs to communicate with members. "Notifica
 - T3 (delegated writer) — commit 7f66262. `web/app/(subcomision)/noticias/page.tsx` + `web/lib/noticiaSubcomision.ts` (copy of the app helper; web does not import from app/) + Sidebar entry. `npx tsc --noEmit` (web) clean. ESLint skipped: no eslint config in web/.
 - Push failure after a successful insert shows a warning but keeps the noticia; image upload failure blocks publishing; a failed insert removes the uploaded image.
 
+- Native review (RDD on): assessed medium, `slice_budget_reached`; consent granted by Agus; lens review-reliability → approved, acknowledged (lineage review-7f46ff74ae9bb753, authority burned). Reviewed boundary advances to 7f66262 (+ doc commit).
+- Non-blocking follow-ups from review: Crónica "+ NUEVA NOTICIA" navigates to `/(subcomision)/noticias` even for admin (check admin group); deporte fetch race — publishing before `profiles.deporte` loads saves empty etiquetas (mobile + web); list/delete is unscoped (subco sees and can delete every noticia, incl. secretaría/buffet); web helper copy and publish failure paths are untested; web image extension/objectURL handling.
+
 ## Next step
 T4: deploy the `notifications` Edge Function after Agus OKs it (until then, subcomisión publishes succeed but the push returns 403 and the UI shows the "no se pudo enviar la notificación" warning). Mobile ships via OTA/build when Agus asks.
