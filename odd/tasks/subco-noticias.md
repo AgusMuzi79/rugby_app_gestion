@@ -25,7 +25,7 @@ Subcomisión (rugby, hockey, tenis) needs to communicate with members. "Notifica
 - [x] T1 — Pure helper `buildNoticiaSubcomision` (+ `.check.ts`) and Edge Function role change. Route: delegated (writer trigger, 2+ files).
 - [x] T2 — Mobile Noticias tab + hook + Crónica fixes + remove dead path. Route: delegated.
 - [x] T3 — Web `(subcomision)/noticias` page + nav. Route: delegated.
-- [ ] T4 — Deploy `notifications` Edge Function (needs Agus's OK).
+- [x] T4 — Deploy `notifications` Edge Function (needs Agus's OK). Deployed 2026-10-09 15:48 UTC as v21 after Agus's OK; deployed v20 was diffed first (only difference was this change); v21 verified to contain `subcomision`.
 
 ## Acceptance criteria
 - Subco creates a noticia (title only, title+description, with/without image) on app and web; it appears in the member Noticias feed and opens in the detail modal.
