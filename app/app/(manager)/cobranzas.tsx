@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import {
   useCobranzas,
   EventoFinanciero,
@@ -293,6 +294,7 @@ export default function CobranzasScreen() {
     toggleEstado, actualizarMonto, actualizarFormaDePago,
     guardarCobranzas,
   } = useCobranzas()
+  const router = useRouter()
 
   const [modalJugadorId, setModalJugadorId] = useState<string | null>(null)
   const jugadorModal = jugadores.find(j => j.jugadorId === modalJugadorId) ?? null
@@ -339,7 +341,7 @@ export default function CobranzasScreen() {
             <View style={s.emptyWrap}>
               <Text style={s.emptyTexto}>Sin eventos activos.</Text>
               <Text style={s.emptySubtexto}>
-                La Subcomisión o el Coordinador deben crear viajes, tercer tiempos o recaudaciones.
+                Podés crear viajes y tercer tiempos de tu división. Las recaudaciones las crea la Subcomisión.
               </Text>
             </View>
           ) : (
@@ -349,6 +351,14 @@ export default function CobranzasScreen() {
               ))}
             </View>
           )}
+
+          <TouchableOpacity
+            style={s.gestionarBtn}
+            onPress={() => router.navigate('/(manager)/eventos')}
+            activeOpacity={0.8}
+          >
+            <Text style={s.gestionarBtnTexto}>VIAJES Y TERCER TIEMPOS →</Text>
+          </TouchableOpacity>
         </ScrollView>
       )}
 
@@ -470,6 +480,8 @@ const s = StyleSheet.create({
   emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic' },
   emptySubtexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 14, lineHeight: 18 },
   emptyWrap:     { gap: 6, marginTop: 8 },
+  gestionarBtn:      { marginTop: 20, borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingVertical: 14, alignItems: 'center' },
+  gestionarBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, fontWeight: '700' },
   eventosWrap:   { gap: 12, marginTop: 8 },
 
   // Evento card

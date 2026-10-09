@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { montoInicialCobranza } from '@/lib/montoSugerido'
 
 export type FormaDePago  = 'efectivo' | 'transferencia' | 'otro'
 export type EstadoPago   = 'pagado' | 'pendiente'
@@ -195,7 +196,7 @@ export function useCobranzas() {
           jugadorId:   j.id,
           nombre:      j.nombre_completo,
           estado:      (c?.estado as EstadoPago) ?? 'pendiente',
-          monto:       c?.monto != null ? String(c.monto) : '',
+          monto:       montoInicialCobranza(c?.monto, ev.descripcion),
           formaDePago: (c?.forma_de_pago as FormaDePago | null) ?? null,
         }
       }),

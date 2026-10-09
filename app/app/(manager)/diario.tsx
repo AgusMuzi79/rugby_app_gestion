@@ -177,6 +177,13 @@ export default function DiarioManagerScreen() {
                 ))}
               </View>
             )}
+            <TouchableOpacity
+              style={s.verTodosBtn}
+              onPress={() => router.navigate('/(manager)/eventos')}
+              activeOpacity={0.75}
+            >
+              <Text style={s.verTodosBtnText}>VIAJES Y TERCER TIEMPOS →</Text>
+            </TouchableOpacity>
           </View>
 
           {/* ── PEDIDO DE SUBCOMISIÓN ── */}

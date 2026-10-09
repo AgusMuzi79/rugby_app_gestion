@@ -16,12 +16,15 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import {
   useEventos,
+  TIPOS_MANAGER,
+  type ModoEventos,
   type TipoEvento,
   type EventoItem,
   type EventoDetalle,
   type NuevoEventoForm,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
+import { montoSugeridoDe } from '@/lib/montoSugerido'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -54,11 +57,7 @@ const TIPO_MODAL_LABEL: Record<TipoEvento, string> = {
   tercer_tiempo: 'TERCER\nTIEMPO',
 }
 
-function parseMonto(desc: string | null): number | null {
-  if (!desc) return null
-  const n = parseFloat(desc.replace(',', '.'))
-  return isNaN(n) || n <= 0 ? null : n
-}
+const parseMonto = montoSugeridoDe
 
 function formatFecha(fecha: string | null): string {
   if (!fecha) return ''
@@ -187,7 +186,7 @@ function EventoDetalleContent({
   function confirmarCierre() {
     Alert.alert(
       'Cerrar evento',
-      '¿Cerrar este evento? Los managers ya no podrán registrar nuevos pagos ni pedidos.',
+      '¿Cerrar este evento? Ya no se podrán registrar nuevos pagos ni pedidos.',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Cerrar', style: 'destructive', onPress: onCerrar },
@@ -330,17 +329,17 @@ function EventoDetalleContent({
 
 // ─── Modal nuevo evento ───────────────────────────────────────────────────────
 
+// Subcomisión sólo crea recaudaciones globales (sin selector de tipo ni división).
+// Manager elige viaje o tercer tiempo; la división es siempre la suya.
 function ModalNuevoEvento({
-  visible, onClose, onGuardar, divisiones, form, setForm, guardando, error,
+  visible, onClose, onGuardar, modo, divisionNombre, form, setForm, guardando, error,
 }: {
   visible: boolean; onClose: () => void; onGuardar: () => Promise<void>
-  divisiones: Array<{ id: string; nombre: string }>
+  modo: ModoEventos; divisionNombre: string | null
   form: NuevoEventoForm; setForm: (f: NuevoEventoForm) => void
   guardando: boolean; error: string | null
 }) {
-  function setTipo(t: TipoEvento) {
-    setForm({ ...form, tipo: t, divisionId: t === 'recaudacion' ? null : form.divisionId })
-  }
+  const esManager = modo === 'manager'
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -348,8 +347,8 @@ function ModalNuevoEvento({
         <SafeAreaView style={s.modalContainer}>
           <View style={s.modalHeader}>
             <View>
-              <Text style={s.modalSuper}>NUEVO</Text>
-              <Text style={s.modalTitulo}>Evento</Text>
+              <Text style={s.modalSuper}>{esManager ? 'NUEVO' : 'NUEVA'}</Text>
+              <Text style={s.modalTitulo}>{esManager ? 'Evento' : 'Recaudación'}</Text>
             </View>
             <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalCloseBtn}>
               <Ionicons name="close" size={20} color={MUTED} />
@@ -358,58 +357,50 @@ function ModalNuevoEvento({
           <View style={s.separador} />
 
           <ScrollView style={s.scrollFlex} contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
-            {/* Tipo */}
-            <View style={s.campo}>
-              <Text style={s.campoLabel}>TIPO</Text>
-              <View style={s.tipoRow}>
-                {(['recaudacion', 'viaje', 'tercer_tiempo'] as TipoEvento[]).map(t => {
-                  const activo = form.tipo === t
-                  return (
-                    <TouchableOpacity
-                      key={t}
-                      style={[s.tipoBtn, activo && s.tipoBtnActivo]}
-                      onPress={() => setTipo(t)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
-                        {TIPO_MODAL_LABEL[t]}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-            </View>
-
-            {form.tipo !== 'recaudacion' && (
-              <View style={s.campo}>
-                <Text style={s.campoLabel}>DIVISIÓN</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={s.divRow}>
-                    {divisiones.map(d => {
-                      const activo = form.divisionId === d.id
+            {esManager ? (
+              <>
+                <View style={s.campo}>
+                  <Text style={s.campoLabel}>TIPO</Text>
+                  <View style={s.tipoRow}>
+                    {TIPOS_MANAGER.map(t => {
+                      const activo = form.tipo === t
                       return (
                         <TouchableOpacity
-                          key={d.id}
-                          style={[s.divPill, activo && s.divPillActiva]}
-                          onPress={() => setForm({ ...form, divisionId: d.id })}
+                          key={t}
+                          style={[s.tipoBtn, activo && s.tipoBtnActivo]}
+                          onPress={() => setForm({ ...form, tipo: t })}
                           activeOpacity={0.8}
                         >
-                          <Text style={[s.divPillTexto, activo && s.divPillTextoActivo]}>
-                            {d.nombre}
+                          <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
+                            {TIPO_MODAL_LABEL[t]}
                           </Text>
                         </TouchableOpacity>
                       )
                     })}
                   </View>
-                </ScrollView>
-              </View>
+                </View>
+
+                <View style={s.campo}>
+                  <Text style={s.campoLabel}>DIVISIÓN</Text>
+                  <View style={s.divRow}>
+                    <View style={[s.divPill, s.divPillActiva]}>
+                      <Text style={[s.divPillTexto, s.divPillTextoActivo]}>{divisionNombre ?? '—'}</Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <Text style={s.modalAyuda}>
+                Recaudación global del club, visible para todas las divisiones.
+                Los viajes y tercer tiempos los crea el Manager de cada división.
+              </Text>
             )}
 
             <View style={s.campo}>
               <Text style={s.campoLabel}>NOMBRE DEL EVENTO</Text>
               <TextInput
                 style={s.inputLinea}
-                placeholder="ej. Viaje Mar del Plata, Asado M14…"
+                placeholder={esManager ? 'ej. Viaje Mar del Plata, Asado M14…' : 'ej. Rifa anual, Cena del club…'}
                 placeholderTextColor={MUTED}
                 value={form.nombre}
                 onChangeText={v => setForm({ ...form, nombre: v })}
@@ -462,16 +453,43 @@ function ModalNuevoEvento({
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
-export default function EventosScreen() {
+// Pantalla compartida: Subcomisión (crea recaudaciones y supervisa/cierra todos
+// los eventos) y Manager (viajes / tercer tiempos de su división, ver
+// app/(manager)/eventos.tsx).
+export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
-    loading, divisiones, eventosActivos, eventosHistorial,
+    loading, recargar, division, sinDivision, errorCarga, eventosActivos, eventosHistorial,
     paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
     abrirDetalle, volverALista,
     modalVisible, abrirModal, cerrarModal,
     form, setForm, guardando, errorGuardado, crearEvento,
-  } = useEventos()
+  } = useEventos(modo)
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
+  const esManager = modo === 'manager'
+
+  // Error de carga (red / permisos): no es lo mismo que "sin división".
+  if (errorCarga && !loading && paso === 'lista') {
+    return (
+      <View style={s.centradoPad}>
+        <View style={s.bannerError}>
+          <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+        </View>
+        <TouchableOpacity style={s.botonPrincipal} onPress={recargar} activeOpacity={0.85}>
+          <Text style={s.botonPrincipalTexto}>REINTENTAR</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  if (esManager && sinDivision && !loading) {
+    return (
+      <View style={s.centrado}>
+        <Text style={s.sinDivTitulo}>Sin división asignada.</Text>
+        <Text style={s.emptyTexto}>Contactá a la Subcomisión.</Text>
+      </View>
+    )
+  }
 
   if (loading) {
     return (
@@ -503,7 +521,9 @@ export default function EventosScreen() {
   return (
     <SafeAreaView style={s.container}>
       <View style={s.header}>
-        <Text style={s.labelHeader}>SECCIÓN · DIRECTIVA</Text>
+        <Text style={s.labelHeader}>
+          {esManager ? `MANAGER · ${(division?.nombre ?? '').toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
+        </Text>
         <Text style={s.titulo}>Eventos</Text>
       </View>
       <View style={s.separador} />
@@ -543,7 +563,7 @@ export default function EventosScreen() {
 
       <View style={s.fabWrap}>
         <TouchableOpacity style={s.fab} onPress={abrirModal} activeOpacity={0.85}>
-          <Text style={s.fabTexto}>+ NUEVO EVENTO</Text>
+          <Text style={s.fabTexto}>{esManager ? '+ NUEVO EVENTO' : '+ NUEVA RECAUDACIÓN'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -551,7 +571,8 @@ export default function EventosScreen() {
         visible={modalVisible}
         onClose={cerrarModal}
         onGuardar={handleGuardar}
-        divisiones={divisiones}
+        modo={modo}
+        divisionNombre={division?.nombre ?? null}
         form={form}
         setForm={setForm}
         guardando={guardando}
@@ -561,11 +582,16 @@ export default function EventosScreen() {
   )
 }
 
+export default function EventosScreen() {
+  return <EventosPantalla modo="subcomision" />
+}
+
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: FONDO },
   centrado:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO },
+  centradoPad: { flex: 1, justifyContent: 'center', alignItems: 'stretch', backgroundColor: FONDO, paddingHorizontal: 20, gap: 16 },
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
@@ -678,6 +704,8 @@ const s = StyleSheet.create({
   // Campos
   campo:     { gap: 10 },
   campoLabel:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
+  modalAyuda:{ fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, lineHeight: 20 },
+  sinDivTitulo: { fontFamily: fonts.titulo, fontSize: 25, color: TEXTO, marginBottom: 8 },
   divRow:    { flexDirection: 'row', gap: 8 },
 
   inputLinea: {

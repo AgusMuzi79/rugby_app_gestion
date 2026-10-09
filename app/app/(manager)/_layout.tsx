@@ -23,6 +23,7 @@ export default function ManagerLayout() {
       />
       <Tabs.Screen name="salir" options={{ href: null }} />
       <Tabs.Screen name="fichajes" options={{ href: null }} />
+      <Tabs.Screen name="eventos" options={{ href: null }} />
     </Tabs>
   )
 }

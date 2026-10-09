@@ -47,13 +47,34 @@ export interface NuevoEventoForm {
   montoSugerido: string
 }
 
+// Quién usa la pantalla de eventos:
+// - 'subcomision': ve todos los eventos y sólo crea recaudaciones (globales).
+// - 'manager': ve y crea viajes / tercer tiempos de su división (divisiones[0]).
+// La RLS (20261015000000_eventos_financieros_manager.sql) aplica la misma regla.
+export type ModoEventos = 'subcomision' | 'manager'
+
+export const TIPOS_MANAGER: TipoEvento[] = ['viaje', 'tercer_tiempo']
+
+const ERROR_CARGA_DIVISION = 'No se pudo cargar tu división. Intentá de nuevo.'
+const ERROR_CARGA_EVENTOS  = 'No se pudieron cargar los eventos. Intentá de nuevo.'
+
+function formVacio(modo: ModoEventos, divisionId: string | null): NuevoEventoForm {
+  return modo === 'manager'
+    ? { nombre: '', tipo: 'viaje',       divisionId, montoSugerido: '' }
+    : { nombre: '', tipo: 'recaudacion', divisionId: null, montoSugerido: '' }
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useEventos() {
+export function useEventos(modo: ModoEventos = 'subcomision') {
   const { session } = useAuthStore()
 
   const [loading, setLoading]           = useState(true)
-  const [divisiones, setDivisiones]     = useState<Array<{ id: string; nombre: string }>>([])
+  // Sólo modo manager: división del manager (profiles.divisiones[0])
+  const [division, setDivision]         = useState<{ id: string; nombre: string } | null>(null)
+  const [sinDivision, setSinDivision]   = useState(false)
+  // Error al cargar división o eventos (distinto de "sin división"); se limpia al recargar bien.
+  const [errorCarga, setErrorCarga]     = useState<string | null>(null)
   const [eventosActivos, setEventosActivos]     = useState<EventoItem[]>([])
   const [eventosHistorial, setEventosHistorial] = useState<EventoItem[]>([])
 
@@ -65,9 +86,7 @@ export function useEventos() {
 
   // Modal nuevo evento
   const [modalVisible, setModalVisible]   = useState(false)
-  const [form, setForm]                   = useState<NuevoEventoForm>({
-    nombre: '', tipo: 'recaudacion', divisionId: null, montoSugerido: '',
-  })
+  const [form, setForm]                   = useState<NuevoEventoForm>(formVacio(modo, null))
   const [guardando, setGuardando]         = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
 
@@ -77,25 +96,82 @@ export function useEventos() {
   useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
+    if (!session) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    await Promise.all([fetchDivisiones(), fetchEventos()])
-    setLoading(false)
+    setErrorCarga(null)
+    try {
+      if (modo === 'manager') {
+        const div = await fetchDivisionManager()
+        if (div) await fetchEventos(div.id)
+      } else {
+        await fetchEventos(null)
+      }
+    } catch {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  async function fetchDivisiones() {
-    const { data } = await supabase
+  // Un error de red / RLS al leer el perfil NO significa "sin división":
+  // se informa como error de carga (con reintento) y sinDivision no se toca.
+  async function fetchDivisionManager(): Promise<{ id: string; nombre: string } | null> {
+    if (!session) return null
+    const { data: profile, error: errorProfile } = await supabase
+      .from('profiles')
+      .select('divisiones')
+      .eq('id', session.user.id)
+      .single()
+
+    if (errorProfile) {
+      setErrorCarga(ERROR_CARGA_DIVISION)
+      return null
+    }
+
+    const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
+    if (!divId) {
+      setSinDivision(true)
+      setDivision(null)
+      return null
+    }
+
+    const { data: div, error: errorDiv } = await supabase
       .from('divisiones')
-      .select('id, nombre')
-      .eq('activa', true)
-      .order('nombre')
-    setDivisiones(data ?? [])
+      .select('nombre')
+      .eq('id', divId)
+      .single()
+
+    if (errorDiv) {
+      setErrorCarga(ERROR_CARGA_DIVISION)
+      return null
+    }
+
+    const res = { id: divId, nombre: div?.nombre ?? '' }
+    setSinDivision(false)
+    setDivision(res)
+    return res
   }
 
-  async function fetchEventos() {
-    const { data } = await supabase
+  async function fetchEventos(divisionId: string | null) {
+    let query = supabase
       .from('eventos_financieros')
       .select('id, nombre, tipo, descripcion, division_id, estado, fecha, divisiones(nombre), cobranzas(estado, monto)')
       .order('created_at', { ascending: false })
+
+    if (modo === 'manager') {
+      if (!divisionId) return
+      query = query.eq('division_id', divisionId).in('tipo', TIPOS_MANAGER)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+      return
+    }
+    setErrorCarga(null)
 
     type DivJoin      = { nombre: string } | null
     type CobranzaJoin = Array<{ estado: string; monto: number | null }>
@@ -213,7 +289,7 @@ export function useEventos() {
       .eq('id', eventoDetalle.id)
     setCerrando(false)
     if (!error) {
-      await fetchEventos()
+      await fetchEventos(division?.id ?? null)
       volverALista()
     }
   }
@@ -221,7 +297,7 @@ export function useEventos() {
   // ─── Modal nuevo evento ───────────────────────────────────────────────────────
 
   function abrirModal() {
-    setForm({ nombre: '', tipo: 'recaudacion', divisionId: null, montoSugerido: '' })
+    setForm(formVacio(modo, division?.id ?? null))
     setErrorGuardado(null)
     setModalVisible(true)
   }
@@ -236,8 +312,20 @@ export function useEventos() {
 
     const nombreTrim = form.nombre.trim()
     if (!nombreTrim) { setErrorGuardado('Ingresá un nombre para el evento.'); return false }
-    if (form.tipo !== 'recaudacion' && !form.divisionId) {
-      setErrorGuardado('Seleccioná una división.'); return false
+
+    // Subcomisión: siempre recaudación global. Manager: viaje / tercer tiempo de su división.
+    let tipo: TipoEvento
+    let divisionId: string | null
+    if (modo === 'manager') {
+      if (!division) { setErrorGuardado('No tenés una división asignada.'); return false }
+      if (!TIPOS_MANAGER.includes(form.tipo)) {
+        setErrorGuardado('Elegí viaje o tercer tiempo.'); return false
+      }
+      tipo       = form.tipo
+      divisionId = division.id
+    } else {
+      tipo       = 'recaudacion'
+      divisionId = null
     }
 
     setGuardando(true)
@@ -245,8 +333,8 @@ export function useEventos() {
 
     const { error } = await supabase.from('eventos_financieros').insert({
       nombre:      nombreTrim,
-      tipo:        form.tipo,
-      division_id: form.tipo !== 'recaudacion' ? form.divisionId : null,
+      tipo,
+      division_id: divisionId,
       descripcion: form.montoSugerido.trim() || null,
       creado_por:  session.user.id,
     })
@@ -257,7 +345,7 @@ export function useEventos() {
       return false
     }
 
-    await fetchEventos()
+    await fetchEventos(divisionId)
     setGuardando(false)
     return true
   }
@@ -265,7 +353,9 @@ export function useEventos() {
   return {
     loading,
     recargar:        fetchTodo,
-    divisiones,
+    division,
+    sinDivision,
+    errorCarga,
     eventosActivos,
     eventosHistorial,
     paso,
