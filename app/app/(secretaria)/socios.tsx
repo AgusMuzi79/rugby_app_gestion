@@ -51,21 +51,20 @@ function ModalNuevoSocio({
   const [nombre,          setNombre]          = useState('')
   const [dni,             setDni]             = useState('')
   const [catId,           setCatId]           = useState('')
-  const [fechaNacimiento, setFechaNacimiento] = useState<Date | null>(null)
+  const [fechaNacimiento, setFechaNacimiento] = useState('')
 
   const handleCrear = () => {
     if (!email.trim())  { Alert.alert('Requerido', 'Email obligatorio.'); return }
     if (!nombre.trim()) { Alert.alert('Requerido', 'Nombre obligatorio.'); return }
     if (!dni.trim())    { Alert.alert('Requerido', 'DNI obligatorio.'); return }
     if (!catId)         { Alert.alert('Requerido', 'Seleccioná una categoría.'); return }
-    const fechaStr = fechaNacimiento
-      ? fechaNacimiento.toISOString().split('T')[0]
-      : undefined
+    // DatePickerField already yields 'YYYY-MM-DD'.
+    const fechaStr = fechaNacimiento || undefined
     onCreate(email.trim().toLowerCase(), nombre.trim(), dni.trim(), catId, fechaStr)
   }
 
   const handleClose = () => {
-    setEmail(''); setNombre(''); setDni(''); setCatId(''); setFechaNacimiento(null)
+    setEmail(''); setNombre(''); setDni(''); setCatId(''); setFechaNacimiento('')
     onClose()
   }
 
@@ -113,7 +112,7 @@ function ModalNuevoSocio({
               onChange={setFechaNacimiento}
               mode="date"
               maximumDate={new Date()}
-              onClear={() => setFechaNacimiento(null)}
+              onClear={() => setFechaNacimiento('')}
             />
 
             <Text style={ss.inputLabelMt}>CATEGORÍA</Text>
