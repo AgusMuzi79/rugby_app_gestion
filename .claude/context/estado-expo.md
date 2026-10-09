@@ -67,7 +67,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 | Pantalla | Hook | Notas clave |
 |---|---|---|
 | `(coordinador)/diario.tsx` | `useDiarioCoordinador.ts` | 4 queries paralelas — divisiones, eventos próximos 7D, eventos últimos 30D, cobranzas activas. Calcula `EventoSemana[]`, `AlertaJugador[]`, `BarraAsistencia[]`. `.or()` dinámico para cobranzas por división + globales |
-| `(coordinador)/calendario.tsx` | `useCalendario.ts` | Divisiones desde `profile.divisiones`. Rango -30/+60 días. `crearEvento` con validación |
+| `(coordinador)/calendario.tsx` | `useCalendario.ts` | Divisiones desde `profile.divisiones`. Rango -30/+60 días. `crearEvento` con validación; inserta una fila por división elegida (varias en entrenamientos, hasta 2 sólo en partidos de rugby). `cancelarEvento` titula "Partido/Entrenamiento cancelado" según el tipo |
 | `(coordinador)/asistencia.tsx` | `useAsistenciaCoordinador.ts` | 3 queries paralelas. Consecutivas: últimos 4 eventos de la división todos 'ausente'. Selector división con refetch |
 | `(coordinador)/cronica.tsx` | `useCronica.ts` | Compartido |
 | `(coordinador)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
