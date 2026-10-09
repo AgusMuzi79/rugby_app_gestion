@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import { useCalendario, EventoCalendario, TipoEvento, ModalidadPartido } from '@/hooks/useCalendario'
+import { useCalendario, EventoCalendario, TipoEvento, ModalidadPartido, MAX_DIVISIONES_PARTIDO } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
 
@@ -96,8 +96,24 @@ interface ModalNuevoEventoProps {
 function ModalNuevoEvento({
   visible, onClose, onGuardar, divisiones, form, setForm, guardando, errorGuardado,
 }: ModalNuevoEventoProps) {
-  const divisionActual = divisiones.find(d => d.id === form.division_id)
-  const esTenis = divisionActual?.deporte === 'tenis'
+  const esTenis = divisiones.some(d => form.division_ids.includes(d.id) && d.deporte === 'tenis')
+  const esPartido = form.tipo === 'partido'
+
+  function cambiarTipo(tipo: TipoEvento) {
+    const division_ids = tipo === 'partido'
+      ? form.division_ids.slice(0, MAX_DIVISIONES_PARTIDO)
+      : form.division_ids
+    setForm({ ...form, tipo, division_ids })
+  }
+
+  function toggleDivision(id: string) {
+    if (form.division_ids.includes(id)) {
+      setForm({ ...form, division_ids: form.division_ids.filter(d => d !== id) })
+      return
+    }
+    if (esPartido && form.division_ids.length >= MAX_DIVISIONES_PARTIDO) return
+    setForm({ ...form, division_ids: [...form.division_ids, id] })
+  }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -118,7 +134,7 @@ function ModalNuevoEvento({
                 <TouchableOpacity
                   key={t}
                   style={[styles.tipoBoton, form.tipo === t && styles.tipoBotonActivo]}
-                  onPress={() => setForm({ ...form, tipo: t })}
+                  onPress={() => cambiarTipo(t)}
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.tipoBotonTexto, form.tipo === t && styles.tipoBotonTextoActivo]}>
@@ -131,21 +147,28 @@ function ModalNuevoEvento({
             {/* División (solo si tiene más de una) */}
             {divisiones.length > 1 && (
               <>
-                <Text style={styles.inputLabel}>DIVISIÓN</Text>
+                <Text style={styles.inputLabel}>
+                  {esPartido ? `DIVISIONES (hasta ${MAX_DIVISIONES_PARTIDO})` : 'DIVISIONES'}
+                </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.divScroll}>
                   <View style={styles.divRow}>
-                    {divisiones.map(d => (
-                      <TouchableOpacity
-                        key={d.id}
-                        style={[styles.divPill, form.division_id === d.id && styles.divPillActiva]}
-                        onPress={() => setForm({ ...form, division_id: d.id })}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.divPillTexto, form.division_id === d.id && styles.divPillTextoActivo]}>
-                          {d.nombre}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {divisiones.map(d => {
+                      const activa = form.division_ids.includes(d.id)
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          style={[styles.divPill, activa && styles.divPillActiva]}
+                          onPress={() => toggleDivision(d.id)}
+                          activeOpacity={0.8}
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: activa }}
+                        >
+                          <Text style={[styles.divPillTexto, activa && styles.divPillTextoActivo]}>
+                            {d.nombre}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
                   </View>
                 </ScrollView>
               </>
@@ -228,7 +251,9 @@ function ModalNuevoEvento({
             >
               {guardando
                 ? <ActivityIndicator color={colors.oro} size="small" />
-                : <Text style={styles.botonGuardarTexto}>GUARDAR EVENTO</Text>
+                : <Text style={styles.botonGuardarTexto}>
+                    {form.division_ids.length > 1 ? `GUARDAR ${form.division_ids.length} EVENTOS` : 'GUARDAR EVENTO'}
+                  </Text>
               }
             </TouchableOpacity>
           </View>

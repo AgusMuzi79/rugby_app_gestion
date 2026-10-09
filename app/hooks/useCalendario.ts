@@ -24,7 +24,8 @@ export interface EventoCalendario {
 
 export interface NuevoEventoForm {
   tipo: TipoEvento
-  division_id: string
+  // One event row is created per selected division.
+  division_ids: string[]
   fecha: string
   hora: string
   lugar: string
@@ -32,9 +33,11 @@ export interface NuevoEventoForm {
   modalidad: ModalidadPartido | ''
 }
 
+export const MAX_DIVISIONES_PARTIDO = 2
+
 const FORM_VACIO: NuevoEventoForm = {
   tipo: 'entrenamiento',
-  division_id: '',
+  division_ids: [],
   fecha: '',
   hora: '',
   lugar: '',
@@ -100,7 +103,7 @@ export function useCalendario(): UseCalendarioReturn {
 
     setForm(prev => ({
       ...prev,
-      division_id: prev.division_id || (divs[0]?.id ?? ''),
+      division_ids: prev.division_ids.length > 0 ? prev.division_ids : (divs[0] ? [divs[0].id] : []),
     }))
 
     const hace30 = new Date()
@@ -167,15 +170,19 @@ export function useCalendario(): UseCalendarioReturn {
   function resetForm() {
     setForm({
       ...FORM_VACIO,
-      division_id: divisiones[0]?.id ?? '',
+      division_ids: divisiones[0] ? [divisiones[0].id] : [],
     })
     setErrorGuardado(null)
   }
 
   async function crearEvento(): Promise<boolean> {
     if (!session) return false
-    if (!form.division_id || !form.fecha) {
+    if (form.division_ids.length === 0 || !form.fecha) {
       setErrorGuardado('División y fecha son obligatorias.')
+      return false
+    }
+    if (form.tipo === 'partido' && form.division_ids.length > MAX_DIVISIONES_PARTIDO) {
+      setErrorGuardado(`Un partido puede tener hasta ${MAX_DIVISIONES_PARTIDO} divisiones.`)
       return false
     }
     if (form.tipo === 'partido' && !form.rival.trim()) {
@@ -186,11 +193,12 @@ export function useCalendario(): UseCalendarioReturn {
     setGuardando(true)
     setErrorGuardado(null)
 
-    console.log('[calendario] Creando evento:', { tipo: form.tipo, division_id: form.division_id, fecha: form.fecha })
+    console.log('[calendario] Creando evento:', { tipo: form.tipo, division_ids: form.division_ids, fecha: form.fecha })
 
-    const { error } = await supabase.from('eventos').insert({
+    // Single insert: either every division gets its event or none does.
+    const { error } = await supabase.from('eventos').insert(form.division_ids.map(divisionId => ({
       tipo: form.tipo,
-      division_id: form.division_id,
+      division_id: divisionId,
       fecha: form.fecha,
       hora: form.hora.trim() || null,
       lugar: form.lugar.trim() || null,
@@ -198,7 +206,7 @@ export function useCalendario(): UseCalendarioReturn {
       modalidad: form.tipo === 'partido' ? (form.modalidad || null) : null,
       creado_por: session.user.id,
       cancelado: false,
-    })
+    })))
 
     setGuardando(false)
 
