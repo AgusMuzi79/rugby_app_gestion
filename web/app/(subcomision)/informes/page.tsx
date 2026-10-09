@@ -12,7 +12,9 @@ interface AsistenciaDB { evento_id: string; jugador_id: string; estado: string }
 interface ResultadoDB { evento_id: string; puntos_propios: number; puntos_rival: number; eventos: { rival: string; division_id: string; fecha: string } }
 interface FichajeDB { id: string; jugador_id: string; fecha_fichaje: string; jugadores: { nombre_completo: string; division_id: string } }
 interface CobranzaDB { estado: string; monto: number; forma_de_pago: string }
-interface EventoFinanciero { id: string; nombre: string; tipo: string; division_id: string | null; estado: string; cobranzas: CobranzaDB[] }
+// Divisiones del evento: eventos_financieros_divisiones (sin filas = todo el club); division_id queda como respaldo.
+interface EventoFinancieroDivisionDB { division_id: string; divisiones: { nombre: string } | null }
+interface EventoFinanciero { id: string; nombre: string; tipo: string; division_id: string | null; estado: string; cobranzas: CobranzaDB[]; eventos_financieros_divisiones: EventoFinancieroDivisionDB[] | null }
 
 export default function InformesPage() {
   const [tab, setTab] = useState<Tab>('asistencia')
@@ -44,7 +46,7 @@ export default function InformesPage() {
         supabase.from('asistencias').select('evento_id, jugador_id, estado'),
         supabase.from('resultados').select('evento_id, puntos_propios, puntos_rival, eventos(rival, division_id, fecha)'),
         supabase.from('fichajes').select('id, jugador_id, fecha_fichaje, jugadores(nombre_completo, division_id)').order('fecha_fichaje', { ascending: false }),
-        supabase.from('eventos_financieros').select('id, nombre, tipo, division_id, estado, cobranzas(estado, monto, forma_de_pago)').eq('estado', 'activo'),
+        supabase.from('eventos_financieros').select('id, nombre, tipo, division_id, estado, cobranzas(estado, monto, forma_de_pago), eventos_financieros_divisiones(division_id, divisiones(nombre))').eq('estado', 'activo'),
       ])
       setDivisiones(divs ?? [])
       setJugadores(jugs ?? [])
@@ -116,9 +118,20 @@ export default function InformesPage() {
   }, [fichajes, divFiltro])
 
   const financieroRows = useMemo(() => {
+    const divisionesDe = (e: EventoFinanciero): { id: string; nombre: string }[] => {
+      const filas = e.eventos_financieros_divisiones ?? []
+      if (filas.length > 0) {
+        return filas
+          .map(f => ({ id: f.division_id, nombre: f.divisiones?.nombre ?? divisiones.find(d => d.id === f.division_id)?.nombre ?? '' }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }))
+      }
+      if (e.division_id) return [{ id: e.division_id, nombre: divisiones.find(d => d.id === e.division_id)?.nombre ?? '' }]
+      return []
+    }
     return eventosFinancieros
-      .filter(e => divFiltro === 'all' || e.division_id === divFiltro || e.division_id === null)
-      .map(e => {
+      .map(e => ({ e, divs: divisionesDe(e) }))
+      .filter(({ divs }) => divFiltro === 'all' || divs.length === 0 || divs.some(d => d.id === divFiltro))
+      .map(({ e, divs }) => {
         const cobs = e.cobranzas ?? []
         const total = cobs.length
         const pagados = cobs.filter(c => c.estado === 'pagado').length
@@ -128,8 +141,8 @@ export default function InformesPage() {
           const k = c.forma_de_pago ?? 'otro'
           formas[k] = (formas[k] ?? 0) + 1
         })
-        const div = divisiones.find(d => d.id === e.division_id)
-        return { ...e, total, pagados, montoCobrado, formas, divNombre: div?.nombre ?? 'Global' }
+        const divNombre = divs.length > 0 ? divs.map(d => d.nombre).filter(Boolean).join(' · ') : 'Global'
+        return { ...e, total, pagados, montoCobrado, formas, divNombre }
       })
   }, [eventosFinancieros, divisiones, divFiltro])
 

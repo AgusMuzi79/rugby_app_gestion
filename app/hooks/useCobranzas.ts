@@ -3,6 +3,13 @@ import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { montoInicialCobranza } from '@/lib/montoSugerido'
+import {
+  SELECT_DIVISIONES_EVENTO,
+  divisionesDeEvento,
+  etiquetaDivisiones,
+  type DivisionRef,
+  type EventoDivisionesRow,
+} from './useEventos'
 
 export type FormaDePago  = 'efectivo' | 'transferencia' | 'otro'
 export type EstadoPago   = 'pagado' | 'pendiente'
@@ -14,7 +21,10 @@ export interface EventoFinanciero {
   nombre:         string
   descripcion:    string | null
   fecha:          string | null
-  // Estadísticas de cobranza calculadas al cargar la lista
+  // Divisiones del manager en las que cobra este evento: las del evento que
+  // son suyas, o todas las suyas si el evento es de todo el club.
+  divisionIds:    string[]
+  // Estadísticas de cobranza calculadas al cargar la lista (sobre esos jugadores)
   pctCobrado:     number
   countPagados:   number
   countJugadores: number
@@ -22,11 +32,12 @@ export interface EventoFinanciero {
 }
 
 export interface CobranzaJugador {
-  jugadorId:   string
-  nombre:      string
-  estado:      EstadoPago
-  monto:       string         // string para TextInput
-  formaDePago: FormaDePago | null
+  jugadorId:      string
+  nombre:         string
+  divisionNombre: string | null  // sólo si el evento abarca más de una división del manager
+  estado:         EstadoPago
+  monto:          string         // string para TextInput
+  formaDePago:    FormaDePago | null
 }
 
 export interface Resumen {
@@ -49,8 +60,8 @@ export function useCobranzas() {
   const { session } = useAuthStore()
 
   const [loading, setLoading]             = useState(true)
-  const [divisionId, setDivisionId]       = useState<string | null>(null)
-  const [divisionNombre, setDivisionNombre] = useState('')
+  // Todas las divisiones del manager (profiles.divisiones), no sólo la primera.
+  const [misDivisiones, setMisDivisiones] = useState<DivisionRef[]>([])
   const [sinDivision, setSinDivision]     = useState(false)
 
   const [eventos, setEventos]                     = useState<EventoFinanciero[]>([])
@@ -70,14 +81,17 @@ export function useCobranzas() {
     pendientes: jugadores.filter(j => j.estado === 'pendiente').length,
   }
 
+  // Clave estable para el efecto de foco (el array cambia de identidad en cada render).
+  const misIdsKey = misDivisiones.map(d => d.id).join(',')
+
   useEffect(() => {
     if (session) fetchDatos()
   }, [session])
 
   useFocusEffect(
     useCallback(() => {
-      if (session && divisionId) cargarEventos(divisionId)
-    }, [session, divisionId]),
+      if (session && misIdsKey) cargarEventos(misIdsKey.split(','))
+    }, [session, misIdsKey]),
   )
 
   // ─── Carga inicial ─────────────────────────────────────────────────────────
@@ -92,73 +106,91 @@ export function useCobranzas() {
       .eq('id', session.user.id)
       .single()
 
-    const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
-    if (!divId) { setSinDivision(true); setLoading(false); return }
-    setDivisionId(divId)
+    const ids = (profile?.divisiones as string[] | null) ?? []
+    if (ids.length === 0) { setSinDivision(true); setLoading(false); return }
 
     const [divRes] = await Promise.all([
-      supabase.from('divisiones').select('nombre').eq('id', divId).single(),
-      cargarEventos(divId),
+      supabase.from('divisiones').select('id, nombre').in('id', ids),
+      cargarEventos(ids),
     ])
-    setDivisionNombre(divRes.data?.nombre ?? '')
+    setMisDivisiones(
+      (divRes.data ?? [])
+        .map(d => ({ id: d.id, nombre: d.nombre }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })),
+    )
     setLoading(false)
   }
 
-  async function cargarEventos(divId: string) {
+  // Eventos activos de todo el club o que incluyen alguna división del manager.
+  // La RLS ya acota la lista; acá además se descartan los que el manager creó
+  // sólo para divisiones ajenas (no tiene jugadores a quienes cobrarles).
+  async function cargarEventos(misIds: string[]) {
     const { data: eventosData } = await supabase
       .from('eventos_financieros')
-      .select('id, tipo, nombre, descripcion, fecha')
+      .select(`id, tipo, nombre, descripcion, fecha, ${SELECT_DIVISIONES_EVENTO}`)
       .eq('estado', 'activo')
-      .or(`division_id.eq.${divId},division_id.is.null`)
       .order('fecha', { ascending: false, nullsFirst: false })
 
-    if (!eventosData || eventosData.length === 0) {
+    type Fila = EventoDivisionesRow & {
+      id: string; tipo: string; nombre: string; descripcion: string | null; fecha: string | null
+    }
+
+    const candidatos = ((eventosData ?? []) as unknown as Fila[])
+      .map(e => {
+        const divsEvento  = divisionesDeEvento(e).map(d => d.id)
+        const divisionIds = divsEvento.length === 0
+          ? misIds
+          : divsEvento.filter(id => misIds.includes(id))
+        return { e, divisionIds }
+      })
+      .filter(x => x.divisionIds.length > 0)
+
+    if (candidatos.length === 0) {
       setEventos([])
       return
     }
 
-    const eventoIds = eventosData.map(e => e.id)
+    const eventoIds = candidatos.map(x => x.e.id)
 
     const [cobranzasRes, jugadoresRes] = await Promise.all([
       supabase
         .from('cobranzas')
-        .select('evento_financiero_id, estado, monto')
+        .select('evento_financiero_id, jugador_id, estado, monto')
         .in('evento_financiero_id', eventoIds),
       supabase
         .from('jugadores')
-        .select('id', { count: 'exact', head: true })
-        .eq('division_id', divId)
+        .select('id, division_id')
+        .in('division_id', misIds)
         .eq('activo', true),
     ])
 
-    const countJugadores = jugadoresRes.count ?? 0
-
-    const statsMap = new Map<string, { pagados: number; montoCobrado: number }>()
-    for (const c of (cobranzasRes.data ?? [])) {
-      const ev = c.evento_financiero_id as string
-      if (!statsMap.has(ev)) statsMap.set(ev, { pagados: 0, montoCobrado: 0 })
-      if (c.estado === 'pagado') {
-        const s = statsMap.get(ev)!
-        s.pagados++
-        s.montoCobrado += Number(c.monto ?? 0)
-      }
-    }
+    const divisionDeJugador = new Map((jugadoresRes.data ?? []).map(j => [j.id, j.division_id]))
+    const cobranzas = cobranzasRes.data ?? []
 
     setEventos(
-      eventosData.map(e => {
-        const stats = statsMap.get(e.id) ?? { pagados: 0, montoCobrado: 0 }
+      candidatos.map(({ e, divisionIds }) => {
+        // Mismo conjunto de jugadores que se muestra al abrir el evento.
+        const enEvento = (jugadorId: string) => {
+          const div = divisionDeJugador.get(jugadorId)
+          return div !== undefined && divisionIds.includes(div)
+        }
+        const countJugadores = Array.from(divisionDeJugador.keys()).filter(enEvento).length
+        const pagadas = cobranzas.filter(c =>
+          c.evento_financiero_id === e.id && c.estado === 'pagado' && enEvento(c.jugador_id),
+        )
         return {
           id:             e.id,
           tipo:           e.tipo,
           nombre:         e.nombre,
           descripcion:    e.descripcion,
           fecha:          e.fecha,
+          divisionIds,
           pctCobrado:     countJugadores > 0
-            ? Math.round((stats.pagados / countJugadores) * 100)
+            ? Math.round((pagadas.length / countJugadores) * 100)
             : 0,
-          countPagados:   stats.pagados,
+          countPagados:   pagadas.length,
           countJugadores,
-          montoCobrado:   stats.montoCobrado,
+          montoCobrado:   pagadas.reduce((s, c) => s + Number(c.monto ?? 0), 0),
         }
       }),
     )
@@ -167,18 +199,20 @@ export function useCobranzas() {
   // ─── Selección de evento ───────────────────────────────────────────────────
 
   async function seleccionarEvento(ev: EventoFinanciero) {
-    if (!divisionId) return
+    if (ev.divisionIds.length === 0) return
     setEventoSeleccionado(ev)
     setGuardadoOk(false)
     setError(null)
     setCargandoJugadores(true)
     setPaso('jugadores')
 
+    // Sólo jugadores de las divisiones del evento que son del manager
+    // (la RLS de cobranzas rechaza a cualquier otro).
     const [jgsRes, cobranzasRes] = await Promise.all([
       supabase
         .from('jugadores')
-        .select('id, nombre_completo')
-        .eq('division_id', divisionId)
+        .select('id, nombre_completo, division_id')
+        .in('division_id', ev.divisionIds)
         .eq('activo', true)
         .order('nombre_completo'),
       supabase
@@ -187,17 +221,20 @@ export function useCobranzas() {
         .eq('evento_financiero_id', ev.id),
     ])
 
-    const mapa = new Map((cobranzasRes.data ?? []).map(c => [c.jugador_id, c]))
+    const mapa             = new Map((cobranzasRes.data ?? []).map(c => [c.jugador_id, c]))
+    const variasDivisiones = ev.divisionIds.length > 1
+    const nombreDivision   = new Map(misDivisiones.map(d => [d.id, d.nombre]))
 
     setJugadores(
       (jgsRes.data ?? []).map(j => {
         const c = mapa.get(j.id)
         return {
-          jugadorId:   j.id,
-          nombre:      j.nombre_completo,
-          estado:      (c?.estado as EstadoPago) ?? 'pendiente',
-          monto:       montoInicialCobranza(c?.monto, ev.descripcion),
-          formaDePago: (c?.forma_de_pago as FormaDePago | null) ?? null,
+          jugadorId:      j.id,
+          nombre:         j.nombre_completo,
+          divisionNombre: variasDivisiones ? (nombreDivision.get(j.division_id) ?? null) : null,
+          estado:         (c?.estado as EstadoPago) ?? 'pendiente',
+          monto:          montoInicialCobranza(c?.monto, ev.descripcion),
+          formaDePago:    (c?.forma_de_pago as FormaDePago | null) ?? null,
         }
       }),
     )
@@ -271,7 +308,7 @@ export function useCobranzas() {
 
   return {
     loading,
-    divisionNombre,
+    divisionNombre: etiquetaDivisiones(misDivisiones) ?? '',
     sinDivision,
     eventos,
     eventoSeleccionado,

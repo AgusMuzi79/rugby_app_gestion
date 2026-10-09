@@ -638,6 +638,39 @@ export type Database = {
           },
         ]
       }
+      eventos_financieros_divisiones: {
+        Row: {
+          division_id: string
+          evento_financiero_id: string
+          id: string
+        }
+        Insert: {
+          division_id: string
+          evento_financiero_id: string
+          id?: string
+        }
+        Update: {
+          division_id?: string
+          evento_financiero_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_financieros_divisiones_division_id_fkey"
+            columns: ["division_id"]
+            isOneToOne: false
+            referencedRelation: "divisiones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_financieros_divisiones_evento_financiero_id_fkey"
+            columns: ["evento_financiero_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_financieros"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fechas_debito_automatico: {
         Row: {
           aviso_enviado: boolean
@@ -2374,8 +2407,26 @@ export type Database = {
           nombre: string
         }[]
       }
+      crear_evento_financiero: {
+        Args: {
+          p_descripcion: string | null
+          p_division_ids: string[]
+          p_nombre: string
+          p_tipo: string
+        }
+        Returns: string
+      }
       dependientes_menores_13_ids: { Args: never; Returns: string[] }
+      deportes_del_usuario: { Args: never; Returns: string[] }
       es_menor_de_13: { Args: { p_fecha_nacimiento: string }; Returns: boolean }
+      evento_financiero_es_global: {
+        Args: { p_evento_id: string }
+        Returns: boolean
+      }
+      evento_financiero_toca_mis_divisiones: {
+        Args: { p_evento_id: string }
+        Returns: boolean
+      }
       get_deporte_subcomision: { Args: never; Returns: string }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
@@ -2474,6 +2525,10 @@ export type Database = {
       }
       gimnasio_turno_actual: { Args: { p_socio_id: string }; Returns: Json }
       importar_deuda_nuvix: { Args: { p_payload: Json }; Returns: Json }
+      jugador_en_evento_financiero: {
+        Args: { p_evento_id: string; p_jugador_id: string }
+        Returns: boolean
+      }
       mover_jugador_division: {
         Args: { p_division_destino: string; p_jugador_id: string }
         Returns: Json

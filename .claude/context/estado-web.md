@@ -32,7 +32,7 @@ Login (`/login`) es compartido — redirige a `/secretaria/socios` o `/dashboard
 | `/dashboard` | 4 stat cards: asistencia global, fichados, lesiones activas, cobranzas |
 | `/usuarios` | Lista profiles, expande detalle, edita rol y divisiones, desactiva/reactiva via Edge Function |
 | `/divisiones` | Lista activas/inactivas, toggle activo, crear nueva división (con campo `categoria`) |
-| `/informes` | 4 tabs: Asistencia, Resultados, Fichajes, Financiero — selector de división arriba |
+| `/informes` | 4 tabs: Asistencia, Resultados, Fichajes, Financiero — selector de división arriba. Financiero lee las divisiones del evento de `eventos_financieros_divisiones` (filtra por cualquiera de ellas; sin divisiones = "Global") |
 
 ## Páginas implementadas — Secretaría
 

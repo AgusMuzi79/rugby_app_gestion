@@ -97,13 +97,13 @@ function CardPedido({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }
   )
 }
 
-function FilaFichaje({ fichaje, divisionNombre }: { fichaje: UltimoFichaje; divisionNombre: string }) {
+function FilaFichaje({ fichaje }: { fichaje: UltimoFichaje }) {
   return (
     <View style={s.fichajeRow}>
       <View style={s.fichajeInfo}>
         <Text style={s.fichajeNombre}>{fichaje.nombreCompleto}</Text>
         <Text style={s.fichajeMeta}>
-          {divisionNombre} · {tiempoRelativo(fichaje.createdAt)}
+          {fichaje.divisionNombre} · {tiempoRelativo(fichaje.createdAt)}
         </Text>
       </View>
       <View style={s.okBadge}>
@@ -210,11 +210,7 @@ export default function DiarioManagerScreen() {
             ) : (
               <View style={s.fichajesList}>
                 {data.fichajes.map(f => (
-                  <FilaFichaje
-                    key={f.id}
-                    fichaje={f}
-                    divisionNombre={data.divisionNombre}
-                  />
+                  <FilaFichaje key={f.id} fichaje={f} />
                 ))}
               </View>
             )}

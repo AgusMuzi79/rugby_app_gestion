@@ -22,6 +22,7 @@ import {
   type EventoItem,
   type EventoDetalle,
   type NuevoEventoForm,
+  type DivisionRef,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
@@ -329,14 +330,44 @@ function EventoDetalleContent({
 
 // ─── Modal nuevo evento ───────────────────────────────────────────────────────
 
-// Subcomisión sólo crea recaudaciones globales (sin selector de tipo ni división).
-// Manager elige viaje o tercer tiempo; la división es siempre la suya.
+// Chips de selección múltiple de divisiones.
+function SelectorDivisiones({
+  divisiones, seleccionadas, onToggle,
+}: {
+  divisiones: DivisionRef[]; seleccionadas: string[]; onToggle: (id: string) => void
+}) {
+  if (divisiones.length === 0) {
+    return <Text style={s.modalAyuda}>No hay divisiones activas para elegir.</Text>
+  }
+  return (
+    <View style={s.divRow}>
+      {divisiones.map(d => {
+        const activa = seleccionadas.includes(d.id)
+        return (
+          <TouchableOpacity
+            key={d.id}
+            style={[s.divPill, activa && s.divPillActiva]}
+            onPress={() => onToggle(d.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]}>{d.nombre}</Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}
+
+// Subcomisión sólo crea recaudaciones: para todo el club o para divisiones elegidas.
+// Manager elige viaje o tercer tiempo y una o más divisiones de su disciplina
+// (las suyas vienen preseleccionadas).
 function ModalNuevoEvento({
-  visible, onClose, onGuardar, modo, divisionNombre, form, setForm, guardando, error,
+  visible, onClose, onGuardar, modo, divisiones, form, setForm, onToggleDivision, guardando, error,
 }: {
   visible: boolean; onClose: () => void; onGuardar: () => Promise<void>
-  modo: ModoEventos; divisionNombre: string | null
+  modo: ModoEventos; divisiones: DivisionRef[]
   form: NuevoEventoForm; setForm: (f: NuevoEventoForm) => void
+  onToggleDivision: (id: string) => void
   guardando: boolean; error: string | null
 }) {
   const esManager = modo === 'manager'
@@ -381,19 +412,58 @@ function ModalNuevoEvento({
                 </View>
 
                 <View style={s.campo}>
-                  <Text style={s.campoLabel}>DIVISIÓN</Text>
-                  <View style={s.divRow}>
-                    <View style={[s.divPill, s.divPillActiva]}>
-                      <Text style={[s.divPillTexto, s.divPillTextoActivo]}>{divisionNombre ?? '—'}</Text>
-                    </View>
-                  </View>
+                  <Text style={s.campoLabel}>DIVISIONES</Text>
+                  <SelectorDivisiones
+                    divisiones={divisiones}
+                    seleccionadas={form.divisionIds}
+                    onToggle={onToggleDivision}
+                  />
+                  <Text style={s.modalAyuda}>
+                    Cada Manager ve el evento y cobra sólo a los jugadores de sus divisiones.
+                  </Text>
                 </View>
               </>
             ) : (
-              <Text style={s.modalAyuda}>
-                Recaudación global del club, visible para todas las divisiones.
-                Los viajes y tercer tiempos los crea el Manager de cada división.
-              </Text>
+              <>
+                <View style={s.campo}>
+                  <Text style={s.campoLabel}>ALCANCE</Text>
+                  <View style={s.tipoRow}>
+                    {(['club', 'divisiones'] as const).map(a => {
+                      const activo = form.alcance === a
+                      return (
+                        <TouchableOpacity
+                          key={a}
+                          style={[s.tipoBtn, activo && s.tipoBtnActivo]}
+                          onPress={() => setForm({ ...form, alcance: a })}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
+                            {a === 'club' ? 'TODO EL\nCLUB' : 'ELEGIR\nDIVISIONES'}
+                          </Text>
+                        </TouchableOpacity>
+                      )
+                    })}
+                  </View>
+                </View>
+
+                {form.alcance === 'divisiones' && (
+                  <View style={s.campo}>
+                    <Text style={s.campoLabel}>DIVISIONES</Text>
+                    <SelectorDivisiones
+                      divisiones={divisiones}
+                      seleccionadas={form.divisionIds}
+                      onToggle={onToggleDivision}
+                    />
+                  </View>
+                )}
+
+                <Text style={s.modalAyuda}>
+                  {form.alcance === 'club'
+                    ? 'Recaudación de todo el club, visible para todas las divisiones.'
+                    : 'Recaudación visible sólo para las divisiones elegidas.'}
+                  {' '}Los viajes y tercer tiempos los crea el Manager de cada división.
+                </Text>
+              </>
             )}
 
             <View style={s.campo}>
@@ -454,15 +524,16 @@ function ModalNuevoEvento({
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
 // Pantalla compartida: Subcomisión (crea recaudaciones y supervisa/cierra todos
-// los eventos) y Manager (viajes / tercer tiempos de su división, ver
+// los eventos) y Manager (viajes / tercer tiempos de sus divisiones, ver
 // app/(manager)/eventos.tsx).
 export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
-    loading, recargar, division, sinDivision, errorCarga, eventosActivos, eventosHistorial,
+    loading, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
+    eventosActivos, eventosHistorial,
     paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
     abrirDetalle, volverALista,
     modalVisible, abrirModal, cerrarModal,
-    form, setForm, guardando, errorGuardado, crearEvento,
+    form, setForm, toggleDivisionForm, guardando, errorGuardado, crearEvento,
   } = useEventos(modo)
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
@@ -522,7 +593,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
     <SafeAreaView style={s.container}>
       <View style={s.header}>
         <Text style={s.labelHeader}>
-          {esManager ? `MANAGER · ${(division?.nombre ?? '').toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
+          {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
         </Text>
         <Text style={s.titulo}>Eventos</Text>
       </View>
@@ -572,9 +643,10 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
         onClose={cerrarModal}
         onGuardar={handleGuardar}
         modo={modo}
-        divisionNombre={division?.nombre ?? null}
+        divisiones={divisionesElegibles}
         form={form}
         setForm={setForm}
+        onToggleDivision={toggleDivisionForm}
         guardando={guardando}
         error={errorGuardado}
       />
@@ -706,7 +778,7 @@ const s = StyleSheet.create({
   campoLabel:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   modalAyuda:{ fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, lineHeight: 20 },
   sinDivTitulo: { fontFamily: fonts.titulo, fontSize: 25, color: TEXTO, marginBottom: 8 },
-  divRow:    { flexDirection: 'row', gap: 8 },
+  divRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
   inputLinea: {
     borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10,

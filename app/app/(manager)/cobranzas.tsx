@@ -123,7 +123,12 @@ function FilaJugador({
   return (
     <TouchableOpacity style={s.filaJugador} onPress={() => onTap(jugador.jugadorId)} activeOpacity={0.8}>
       <Text style={s.filaNumero}>{numero}</Text>
-      <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
+      <View style={s.filaNombreWrap}>
+        <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
+        {jugador.divisionNombre && (
+          <Text style={s.filaDivision} numberOfLines={1}>{jugador.divisionNombre}</Text>
+        )}
+      </View>
       <View style={[s.estadoBadge, pagado ? s.estadoPagado : s.estadoPendiente]}>
         <Text style={[s.estadoTexto, pagado ? s.estadoPagadoTexto : s.estadoPendienteTexto]}>
           {pagado ? 'PAGADO' : 'PENDIENTE'}
@@ -341,7 +346,7 @@ export default function CobranzasScreen() {
             <View style={s.emptyWrap}>
               <Text style={s.emptyTexto}>Sin eventos activos.</Text>
               <Text style={s.emptySubtexto}>
-                Podés crear viajes y tercer tiempos de tu división. Las recaudaciones las crea la Subcomisión.
+                Podés crear viajes y tercer tiempos de tus divisiones. Las recaudaciones las crea la Subcomisión.
               </Text>
             </View>
           ) : (
@@ -395,7 +400,7 @@ export default function CobranzasScreen() {
           ) : (
             <ScrollView contentContainerStyle={s.jugadoresList}>
               {jugadores.length === 0 ? (
-                <Text style={s.emptyTexto}>Sin jugadores activos en la división.</Text>
+                <Text style={s.emptyTexto}>Sin jugadores activos en tus divisiones del evento.</Text>
               ) : (
                 jugadores.map((j, i) => (
                   <View key={j.jugadorId}>
@@ -529,7 +534,9 @@ const s = StyleSheet.create({
   filaDiv:       { height: 1, backgroundColor: DIVIDER },
   filaJugador:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 },
   filaNumero:    { fontFamily: fonts.label, fontSize: 13, color: MUTED, width: 20, textAlign: 'right' },
-  filaNombre:    { flex: 1, fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
+  filaNombreWrap:{ flex: 1 },
+  filaNombre:    { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
+  filaDivision:  { fontFamily: fonts.label, fontSize: 12, color: MUTED, letterSpacing: 0.5, marginTop: 2 },
 
   // Badges de estado en la lista
   estadoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },

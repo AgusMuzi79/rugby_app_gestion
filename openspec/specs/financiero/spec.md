@@ -14,7 +14,7 @@ Control digitalizado de cobranzas asociadas a eventos deportivos (viajes y terce
 ## Modelo de Datos (conceptual)
 
 ### Evento Financiero
-- `id`, `tipo: viaje | tercer_tiempo | recaudación`, `nombre`, `fecha`, `división`, `creado_por`, `estado: activo | cerrado`
+- `id`, `tipo: viaje | tercer_tiempo | recaudación`, `nombre`, `fecha`, `divisiones` (una o más; ninguna = todo el club), `creado_por`, `estado: activo | cerrado`
 
 ### Cobranza por Jugador
 - `evento_id`, `jugador_id`, `estado: Pagado | Pendiente`, `monto`, `forma_de_pago: efectivo | transferencia | otro`, `fecha_pago`
@@ -82,21 +82,23 @@ Control digitalizado de cobranzas asociadas a eventos deportivos (viajes y terce
 
 ### US-FIN-06 — Alta de evento de viaje / tercer tiempo
 **Como** Manager de una división  
-**Quiero** crear un evento de viaje o tercer tiempo para mi división  
+**Quiero** crear un evento de viaje o tercer tiempo para una o más divisiones  
 **Para** gestionar la cobranza correspondiente sin depender de la Subcomisión
 
 **Criterios de aceptación:**
 - El Manager crea el evento desde el módulo financiero con nombre, tipo (viaje o tercer tiempo) y monto sugerido por jugador (opcional)
-- El evento queda asociado a la división del Manager; no puede elegir otra división
-- Al crearlo, queda disponible en Cobranzas para su equipo
-- El Manager puede cerrar los viajes y tercer tiempos de su división; no puede borrarlos ni convertirlos en recaudación
+- El Manager elige una o más divisiones de su disciplina (la de sus divisiones asignadas); las suyas vienen preseleccionadas y tiene que elegir al menos una
+- Cada Manager de una división incluida ve el evento y cobra sólo a los jugadores de sus propias divisiones que están en el evento
+- El Manager puede cerrar los viajes y tercer tiempos que creó o que incluyen alguna de sus divisiones; no puede borrarlos, cambiarles las divisiones ni convertirlos en recaudación
 - La Subcomisión ya no crea viajes ni tercer tiempos (sólo recaudaciones), pero los sigue viendo y puede cerrarlos o borrarlos
 
 ## Reglas de Negocio
 - No hay integración con sistemas de pago externos; todo el registro es manual.
 - Los campos de cobranza son: estado (Pagado / Pendiente), monto y forma de pago (efectivo, transferencia, otro).
 - Los eventos de recaudación solo los crea la Subcomisión; los Managers solo cargan pedidos sobre ellos.
-- Los eventos de viaje y tercer tiempo los crea y cierra el Manager de la división, sólo para su propia división.
+- Los eventos de viaje y tercer tiempo los crea el Manager, para una o más divisiones de su disciplina; los cierra quien lo creó o cualquier Manager de una división incluida.
+- Una recaudación puede ser de todo el club o de divisiones elegidas (la Subcomisión con disciplina asignada sólo elige divisiones de su disciplina).
+- En Cobranzas, cada Manager sólo ve y cobra a los jugadores activos de sus divisiones incluidas en el evento (todas sus divisiones si el evento es de todo el club).
 - Los eventos de recaudación se cierran manualmente por la Subcomisión; no tienen vencimiento automático.
 - Un Manager solo gestiona cobranzas y pedidos de los equipos que tiene asignados.
 - El Coordinador puede ver el estado de cobranzas de su división pero no puede modificarlo.

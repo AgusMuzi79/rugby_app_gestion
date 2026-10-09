@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import {
+  SELECT_DIVISIONES_EVENTO,
+  divisionesDeEvento,
+  etiquetaDivisiones,
+  type EventoDivisionesRow,
+} from './useEventos'
 
 export interface EventoProgreso {
   id:           string
@@ -14,19 +20,20 @@ export interface EventoProgreso {
   montoCobrado: number
   montoTotal:   number
   createdAt:    string
-  esGlobal:     boolean
+  esGlobal:     boolean  // de todo el club (sin divisiones)
 }
 
 export interface UltimoFichaje {
   id:             string
   nombreCompleto: string
+  divisionNombre: string
   createdAt:      string
 }
 
 export interface DiarioManagerData {
   nombre:         string
-  divisionNombre: string
-  divisionId:     string | null
+  divisionNombre: string         // todas sus divisiones: "M15 · M16"
+  divisionId:     string | null  // primera división (compatibilidad)
   eventos:        EventoProgreso[]
   fichajes:       UltimoFichaje[]
   sinDivision:    boolean
@@ -62,24 +69,38 @@ export function useDiarioManager() {
         return
       }
 
+      // Todas las divisiones del manager, no sólo la primera.
       const [divRes, eventosRes, fichajesRes] = await Promise.all([
-        supabase.from('divisiones').select('nombre').eq('id', divId).single(),
+        supabase.from('divisiones').select('id, nombre').in('id', divIds),
         supabase.from('eventos_financieros')
-          .select('id, nombre, tipo, division_id, descripcion, created_at, cobranzas(estado, monto)')
+          .select(`id, nombre, tipo, descripcion, created_at, ${SELECT_DIVISIONES_EVENTO}, cobranzas(estado, monto)`)
           .eq('estado', 'activo')
-          .or(`division_id.eq.${divId},division_id.is.null`)
           .order('created_at', { ascending: false }),
         supabase.from('jugadores')
-          .select('id, nombre_completo, created_at')
-          .eq('division_id', divId).eq('activo', true)
+          .select('id, nombre_completo, division_id, created_at')
+          .in('division_id', divIds).eq('activo', true)
           .order('created_at', { ascending: false })
           .limit(3),
       ])
 
       type CobrRow = { estado: string; monto: number | null }
+      type Fila    = EventoDivisionesRow & {
+        id: string; nombre: string; tipo: string; descripcion: string | null
+        created_at: string; cobranzas: CobrRow[] | null
+      }
 
-      const eventos: EventoProgreso[] = (eventosRes.data ?? []).map(ef => {
-        const cobrs       = (ef.cobranzas as CobrRow[]) ?? []
+      const misDivs = (divRes.data ?? [])
+        .map(d => ({ id: d.id, nombre: d.nombre }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }))
+      const nombreDivision = new Map(misDivs.map(d => [d.id, d.nombre]))
+
+      // Eventos de todo el club o que incluyen alguna división del manager.
+      const filas = ((eventosRes.data ?? []) as unknown as Fila[])
+        .map(ef => ({ ef, divs: divisionesDeEvento(ef) }))
+        .filter(({ divs }) => divs.length === 0 || divs.some(d => divIds.includes(d.id)))
+
+      const eventos: EventoProgreso[] = filas.map(({ ef, divs }) => {
+        const cobrs       = ef.cobranzas ?? []
         const total       = cobrs.length
         const pagados     = cobrs.filter(c => c.estado === 'pagado').length
         const montoCobrado = cobrs
@@ -98,19 +119,20 @@ export function useDiarioManager() {
           montoCobrado,
           montoTotal,
           createdAt:    ef.created_at,
-          esGlobal:     ef.division_id === null,
+          esGlobal:     divs.length === 0,
         }
       })
 
       const fichajes: UltimoFichaje[] = (fichajesRes.data ?? []).map(j => ({
         id:             j.id,
         nombreCompleto: j.nombre_completo,
+        divisionNombre: nombreDivision.get(j.division_id) ?? '',
         createdAt:      j.created_at,
       }))
 
       setData({
         nombre:         profile?.nombre ?? '',
-        divisionNombre: divRes.data?.nombre ?? '',
+        divisionNombre: etiquetaDivisiones(misDivs) ?? '',
         divisionId:     divId,
         eventos,
         fichajes,
