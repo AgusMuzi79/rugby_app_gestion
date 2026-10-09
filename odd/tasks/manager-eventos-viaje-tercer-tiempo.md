@@ -21,6 +21,8 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - [x] T2 Mobile: `useEventos(modo)`; `EventosPantalla` shared by `(subcomision)/eventos.tsx` (recaudación only) and new hidden tab `(manager)/eventos.tsx`; entry buttons in manager diario/cobranzas; copy updates. Route: delegated writer (2+ non-trivial files).
 - [x] T3 Docs: financiero spec, reglas-negocio, estado-supabase, estado-expo.
 
+- [x] T4 Review advisories (user asked to fix them): manager UPDATE limited to closing (trigger guard: only estado activo→cerrado); useEventos error state for profile load + loading never stuck without session; SQL scenario test `supabase/tests/eventos_financieros_manager_rls.sql` (Docker, RED before GREEN). Route: delegated writer (3+ non-trivial files).
+
 ## Follow-ups
 - Apply migration to production (pending user approval; run backup first).
 - Ship mobile change via OTA/build when the user decides.
@@ -36,3 +38,4 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - Migration structural readback by parent: OK.
 - Migration NOT applied; app not shipped.
 - Commit e8946c5: risk medium; native review granted → approved and acknowledged (lineage review-b62029186a81a2c4). Non-blocking advisories (later work): manager UPDATE does not restrict which columns change (could reopen or rename events); profile load error shown as "no division" in useEventos.ts:107-117; loading may stay stuck without a session (useEventos.ts:94); RLS has no automated tests.
+- T4: trigger `guard_eventos_financieros_update` (manager only activo→cerrado); `errorCarga` + retry in useEventos/EventosPantalla; loading always resets. Test `supabase/tests/eventos_financieros_manager_rls.sql` (Docker postgres:17): RED 10 failing cases before trigger → GREEN 34/34 after; parent re-run GREEN. tsc: only the 2 pre-existing socios.tsx errors.

@@ -45,6 +45,60 @@ CREATE POLICY "eventos_financieros_update_manager"
     AND (SELECT tiene_acceso_division(eventos_financieros.division_id))
   );
 
+-- ─── Manager: UPDATE limitado a cerrar (trigger) ────────────────────────────
+-- RLS no restringe columnas: con la policy de arriba un Manager podría renombrar,
+-- cambiar el monto sugerido (descripcion), la fecha, el autor, el partido
+-- vinculado, cambiar viaje <-> tercer tiempo o reabrir un evento cerrado.
+-- Mismo diseño que guard_cuota_update / guard_socio_update
+-- (20260731000001_lock_cuotas_socios_self_update.sql):
+--   - Exentos: conexiones service_role (auth.uid() IS NULL, Edge Functions) y
+--     cualquier rol que no sea manager (subcomisión, coordinador, admin siguen
+--     igual que antes).
+--   - Manager: el único cambio permitido es estado 'activo' -> 'cerrado'.
+--     updated_at no se compara (lo mantiene el trigger set_updated_at).
+
+CREATE OR REPLACE FUNCTION guard_evento_financiero_update()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF get_rol() IS DISTINCT FROM 'manager' THEN
+    RETURN NEW;
+  END IF;
+
+  -- el Manager nunca puede tocar ninguna columna salvo estado
+  IF (NEW.id, NEW.tipo, NEW.nombre, NEW.descripcion, NEW.fecha, NEW.division_id,
+      NEW.evento_id, NEW.creado_por, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.id, OLD.tipo, OLD.nombre, OLD.descripcion, OLD.fecha, OLD.division_id,
+      OLD.evento_id, OLD.creado_por, OLD.created_at)
+  THEN
+    RAISE EXCEPTION 'No autorizado: el Manager sólo puede cerrar el evento, no modificarlo';
+  END IF;
+
+  -- único cambio de estado permitido: cerrar un evento activo
+  IF NEW.estado IS DISTINCT FROM OLD.estado
+     AND NOT (OLD.estado = 'activo' AND NEW.estado = 'cerrado')
+  THEN
+    RAISE EXCEPTION 'No autorizado: el Manager no puede cambiar el estado del evento a %', NEW.estado;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_eventos_financieros_update ON eventos_financieros;
+
+CREATE TRIGGER guard_eventos_financieros_update
+  BEFORE UPDATE ON eventos_financieros
+  FOR EACH ROW EXECUTE FUNCTION guard_evento_financiero_update();
+
 -- ─── Subcomisión: INSERT sólo recaudación ───────────────────────────────────
 -- Mismo filtro de disciplina que 20260914000000_subcomision_deporte.sql
 -- (division_id NULL = recaudación global), más la restricción de tipo.

@@ -55,6 +55,9 @@ export type ModoEventos = 'subcomision' | 'manager'
 
 export const TIPOS_MANAGER: TipoEvento[] = ['viaje', 'tercer_tiempo']
 
+const ERROR_CARGA_DIVISION = 'No se pudo cargar tu división. Intentá de nuevo.'
+const ERROR_CARGA_EVENTOS  = 'No se pudieron cargar los eventos. Intentá de nuevo.'
+
 function formVacio(modo: ModoEventos, divisionId: string | null): NuevoEventoForm {
   return modo === 'manager'
     ? { nombre: '', tipo: 'viaje',       divisionId, montoSugerido: '' }
@@ -70,6 +73,8 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   // Sólo modo manager: división del manager (profiles.divisiones[0])
   const [division, setDivision]         = useState<{ id: string; nombre: string } | null>(null)
   const [sinDivision, setSinDivision]   = useState(false)
+  // Error al cargar división o eventos (distinto de "sin división"); se limpia al recargar bien.
+  const [errorCarga, setErrorCarga]     = useState<string | null>(null)
   const [eventosActivos, setEventosActivos]     = useState<EventoItem[]>([])
   const [eventosHistorial, setEventosHistorial] = useState<EventoItem[]>([])
 
@@ -91,24 +96,40 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
-    if (!session) return
-    setLoading(true)
-    if (modo === 'manager') {
-      const div = await fetchDivisionManager()
-      if (div) await fetchEventos(div.id)
-    } else {
-      await fetchEventos(null)
+    if (!session) {
+      setLoading(false)
+      return
     }
-    setLoading(false)
+    setLoading(true)
+    setErrorCarga(null)
+    try {
+      if (modo === 'manager') {
+        const div = await fetchDivisionManager()
+        if (div) await fetchEventos(div.id)
+      } else {
+        await fetchEventos(null)
+      }
+    } catch {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // Un error de red / RLS al leer el perfil NO significa "sin división":
+  // se informa como error de carga (con reintento) y sinDivision no se toca.
   async function fetchDivisionManager(): Promise<{ id: string; nombre: string } | null> {
     if (!session) return null
-    const { data: profile } = await supabase
+    const { data: profile, error: errorProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
       .single()
+
+    if (errorProfile) {
+      setErrorCarga(ERROR_CARGA_DIVISION)
+      return null
+    }
 
     const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
     if (!divId) {
@@ -117,11 +138,16 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
       return null
     }
 
-    const { data: div } = await supabase
+    const { data: div, error: errorDiv } = await supabase
       .from('divisiones')
       .select('nombre')
       .eq('id', divId)
       .single()
+
+    if (errorDiv) {
+      setErrorCarga(ERROR_CARGA_DIVISION)
+      return null
+    }
 
     const res = { id: divId, nombre: div?.nombre ?? '' }
     setSinDivision(false)
@@ -140,7 +166,12 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
       query = query.eq('division_id', divisionId).in('tipo', TIPOS_MANAGER)
     }
 
-    const { data } = await query
+    const { data, error } = await query
+    if (error) {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+      return
+    }
+    setErrorCarga(null)
 
     type DivJoin      = { nombre: string } | null
     type CobranzaJoin = Array<{ estado: string; monto: number | null }>
@@ -324,6 +355,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     recargar:        fetchTodo,
     division,
     sinDivision,
+    errorCarga,
     eventosActivos,
     eventosHistorial,
     paso,

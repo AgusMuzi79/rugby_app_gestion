@@ -461,7 +461,7 @@ function ModalNuevoEvento({
 // app/(manager)/eventos.tsx).
 export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
-    loading, division, sinDivision, eventosActivos, eventosHistorial,
+    loading, recargar, division, sinDivision, errorCarga, eventosActivos, eventosHistorial,
     paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
     abrirDetalle, volverALista,
     modalVisible, abrirModal, cerrarModal,
@@ -470,6 +470,20 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
   const esManager = modo === 'manager'
+
+  // Error de carga (red / permisos): no es lo mismo que "sin división".
+  if (errorCarga && !loading && paso === 'lista') {
+    return (
+      <View style={s.centradoPad}>
+        <View style={s.bannerError}>
+          <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+        </View>
+        <TouchableOpacity style={s.botonPrincipal} onPress={recargar} activeOpacity={0.85}>
+          <Text style={s.botonPrincipalTexto}>REINTENTAR</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
 
   if (esManager && sinDivision && !loading) {
     return (
@@ -580,6 +594,7 @@ export default function EventosScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: FONDO },
   centrado:  { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO },
+  centradoPad: { flex: 1, justifyContent: 'center', alignItems: 'stretch', backgroundColor: FONDO, paddingHorizontal: 20, gap: 16 },
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
