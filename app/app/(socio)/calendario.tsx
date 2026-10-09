@@ -2,7 +2,8 @@ import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, RefreshControl,
 } from 'react-native'
-import { useRef } from 'react'
+import { useRef, type ComponentProps } from 'react'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -74,6 +75,29 @@ function FiltroBar({ filtro, onChange }: { filtro: FiltrodeDeporte; onChange: (f
   )
 }
 
+// ─── Deporte + división ───────────────────────────────────────────────────────
+// Con el filtro en TODOS se mezclan disciplinas: el ícono y el nombre del
+// deporte permiten distinguir un partido de rugby de uno de hockey.
+
+const DEPORTES: Record<string, { label: string; icono: ComponentProps<typeof MaterialCommunityIcons>['name'] }> = {
+  rugby:  { label: 'RUGBY',  icono: 'rugby' },
+  hockey: { label: 'HOCKEY', icono: 'hockey-sticks' },
+  tenis:  { label: 'TENIS',  icono: 'tennis' },
+}
+
+function DeporteDivision({ deporte, division }: { deporte: string; division: string }) {
+  const d = DEPORTES[deporte]
+  const label = d ? d.label : deporte.toUpperCase()
+  return (
+    <View style={s.deporteFila} accessibilityLabel={`${label}, ${division}`}>
+      {d && <MaterialCommunityIcons name={d.icono} size={15} color={ORO} />}
+      <Text style={s.partidoDiv}>
+        {label} · {division.toUpperCase()}
+      </Text>
+    </View>
+  )
+}
+
 // ─── Card partido ─────────────────────────────────────────────────────────────
 
 function CardPartido({ partido }: { partido: PartidoCalendario }) {
@@ -88,7 +112,7 @@ function CardPartido({ partido }: { partido: PartidoCalendario }) {
       {partido.hora && <Text style={s.partidoHora}>{partido.hora.slice(0, 5)}</Text>}
       <Text style={s.partidoVs}>vs. {partido.rival}</Text>
       {partido.lugar && <Text style={s.partidoLugar}>{partido.lugar}</Text>}
-      <Text style={s.partidoDiv}>{partido.division_nombre.toUpperCase()}</Text>
+      <DeporteDivision deporte={partido.deporte} division={partido.division_nombre} />
     </View>
   )
 }
@@ -119,7 +143,7 @@ function CardResultado({ resultado }: { resultado: ResultadoCalendario }) {
       ) : (
         <Text style={s.sinScore}>Sin resultado registrado</Text>
       )}
-      <Text style={s.partidoDiv}>{resultado.division_nombre.toUpperCase()}</Text>
+      <DeporteDivision deporte={resultado.deporte} division={resultado.division_nombre} />
     </View>
   )
 }
@@ -277,7 +301,8 @@ const s = StyleSheet.create({
   partidoHora:  { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 1 },
   partidoVs:    { fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO, fontWeight: '600', marginTop: 2 },
   partidoLugar: { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED },
-  partidoDiv:   { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1.5, marginTop: 4 },
+  deporteFila:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  partidoDiv:   { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1.5 },
 
   scoreTexto: { fontFamily: fonts.titulo, fontSize: 23, fontWeight: '700', marginTop: 2 },
   sinScore:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, fontStyle: 'italic' },
