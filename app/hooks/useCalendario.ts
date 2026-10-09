@@ -53,7 +53,7 @@ export interface UseCalendarioReturn {
   setForm: (form: NuevoEventoForm) => void
   resetForm: () => void
   crearEvento: () => Promise<boolean>
-  cancelarEvento: (id: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
+  cancelarEvento: (id: string, tipo: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
   cancelando: boolean
   errorCancelacion: string | null
   recargar: () => void
@@ -215,6 +215,7 @@ export function useCalendario(): UseCalendarioReturn {
 
   async function cancelarEvento(
     id: string,
+    tipo: string,
     divisionId: string,
     divisionNombre: string,
     fecha: string,
@@ -240,8 +241,9 @@ export function useCalendario(): UseCalendarioReturn {
     setEventos(prev => prev.filter(e => e.id !== id))
 
     // Publicar noticia automática
+    const etiqueta = tipo === 'partido' ? 'Partido' : 'Entrenamiento'
     await supabase.from('noticias').insert({
-      titulo:                  `Entrenamiento cancelado — ${divisionNombre}`,
+      titulo:                  `${etiqueta} cancelado — ${divisionNombre}`,
       cuerpo:                  mensaje,
       autor_id:                session.user.id,
       publicada:               true,
@@ -254,7 +256,7 @@ export function useCalendario(): UseCalendarioReturn {
     void supabase.functions.invoke('notifications', {
       body: {
         type: 'cancelacion_entrenamiento',
-        payload: { divisionId, divisionNombre, mensaje, fecha },
+        payload: { divisionId, divisionNombre, mensaje, fecha, tipoEvento: tipo },
       },
     })
 

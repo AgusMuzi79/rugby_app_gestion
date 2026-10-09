@@ -342,6 +342,7 @@ export default function CalendarioScreen() {
     if (!eventoCancelar) return
     const ok = await cancelarEvento(
       eventoCancelar.id,
+      eventoCancelar.tipo,
       eventoCancelar.division_id,
       eventoCancelar.division_nombre,
       eventoCancelar.fecha,
