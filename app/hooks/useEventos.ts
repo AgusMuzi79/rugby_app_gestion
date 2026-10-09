@@ -50,7 +50,7 @@ export interface NuevoEventoForm {
 // Quién usa la pantalla de eventos:
 // - 'subcomision': ve todos los eventos y sólo crea recaudaciones (globales).
 // - 'manager': ve y crea viajes / tercer tiempos de su división (divisiones[0]).
-// La RLS (20261014000000_eventos_financieros_manager.sql) aplica la misma regla.
+// La RLS (20261015000000_eventos_financieros_manager.sql) aplica la misma regla.
 export type ModoEventos = 'subcomision' | 'manager'
 
 export const TIPOS_MANAGER: TipoEvento[] = ['viaje', 'tercer_tiempo']

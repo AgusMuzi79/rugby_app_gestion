@@ -1,4 +1,4 @@
--- Pruebas de escenario para la migración 20261014000000_eventos_financieros_manager
+-- Pruebas de escenario para la migración 20261015000000_eventos_financieros_manager
 -- (Manager crea / cierra viajes y tercer tiempos de su división; Subcomisión sólo
 -- crea recaudaciones; trigger guard_evento_financiero_update: el Manager sólo puede
 -- pasar estado 'activo' -> 'cerrado', sin tocar ninguna otra columna).
@@ -159,7 +159,7 @@ insert into eventos_financieros (id, tipo, nombre, division_id, creado_por) valu
 
 -- ─── Migración bajo prueba ────────────────────────────────────────────────────
 
-\ir ../migrations/20261014000000_eventos_financieros_manager.sql
+\ir ../migrations/20261015000000_eventos_financieros_manager.sql
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 

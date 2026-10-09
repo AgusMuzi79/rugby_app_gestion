@@ -17,7 +17,7 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - Docs: `openspec/specs/financiero/spec.md`, `.claude/context/reglas-negocio.md`, `.claude/context/estado-supabase.md`, `.claude/context/estado-expo.md`.
 
 ## Tasks
-- [x] T1 Migration `20261014000000_eventos_financieros_manager.sql`: manager INSERT/UPDATE policies + subcomisión INSERT restricted to recaudación. Route: delegated writer.
+- [x] T1 Migration `20261015000000_eventos_financieros_manager.sql`: manager INSERT/UPDATE policies + subcomisión INSERT restricted to recaudación. Route: delegated writer.
 - [x] T2 Mobile: `useEventos(modo)`; `EventosPantalla` shared by `(subcomision)/eventos.tsx` (recaudación only) and new hidden tab `(manager)/eventos.tsx`; entry buttons in manager diario/cobranzas; copy updates. Route: delegated writer (2+ non-trivial files).
 - [x] T3 Docs: financiero spec, reglas-negocio, estado-supabase, estado-expo.
 
