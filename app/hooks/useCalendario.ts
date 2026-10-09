@@ -203,7 +203,10 @@ export function useCalendario(): UseCalendarioReturn {
       hora: form.hora.trim() || null,
       lugar: form.lugar.trim() || null,
       rival: form.tipo === 'partido' ? (form.rival.trim() || null) : null,
-      modalidad: form.tipo === 'partido' ? (form.modalidad || null) : null,
+      // A partido may mix a tennis and a non-tennis division; modalidad only applies to tennis.
+      modalidad: form.tipo === 'partido' && divisiones.find(d => d.id === divisionId)?.deporte === 'tenis'
+        ? (form.modalidad || null)
+        : null,
       creado_por: session.user.id,
       cancelado: false,
     })))
