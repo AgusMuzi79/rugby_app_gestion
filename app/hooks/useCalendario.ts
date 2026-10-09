@@ -33,7 +33,24 @@ export interface NuevoEventoForm {
   modalidad: ModalidadPartido | ''
 }
 
+// Only rugby plays partidos shared by two divisions; other sports use one division per partido.
 export const MAX_DIVISIONES_PARTIDO = 2
+
+type DivisionDeporte = { id: string; deporte: string }
+
+export function partidoMultiDivisionValido(ids: string[], divisiones: DivisionDeporte[]): boolean {
+  if (ids.length <= 1) return true
+  return ids.length <= MAX_DIVISIONES_PARTIDO
+    && ids.every(id => divisiones.find(d => d.id === id)?.deporte === 'rugby')
+}
+
+// Keeps the first selected division, plus the next rugby one when the first is rugby.
+export function recortarParaPartido(ids: string[], divisiones: DivisionDeporte[]): string[] {
+  const esRugby = (id: string) => divisiones.find(d => d.id === id)?.deporte === 'rugby'
+  if (ids.length === 0) return ids
+  if (!esRugby(ids[0])) return [ids[0]]
+  return ids.filter(esRugby).slice(0, MAX_DIVISIONES_PARTIDO)
+}
 
 const FORM_VACIO: NuevoEventoForm = {
   tipo: 'entrenamiento',
@@ -181,8 +198,8 @@ export function useCalendario(): UseCalendarioReturn {
       setErrorGuardado('División y fecha son obligatorias.')
       return false
     }
-    if (form.tipo === 'partido' && form.division_ids.length > MAX_DIVISIONES_PARTIDO) {
-      setErrorGuardado(`Un partido puede tener hasta ${MAX_DIVISIONES_PARTIDO} divisiones.`)
+    if (form.tipo === 'partido' && !partidoMultiDivisionValido(form.division_ids, divisiones)) {
+      setErrorGuardado(`Solo un partido de rugby puede tener hasta ${MAX_DIVISIONES_PARTIDO} divisiones.`)
       return false
     }
     if (form.tipo === 'partido' && !form.rival.trim()) {

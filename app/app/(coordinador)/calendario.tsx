@@ -13,7 +13,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
-import { useCalendario, EventoCalendario, TipoEvento, ModalidadPartido, MAX_DIVISIONES_PARTIDO } from '@/hooks/useCalendario'
+import {
+  useCalendario, EventoCalendario, TipoEvento, ModalidadPartido,
+  MAX_DIVISIONES_PARTIDO, partidoMultiDivisionValido, recortarParaPartido,
+} from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
 
@@ -101,7 +104,7 @@ function ModalNuevoEvento({
 
   function cambiarTipo(tipo: TipoEvento) {
     const division_ids = tipo === 'partido'
-      ? form.division_ids.slice(0, MAX_DIVISIONES_PARTIDO)
+      ? recortarParaPartido(form.division_ids, divisiones)
       : form.division_ids
     setForm({ ...form, tipo, division_ids })
   }
@@ -111,8 +114,13 @@ function ModalNuevoEvento({
       setForm({ ...form, division_ids: form.division_ids.filter(d => d !== id) })
       return
     }
-    if (esPartido && form.division_ids.length >= MAX_DIVISIONES_PARTIDO) return
-    setForm({ ...form, division_ids: [...form.division_ids, id] })
+    const conNueva = [...form.division_ids, id]
+    if (esPartido && !partidoMultiDivisionValido(conNueva, divisiones)) {
+      // Not a valid rugby pair: switch the partido to the tapped division instead.
+      setForm({ ...form, division_ids: [id] })
+      return
+    }
+    setForm({ ...form, division_ids: conNueva })
   }
 
   return (
@@ -148,7 +156,7 @@ function ModalNuevoEvento({
             {divisiones.length > 1 && (
               <>
                 <Text style={styles.inputLabel}>
-                  {esPartido ? `DIVISIONES (hasta ${MAX_DIVISIONES_PARTIDO})` : 'DIVISIONES'}
+                  {esPartido ? `DIVISIÓN (hasta ${MAX_DIVISIONES_PARTIDO} en rugby)` : 'DIVISIONES'}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.divScroll}>
                   <View style={styles.divRow}>
