@@ -16,6 +16,10 @@ export default function AdminLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="sistema"
+        options={{ tabBarIcon: ({ color, size }) => <Feather name="server" size={size} color={color} /> }}
+      />
+      <Tabs.Screen
         name="sobre"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
