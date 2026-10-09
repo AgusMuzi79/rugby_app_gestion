@@ -24,6 +24,10 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - [x] T4 Review advisories (user asked to fix them): manager UPDATE limited to closing (trigger guard: only estado activo→cerrado); useEventos error state for profile load + loading never stuck without session; SQL scenario test `supabase/tests/eventos_financieros_manager_rls.sql` (Docker, RED before GREEN). Route: delegated writer (3+ non-trivial files).
 - [x] T5 Cobranzas: amount field defaults to the event's suggested amount (stored in `descripcion`) when the player has no registered amount; still editable. `app/lib/montoSugerido.ts` + `montoSugerido.check.ts` (RED: module missing → GREEN 6 cases); `useCobranzas.ts` uses it; eventos screen reuses the parser. Parser accepts local format ("2.500" = 2500, "2.500,50") after review warning (RED 2.5 -> GREEN 8 cases). Route: inline (small, understood).
 
+## Delivery
+- PR #13 https://github.com/AgusMuzi79/rugby_app_gestion/pull/13 (origin/main merged into branch; migration renamed 20261014→20261015 to avoid collision with division_automatica_por_servicio). Review approved + acknowledged on the full diff vs origin/main.
+- Production steps blocked for the agent by the permission classifier (production reads/writes): backup, `supabase db push`, `eas update --branch production` pending, to be run by the user or after granting permission.
+
 ## Follow-ups
 - Apply migration to production (pending user approval; run backup first).
 - Ship mobile change via OTA/build when the user decides.
