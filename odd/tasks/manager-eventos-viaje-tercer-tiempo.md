@@ -35,3 +35,4 @@ Managers run trips and third halves for their own team; Subcomisión only needs 
 - `npx tsc --noEmit` (app/): only 2 pre-existing errors in `app/(secretaria)/socios.tsx:112-113` (file untouched); no errors in changed files.
 - Migration structural readback by parent: OK.
 - Migration NOT applied; app not shipped.
+- Commit e8946c5: risk medium; native review granted → approved and acknowledged (lineage review-b62029186a81a2c4). Non-blocking advisories (later work): manager UPDATE does not restrict which columns change (could reopen or rename events); profile load error shown as "no division" in useEventos.ts:107-117; loading may stay stuck without a session (useEventos.ts:94); RLS has no automated tests.
