@@ -24,6 +24,7 @@ import {
   type NuevoEventoForm,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
+import { montoSugeridoDe } from '@/lib/montoSugerido'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -56,11 +57,7 @@ const TIPO_MODAL_LABEL: Record<TipoEvento, string> = {
   tercer_tiempo: 'TERCER\nTIEMPO',
 }
 
-function parseMonto(desc: string | null): number | null {
-  if (!desc) return null
-  const n = parseFloat(desc.replace(',', '.'))
-  return isNaN(n) || n <= 0 ? null : n
-}
+const parseMonto = montoSugeridoDe
 
 function formatFecha(fecha: string | null): string {
   if (!fecha) return ''
