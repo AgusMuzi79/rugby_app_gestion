@@ -1,6 +1,7 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, TextInput, Alert, ScrollView, KeyboardAvoidingView, Platform,
+  type ViewStyle,
 } from 'react-native'
 import { useState, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -11,6 +12,7 @@ import {
   useComunicadosAdmin,
   type Comunicado,
   type AudienciaComunicado,
+  type AudienciaMostrada,
 } from '@/hooks/useComunicadosAdmin'
 import { colors, fonts } from '@/constants/theme'
 
@@ -29,9 +31,10 @@ const AUDIENCIAS: { value: AudienciaComunicado; label: string; detalle: string }
   },
 ]
 
-const AUDIENCIA_LABEL: Record<AudienciaComunicado, string> = {
+const AUDIENCIA_LABEL: Record<AudienciaMostrada, string> = {
   cuerpo_tecnico: 'CUERPO TÉCNICO',
   todos:          'SOCIOS',
+  desconocida:    'SIN DEFINIR',
 }
 
 function fechaCorta(iso: string) {
@@ -58,7 +61,7 @@ function FilaComunicado({
     <View style={s.row}>
       <View style={s.rowLeft}>
         <View style={s.badgeRow}>
-          <View style={[s.badge, comunicado.audiencia === 'cuerpo_tecnico' ? s.badgeStaff : s.badgeSocios]}>
+          <View style={[s.badge, BADGE_AUDIENCIA[comunicado.audiencia]]}>
             <Text style={s.badgeText}>{AUDIENCIA_LABEL[comunicado.audiencia]}</Text>
           </View>
           {!comunicado.publicada && (
@@ -203,7 +206,7 @@ export default function ComunicadosAdminScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { comunicados, loading, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
+  const { comunicados, loading, errorCarga, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
   const [modalVisible, setModalVisible] = useState(false)
 
   return (
@@ -222,6 +225,13 @@ export default function ComunicadosAdminScreen() {
 
       {loading && comunicados.length === 0 ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : errorCarga ? (
+        <View style={s.emptyContainer}>
+          <Text style={s.emptyText}>No se pudieron cargar los comunicados.</Text>
+          <TouchableOpacity style={s.reintentarBtn} onPress={refetch} activeOpacity={0.75}>
+            <Text style={s.reintentarText}>REINTENTAR</Text>
+          </TouchableOpacity>
+        </View>
       ) : comunicados.length === 0 ? (
         <View style={s.emptyContainer}>
           <Text style={s.emptyText}>Todavía no hay comunicados.</Text>
@@ -298,6 +308,7 @@ const s = StyleSheet.create({
   badgeStaff:    { backgroundColor: '#2563EB' },
   badgeSocios:   { backgroundColor: '#1A7A1A' },
   badgeBorrador: { backgroundColor: '#555555' },
+  badgeSinDefinir: { backgroundColor: '#555555' },
   badgeText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
@@ -372,4 +383,18 @@ const s = StyleSheet.create({
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
+  reintentarBtn: {
+    marginTop: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
+    paddingHorizontal: 18, paddingVertical: 10,
+  },
+  reintentarText: {
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
+    textTransform: 'uppercase', color: colors.oro,
+  },
 })
+
+const BADGE_AUDIENCIA: Record<AudienciaMostrada, ViewStyle> = {
+  cuerpo_tecnico: s.badgeStaff,
+  todos:          s.badgeSocios,
+  desconocida:    s.badgeSinDefinir,
+}

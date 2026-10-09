@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { seccionOVacia, conteoOVacio } from '@/lib/sistemaAdmin'
 
 type Tablas = Database['public']['Tables']
 
@@ -78,11 +79,11 @@ export function useSistemaAdmin() {
     ])
 
     setSistema({
-      importacionesSocios:    socios.error ? null : socios.data,
-      importacionesDeuda:     deuda.error ? null : deuda.data,
-      importacionesServicios: servicios.error ? null : servicios.data,
-      recordatoriosDeuda:     recordatorios.error ? null : recordatorios.data,
-      pushTokens:             tokens.error ? null : tokens.count ?? 0,
+      importacionesSocios:    seccionOVacia(socios),
+      importacionesDeuda:     seccionOVacia(deuda),
+      importacionesServicios: seccionOVacia(servicios),
+      recordatoriosDeuda:     seccionOVacia(recordatorios),
+      pushTokens:             conteoOVacio(tokens),
     })
     setLoading(false)
   }, [])

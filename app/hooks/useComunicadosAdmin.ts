@@ -2,16 +2,21 @@ import { useState, useCallback, useEffect } from 'react'
 import { Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import {
+  normalizarAudiencia,
+  resultadoBorrado,
+  type AudienciaComunicado,
+  type AudienciaMostrada,
+} from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 
-// Values allowed by noticias_audiencia_check (20260616000001_noticias_audiencia).
-export type AudienciaComunicado = 'cuerpo_tecnico' | 'todos'
+export type { AudienciaComunicado, AudienciaMostrada }
 
 export interface Comunicado {
   id:         string
   titulo:     string
   cuerpo:     string
-  audiencia:  AudienciaComunicado
+  audiencia:  AudienciaMostrada
   publicada:  boolean
   created_at: string
 }
@@ -26,20 +31,25 @@ export function useComunicadosAdmin() {
   const { session } = useAuthStore()
   const [comunicados, setComunicados] = useState<Comunicado[]>([])
   const [loading, setLoading]         = useState(true)
+  const [errorCarga, setErrorCarga]   = useState<string | null>(null)
   const [publicando, setPublicando]   = useState(false)
 
   const fetchComunicados = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('noticias')
       .select('id, titulo, cuerpo, audiencia, publicada, created_at')
       .order('created_at', { ascending: false })
       .limit(50)
 
-    setComunicados((data ?? []).map(n => ({
-      ...n,
-      audiencia: n.audiencia === 'cuerpo_tecnico' ? 'cuerpo_tecnico' : 'todos',
-    })))
+    // A failed read clears the list so it is not mistaken for current data.
+    if (error) {
+      setErrorCarga(error.message)
+      setComunicados([])
+    } else {
+      setErrorCarga(null)
+      setComunicados((data ?? []).map(n => ({ ...n, audiencia: normalizarAudiencia(n.audiencia) })))
+    }
     setLoading(false)
   }, [])
 
@@ -54,40 +64,59 @@ export function useComunicadosAdmin() {
     if (!session?.user.id) return false
     setPublicando(true)
 
-    const { data, error } = await supabase
-      .from('noticias')
-      .insert({
-        titulo:    titulo.trim(),
-        cuerpo:    cuerpo.trim(),
-        etiquetas: [],
-        audiencia,
-        autor_id:  session.user.id,
-        publicada: true,
+    try {
+      const { data, error } = await supabase
+        .from('noticias')
+        .insert({
+          titulo:    titulo.trim(),
+          cuerpo:    cuerpo.trim(),
+          etiquetas: [],
+          audiencia,
+          autor_id:  session.user.id,
+          publicada: true,
+        })
+        .select('id')
+        .single()
+
+      if (error || !data) {
+        Alert.alert('Error', error?.message ?? 'No se pudo publicar el comunicado.')
+        return false
+      }
+
+      // Fire & forget: a push failure does not undo the publication.
+      void supabase.functions.invoke('notifications', {
+        body: { type: 'noticia_publicada', payload: { titulo: titulo.trim(), noticiaId: data.id, audiencia } },
       })
-      .select('id')
-      .single()
 
-    if (error || !data) {
-      Alert.alert('Error', error?.message ?? 'No se pudo publicar el comunicado.')
-      setPublicando(false)
+      await fetchComunicados()
+      return true
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo publicar el comunicado.')
       return false
+    } finally {
+      setPublicando(false)
     }
-
-    // Fire & forget: a push failure does not undo the publication.
-    void supabase.functions.invoke('notifications', {
-      body: { type: 'noticia_publicada', payload: { titulo: titulo.trim(), noticiaId: data.id, audiencia } },
-    })
-
-    await fetchComunicados()
-    setPublicando(false)
-    return true
   }, [session, fetchComunicados])
 
-  const eliminar = useCallback(async (id: string) => {
-    const { error } = await supabase.from('noticias').delete().eq('id', id)
-    if (error) { Alert.alert('Error', error.message); return }
-    setComunicados(prev => prev.filter(c => c.id !== id))
-  }, [])
+  const eliminar = useCallback(async (id: string): Promise<boolean> => {
+    const { data, error } = await supabase.from('noticias').delete().eq('id', id).select('id')
+    const resultado = resultadoBorrado(error, data)
 
-  return { comunicados, loading, publicando, publicar, eliminar, refetch: fetchComunicados }
+    if (resultado === 'error') {
+      Alert.alert('Error', error?.message ?? 'No se pudo eliminar el comunicado.')
+      return false
+    }
+    if (resultado === 'sin_filas') {
+      Alert.alert(
+        'No se pudo eliminar',
+        'El comunicado no se eliminó: no tenés permiso o ya había sido eliminado.',
+      )
+      await fetchComunicados()
+      return false
+    }
+    setComunicados(prev => prev.filter(c => c.id !== id))
+    return true
+  }, [fetchComunicados])
+
+  return { comunicados, loading, errorCarga, publicando, publicar, eliminar, refetch: fetchComunicados }
 }
