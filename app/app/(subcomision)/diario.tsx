@@ -209,7 +209,7 @@ export default function DiarioSubcomisionScreen() {
                 onPress={() => router.navigate('/(subcomision)/eventos')}
                 activeOpacity={0.75}
               >
-                <Text style={s.atajoBtnText}>NUEVO EVENTO →</Text>
+                <Text style={s.atajoBtnText}>EVENTOS Y RECAUDACIONES →</Text>
               </TouchableOpacity>
             </View>
           </View>

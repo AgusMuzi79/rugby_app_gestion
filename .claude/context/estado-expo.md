@@ -37,7 +37,7 @@
 | Subcomisión | home→diario | users→usuarios | activity→cronica | user→sobre | salir, dashboard, eventos, informes, notificaciones, protocolos |
 | Coordinador | home→diario | calendar→calendario | activity→cronica | user→sobre | salir, asistencia |
 | Entrenador | home→diario | list→asistencia | activity→cronica | user→sobre | salir, lesiones, partido |
-| Manager | home→diario | dollar-sign→cobranzas | activity→cronica | user→sobre | salir, fichajes |
+| Manager | home→diario | dollar-sign→cobranzas | activity→cronica | user→sobre | salir, fichajes, eventos |
 
 El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pantalla Sobre.
 
@@ -54,7 +54,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 |---|---|---|
 | `(subcomision)/diario.tsx` | `useDiarioSubcomision.ts` | 5 queries paralelas — asistencia±30D/variación, lesiones activas grado≥3, fichajes 7D, notif recientes |
 | `(subcomision)/usuarios.tsx` | `useUsuarios.ts` | Lista/detalle/crear/desactivar/reactivar. Detalle invoca `getUser` para email. Edición divisiones in-place + actualización optimista |
-| `(subcomision)/eventos.tsx` | `useEventos.ts` | `EventoItem` con join `cobranzas(estado,monto)`. `monto_sugerido` en campo `descripcion`. Cerrar = UPDATE estado='cerrado' con confirmación |
+| `(subcomision)/eventos.tsx` | `useEventos.ts` | `EventoItem` con join `cobranzas(estado,monto)`. `monto_sugerido` en campo `descripcion`. Cerrar = UPDATE estado='cerrado' con confirmación. Exporta `EventosPantalla({ modo })`; en modo `subcomision` lista todos los eventos y sólo crea recaudaciones globales |
 | `(subcomision)/informes.tsx` | `useInformes.ts` | Asistencia per-jugador (join 3-nivel), W/L/D, fichajes+financiero con `forma_de_pago` breakdown. Filtro client-side por `divisionFiltro` |
 | `(subcomision)/notificaciones.tsx` | `useNotificaciones.ts` | Modal nueva notif (título/mensaje/rol), historial, push via Edge Function |
 | `(subcomision)/cronica.tsx` | `useCronica.ts` | Compartido |
@@ -89,6 +89,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 |---|---|---|
 | `(manager)/diario.tsx` | `useDiarioManager.ts` | 3 queries paralelas. `EventoProgreso` incluye `esGlobal` (division_id IS NULL), `pct`, `montoCobrado`, `montoTotal` |
 | `(manager)/cobranzas.tsx` | `useCobranzas.ts` | Upsert por `evento_financiero_id,jugador_id`. Barra progreso ORO, modal PAGADO/PENDIENTE, forma de pago (3 botones) |
+| `(manager)/eventos.tsx` | `useEventos.ts` (modo `manager`) | Tab oculto. Reusa `EventosPantalla` de `(subcomision)/eventos.tsx`: lista viajes/tercer tiempos de su división (`profiles.divisiones[0]`), crea (tipo viaje/tercer tiempo, división fija) y cierra. Accesos: botón en `(manager)/diario.tsx` y `(manager)/cobranzas.tsx` |
 | `(manager)/fichajes.tsx` | `useFichajes.ts` | Upload docs a Storage bucket `fichajes` (base64 via expo-file-system). `abrirDocumento`: signed URL 60s → `Linking.openURL`. Validación fecha: `if (!fechaNacimiento)` (no regex) |
 | `(manager)/cronica.tsx` | `useCronica.ts` | Compartido |
 | `(manager)/sobre.tsx` | `useSobre.ts` | Re-exporta `SobreScreen` |
