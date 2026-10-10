@@ -24,7 +24,15 @@ ask-on-risk. Forecast ~350–450 authored lines.
   - RED: `psql -f /work/tests/egresos_evento.sql` in postgres:17 Docker aborted at `\ir ../migrations/20261017000000_egresos_evento.sql: No such file or directory` (exit 3).
   - GREEN: same command → 25 `ok` cases, `TODOS LOS CASOS OK` (exit 0).
   - Design: helper `egreso_evento_editable_por_manager` (SECURITY DEFINER: viaje/tercer_tiempo, activo, creado_por = uid OR `evento_financiero_toca_mis_divisiones`); SELECT for manager/subcomision via parent-event RLS (subcomisión limited to its sport, same as the event); INSERT requires `registrado_por = auth.uid()`; DELETE by any manager of the active event; admin FOR ALL (repo convention); no UPDATE policy.
-- [ ] T2 — Mobile hook + balance helper with `.check.ts` + Egresos tab screen + layout entry (route: delegated writer, same)
+  - Commit: `2dfa335 feat(db): add egresos_evento table with manager RLS`.
+- [x] T2 — Mobile hook + balance helper with `.check.ts` + Egresos tab screen + layout entry (route: delegated writer, same)
+  - RED: `npm run test:admin` failed with `Cannot find module './balanceEvento'` after adding `lib/balanceEvento.check.ts` to the script.
+  - GREEN: `npm run test:admin` → comunicadosAdmin + sistemaAdmin + balanceEvento (15 cases) all `ok`, exit 0.
+  - `npx tsc --noEmit` (app/) → exit 0, no output.
+  - `lib/balanceEvento.ts`: `balanceEvento` (only `pagado` cobranzas, cents rounding, numeric-as-string tolerant), `parseFechaEgreso` (DD/MM/AAAA or ISO), `validarEgreso` (reuses `montoSugeridoDe` local-format parsing).
+  - `hooks/useEgresos.ts`: lists visible viaje/tercer_tiempo events (active first), keeps the selection on refresh, loads egresos + paid cobranzas, add/delete with errors surfaced; delete uses `.select('id')` to detect RLS 0-row deletes. Accesses `egresos_evento` through an untyped client cast because `lib/database.types.ts` has no entry yet (regenerate types after applying the migration).
+  - Screen `app/(manager)/egresos.tsx` + visible tab `egresos` (Feather `trending-down`) after Cobranzas; delete confirmed with `Alert.alert` (same as Secretaría noticias); form hidden with an info banner when the event is cerrado.
+  - Note: "Cobrado" is what the manager can read under cobranzas RLS (players of its own divisions), same as Cobranzas.
 
 ## Acceptance criteria
 - Manager can add/delete expenses only on active viaje/tercer_tiempo events it can access; cannot on closed events, recaudaciones, or other sports' events.
@@ -40,4 +48,4 @@ ask-on-risk. Forecast ~350–450 authored lines.
 - Branch `feat/manager-egresos` created from origin/main.
 
 ## Next step
-Delegate T1+T2 to one writer.
+Parent: review/assess the two work-unit commits. Pending user decisions: apply migration `20261017000000` to production, regenerate `lib/database.types.ts`, then OTA.
