@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useEgresos, type Egreso, type EventoEgresos } from '@/hooks/useEgresos'
+import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens (mismos que Cobranzas) ────────────────────────────────────────────
@@ -235,35 +236,29 @@ export default function EgresosScreen() {
                     />
                   </View>
 
-                  <View style={s.filaCampos}>
-                    <View style={[s.campo, s.flex]}>
-                      <Text style={s.campoLabel}>MONTO</Text>
-                      <View style={s.montoWrap}>
-                        <Text style={s.montoSimbolo}>$</Text>
-                        <TextInput
-                          style={s.montoInput}
-                          value={form.monto}
-                          onChangeText={v => setForm(f => ({ ...f, monto: v }))}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={MUTED}
-                          maxLength={14}
-                        />
-                      </View>
-                    </View>
-                    <View style={[s.campo, s.flex]}>
-                      <Text style={s.campoLabel}>FECHA</Text>
+                  <View style={s.campo}>
+                    <Text style={s.campoLabel}>MONTO</Text>
+                    <View style={s.montoWrap}>
+                      <Text style={s.montoSimbolo}>$</Text>
                       <TextInput
-                        style={s.input}
-                        value={form.fecha}
-                        onChangeText={v => setForm(f => ({ ...f, fecha: v }))}
-                        placeholder="DD/MM/AAAA"
+                        style={s.montoInput}
+                        value={form.monto}
+                        onChangeText={v => setForm(f => ({ ...f, monto: v }))}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
                         placeholderTextColor={MUTED}
-                        keyboardType="numbers-and-punctuation"
-                        maxLength={10}
+                        maxLength={14}
                       />
                     </View>
                   </View>
+
+                  <DatePickerField
+                    label="FECHA"
+                    value={form.fecha}
+                    onChange={v => setForm(f => ({ ...f, fecha: v }))}
+                    maximumDate={new Date()}
+                  />
+
 
                   {errorGuardado && (
                     <View style={s.bannerError}>
@@ -373,7 +368,6 @@ const s = StyleSheet.create({
 
   // Formulario
   formCard:     { borderWidth: 1, borderColor: DIVIDER, borderRadius: 4, backgroundColor: CARD, padding: 16, gap: 16 },
-  filaCampos:   { flexDirection: 'row', gap: 16 },
   campo:        { gap: 8 },
   campoLabel:   { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: MUTED },
   input:        { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, borderBottomWidth: 1.5, borderBottomColor: DIVIDER, paddingVertical: 6, paddingHorizontal: 0 },

@@ -34,6 +34,15 @@ ask-on-risk. Forecast ~350–450 authored lines.
   - Screen `app/(manager)/egresos.tsx` + visible tab `egresos` (Feather `trending-down`) after Cobranzas; delete confirmed with `Alert.alert` (same as Secretaría noticias); form hidden with an info banner when the event is cerrado.
   - Note: "Cobrado" is what the manager can read under cobranzas RLS (players of its own divisions), same as Cobranzas.
 
+  - Commit: `2e33dd2 feat(manager): add egresos tab per financial event`.
+- [x] T3 — Fix T2 open points: whole-event balance, subcomisión sees all egresos, hand-written DB types, DatePickerField (route: delegated writer; trigger: 2+ non-trivial files across DB + app)
+  - New migration `20261018000000_egresos_evento_resumen.sql` (20261017 left untouched): SELECT policy → subcomisión reads all egresos (any sport), manager keeps per-event visibility; RPC `resumen_egresos_evento(p_evento_id)` SECURITY DEFINER, `search_path = public`, returns `total_cobrado` (paid cobranzas of ALL divisions) + `total_egresos`, zero rows unless admin/subcomisión or a manager who created the event / it is global / it touches their divisions. Cobranzas RLS not widened. EXECUTE revoked from PUBLIC/anon.
+  - RED: `psql -f /work/tests/egresos_evento_resumen.sql` (postgres:17 Docker) aborted at missing `20261018000000_egresos_evento_resumen.sql` (exit 3).
+  - GREEN: same command → 15 `ok`, `TODOS LOS CASOS OK` (exit 0). Regression: `egresos_evento.sql` still 25 `ok`, exit 0.
+  - App RED: `npx tsx lib/balanceEvento.check.ts` → `balanceDesdeResumen is not a function` (exit 1). GREEN: 18 cases ok; `npm run test:admin` exit 0 (31 `ok` lines); `npx tsc --noEmit` exit 0.
+  - `lib/database.types.ts`: `egresos_evento` Row/Insert/Update/Relationships + functions `egreso_evento_editable_por_manager`, `resumen_egresos_evento`; untyped client cast removed from `useEgresos`.
+  - Summary card now uses the RPC via `balanceDesdeResumen`; date input replaced by `components/ui/DatePickerField` (ISO value, max today); `fechaHoyEgreso` now returns ISO.
+
 ## Acceptance criteria
 - Manager can add/delete expenses only on active viaje/tercer_tiempo events it can access; cannot on closed events, recaudaciones, or other sports' events.
 - Subcomisión can read but not write.
@@ -48,4 +57,4 @@ ask-on-risk. Forecast ~350–450 authored lines.
 - Branch `feat/manager-egresos` created from origin/main.
 
 ## Next step
-Parent: review/assess the two work-unit commits. Pending user decisions: apply migration `20261017000000` to production, regenerate `lib/database.types.ts`, then OTA.
+Parent: review/assess the two work-unit commits. Pending user decisions: apply migrations `20261017000000` + `20261018000000` to production (together), then OTA.

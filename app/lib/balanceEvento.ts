@@ -40,15 +40,29 @@ export function balanceEvento(cobranzas: CobranzaBalance[], egresos: EgresoBalan
   return { totalCobrado, totalEgresos, neto: centavos(totalCobrado - totalEgresos) }
 }
 
+// Fila de la RPC resumen_egresos_evento: totales del evento completo (todas las
+// divisiones). Sin fila (sin acceso al evento) → todo en 0.
+export interface ResumenEgresosRow {
+  total_cobrado: Monto
+  total_egresos: Monto
+}
+
+export function balanceDesdeResumen(fila: ResumenEgresosRow | null | undefined): BalanceEvento {
+  const totalCobrado = centavos(aNumero(fila?.total_cobrado))
+  const totalEgresos = centavos(aNumero(fila?.total_egresos))
+  return { totalCobrado, totalEgresos, neto: centavos(totalCobrado - totalEgresos) }
+}
+
 // ─── Fecha del egreso ─────────────────────────────────────────────────────────
-// El formulario usa DD/MM/AAAA; la base guarda date (AAAA-MM-DD).
+// DatePickerField trabaja en AAAA-MM-DD (igual que la columna date); también se
+// acepta DD/MM/AAAA.
 
 function dos(n: number): string {
   return String(n).padStart(2, '0')
 }
 
 export function fechaHoyEgreso(hoy: Date = new Date()): string {
-  return `${dos(hoy.getDate())}/${dos(hoy.getMonth() + 1)}/${hoy.getFullYear()}`
+  return `${hoy.getFullYear()}-${dos(hoy.getMonth() + 1)}-${dos(hoy.getDate())}`
 }
 
 export function parseFechaEgreso(texto: string): string | null {
@@ -92,7 +106,7 @@ export function validarEgreso(form: EgresoForm): ResultadoValidacion {
   if (monto == null) return { ok: false, error: 'Ingresá un monto mayor a 0.' }
 
   const fecha = parseFechaEgreso(form.fecha)
-  if (!fecha) return { ok: false, error: 'Ingresá la fecha como DD/MM/AAAA.' }
+  if (!fecha) return { ok: false, error: 'Elegí la fecha del egreso.' }
 
   return { ok: true, valor: { concepto, monto: centavos(monto), fecha } }
 }

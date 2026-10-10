@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import {
-  balanceEvento,
+  balanceDesdeResumen,
   fechaHoyEgreso,
   validarEgreso,
   type BalanceEvento,
-  type CobranzaBalance,
   type EgresoForm,
 } from '@/lib/balanceEvento'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -19,10 +17,6 @@ import {
   type EventoDivisionesRow,
   type TipoEvento,
 } from './useEventos'
-
-// egresos_evento (migración 20261017000000) todavía no está en database.types.ts:
-// se accede sin tipos generados hasta regenerarlos tras aplicar la migración.
-const db = supabase as unknown as SupabaseClient
 
 // Viajes / tercer tiempos que el Manager ve (la RLS aplica: los que creó o que
 // incluyen alguna división suya). Egresos: sólo se cargan / borran con el
@@ -127,27 +121,26 @@ export function useEgresos() {
     }
   }
 
-  // ─── Detalle: egresos + cobranzas pagadas ───────────────────────────────────
+  // ─── Detalle: egresos + resumen del evento completo ─────────────────────────
+  // El resumen sale de la RPC resumen_egresos_evento (migración 20261018000000):
+  // suma lo cobrado en TODAS las divisiones del evento, aunque la RLS de
+  // cobranzas sólo le muestre al Manager los pagos de sus jugadores.
 
   async function fetchDetalle(id: string) {
     setCargandoDetalle(true)
     setErrorCarga(null)
 
-    const [egresosRes, cobranzasRes] = await Promise.all([
-      db
+    const [egresosRes, resumenRes] = await Promise.all([
+      supabase
         .from('egresos_evento')
         .select('id, concepto, monto, fecha')
         .eq('evento_financiero_id', id)
         .order('fecha', { ascending: false })
         .order('created_at', { ascending: false }),
-      supabase
-        .from('cobranzas')
-        .select('estado, monto')
-        .eq('evento_financiero_id', id)
-        .eq('estado', 'pagado'),
+      supabase.rpc('resumen_egresos_evento', { p_evento_id: id }),
     ])
 
-    if (egresosRes.error || cobranzasRes.error) {
+    if (egresosRes.error || resumenRes.error) {
       setErrorCarga(ERROR_CARGA_DETALLE)
       setEgresos([])
       setBalance(BALANCE_VACIO)
@@ -155,16 +148,15 @@ export function useEgresos() {
       return
     }
 
-    type EgresoRow = { id: string; concepto: string; monto: number | string; fecha: string }
-    const lista: Egreso[] = ((egresosRes.data ?? []) as EgresoRow[]).map(e => ({
+    const lista: Egreso[] = (egresosRes.data ?? []).map(e => ({
       id:       e.id,
       concepto: e.concepto,
-      monto:    typeof e.monto === 'number' ? e.monto : parseFloat(e.monto),
+      monto:    Number(e.monto),
       fecha:    e.fecha,
     }))
 
     setEgresos(lista)
-    setBalance(balanceEvento((cobranzasRes.data ?? []) as CobranzaBalance[], lista))
+    setBalance(balanceDesdeResumen(resumenRes.data?.[0]))
     setCargandoDetalle(false)
   }
 
@@ -192,7 +184,7 @@ export function useEgresos() {
 
     setGuardando(true)
     setErrorGuardado(null)
-    const { error } = await db.from('egresos_evento').insert({
+    const { error } = await supabase.from('egresos_evento').insert({
       evento_financiero_id: eventoSeleccionado.id,
       concepto:             r.valor.concepto,
       monto:                r.valor.monto,
@@ -214,7 +206,7 @@ export function useEgresos() {
     setBorrandoId(id)
     setErrorGuardado(null)
     // .select() para distinguir "borrado" de "0 filas" (RLS: evento cerrado o ajeno).
-    const { data, error } = await db.from('egresos_evento').delete().eq('id', id).select('id')
+    const { data, error } = await supabase.from('egresos_evento').delete().eq('id', id).select('id')
     setBorrandoId(null)
 
     if (error || !data || data.length === 0) {

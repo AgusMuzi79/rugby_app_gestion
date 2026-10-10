@@ -3,7 +3,13 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { balanceEvento, fechaHoyEgreso, parseFechaEgreso, validarEgreso } from './balanceEvento'
+import {
+  balanceDesdeResumen,
+  balanceEvento,
+  fechaHoyEgreso,
+  parseFechaEgreso,
+  validarEgreso,
+} from './balanceEvento'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -51,6 +57,25 @@ caso('redondea a centavos (sin ruido de coma flotante)', () => {
   assert.equal(r.neto, -0.3)
 })
 
+// ─── Resumen del evento completo (RPC resumen_egresos_evento) ─────────────────
+
+caso('balanceDesdeResumen: sin fila (sin acceso o error) → todo 0', () => {
+  assert.deepEqual(balanceDesdeResumen(null), { totalCobrado: 0, totalEgresos: 0, neto: 0 })
+  assert.deepEqual(balanceDesdeResumen(undefined), { totalCobrado: 0, totalEgresos: 0, neto: 0 })
+})
+
+caso('balanceDesdeResumen: neto = cobrado - egresos', () => {
+  assert.deepEqual(balanceDesdeResumen({ total_cobrado: 3500, total_egresos: 750.5 }), {
+    totalCobrado: 3500, totalEgresos: 750.5, neto: 2749.5,
+  })
+})
+
+caso('balanceDesdeResumen: numeric como string y neto negativo', () => {
+  assert.deepEqual(balanceDesdeResumen({ total_cobrado: '100.10', total_egresos: '200.20' }), {
+    totalCobrado: 100.1, totalEgresos: 200.2, neto: -100.1,
+  })
+})
+
 // ─── Fecha ────────────────────────────────────────────────────────────────────
 
 caso('parseFechaEgreso: DD/MM/AAAA → ISO', () => {
@@ -69,8 +94,8 @@ caso('parseFechaEgreso: fechas inválidas → null', () => {
   assert.equal(parseFechaEgreso('ayer'), null)
 })
 
-caso('fechaHoyEgreso: formato DD/MM/AAAA', () => {
-  assert.equal(fechaHoyEgreso(new Date(2026, 9, 9)), '09/10/2026')
+caso('fechaHoyEgreso: ISO local (lo que usa DatePickerField)', () => {
+  assert.equal(fechaHoyEgreso(new Date(2026, 9, 9)), '2026-10-09')
 })
 
 // ─── Validación del formulario ────────────────────────────────────────────────
@@ -103,7 +128,7 @@ caso('validarEgreso: monto vacío, 0 o inválido', () => {
 
 caso('validarEgreso: fecha inválida', () => {
   assert.deepEqual(validarEgreso({ concepto: 'Micro', monto: '100', fecha: '32/01/2026' }), {
-    ok: false, error: 'Ingresá la fecha como DD/MM/AAAA.',
+    ok: false, error: 'Elegí la fecha del egreso.',
   })
 })
 

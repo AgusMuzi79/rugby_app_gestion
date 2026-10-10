@@ -475,6 +475,51 @@ export type Database = {
           },
         ]
       }
+      egresos_evento: {
+        Row: {
+          concepto: string
+          created_at: string
+          evento_financiero_id: string
+          fecha: string
+          id: string
+          monto: number
+          registrado_por: string | null
+        }
+        Insert: {
+          concepto: string
+          created_at?: string
+          evento_financiero_id: string
+          fecha?: string
+          id?: string
+          monto: number
+          registrado_por?: string | null
+        }
+        Update: {
+          concepto?: string
+          created_at?: string
+          evento_financiero_id?: string
+          fecha?: string
+          id?: string
+          monto?: number
+          registrado_por?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "egresos_evento_evento_financiero_id_fkey"
+            columns: ["evento_financiero_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_financieros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "egresos_evento_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipos: {
         Row: {
           created_at: string
@@ -2418,6 +2463,10 @@ export type Database = {
       }
       dependientes_menores_13_ids: { Args: never; Returns: string[] }
       deportes_del_usuario: { Args: never; Returns: string[] }
+      egreso_evento_editable_por_manager: {
+        Args: { p_evento_id: string }
+        Returns: boolean
+      }
       es_menor_de_13: { Args: { p_fecha_nacimiento: string }; Returns: boolean }
       evento_financiero_es_global: {
         Args: { p_evento_id: string }
@@ -2537,6 +2586,13 @@ export type Database = {
       register_push_token: {
         Args: { p_plataforma: string; p_token: string }
         Returns: undefined
+      }
+      resumen_egresos_evento: {
+        Args: { p_evento_id: string }
+        Returns: {
+          total_cobrado: number
+          total_egresos: number
+        }[]
       }
       tiene_acceso_deporte: { Args: { p_deporte: string }; Returns: boolean }
       tiene_acceso_division: {
