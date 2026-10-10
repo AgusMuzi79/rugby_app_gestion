@@ -43,6 +43,15 @@ ask-on-risk. Forecast ~350–450 authored lines.
   - `lib/database.types.ts`: `egresos_evento` Row/Insert/Update/Relationships + functions `egreso_evento_editable_por_manager`, `resumen_egresos_evento`; untyped client cast removed from `useEgresos`.
   - Summary card now uses the RPC via `balanceDesdeResumen`; date input replaced by `components/ui/DatePickerField` (ISO value, max today); `fechaHoyEgreso` now returns ISO.
 
+  - Commit: `8c8f832 fix(manager): whole-event egresos balance and subcomision visibility`.
+- [x] T4 — DB: scope Subcomisión to its own recaudación events with cobros and egresos (user decision 2026-10-10; route: delegated writer; trigger: migration + test + types/app files)
+  - New migration `20261019000000_subcomision_eventos_propios.sql` (earlier migrations untouched). Subco sport = `profiles.deporte` via `tiene_acceso_deporte` (subco profiles have no `divisiones`, so `deportes_del_usuario()` does not apply to them).
+  - Helpers (SECURITY DEFINER, `search_path = public`, EXECUTE only for authenticated): `evento_financiero_visible_subcomision` (recaudación created by the subco, or with a division of its sport, or global created by someone of its sport), `cobranza_permitida_subcomision` (visible event + jugador of the event and of its sport; writes require `activo`), `egreso_evento_editable_por_subcomision`.
+  - Policies replaced: eventos_financieros subco SELECT/UPDATE/DELETE; cobranzas subco SELECT/DELETE (+ new INSERT with `registrado_por = auth.uid()`, UPDATE); egresos_evento SELECT (subco limited to its events, reverts 20261018's read-all) + subco INSERT/DELETE. `resumen_egresos_evento`: subco only its events, and only cobranzas of its sport. Manager/admin/coordinador policies unchanged.
+  - RED: `psql -f /work/tests/subcomision_eventos_propios.sql` aborted at missing `20261019000000_subcomision_eventos_propios.sql` (exit 3).
+  - GREEN (postgres:17 Docker): `subcomision_eventos_propios.sql` 39 ok; regressions `egresos_evento.sql` 25 ok, `egresos_evento_resumen.sql` 15 ok, `eventos_financieros_manager_rls.sql` 29 ok, `eventos_financieros_multi_division.sql` 51 ok — all `TODOS LOS CASOS OK`, exit 0. Older tests load only their own migrations; `egresos_evento_resumen.sql`'s "subco hockey sees rugby egresos" is superseded by 20261019.
+  - Impact on other subco readers (not edited): web `informes/page.tsx` and `dashboard/page.tsx`, mobile `useDashboard`, `useInformes`, `useDiarioSubcomision` now only see the subco's own recaudaciones and their cobranzas (no manager viajes/tercer tiempos, no other sport). Admin unaffected.
+
 ## Acceptance criteria
 - Manager can add/delete expenses only on active viaje/tercer_tiempo events it can access; cannot on closed events, recaudaciones, or other sports' events.
 - Subcomisión can read but not write.
