@@ -2452,6 +2452,10 @@ export type Database = {
           nombre: string
         }[]
       }
+      cobranza_permitida_subcomision: {
+        Args: { p_escritura: boolean; p_evento_id: string; p_jugador_id: string }
+        Returns: boolean
+      }
       crear_evento_financiero: {
         Args: {
           p_descripcion: string | null
@@ -2467,12 +2471,20 @@ export type Database = {
         Args: { p_evento_id: string }
         Returns: boolean
       }
+      egreso_evento_editable_por_subcomision: {
+        Args: { p_evento_id: string }
+        Returns: boolean
+      }
       es_menor_de_13: { Args: { p_fecha_nacimiento: string }; Returns: boolean }
       evento_financiero_es_global: {
         Args: { p_evento_id: string }
         Returns: boolean
       }
       evento_financiero_toca_mis_divisiones: {
+        Args: { p_evento_id: string }
+        Returns: boolean
+      }
+      evento_financiero_visible_subcomision: {
         Args: { p_evento_id: string }
         Returns: boolean
       }

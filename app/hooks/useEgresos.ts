@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import {
@@ -19,8 +19,7 @@ import {
 } from './useEventos'
 
 // Viajes / tercer tiempos que el Manager ve (la RLS aplica: los que creó o que
-// incluyen alguna división suya). Egresos: sólo se cargan / borran con el
-// evento activo (misma regla que la RLS de egresos_evento).
+// incluyen alguna división suya).
 export interface EventoEgresos {
   id:             string
   nombre:         string
@@ -37,6 +36,12 @@ export interface Egreso {
   fecha:    string
 }
 
+// Lo mínimo que necesita el detalle de egresos de un evento.
+export interface EventoEgresosRef {
+  id:     string
+  estado: string
+}
+
 const BALANCE_VACIO: BalanceEvento = { totalCobrado: 0, totalEgresos: 0, neto: 0 }
 
 const ERROR_CARGA_EVENTOS = 'No se pudieron cargar los eventos. Intentá de nuevo.'
@@ -46,6 +51,143 @@ function formVacio(): EgresoForm {
   return { concepto: '', monto: '', fecha: fechaHoyEgreso() }
 }
 
+// ─── Egresos + resumen de UN evento (Manager y Subcomisión) ──────────────────
+// La RLS de egresos_evento decide quién carga / borra: Manager en sus viajes /
+// tercer tiempos activos, Subcomisión en sus recaudaciones activas. El resumen
+// (Cobrado / Egresos / Neto) sale de la RPC resumen_egresos_evento.
+
+export function useEgresosEvento(evento: EventoEgresosRef | null) {
+  const [cargando, setCargando]     = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [egresos, setEgresos]       = useState<Egreso[]>([])
+  const [balance, setBalance]       = useState<BalanceEvento>(BALANCE_VACIO)
+
+  const [form, setForm]                   = useState<EgresoForm>(formVacio())
+  const [guardando, setGuardando]         = useState(false)
+  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const [borrandoId, setBorrandoId]       = useState<string | null>(null)
+
+  const eventoId = evento?.id ?? null
+  const editable = evento?.estado === 'activo'
+
+  // Evita pisar el detalle de otro evento con una respuesta vieja.
+  const ultimoPedido = useRef<string | null>(null)
+
+  useEffect(() => {
+    setForm(formVacio())
+    setErrorGuardado(null)
+    if (eventoId) recargar()
+    else {
+      setEgresos([])
+      setBalance(BALANCE_VACIO)
+    }
+  }, [eventoId])
+
+  async function recargar() {
+    const id = eventoId
+    if (!id) return
+    ultimoPedido.current = id
+    setCargando(true)
+    setErrorCarga(null)
+
+    const [egresosRes, resumenRes] = await Promise.all([
+      supabase
+        .from('egresos_evento')
+        .select('id, concepto, monto, fecha')
+        .eq('evento_financiero_id', id)
+        .order('fecha', { ascending: false })
+        .order('created_at', { ascending: false }),
+      supabase.rpc('resumen_egresos_evento', { p_evento_id: id }),
+    ])
+    if (ultimoPedido.current !== id) return
+
+    if (egresosRes.error || resumenRes.error) {
+      setErrorCarga(ERROR_CARGA_DETALLE)
+      setEgresos([])
+      setBalance(BALANCE_VACIO)
+      setCargando(false)
+      return
+    }
+
+    setEgresos((egresosRes.data ?? []).map(e => ({
+      id:       e.id,
+      concepto: e.concepto,
+      monto:    Number(e.monto),
+      fecha:    e.fecha,
+    })))
+    setBalance(balanceDesdeResumen(resumenRes.data?.[0]))
+    setCargando(false)
+  }
+
+  async function agregarEgreso(): Promise<boolean> {
+    if (!eventoId) return false
+    if (!editable) {
+      setErrorGuardado('El evento está cerrado: no se pueden cargar egresos.')
+      return false
+    }
+    const r = validarEgreso(form)
+    if (!r.ok) {
+      setErrorGuardado(r.error)
+      return false
+    }
+
+    setGuardando(true)
+    setErrorGuardado(null)
+    const { error } = await supabase.from('egresos_evento').insert({
+      evento_financiero_id: eventoId,
+      concepto:             r.valor.concepto,
+      monto:                r.valor.monto,
+      fecha:                r.valor.fecha,
+    })
+    setGuardando(false)
+
+    if (error) {
+      setErrorGuardado('No se pudo guardar el egreso: ' + error.message)
+      return false
+    }
+    setForm(formVacio())
+    await recargar()
+    return true
+  }
+
+  // false si no se borró (error o 0 filas por RLS: evento cerrado o ajeno).
+  async function borrarEgreso(id: string): Promise<boolean> {
+    if (!eventoId || !editable) return false
+    setBorrandoId(id)
+    setErrorGuardado(null)
+    const { data, error } = await supabase.from('egresos_evento').delete().eq('id', id).select('id')
+    setBorrandoId(null)
+
+    if (error || !data || data.length === 0) {
+      setErrorGuardado(error ? 'No se pudo borrar el egreso: ' + error.message : 'No se pudo borrar el egreso.')
+      await recargar()
+      return false
+    }
+    await recargar()
+    return true
+  }
+
+  return {
+    cargando,
+    errorCarga,
+    recargar,
+    editable,
+    egresos,
+    balance,
+    form,
+    setForm,
+    guardando,
+    errorGuardado,
+    agregarEgreso,
+    borrandoId,
+    borrarEgreso,
+  }
+}
+
+export type EgresosEventoState = ReturnType<typeof useEgresosEvento>
+
+// ─── Manager: pestaña Egresos (elige entre sus viajes / tercer tiempos) ──────
+
 export function useEgresos() {
   const { session } = useAuthStore()
 
@@ -54,27 +196,16 @@ export function useEgresos() {
   const [eventos, setEventos]       = useState<EventoEgresos[]>([])
   const [eventoId, setEventoId]     = useState<string | null>(null)
 
-  const [cargandoDetalle, setCargandoDetalle] = useState(false)
-  const [egresos, setEgresos]                 = useState<Egreso[]>([])
-  const [balance, setBalance]                 = useState<BalanceEvento>(BALANCE_VACIO)
-
-  const [form, setForm]                   = useState<EgresoForm>(formVacio())
-  const [guardando, setGuardando]         = useState(false)
-  const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
-  const [borrandoId, setBorrandoId]       = useState<string | null>(null)
-
   const eventoSeleccionado = eventos.find(e => e.id === eventoId) ?? null
-  const editable           = eventoSeleccionado?.estado === 'activo'
+  const detalle            = useEgresosEvento(eventoSeleccionado)
 
   useEffect(() => {
     if (session) fetchEventos()
     else setLoading(false)
   }, [session])
-  useRefreshOnFocus(() => { fetchEventos() })
+  useRefreshOnFocus(() => { fetchEventos(true) })
 
-  // ─── Eventos ────────────────────────────────────────────────────────────────
-
-  async function fetchEventos() {
+  async function fetchEventos(refrescarDetalle = false) {
     if (!session) {
       setLoading(false)
       return
@@ -114,127 +245,21 @@ export function useEgresos() {
     // Mantiene el evento elegido si sigue visible; si no, el primero.
     const siguiente = items.find(e => e.id === eventoId)?.id ?? items[0]?.id ?? null
     setEventoId(siguiente)
-    if (siguiente) await fetchDetalle(siguiente)
-    else {
-      setEgresos([])
-      setBalance(BALANCE_VACIO)
-    }
-  }
-
-  // ─── Detalle: egresos + resumen del evento completo ─────────────────────────
-  // El resumen sale de la RPC resumen_egresos_evento (migración 20261018000000):
-  // suma lo cobrado en TODAS las divisiones del evento, aunque la RLS de
-  // cobranzas sólo le muestre al Manager los pagos de sus jugadores.
-
-  async function fetchDetalle(id: string) {
-    setCargandoDetalle(true)
-    setErrorCarga(null)
-
-    const [egresosRes, resumenRes] = await Promise.all([
-      supabase
-        .from('egresos_evento')
-        .select('id, concepto, monto, fecha')
-        .eq('evento_financiero_id', id)
-        .order('fecha', { ascending: false })
-        .order('created_at', { ascending: false }),
-      supabase.rpc('resumen_egresos_evento', { p_evento_id: id }),
-    ])
-
-    if (egresosRes.error || resumenRes.error) {
-      setErrorCarga(ERROR_CARGA_DETALLE)
-      setEgresos([])
-      setBalance(BALANCE_VACIO)
-      setCargandoDetalle(false)
-      return
-    }
-
-    const lista: Egreso[] = (egresosRes.data ?? []).map(e => ({
-      id:       e.id,
-      concepto: e.concepto,
-      monto:    Number(e.monto),
-      fecha:    e.fecha,
-    }))
-
-    setEgresos(lista)
-    setBalance(balanceDesdeResumen(resumenRes.data?.[0]))
-    setCargandoDetalle(false)
+    // Mismo evento: el efecto de useEgresosEvento no se dispara, refrescar a mano.
+    if (refrescarDetalle && siguiente && siguiente === eventoId) await detalle.recargar()
   }
 
   function seleccionarEvento(id: string) {
-    if (id === eventoId) return
     setEventoId(id)
-    setForm(formVacio())
-    setErrorGuardado(null)
-    fetchDetalle(id)
-  }
-
-  // ─── Alta / baja ────────────────────────────────────────────────────────────
-
-  async function agregarEgreso(): Promise<boolean> {
-    if (!eventoSeleccionado) return false
-    if (!editable) {
-      setErrorGuardado('El evento está cerrado: no se pueden cargar egresos.')
-      return false
-    }
-    const r = validarEgreso(form)
-    if (!r.ok) {
-      setErrorGuardado(r.error)
-      return false
-    }
-
-    setGuardando(true)
-    setErrorGuardado(null)
-    const { error } = await supabase.from('egresos_evento').insert({
-      evento_financiero_id: eventoSeleccionado.id,
-      concepto:             r.valor.concepto,
-      monto:                r.valor.monto,
-      fecha:                r.valor.fecha,
-    })
-    setGuardando(false)
-
-    if (error) {
-      setErrorGuardado('No se pudo guardar el egreso: ' + error.message)
-      return false
-    }
-    setForm(formVacio())
-    await fetchDetalle(eventoSeleccionado.id)
-    return true
-  }
-
-  async function borrarEgreso(id: string): Promise<boolean> {
-    if (!eventoSeleccionado || !editable) return false
-    setBorrandoId(id)
-    setErrorGuardado(null)
-    // .select() para distinguir "borrado" de "0 filas" (RLS: evento cerrado o ajeno).
-    const { data, error } = await supabase.from('egresos_evento').delete().eq('id', id).select('id')
-    setBorrandoId(null)
-
-    if (error || !data || data.length === 0) {
-      setErrorGuardado(error ? 'No se pudo borrar el egreso: ' + error.message : 'No se pudo borrar el egreso.')
-      await fetchEventos()
-      return false
-    }
-    await fetchDetalle(eventoSeleccionado.id)
-    return true
   }
 
   return {
     loading,
-    errorCarga,
-    recargar: fetchEventos,
+    errorCarga: errorCarga ?? detalle.errorCarga,
+    recargar:   () => fetchEventos(true),
     eventos,
     eventoSeleccionado,
     seleccionarEvento,
-    editable,
-    cargandoDetalle,
-    egresos,
-    balance,
-    form,
-    setForm,
-    guardando,
-    errorGuardado,
-    agregarEgreso,
-    borrandoId,
-    borrarEgreso,
+    detalle,
   }
 }

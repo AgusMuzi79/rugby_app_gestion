@@ -52,6 +52,16 @@ ask-on-risk. Forecast ~350–450 authored lines.
   - GREEN (postgres:17 Docker): `subcomision_eventos_propios.sql` 39 ok; regressions `egresos_evento.sql` 25 ok, `egresos_evento_resumen.sql` 15 ok, `eventos_financieros_manager_rls.sql` 29 ok, `eventos_financieros_multi_division.sql` 51 ok — all `TODOS LOS CASOS OK`, exit 0. Older tests load only their own migrations; `egresos_evento_resumen.sql`'s "subco hockey sees rugby egresos" is superseded by 20261019.
   - Impact on other subco readers (not edited): web `informes/page.tsx` and `dashboard/page.tsx`, mobile `useDashboard`, `useInformes`, `useDiarioSubcomision` now only see the subco's own recaudaciones and their cobranzas (no manager viajes/tercer tiempos, no other sport). Admin unaffected.
 
+  - Commit: `29f9943 feat(db): scope subcomision to its own recaudacion events with cobros and egresos`.
+- [x] T5 — Mobile: Subcomisión "Eventos" tab with Cobros | Egresos by division (route: delegated writer; trigger: 2+ non-trivial files)
+  - `app/(subcomision)/_layout.tsx`: `eventos` visible (title "Eventos", Feather `dollar-sign`). List/creation unchanged (RLS now returns only its recaudaciones); closed events also open (read-only).
+  - `components/eventos/DetalleRecaudacion.tsx`: summary Cobrado / Egresos / Neto (RPC), switch COBROS | EGRESOS, close button while active. The old detail's "Pedidos" section is not shown for Subcomisión (nothing in app/web creates `pedidos`).
+  - `components/eventos/CobrosPanel.tsx` + `hooks/useCobrosSubcomision.ts`: players of the event divisions (all visible players if global) grouped by division with per-division paid/total and amount; modal marks pagado (monto prefilled with the suggested amount, forma de pago) or pendiente via upsert; refreshes the summary after saving.
+  - Egresos shared: `useEgresos` split into `useEgresosEvento(evento)` (per event, used by both roles) + manager `useEgresos()`; UI extracted to `components/eventos/EgresosPanel.tsx`, `ResumenBalance.tsx`, `estilo.ts`; manager `egresos.tsx` now uses them.
+  - Pure logic `lib/cobrosPorDivision.ts` + `.check.ts` (added to `test:admin`). RED: `npx tsx lib/cobrosPorDivision.check.ts` → `Cannot find module './cobrosPorDivision'`. GREEN: 7 cases ok.
+  - `lib/database.types.ts`: added `cobranza_permitida_subcomision`, `egreso_evento_editable_por_subcomision`, `evento_financiero_visible_subcomision`.
+  - `npm run test:admin` exit 0 (38 `ok` lines); `npx tsc --noEmit` exit 0.
+
 ## Acceptance criteria
 - Manager can add/delete expenses only on active viaje/tercer_tiempo events it can access; cannot on closed events, recaudaciones, or other sports' events.
 - Subcomisión can read but not write.
@@ -66,4 +76,4 @@ ask-on-risk. Forecast ~350–450 authored lines.
 - Branch `feat/manager-egresos` created from origin/main.
 
 ## Next step
-Parent: review/assess the two work-unit commits. Pending user decisions: apply migrations `20261017000000` + `20261018000000` to production (together), then OTA.
+Parent: review/assess the two work-unit commits. Pending user decisions: apply migrations `20261017000000` + `20261018000000` + `20261019000000` to production (together, in order), then OTA. Web subcomisión informes/dashboard will show only its own recaudaciones once 20261019 is applied.

@@ -26,6 +26,7 @@ import {
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
+import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -523,9 +524,9 @@ function ModalNuevoEvento({
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
-// Pantalla compartida: Subcomisión (crea recaudaciones y supervisa/cierra todos
-// los eventos) y Manager (viajes / tercer tiempos de sus divisiones, ver
-// app/(manager)/eventos.tsx).
+// Pantalla compartida: Subcomisión (crea y cierra SUS recaudaciones de su
+// disciplina, con cobros y egresos por división — 20261019000000) y Manager
+// (viajes / tercer tiempos de sus divisiones, ver app/(manager)/eventos.tsx).
 export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
     loading, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
@@ -567,6 +568,18 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
       <View style={s.centrado}>
         <ActivityIndicator size="large" color={ORO} />
       </View>
+    )
+  }
+
+  // Subcomisión: sus recaudaciones con Cobros | Egresos por división.
+  if (paso === 'detalle' && eventoDetalle && !esManager) {
+    return (
+      <DetalleRecaudacion
+        ev={eventoDetalle}
+        cerrando={cerrando}
+        onCerrar={cerrarEvento}
+        onVolver={volverALista}
+      />
     )
   }
 
@@ -625,7 +638,8 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
                 key={ev.id}
                 ev={ev}
                 muted={tabActivo === 'historial'}
-                onPress={tabActivo === 'activos' ? () => abrirDetalle(ev) : undefined}
+                // Subcomisión también abre las cerradas (cobros y egresos en sólo lectura).
+                onPress={tabActivo === 'activos' || !esManager ? () => abrirDetalle(ev) : undefined}
               />
             ))}
           </View>
