@@ -77,3 +77,7 @@ ask-on-risk. Forecast ~350–450 authored lines.
 
 ## Next step
 Parent: review/assess the two work-unit commits. Pending user decisions: apply migrations `20261017000000` + `20261018000000` + `20261019000000` to production (together, in order), then OTA. Web subcomisión informes/dashboard will show only its own recaudaciones once 20261019 is applied.
+
+## Production
+- 2026-10-10: backup OK at `~/backups-uncas/2026-10-10-22-54-26`; `supabase migration list` showed only 20261017000000, 20261018000000, 20261019000000 pending; user ran `supabase db push` (auto mode blocked the agent), all three applied; remote `migration list` confirms them.
+- Pending: device test, merge PR #19, OTA from the main checkout.
