@@ -87,15 +87,17 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Calendario, asistencia, lesiones, fichajes, cobranzas e informes — flujo completo por rol (coordinador/entrenador/manager).
 - Divisiones por edad (2026-10-08): `divisiones.edad_min/edad_max` (edad en la temporada = año − año de nacimiento), `linea` A/B, `rama` y `siguiente_division_id`. Pase de temporada automático (`pase_de_temporada()`, cron `pase-de-temporada` el 1/1) que mantiene la línea; el coordinador mueve jugadores desde la pestaña "Jugadores" (RPC `mover_jugador_division`: baja en origen + alta en destino, el historial queda en la división vieja). Rugby: rangos en M6–M19 (M19 → Mayores). Hockey cargado desde el Excel de las entrenadoras (`scripts/import-jugadores-hockey.mjs`): 16 divisiones, 307 jugadores; la subco de hockey asigna a sus coordinadoras.
 - Eventos financieros (2026-10-09, migraciones `20261015000000` + `20261016000000` aplicadas): el Manager crea y cierra viajes / tercer tiempos (sólo puede cerrarlos, no editarlos); Subcomisión sólo crea recaudaciones (todo el club o divisiones elegidas). Un evento puede tener varias divisiones (`eventos_financieros_divisiones`, RPC `crear_evento_financiero`); el Manager elige divisiones de su deporte y cada manager cobra sólo a sus jugadores del evento. En Cobranzas el monto arranca con el monto sugerido del evento (editable).
+- Egresos y eventos propios de Subcomisión (2026-10-12, PR #19, migraciones `20261017000000`–`20261019000000` aplicadas): el Manager tiene la pestaña "Egresos" (tabla `egresos_evento`) para cargar gastos de sus viajes / tercer tiempos activos, con balance del evento entero (Cobrado / Egresos / Neto, RPC `resumen_egresos_evento`). Subcomisión ya no ve viajes / tercer tiempos de los managers: sólo sus recaudaciones de su deporte (`profiles.deporte`), y desde la pestaña "Eventos" anota quién paga (cobranzas) y sus egresos, desglosado por división. Sus informes y dashboard sólo muestran esas recaudaciones.
 - Noticias con audiencia (socios / cuerpo técnico) y push al publicar. Buffet publica sus propias promos (con foto opcional) desde app o web, siempre audiencia `todos`.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-10-09):**
+**Estado de las stores (actualizado 2026-10-12):**
 - **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10).
 - **iOS:** versión 1.0.8 (build 22) **publicada** en el App Store (8/10).
 - **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad).
 - **OTA sobre 1.0.8** (2026-10-09, `eas update --branch production`, Android + iOS, grupo `36c30c7b`): Manager crea viajes/tercer tiempos, eventos con varias divisiones, monto sugerido en cobranzas. Las OTA se publican desde el checkout principal (necesitan `app/.env.local`, que los worktrees no tienen).
-- **OTA sobre 1.0.8** (2026-10-09, grupo `02918d37`, desde `main` tras el PR #16): pestaña Noticias de Subcomisión (título, descripción, imagen + push a socios); Crónica abre notificaciones. Es la última OTA: cubre todo `main` a esa fecha.
+- **OTA sobre 1.0.8** (2026-10-09, grupo `02918d37`, desde `main` tras el PR #16): pestaña Noticias de Subcomisión (título, descripción, imagen + push a socios); Crónica abre notificaciones.
+- **OTA sobre 1.0.8** (2026-10-12, grupo `31406ae9`, desde `main` tras el PR #19): pestaña Egresos del Manager y pestaña Eventos de Subcomisión (cobros + egresos por división). Es la última OTA: cubre todo `main` a esa fecha.
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
