@@ -14,6 +14,13 @@ export default function ManagerLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="dollar-sign" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="egresos"
+        options={{
+          title: 'Egresos',
+          tabBarIcon: ({ color, size }) => <Feather name="trending-down" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="cronica"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={color} /> }}
       />

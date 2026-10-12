@@ -15,6 +15,13 @@ export default function SubcomisionLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
       />
       <Tabs.Screen
+        name="eventos"
+        options={{
+          title: 'Eventos',
+          tabBarIcon: ({ color, size }) => <Feather name="dollar-sign" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="cronica"
         options={{ tabBarIcon: ({ color, size }) => <Feather name="activity" size={size} color={color} /> }}
       />
@@ -27,7 +34,6 @@ export default function SubcomisionLayout() {
         options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
       <Tabs.Screen name="salir" options={{ href: null }} />
-      <Tabs.Screen name="eventos" options={{ href: null }} />
       <Tabs.Screen name="informes" options={{ href: null }} />
       <Tabs.Screen name="protocolos" options={{ href: null }} />
     </Tabs>
