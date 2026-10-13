@@ -4,3 +4,6 @@
 data/import/
 
 node_modules/
+
+# Local agent skill index
+.atl/
