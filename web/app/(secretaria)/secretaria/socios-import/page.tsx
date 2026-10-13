@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import ListaColapsable from '@/components/ListaColapsable'
 import SeccionServicios from './seccion-servicios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -79,23 +80,25 @@ function ListaDetalle({ titulo, items, colorClase }: { titulo: string; items: De
   return (
     <div className="mt-3">
       <p className={`font-lora text-xs tracking-widest mb-2 ${colorClase}`}>{titulo} ({items.length})</p>
-      <div className="max-h-48 overflow-y-auto border border-gris-claro">
-        <table className="w-full border-collapse">
-          <tbody>
-            {items.map(it => (
-              <tr key={it.numero_socio} className="border-b border-gris-claro last:border-0">
-                <td className="font-lora text-xs text-tinta/50 py-1.5 px-3 w-20">{it.numero_socio}</td>
-                <td className="font-lora text-sm text-tinta py-1.5 px-3">{it.nombre || '—'}</td>
-                {'motivo' in it && (
-                  <td className="font-lora text-xs text-tinta/50 py-1.5 px-3 text-right">
-                    {(it as DetalleBaja | DetalleError).motivo}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ListaColapsable items={items} render={visibles => (
+        <div className="max-h-48 overflow-y-auto border border-gris-claro">
+          <table className="w-full border-collapse">
+            <tbody>
+              {visibles.map(it => (
+                <tr key={it.numero_socio} className="border-b border-gris-claro last:border-0">
+                  <td className="font-lora text-xs text-tinta/50 py-1.5 px-3 w-20">{it.numero_socio}</td>
+                  <td className="font-lora text-sm text-tinta py-1.5 px-3">{it.nombre || '—'}</td>
+                  {'motivo' in it && (
+                    <td className="font-lora text-xs text-tinta/50 py-1.5 px-3 text-right">
+                      {(it as DetalleBaja | DetalleError).motivo}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )} />
     </div>
   )
 }

@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import ListaColapsable from '@/components/ListaColapsable'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -154,21 +155,23 @@ function formatImporte(n: number | null | undefined): string {
 
 // ─── Listas de detalle ────────────────────────────────────────────────────────
 
-function Lista({ titulo, colorClase, cantidad, children }: {
+function Lista<T>({ titulo, colorClase, items, fila }: {
   titulo: string
   colorClase: string
-  cantidad: number
-  children: ReactNode
+  items: T[]
+  fila: (item: T) => ReactNode
 }) {
-  if (cantidad === 0) return null
+  if (items.length === 0) return null
   return (
     <div className="mt-3">
-      <p className={`font-lora text-xs tracking-widest mb-2 ${colorClase}`}>{titulo} ({cantidad})</p>
-      <div className="max-h-56 overflow-y-auto border border-gris-claro">
-        <table className="w-full border-collapse">
-          <tbody>{children}</tbody>
-        </table>
-      </div>
+      <p className={`font-lora text-xs tracking-widest mb-2 ${colorClase}`}>{titulo} ({items.length})</p>
+      <ListaColapsable items={items} render={visibles => (
+        <div className="max-h-56 overflow-y-auto border border-gris-claro">
+          <table className="w-full border-collapse">
+            <tbody>{visibles.map(fila)}</tbody>
+          </table>
+        </div>
+      )} />
     </div>
   )
 }
@@ -284,16 +287,14 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
               {resultado.errores} fila{resultado.errores === 1 ? '' : 's'} con error — no se aplicaron
             </p>
           )}
-          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" cantidad={resultado.detalle.errores.length}>
-            {resultado.detalle.errores.map(e => (
-              <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{e.numero_socio}</td>
-                <td className={tdNombre}>{e.nombre || '—'}</td>
-                <td className={tdDato}>{e.servicio}</td>
-                <td className={tdDerecha}>{e.motivo}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" items={resultado.detalle.errores} fila={e => (
+            <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{e.numero_socio}</td>
+              <td className={tdNombre}>{e.nombre || '—'}</td>
+              <td className={tdDato}>{e.servicio}</td>
+              <td className={tdDerecha}>{e.motivo}</td>
+            </tr>
+          )} />
         </div>
       )}
 
@@ -314,27 +315,23 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             </p>
           )}
 
-          <Lista titulo="AGREGADOS" colorClase="text-[#2ECC71]" cantidad={preview.detalle.agregados.length}>
-            {preview.detalle.agregados.map(a => (
-              <tr key={`${a.numero_socio}|${a.servicio}`} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{a.numero_socio}</td>
-                <td className={tdNombre}>{a.nombre || '—'}</td>
-                <td className={tdDato}>{a.variante}</td>
-                <td className={tdDerecha}>{formatImporte(a.importe)}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="AGREGADOS" colorClase="text-[#2ECC71]" items={preview.detalle.agregados} fila={a => (
+            <tr key={`${a.numero_socio}|${a.servicio}`} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{a.numero_socio}</td>
+              <td className={tdNombre}>{a.nombre || '—'}</td>
+              <td className={tdDato}>{a.variante}</td>
+              <td className={tdDerecha}>{formatImporte(a.importe)}</td>
+            </tr>
+          )} />
 
-          <Lista titulo="ACTUALIZADOS" colorClase="text-tinta/60" cantidad={preview.detalle.actualizados.length}>
-            {preview.detalle.actualizados.map(a => (
-              <tr key={`${a.numero_socio}|${a.servicio}`} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{a.numero_socio}</td>
-                <td className={tdNombre}>{a.nombre || '—'}</td>
-                <td className={tdDato}>{a.variante_anterior ?? 'manual'} → {a.variante}</td>
-                <td className={tdDerecha}>{formatImporte(a.importe_anterior)} → {formatImporte(a.importe)}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="ACTUALIZADOS" colorClase="text-tinta/60" items={preview.detalle.actualizados} fila={a => (
+            <tr key={`${a.numero_socio}|${a.servicio}`} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{a.numero_socio}</td>
+              <td className={tdNombre}>{a.nombre || '—'}</td>
+              <td className={tdDato}>{a.variante_anterior ?? 'manual'} → {a.variante}</td>
+              <td className={tdDerecha}>{formatImporte(a.importe_anterior)} → {formatImporte(a.importe)}</td>
+            </tr>
+          )} />
 
           {(preview.servicios_ausentes.length > 0 || preview.servicios_baja_masiva.length > 0) && (
             <div className="mt-3 p-4 border-2 border-rojo bg-rojo/10">
@@ -375,74 +372,68 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
               <p className="font-lora text-xs text-tinta/50 mb-2">
                 Destildá los que no quieras quitar en esta corrida.
               </p>
-              <div className="max-h-56 overflow-y-auto border border-gris-claro">
-                <table className="w-full border-collapse">
-                  <tbody>
-                    {preview.detalle.eliminados.map(e => (
-                      <tr key={e.clave} className={`border-b border-gris-claro last:border-0 ${e.servicio_ausente || e.baja_masiva ? 'bg-rojo/5' : ''}`}>
-                        <td className="py-1.5 px-3 w-8">
-                          <input
-                            type="checkbox"
-                            checked={!omitidas.has(e.clave)}
-                            onChange={() => toggleBaja(e.clave)}
-                            aria-label={`Quitar ${e.servicio} a ${e.nombre || e.numero_socio}`}
-                          />
-                        </td>
-                        <td className={tdNumero}>{e.numero_socio}</td>
-                        <td className={tdNombre}>{e.nombre || '—'}</td>
-                        <td className={tdDato}>
-                          {e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}
-                          {e.servicio_ausente && <span className="text-rojo"> · servicio ausente del archivo</span>}
-                          {e.baja_masiva && <span className="text-rojo"> · baja masiva (más del 30%)</span>}
-                        </td>
-                        <td className={tdDerecha}>{formatImporte(e.importe)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ListaColapsable items={preview.detalle.eliminados} render={visibles => (
+                <div className="max-h-56 overflow-y-auto border border-gris-claro">
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      {visibles.map(e => (
+                        <tr key={e.clave} className={`border-b border-gris-claro last:border-0 ${e.servicio_ausente || e.baja_masiva ? 'bg-rojo/5' : ''}`}>
+                          <td className="py-1.5 px-3 w-8">
+                            <input
+                              type="checkbox"
+                              checked={!omitidas.has(e.clave)}
+                              onChange={() => toggleBaja(e.clave)}
+                              aria-label={`Quitar ${e.servicio} a ${e.nombre || e.numero_socio}`}
+                            />
+                          </td>
+                          <td className={tdNumero}>{e.numero_socio}</td>
+                          <td className={tdNombre}>{e.nombre || '—'}</td>
+                          <td className={tdDato}>
+                            {e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}
+                            {e.servicio_ausente && <span className="text-rojo"> · servicio ausente del archivo</span>}
+                            {e.baja_masiva && <span className="text-rojo"> · baja masiva (más del 30%)</span>}
+                          </td>
+                          <td className={tdDerecha}>{formatImporte(e.importe)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )} />
             </div>
           )}
 
-          <Lista titulo="CONFLICTOS — SE DEJAN COMO ESTÁN" colorClase="text-oro" cantidad={preview.detalle.conflictos.length}>
-            {preview.detalle.conflictos.map(c => (
-              <tr key={`${c.numero_socio}|${c.servicio}`} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{c.numero_socio}</td>
-                <td className={tdNombre}>{c.nombre || '—'}</td>
-                <td className={tdDerecha}>{c.conceptos.join(' + ')}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="CONFLICTOS — SE DEJAN COMO ESTÁN" colorClase="text-oro" items={preview.detalle.conflictos} fila={c => (
+            <tr key={`${c.numero_socio}|${c.servicio}`} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{c.numero_socio}</td>
+              <td className={tdNombre}>{c.nombre || '—'}</td>
+              <td className={tdDerecha}>{c.conceptos.join(' + ')}</td>
+            </tr>
+          )} />
 
-          <Lista titulo="SIN SOCIO EN LA BASE" colorClase="text-oro" cantidad={preview.detalle.sin_match.length}>
-            {preview.detalle.sin_match.map(s => (
-              <tr key={s.numero_socio} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{s.numero_socio}</td>
-                <td className={tdNombre}>{s.nombre || '—'}</td>
-                <td className={tdDerecha}>{s.conceptos.join(', ')}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="SIN SOCIO EN LA BASE" colorClase="text-oro" items={preview.detalle.sin_match} fila={s => (
+            <tr key={s.numero_socio} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{s.numero_socio}</td>
+              <td className={tdNombre}>{s.nombre || '—'}</td>
+              <td className={tdDerecha}>{s.conceptos.join(', ')}</td>
+            </tr>
+          )} />
 
-          <Lista titulo="CONCEPTOS DESCONOCIDOS — NO SE IMPORTAN" colorClase="text-rojo" cantidad={preview.detalle.conceptos_desconocidos.length}>
-            {preview.detalle.conceptos_desconocidos.map(c => (
-              <tr key={c.concepto} className="border-b border-gris-claro last:border-0">
-                <td className={tdNombre}>{c.concepto}</td>
-                <td className={tdDerecha}>{c.casos} socio{c.casos === 1 ? '' : 's'}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="CONCEPTOS DESCONOCIDOS — NO SE IMPORTAN" colorClase="text-rojo" items={preview.detalle.conceptos_desconocidos} fila={c => (
+            <tr key={c.concepto} className="border-b border-gris-claro last:border-0">
+              <td className={tdNombre}>{c.concepto}</td>
+              <td className={tdDerecha}>{c.casos} socio{c.casos === 1 ? '' : 's'}</td>
+            </tr>
+          )} />
 
-          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" cantidad={preview.detalle.errores.length}>
-            {preview.detalle.errores.map(e => (
-              <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
-                <td className={tdNumero}>{e.numero_socio}</td>
-                <td className={tdNombre}>{e.nombre || '—'}</td>
-                <td className={tdDato}>{e.servicio}</td>
-                <td className={tdDerecha}>{e.motivo}</td>
-              </tr>
-            ))}
-          </Lista>
+          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" items={preview.detalle.errores} fila={e => (
+            <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
+              <td className={tdNumero}>{e.numero_socio}</td>
+              <td className={tdNombre}>{e.nombre || '—'}</td>
+              <td className={tdDato}>{e.servicio}</td>
+              <td className={tdDerecha}>{e.motivo}</td>
+            </tr>
+          )} />
 
           <div className="mt-5 pt-4 border-t border-gris-claro flex items-center gap-4">
             <button
