@@ -466,6 +466,7 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
           <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
       ) : (
+        <ListaColapsable items={historial} render={visibles => (
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
@@ -480,7 +481,7 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
             </tr>
           </thead>
           <tbody>
-            {historial.map(imp => (
+            {visibles.map(imp => (
               <tr key={imp.id} className="border-b border-gris-claro">
                 <td className="font-playfair text-sm text-oro-hondo py-3 pr-4">{formatFecha(imp.created_at)}</td>
                 <td className="font-lora text-sm text-tinta/60 py-3 pr-4">{imp.importado_por_nombre ?? '—'}</td>
@@ -494,6 +495,7 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
             ))}
           </tbody>
         </table>
+        )} />
       )}
     </div>
   )

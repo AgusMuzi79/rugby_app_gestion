@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import ListaColapsable from '@/components/ListaColapsable'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -231,6 +232,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
           <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
       ) : (
+        <ListaColapsable items={historial} render={visibles => (
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
@@ -243,7 +245,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
             </tr>
           </thead>
           <tbody>
-            {historial.map(imp => (
+            {visibles.map(imp => (
               <tr key={imp.id} className="border-b border-gris-claro">
                 <td className="font-playfair text-sm text-oro-hondo py-3 pr-4">{formatFecha(imp.fecha_corte)}</td>
                 <td className="font-lora text-sm text-tinta/60 py-3 pr-4">{formatFecha(imp.created_at)}</td>
@@ -261,6 +263,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
             ))}
           </tbody>
         </table>
+        )} />
       )}
     </div>
   )
