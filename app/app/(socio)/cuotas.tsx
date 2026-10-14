@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
-import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
+import { useCuotas, type ComprobanteConEstado, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
+import { comprobanteParaPeriodos } from '@/lib/comprobanteEnviado'
 import { useDeudaDetalle, type DeudaDetalle } from '@/hooks/useDeudaDetalle'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
@@ -44,6 +45,15 @@ function esMesEnCurso(periodo: string): boolean {
 
 function whatsappComprobanteUrl(concepto: string, monto: number): string {
   const mensaje = `Hola! Te mando el comprobante de ${concepto} ($${monto.toLocaleString('es-AR')}).`
+  return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
+}
+
+// Comprobante NO REGISTRADO tras la gracia: mismo número de Secretaría.
+function whatsappNoFiguraUrl(c: ComprobanteConEstado): string {
+  const que = c.periodos.length > 0
+    ? `de ${c.periodos.map(periodoLabel).join(', ')}`
+    : 'de mi saldo anterior'
+  const mensaje = `Hola! El ${diaMes(c.enviadoAt)} te mandé el comprobante del pago ${que} y todavía no figura en la app.`
   return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
 }
 
@@ -117,13 +127,23 @@ function PagoModal({
   titulo,
   conceptoMensaje,
   desglose,
+  onEnviar,
 }: {
   cuota:             Cuota
   onClose:           () => void
   titulo:            string
   conceptoMensaje:   string
   desglose:          FilaDesglose[]
+  onEnviar:          (c: Cuota) => Promise<void>
 }) {
+  // Primero se guarda el envío (la card pasa a ENVIADO), después se abre
+  // WhatsApp y se cierra el modal para que al volver se vea la card.
+  async function enviarComprobante() {
+    await onEnviar(cuota)
+    Linking.openURL(whatsappComprobanteUrl(conceptoMensaje, cuota.monto))
+    onClose()
+  }
+
   // El desglose sólo existe para la cuota virtual (ver desgloseVirtual), que
   // se calcula en el mismo fetch que su monto. Una cuota real ya creada en la
   // tabla `cuotas` tiene su monto congelado al momento de generarse, así que
@@ -171,7 +191,7 @@ function PagoModal({
           {/* Acción */}
           <TouchableOpacity
             style={m.subirBtn}
-            onPress={() => Linking.openURL(whatsappComprobanteUrl(conceptoMensaje, cuota.monto))}
+            onPress={enviarComprobante}
             activeOpacity={0.8}
           >
             <Feather name="send" size={14} color={colors.oro} />
@@ -309,11 +329,15 @@ function CuotaCard({
   onVerPago,
   titulo,
   desglose,
+  comprobante,
+  onEscribirSecretaria,
 }: {
-  cuota:            Cuota
-  onVerPago:        (c: Cuota) => void
-  titulo:           string
-  desglose:         FilaDesglose[]
+  cuota:                Cuota
+  onVerPago:            (c: Cuota) => void
+  titulo:               string
+  desglose:             FilaDesglose[]
+  comprobante:          ComprobanteConEstado | null
+  onEscribirSecretaria: (c: ComprobanteConEstado) => void
 }) {
   const [expandida, setExpandida] = useState(false)
 
@@ -324,10 +348,14 @@ function CuotaCard({
   // virtual, no para una cuota real ya creada con un monto congelado de otro
   // momento.
   const esVirtual   = cuota.id.startsWith('virtual-')
+  // Comprobante mandado por WhatsApp desde este dispositivo (sólo cuotas
+  // pendientes; los REGISTRADO se muestran en el banner de arriba).
+  const enviado     = pendiente && comprobante?.estado === 'ENVIADO'
+  const noRegistrado = pendiente && comprobante?.estado === 'NO_REGISTRADO'
 
-  const borderColor = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#2C2418'
-  const badgeBg     = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#3A2800'
-  const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : 'PENDIENTE'
+  const borderColor = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : noRegistrado ? colors.rojoUrgente : '#2C2418'
+  const badgeBg     = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : '#3A2800'
+  const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : enviado ? 'ENVIADO' : noRegistrado ? 'NO REGISTRADO' : 'PENDIENTE'
 
   return (
     <TouchableOpacity
@@ -353,6 +381,32 @@ function CuotaCard({
           />
         </View>
       </View>
+
+      {/* Feedback del comprobante mandado por WhatsApp */}
+      {enviado && comprobante && (
+        <View style={[s.infoRow, s.comprobanteRow]}>
+          <Feather name="clock" size={12} color={colors.oroHondo} />
+          <Text style={s.infoText}>
+            Mandaste el comprobante el {diaMes(comprobante.enviadoAt)} por WhatsApp. Secretaría lo carga y se actualiza con la próxima importación.
+          </Text>
+        </View>
+      )}
+      {noRegistrado && comprobante && (
+        <View style={[s.comprobanteRow, { gap: 10 }]}>
+          <View style={s.infoRow}>
+            <Feather name="alert-circle" size={12} color={colors.rojoUrgente} />
+            <Text style={s.infoText}>Todavía no figura tu pago. Escribile a Secretaría.</Text>
+          </View>
+          <TouchableOpacity
+            style={s.escribirBtn}
+            onPress={() => onEscribirSecretaria(comprobante)}
+            activeOpacity={0.8}
+          >
+            <Feather name="message-circle" size={14} color={colors.oro} />
+            <Text style={s.escribirBtnText}>ESCRIBIR A SECRETARÍA</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Expansión */}
       {expandida && (
@@ -412,6 +466,7 @@ export default function CuotasScreen() {
     cuotas, loading, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
     alDia, deudaActualizadaAt, deuda, pendientes,
+    comprobantes, marcarComprobanteEnviado,
   } = useCuotas(socioId)
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
@@ -420,6 +475,8 @@ export default function CuotasScreen() {
   const enRevision   = cuotas.filter(c => c.estado === 'en_revision').length
   const fechaCorte   = deuda?.fechaCorte ?? deudaActualizadaAt
   const desglose     = desgloseVirtual(deuda, categoriaLabel, montoCategoria, serviciosActivos)
+  const registrados  = comprobantes.filter(c => c.estado === 'REGISTRADO')
+  const vigentes     = comprobantes.filter(c => c.estado !== 'REGISTRADO')
 
   return (
     <View style={s.root}>
@@ -470,6 +527,16 @@ export default function CuotasScreen() {
                 </View>
               )}
 
+              {/* Comprobantes mandados por WhatsApp que ya aparecen en NUVIX */}
+              {registrados.map(c => (
+                <View key={c.clave} style={[s.banner, s.bannerRegistrado]}>
+                  <Feather name="check-circle" size={14} color="#1A7A1A" />
+                  <Text style={s.bannerText}>
+                    Pago registrado ✓ — el comprobante que mandaste el {diaMes(c.enviadoAt)} ya figura en el club.
+                  </Text>
+                </View>
+              ))}
+
               {/* Banners de alerta */}
               {pendientes > 0 && (
                 <View style={[s.banner, s.bannerPendiente]}>
@@ -518,6 +585,11 @@ export default function CuotasScreen() {
               onVerPago={c => setCuotaModal(c)}
               titulo={tituloCuota(item, fechaCorte)}
               desglose={desglose}
+              comprobante={comprobanteParaPeriodos(
+                vigentes,
+                item.id.startsWith('virtual-') ? item.periodosNuvix ?? [] : [item.periodo],
+              )}
+              onEscribirSecretaria={c => Linking.openURL(whatsappNoFiguraUrl(c))}
             />
           )}
           ListEmptyComponent={
@@ -535,6 +607,7 @@ export default function CuotasScreen() {
           titulo={tituloCuota(cuotaModal, fechaCorte)}
           conceptoMensaje={conceptoWhatsapp(cuotaModal, fechaCorte)}
           desglose={desglose}
+          onEnviar={marcarComprobanteEnviado}
         />
       )}
 
@@ -587,6 +660,10 @@ const s = StyleSheet.create({
   },
   bannerPendiente: { backgroundColor: colors.oroHondo },
   bannerRevision:  { backgroundColor: colors.oro },
+  bannerRegistrado: {
+    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
+    borderLeftWidth: 3, borderLeftColor: '#1A7A1A',
+  },
   bannerDeudaClub: {
     backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
     borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente,
@@ -614,6 +691,13 @@ const s = StyleSheet.create({
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, flex: 1, fontStyle: 'italic' },
+  comprobanteRow: { marginTop: 12 },
+
+  escribirBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 12,
+  },
+  escribirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   pagarBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

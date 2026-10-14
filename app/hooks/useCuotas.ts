@@ -1,9 +1,28 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useAuthStore } from '@/stores/authStore'
 import { contarPendientes, deudaTotal } from '@/lib/deudaSocio'
+import {
+  claveComprobante,
+  estadoComprobante,
+  periodoCuotaVirtual,
+  periodosEnGracia,
+  prefijoComprobantes,
+  sigueAdeudado,
+  type ComprobanteEnviado,
+  type EstadoComprobante,
+} from '@/lib/comprobanteEnviado'
+import {
+  borrarComprobanteEnviado,
+  guardarComprobanteEnviado,
+  leerComprobantesEnviados,
+} from '@/lib/comprobantesStorage'
 import { cargarDeudaDetalle, type DeudaDetalle } from './useDeudaDetalle'
+
+export interface ComprobanteConEstado extends ComprobanteEnviado {
+  estado: EstadoComprobante
+}
 
 export interface Cuota {
   id:                string
@@ -47,8 +66,10 @@ export function useCuotas(socioId?: string) {
   // propósito: el socio no ve colores ni se compara contra otros socios.
   const [alDia,             setAlDia]             = useState(true)
   const [deudaActualizadaAt, setDeudaActualizadaAt] = useState<string | null>(null)
-  // Deuda NUVIX detrás de la cuota virtual (null si no hay cuota virtual).
+  // Deuda NUVIX de la última importación (monto y desglose de la cuota virtual).
   const [deuda,             setDeuda]             = useState<DeudaDetalle | null>(null)
+  const [comprobantes,      setComprobantes]      = useState<ComprobanteConEstado[]>([])
+  const registradosRef = useRef(new Map<string, ComprobanteConEstado>())
 
   const fetch = useCallback(async () => {
     if (!session?.user.id) return
@@ -110,6 +131,10 @@ export function useCuotas(socioId?: string) {
       }
     })
 
+    // La deuda NUVIX se carga siempre (no sólo con cuota virtual): también es
+    // contra lo que se reconcilian los comprobantes mandados por WhatsApp.
+    const { data: detalle } = await cargarDeudaDetalle(socio.id)
+
     // La cuota virtual del mes actual sólo se ofrece a pagar por alias si el
     // club (semáforo NUVIX, fuente real de verdad) todavía te marca con deuda.
     // Si ya estás al día, mostrarla igual sería contradecir el propio banner
@@ -122,11 +147,8 @@ export function useCuotas(socioId?: string) {
     // motivo no hay comprobantes (importación sin filas de este socio), cae al
     // total mensual como antes.
     const hoy = periodoHoy()
-    let deudaVirtual: DeudaDetalle | null = null
     if (!alDiaSegunClub && !socio.cobro_con_tarjeta && !normalized.some(c => c.periodo === hoy)) {
-      const { data: detalle } = await cargarDeudaDetalle(socio.id)
       const totalDeuda = detalle ? deudaTotal(detalle) : 0
-      deudaVirtual = detalle
       normalized.unshift({
         id:               `virtual-${hoy}`,
         periodo:          hoy,
@@ -138,7 +160,32 @@ export function useCuotas(socioId?: string) {
       })
     }
 
-    setDeuda(deudaVirtual)
+    // Comprobantes mandados por WhatsApp desde este dispositivo, contra la
+    // última importación. Los REGISTRADO se muestran una vez: se borran de
+    // AsyncStorage acá y quedan en memoria mientras la pantalla esté montada.
+    const periodosAdeudados = detalle ? detalle.periodos.map(p => p.periodo) : []
+    const prefijo = prefijoComprobantes(socioId)
+    const guardados = await leerComprobantesEnviados(prefijo)
+    const conEstado: ComprobanteConEstado[] = guardados.map(e => ({
+      ...e,
+      estado: estadoComprobante(
+        e.enviadoAt,
+        detalle?.fechaCorte ?? null,
+        sigueAdeudado(e.periodos, periodosAdeudados, !alDiaSegunClub),
+      ),
+    }))
+    for (const e of conEstado) {
+      if (e.estado === 'REGISTRADO') {
+        registradosRef.current.set(e.clave, e)
+        await borrarComprobanteEnviado(e.clave)
+      }
+    }
+    const vigentes = conEstado.filter(e => e.estado !== 'REGISTRADO')
+
+    setDeuda(detalle)
+    // (el tutor puede cambiar de menor: sólo los registrados de este socio)
+    const registrados = [...registradosRef.current.values()].filter(e => e.clave.startsWith(prefijo))
+    setComprobantes([...vigentes, ...registrados])
     setCuotas(normalized)
     setLoading(false)
   }, [session, socioId])
@@ -146,10 +193,32 @@ export function useCuotas(socioId?: string) {
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
+  // Se llama al tocar "ENVIAR COMPROBANTE POR WHATSAPP", antes de abrir
+  // WhatsApp: la card pasa a ENVIADO apenas se vuelve a la app.
+  const marcarComprobanteEnviado = useCallback(async (cuota: Cuota) => {
+    const esVirtual = cuota.id.startsWith('virtual-')
+    const periodos  = esVirtual ? cuota.periodosNuvix ?? [] : [cuota.periodo]
+    const entrada: ComprobanteEnviado = {
+      clave:     claveComprobante(socioId, esVirtual ? periodoCuotaVirtual(periodos) : cuota.periodo),
+      enviadoAt: new Date().toISOString(),
+      periodos,
+    }
+    try {
+      await guardarComprobanteEnviado(entrada)
+    } catch {
+      // sin AsyncStorage se pierde el feedback, pero el envío por WhatsApp sigue
+    }
+    setComprobantes(prev => [
+      ...prev.filter(e => e.clave !== entrada.clave),
+      { ...entrada, estado: 'ENVIADO' },
+    ])
+  }, [socioId])
+
   const virtual = cuotas.find(c => c.id.startsWith('virtual-'))
   const pendientes = contarPendientes({
     periodosPendientes: cuotas.filter(c => c.estado === 'pendiente' && c !== virtual).map(c => c.periodo),
     periodosNuvix:      virtual ? virtual.periodosNuvix ?? [] : null,
+    enviadosEnGracia:   periodosEnGracia(comprobantes),
   })
 
   return {
@@ -164,5 +233,7 @@ export function useCuotas(socioId?: string) {
     deudaActualizadaAt,
     deuda,
     pendientes,
+    comprobantes,
+    marcarComprobanteEnviado,
   }
 }

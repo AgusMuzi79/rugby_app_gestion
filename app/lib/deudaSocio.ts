@@ -97,14 +97,23 @@ export function deudaTotal(d: { periodos: { vencido: number }[]; saldoAnterior: 
 // Cantidad que muestra el banner "Tenés N cuotas pendientes". periodosNuvix es
 // null cuando no hay cuota virtual (sin deuda en NUVIX); si la hay, cada período
 // adeudado cuenta como una cuota (y un saldo anterior sin períodos cuenta 1).
+// enviadosEnGracia: períodos cubiertos por comprobantes mandados por WhatsApp
+// que todavía están en la gracia de 2 días (ver comprobanteEnviado.ts) — no
+// cuentan como pendientes mientras Secretaría los carga.
 export function contarPendientes(args: {
   periodosPendientes: string[]       // cuotas reales (tabla cuotas) en estado pendiente
   periodosNuvix:      string[] | null
+  enviadosEnGracia?:  string[][]
 }): number {
+  const enviados = args.enviadosEnGracia ?? []
   const periodos = new Set(args.periodosPendientes)
+  let soloSaldo = 0
   if (args.periodosNuvix) {
-    if (args.periodosNuvix.length === 0) return periodos.size + 1
+    if (args.periodosNuvix.length === 0) {
+      soloSaldo = enviados.some(e => e.length === 0) ? 0 : 1
+    }
     for (const p of args.periodosNuvix) periodos.add(p)
   }
-  return periodos.size
+  for (const e of enviados) for (const p of e) periodos.delete(p)
+  return periodos.size + soloSaldo
 }
