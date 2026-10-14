@@ -1,5 +1,5 @@
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Linking,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Linking, Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSobre } from '@/hooks/useSobre'
@@ -122,7 +122,8 @@ export default function TutorSobreScreen() {
           {!!pdfUrl && (
             <TouchableOpacity
               style={[s.rowBtn, s.terminosBtn, { backgroundColor: colors.card, borderColor: border }]}
-              onPress={() => Linking.openURL(pdfUrl)}
+              onPress={() => Linking.openURL(pdfUrl).catch(() =>
+                Alert.alert('No se pudo abrir', 'Probá de nuevo más tarde.'))}
               activeOpacity={0.8}
               accessibilityRole="link"
             >

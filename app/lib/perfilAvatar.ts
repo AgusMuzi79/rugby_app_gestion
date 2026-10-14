@@ -28,3 +28,15 @@ export function rutaPerfil(segments: readonly string[]): string | null {
 export function avatarVencido(cargadoAt: number | null, ahora: number): boolean {
   return cargadoAt === null || ahora - cargadoAt >= AVATAR_TTL_MS
 }
+
+// cargadoAt mide la edad de la URL firmada de la foto: sólo arranca de nuevo
+// si cambia la foto o el usuario. Guardar sólo el nombre no la renueva.
+export function nuevoCargadoAt(args: {
+  anterior:     number | null
+  mismoUsuario: boolean
+  cambiaFoto:   boolean
+  ahora:        number
+}): number {
+  if (!args.mismoUsuario || args.cambiaFoto || args.anterior === null) return args.ahora
+  return args.anterior
+}

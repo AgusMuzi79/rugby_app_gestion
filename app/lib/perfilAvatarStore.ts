@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { avatarVencido } from './perfilAvatar'
+import { avatarVencido, nuevoCargadoAt } from './perfilAvatar'
 
 interface PerfilAvatarState {
   userId:    string | null
@@ -31,7 +31,12 @@ export const usePerfilAvatarStore = create<PerfilAvatarState>((set, get) => ({
       userId,
       nombre:    datos.nombre ?? (mismoUsuario ? get().nombre : ''),
       fotoUrl:   datos.fotoUrl !== undefined ? datos.fotoUrl : (mismoUsuario ? get().fotoUrl : null),
-      cargadoAt: Date.now(),
+      cargadoAt: nuevoCargadoAt({
+        anterior:   get().cargadoAt,
+        mismoUsuario,
+        cambiaFoto: datos.fotoUrl !== undefined,
+        ahora:      Date.now(),
+      }),
     })
   },
 }))
@@ -41,25 +46,30 @@ async function cargarAvatar(userId: string) {
   if (store.cargando) return
   usePerfilAvatarStore.setState({ cargando: true })
   try {
-    const { data: profile } = await supabase
+    // supabase-js devuelve los errores en vez de tirarlos: se tiran acá para
+    // que una carga fallida no quede guardada como válida por 50 minutos.
+    const { data: profile, error: errProfile } = await supabase
       .from('profiles')
       .select('nombre')
       .eq('id', userId)
       .maybeSingle()
+    if (errProfile) throw errProfile
 
     // Misma fuente de foto que useSobre: bucket del socio, si no la local.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: socio } = await (supabase as any)
+    const { data: socio, error: errSocio } = await (supabase as any)
       .from('socios')
       .select('foto_path')
       .eq('profile_id', userId)
       .maybeSingle()
+    if (errSocio) throw errSocio
 
     let fotoUrl: string | null = null
     if (socio?.foto_path) {
-      const { data: signed } = await supabase.storage
+      const { data: signed, error: errFirma } = await supabase.storage
         .from('socios-fotos')
         .createSignedUrl(socio.foto_path as string, 3600)
+      if (errFirma) throw errFirma
       fotoUrl = signed?.signedUrl ?? null
     } else {
       fotoUrl = await AsyncStorage.getItem(`@perfil_foto_${userId}`)
@@ -67,7 +77,8 @@ async function cargarAvatar(userId: string) {
 
     usePerfilAvatarStore.getState().setAvatar(userId, { nombre: profile?.nombre ?? '', fotoUrl })
   } catch {
-    // Sin red: el avatar queda con iniciales (o vacío); se reintenta al montar otro Header.
+    // Sin red: no se guarda nada, así que el próximo Header que se monte
+    // reintenta (mientras tanto, iniciales de lo ya cargado o el ícono).
   } finally {
     usePerfilAvatarStore.setState({ cargando: false })
   }

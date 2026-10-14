@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native'
 import { useRouter, useSegments, type Href } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
@@ -15,6 +16,9 @@ function AvatarPerfil() {
   const ruta     = rutaPerfil(segments)
   const { nombre, fotoUrl } = usePerfilAvatar()
   const iniciales = inicialesNombre(nombre)
+  // URL firmada vencida o archivo local borrado: se cae a iniciales / ícono
+  const [fotoFallo, setFotoFallo] = useState(false)
+  useEffect(() => { setFotoFallo(false) }, [fotoUrl])
 
   if (!ruta) return null
 
@@ -26,8 +30,8 @@ function AvatarPerfil() {
       activeOpacity={0.8}
       style={[styles.avatar, { backgroundColor: tc.card, borderColor: tc.oroHondo }]}
     >
-      {fotoUrl ? (
-        <Image source={{ uri: fotoUrl }} style={styles.avatarFoto} />
+      {fotoUrl && !fotoFallo ? (
+        <Image source={{ uri: fotoUrl }} style={styles.avatarFoto} onError={() => setFotoFallo(true)} />
       ) : iniciales ? (
         <Text style={[styles.avatarIniciales, { color: tc.texto }]}>{iniciales}</Text>
       ) : (
