@@ -8,62 +8,32 @@ import { useRouter } from 'expo-router'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useTerminos } from '@/hooks/useTerminos'
-import { useSolicitudBaja } from '@/hooks/useSolicitudBaja'
-import { mensajeConfirmacionBaja } from '@/lib/solicitudBaja'
 import { useTheme } from '@/contexts/ThemeContext'
 import { colors as paleta, fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { ROL_LABELS, ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
 
-// Fila "SOLICITAR BAJA DE LA CUENTA" de CUENTA (App Store 5.1.1(v)). La app
-// no borra nada: deja una solicitud y Secretaría la procesa y contacta a la
-// persona. socioId null = cuenta sin registro de socio (familiar/tutor, staff).
-// Se exporta para reusarla en el Mi perfil del tutor.
-export function FilaSolicitudBaja({ socioId }: { socioId: string | null }) {
+// Fila "SOLICITAR BAJA DE LA CUENTA" de CUENTA (App Store 5.1.1(v): la baja
+// se inicia desde la app). Decisión del club (2026-10-14): el botón abre la
+// página pública que explica cómo pedir la baja a Secretaría, en vez de
+// mandar la solicitud desde acá. El flujo in-app (useSolicitudBaja, tabla
+// solicitudes_baja, lista en el panel de Secretaría) queda en el código sin
+// usar, por si se vuelve a habilitar. Se exporta para el Mi perfil del tutor.
+export const URL_ELIMINAR_CUENTA = 'https://uncasapp.com/eliminar-cuenta'
+
+export function FilaSolicitudBaja() {
   const { colors } = useTheme()
-  const { cargando, enviando, vista, solicitar } = useSolicitudBaja()
-
-  if (cargando) return null
-
-  const estilo = [s.rowBtn, s.bajaBtn, { backgroundColor: colors.card, borderColor: colors.grisClaro }]
-
-  if (!vista.mostrarBoton) {
-    return (
-      <View style={estilo}>
-        <Text style={[s.bajaTexto, { color: colors.muted }]}>{vista.texto}</Text>
-      </View>
-    )
-  }
-
-  function confirmar() {
-    Alert.alert('Solicitar baja', mensajeConfirmacionBaja(socioId !== null), [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Solicitar baja',
-        style: 'destructive',
-        onPress: async () => {
-          const error = await solicitar(socioId)
-          if (error) Alert.alert('No se pudo enviar', error)
-          else Alert.alert('Solicitud enviada', 'Secretaría te va a contactar para confirmar la baja.')
-        },
-      },
-    ])
-  }
-
   return (
     <TouchableOpacity
-      style={[estilo, { opacity: enviando ? 0.6 : 1 }]}
-      onPress={confirmar}
-      disabled={enviando}
+      style={[s.rowBtn, s.bajaBtn, { backgroundColor: colors.card, borderColor: colors.grisClaro }]}
+      onPress={() => Linking.openURL(URL_ELIMINAR_CUENTA).catch(() =>
+        Alert.alert('No se pudo abrir', `Entrá a ${URL_ELIMINAR_CUENTA} desde el navegador.`))}
       activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: enviando, busy: enviando }}
+      accessibilityRole="link"
+      accessibilityHint="Abre la página que explica cómo pedir la baja"
     >
-      {enviando
-        ? <ActivityIndicator color={colors.oro} />
-        : <Text style={[s.bajaTexto, { color: colors.texto }]}>SOLICITAR BAJA DE LA CUENTA</Text>
-      }
+      <Text style={[s.bajaTexto, { color: colors.texto }]}>SOLICITAR BAJA DE LA CUENTA</Text>
     </TouchableOpacity>
   )
 }
@@ -262,7 +232,7 @@ export function SobreScreen() {
               <Text style={[s.rowBtnTexto, { color: colors.texto }]}>Términos y condiciones</Text>
             </TouchableOpacity>
           )}
-          <FilaSolicitudBaja socioId={socioId} />
+          <FilaSolicitudBaja />
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: colors.rojoTexto }]}
             onPress={signOut}

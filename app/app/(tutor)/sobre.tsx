@@ -28,7 +28,7 @@ const RELACION_LABEL: Record<string, string> = {
 export default function TutorSobreScreen() {
   const insets = useSafeAreaInsets()
   const { colors } = useTheme()
-  const { perfil, loading, enviandoReset, resetEnviado, enviarResetPassword, socioId } = useSobre()
+  const { perfil, loading, enviandoReset, resetEnviado, enviarResetPassword } = useSobre()
   const { signOut } = useSignOut()
   const { pdfUrl }  = useTerminos()
   const menores        = useTutorStore(s => s.menores)
@@ -131,7 +131,7 @@ export default function TutorSobreScreen() {
             </TouchableOpacity>
           )}
           {/* El tutor no suele tener registro de socio: pide eliminar su cuenta */}
-          <FilaSolicitudBaja socioId={socioId} />
+          <FilaSolicitudBaja />
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: colors.rojoTexto }]}
             onPress={signOut}
