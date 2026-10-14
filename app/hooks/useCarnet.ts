@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import * as SecureStore from 'expo-secure-store'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { generateTOTP, secondsUntilRefresh } from '@/lib/totp-client'
+import { generateTOTP } from '@/lib/totp-client'
 import { esColumnaInexistente, nombreCarnet } from '@/lib/nombrePadron'
 
 const TOTP_STEP = 60
@@ -21,7 +21,6 @@ export interface CarnetData {
   estado:       string
   semaforo:     string | null
   categoria:    string
-  secondsLeft:  number
   fotoUrl:      string | null
   roles:        string[]
   division:     string | null
@@ -76,11 +75,10 @@ export function useDependientesMenores() {
 // socioIdObjetivo: sin valor = mi propio carnet (comportamiento de siempre).
 // Con valor = el carnet de un dependiente menor de 13 a mi cargo (titular de
 // grupo familiar) — validado server-side en socios-qr/get-secret, no acá.
-// tickEnData: true (default) actualiza data.secondsLeft cada segundo (re-render
-// de toda la pantalla, lo usa (cliente-gimnasio)/carnet.tsx). false: data sólo
-// cambia cuando cambia el código; la cuenta regresiva la lleva un componente
-// aparte (components/socio/CarnetQR.tsx).
-export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tickEnData?: boolean } = {}) {
+// data sólo cambia cuando cambia el código TOTP: la cuenta regresiva la lleva
+// un componente aparte (components/socio/CarnetQR.tsx), así la pantalla no se
+// vuelve a renderizar cada segundo.
+export function useCarnet(socioIdObjetivo?: string) {
   const { session }  = useAuthStore()
   const userId       = session?.user.id
   const [loading, setLoading] = useState(true)
@@ -191,7 +189,6 @@ export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tic
       .maybeSingle()
 
     const code      = generateTOTP(secret)
-    const sLeft     = secondsUntilRefresh()
     const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
     const nombre    = nombreCarnet(socio.nombre_padron as string | null | undefined, profile?.nombre)
     const roles     = (profile?.roles as string[] | null) ?? ['socio']
@@ -205,7 +202,6 @@ export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tic
       estado:       socio.estado,
       semaforo:     socio.semaforo,
       categoria,
-      secondsLeft:  sLeft,
       fotoUrl:      fotoUrlRef.current,
       roles,
       division:     divData?.nombre ?? null,
@@ -226,20 +222,14 @@ export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tic
 
   useEffect(() => { buildCarnet() }, [buildCarnet])
 
-  // Tick every second: update countdown and regenerate code when step changes
+  // Cada segundo: regenerar el código cuando cambia el paso TOTP
   useEffect(() => {
     const timer = setInterval(async () => {
-      const sLeft   = secondsUntilRefresh()
       const nowStep = Math.floor(Date.now() / 1000 / TOTP_STEP)
-
-      if (nowStep !== lastStepRef.current) {
-        await buildCarnet()
-      } else if (tickEnData) {
-        setData(prev => prev ? { ...prev, secondsLeft: sLeft } : null)
-      }
+      if (nowStep !== lastStepRef.current) await buildCarnet()
     }, 1000)
     return () => clearInterval(timer)
-  }, [buildCarnet, tickEnData])
+  }, [buildCarnet])
 
   const refresh = useCallback(async () => {
     fotoUrlRef.current = undefined  // fuerza re-fetch de la foto

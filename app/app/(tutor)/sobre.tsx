@@ -12,7 +12,6 @@ import { fonts } from '@/constants/theme'
 
 const GOLD      = '#F5B41C'
 const GOLD_DEEP = '#C9890A'
-const ROJO      = '#CC4127'
 const VERDE     = '#22C55E'
 
 const RELACION_LABEL: Record<string, string> = {
@@ -134,11 +133,11 @@ export default function TutorSobreScreen() {
           {/* El tutor no suele tener registro de socio: pide eliminar su cuenta */}
           <FilaSolicitudBaja socioId={socioId} />
           <TouchableOpacity
-            style={[s.signOutBtn, { borderColor: ROJO }]}
+            style={[s.signOutBtn, { borderColor: colors.rojoTexto }]}
             onPress={signOut}
             activeOpacity={0.75}
           >
-            <Text style={[s.signOutTexto, { color: ROJO }]}>CERRAR SESIÓN</Text>
+            <Text style={[s.signOutTexto, { color: colors.rojoTexto }]}>CERRAR SESIÓN</Text>
           </TouchableOpacity>
         </View>
 

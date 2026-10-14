@@ -1,4 +1,4 @@
-# Estado Expo — Pantallas, Hooks, Navegación y Dark Mode
+# Estado Expo — Pantallas, Hooks, Navegación y Tema
 
 ## Archivos base de la app
 
@@ -10,7 +10,7 @@
 ### Stores / contextos
 
 - `app/stores/authStore.ts` — Zustand: `session, rol, loading, isPasswordRecovery, isNuevoUsuario, setSession, setRol, clearAuth, setPasswordRecovery, setNuevoUsuario`
-- `app/contexts/ThemeContext.tsx` — `ThemeProvider` + `useTheme()`. Modos: `'light' | 'dark' | 'system'`. Persiste en AsyncStorage `@tema`. `ThemeColors`: `fondo, texto, acento, card, tinta, papel, oro, oroHondo, blanco, grisClaro, rojoUrgente, muted`. Light: `fondo:#F6F1E4`, `card:#FFFFFF`, `grisClaro:#E5E0D0`. Dark: `fondo:#1A1A1A`, `card:#2A2A2A`, `grisClaro:#333333`.
+- `app/contexts/ThemeContext.tsx` — `ThemeProvider` + `useTheme()`. Tema oscuro **fijo**: no hay modos light/system, ni toggle, ni persistencia (`@tema` ya no existe). `useTheme()` devuelve `{ colors: THEME_COLORS, isDark: true }`, con `THEME_COLORS = { ...colors, acento: colors.oro }` derivado de `constants/theme.ts` (fuente única desde T17 de la auditoría UX socio, 2026-10-14). `ThemeColors = typeof colors & { acento }`: las claves históricas (`fondo, texto, acento, card, tinta, papel, oro, oroHondo, blanco, grisClaro, rojoUrgente, muted`) más todos los semánticos de `theme.ts`.
 
 ### Librerías / constantes
 
@@ -19,7 +19,7 @@
 - `app/lib/notifications.ts` — `registerPushToken()`: permisos → canal Android → `getExpoPushTokenAsync()` → upsert en `push_tokens`
 - `app/lib/totp-client.ts` — TOTP RFC 6238 client-side: `generateTOTP(secret)` (síncrono) + `secondsUntilRefresh()`. **Pure JS SHA-1 + HMAC-SHA1** sin `crypto.subtle` — compatible con Hermes/React Native en todas las versiones.
 - `app/constants/roles.ts` — `admin` mapeado a `/(subcomision)/diario`. Roles v2: `secretaria→/(secretaria)/diario`, `porteria→/(porteria)/scanner`, `socio→/(socio)/carnet`
-- `app/constants/theme.ts` — sistema "La Bitácora": `colors` (tinta/oro/oroHondo/papel/blanco/grisClaro/rojoUrgente) + `fonts` (titulo=PlayfairDisplay_900Black_Italic, cuerpo=Lora_400Regular, label=ArchivoNarrow_400Regular)
+- `app/constants/theme.ts` — **única fuente de valores de color** (la importan directo las pantallas y `ThemeContext`). Sistema "La Bitácora": `colors` de marca (tinta/oro/oroHondo/papel/blanco/grisClaro/rojoUrgente; desde la identidad nueva `tinta` es claro `#F3EFE4` y `papel` oscuro `#15110A`) + semánticos (texto sobre color: `sobreOro`, `oroSobreClaro`, `rojoTexto`; superficie/texto/estado: `fondo`, `card`, `texto`, `muted`, `textoSecundario`, `borde`, `bordeRealce`, `exito`, `confirmacion`, `estadoActivo`, `estadoPendiente`) + `fonts`. Un rediseño cambia valores acá, no nombres. Guardas en `test:admin`: `lib/tokens.check.ts` (valores) y `lib/contraste.check.ts` (pares ≥ 4.5:1) (titulo=PlayfairDisplay_900Black_Italic, cuerpo=Lora_400Regular, label=ArchivoNarrow_400Regular)
 
 **Tablas v2 en hooks**: usar `const db = supabase as any` — `database.types.ts` no incluye tablas v2 hasta regenerar types con Docker local.
 
@@ -46,7 +46,7 @@ El tab "salir" no tiene `tabBarButton` custom. La sesión se cierra desde la pan
 - `app/components/ui/DatePickerField.tsx` — picker nativo fecha/hora. Props: `label, value, onChange, mode, maximumDate, minimumDate, onClear`. Usa `react-native-modal-datetime-picker` + Ionicons.
 - `app/components/shared/Header.tsx` — logo + "UNCAS RUGBY CLUB". Usa `useTheme()`.
 - `app/components/shared/CronicaScreen.tsx` — feed multi-fuente (lesiones, fichajes, resultados, notificaciones), items urgentes con fondo oscuro, botón "+ NUEVA NOTIFICACIÓN" solo subcomisión/admin. Usa `useTheme()`.
-- `app/components/shared/SobreScreen.tsx` — Mi Perfil compartida. Foto editable (AsyncStorage `@foto_perfil`), nombre editable, toggle tema 3-botones (CLARO/AUTO/OSCURO), toggle biometría, botón cambiar contraseña, botón cerrar sesión.
+- `app/components/shared/SobreScreen.tsx` — Mi Perfil compartida. Foto editable (AsyncStorage `@foto_perfil`), nombre editable, botón cambiar contraseña, botón cerrar sesión. (El toggle de tema CLARO/AUTO/OSCURO ya no existe: el tema es oscuro fijo.)
 
 ## Pantallas — Subcomisión
 
@@ -178,15 +178,18 @@ Al cerrar sesión se limpia `tutorStore` y los secretos QR cacheados de los meno
 - **Cuotas sin MercadoPago:** flujo de pago es alias bancario `cuenta.uncas.rugby` + subida de comprobante. Estado `en_revision` intermedio hasta que secretaría apruebe.
 - **`(socio)/calendario.tsx`** usa `<Header />` + barra de edición igual al resto de tabs. Tab renombrada de "fixture" a "calendario".
 
-## Dark Mode — Arquitectura (COMPLETO)
+## Tema — Arquitectura (oscuro fijo, tokens en `constants/theme.ts`)
 
-Patrón estándar en todas las pantallas:
+No hay modo claro ni "system": la app es oscura siempre. Los valores viven sólo en `app/constants/theme.ts`; `ThemeContext` no define colores propios, sólo re-expone `colors` (+ `acento`) con `isDark: true`.
+
+Dos formas equivalentes de leer un color (mismos valores):
 ```tsx
-const { colors: tc } = useTheme()
-style={[s.root, { backgroundColor: tc.fondo }]}
+import { colors } from '@/constants/theme'          // en StyleSheet.create o fuera de componentes
+const { colors } = useTheme()                        // dentro de componentes (claves históricas + semánticos)
+style={[s.root, { backgroundColor: colors.fondo }]}
 ```
 
-- `StyleSheet.create` se mantiene para layout/spacing; colores se sobreescriben con inline style arrays.
-- "Edition bars" (headers oscuros) NO se convierten — son diseño fijo.
-- Cards urgentes y botones primarios SIEMPRE oscuros — no se convierten.
-- Sub-componentes fuera del componente principal llaman `useTheme()` directamente (sin prop drilling).
+- Usar tokens semánticos (`fondo`, `card`, `texto`, `muted`, `borde`, `sobreOro`, `rojoTexto`, …), no literales hex: T17 sacó los literales de las pantallas de socio; los pocos que quedan llevan comentario (QR negro sobre blanco fijo para el lector, etc.).
+- Texto sobre oro / naranja / verde → `sobreOro`; texto de error sobre fondo oscuro → `rojoTexto` (no `rojoUrgente`, que da 3.90:1 sobre `fondo`).
+- Un par de color nuevo va a `lib/contraste.check.ts`; no cambiar el valor de un token existente sin revisar ese check y `lib/tokens.check.ts`.
+- Pantallas de otros roles (`CronicaScreen`, `UsuariosScreen`, etc.) todavía tienen literales hex y el mismo bug de `tinta` invertida en algunos lugares (fuera del alcance de la auditoría de socio).

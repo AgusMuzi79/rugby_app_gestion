@@ -264,11 +264,11 @@ export function SobreScreen() {
           )}
           <FilaSolicitudBaja socioId={socioId} />
           <TouchableOpacity
-            style={[s.signOutBtn, { borderColor: colors.rojoUrgente }]}
+            style={[s.signOutBtn, { borderColor: colors.rojoTexto }]}
             onPress={signOut}
             activeOpacity={0.75}
           >
-            <Text style={[s.signOutTexto, { color: colors.rojoUrgente }]}>CERRAR SESIÓN</Text>
+            <Text style={[s.signOutTexto, { color: colors.rojoTexto }]}>CERRAR SESIÓN</Text>
           </TouchableOpacity>
         </View>
 

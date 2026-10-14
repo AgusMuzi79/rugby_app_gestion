@@ -2,9 +2,9 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl }
 import { useRef, useState, useCallback } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
 import { useCarnet } from '@/hooks/useCarnet'
+import { QRCarnet, CuentaRegresivaQR } from '@/components/socio/CarnetQR'
 import { colors, fonts } from '@/constants/theme'
 
 // Carnet de Cliente Gimnasio (2026-09-11) — versión simplificada del carnet
@@ -107,21 +107,10 @@ export default function CarnetClienteGimnasioScreen() {
             <Text style={s.numValue}>{data.numero_socio}</Text>
 
             <View style={s.qrWrapper}>
-              <QRCode
-                value={data.qrContent}
-                size={210}
-                backgroundColor="#FFFFFF"
-                color="#000000"
-              />
+              <QRCarnet value={data.qrContent} />
             </View>
 
-            <View style={s.countdownRow}>
-              <Text style={s.countdownLabel}>Se renueva en</Text>
-              <Text style={s.countdownNum}>{data.secondsLeft}s</Text>
-            </View>
-            <View style={s.progressTrack}>
-              <View style={[s.progressFill, { width: `${(data.secondsLeft / 60) * 100}%` }]} />
-            </View>
+            <CuentaRegresivaQR />
 
             <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
               <Text style={s.estadoText}>
@@ -190,13 +179,6 @@ const s = StyleSheet.create({
     marginVertical: 4,
   },
 
-  countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: '#F3EFE4' },
-
-  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
-  progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
-
   estadoBadge: {
     paddingHorizontal: 14, paddingVertical: 5, borderRadius: 3, marginTop: 6,
   },
@@ -213,5 +195,5 @@ const s = StyleSheet.create({
   },
 
   errorContainer: { padding: 40, alignItems: 'center' },
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
 })
