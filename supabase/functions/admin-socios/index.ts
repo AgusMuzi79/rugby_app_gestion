@@ -102,8 +102,13 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   }
 
   // 3. Crear registro de socio
+  // nombre_padron = el nombre que carga Secretaría: es el que muestran el
+  // carnet y el escaneo (auditoría UX socio, T12). Sin esto el carnet cae a
+  // profiles.nombre hasta que el importador del padrón lo complete. El socio
+  // después edita profiles.nombre en Mi perfil sin tocar este valor.
   const socioPayload: Record<string, unknown> = {
-    profile_id:   userId,
+    profile_id:    userId,
+    nombre_padron: nombre,
     dni,
     categoria_id,
     estado:        'pendiente',
