@@ -71,12 +71,21 @@ caso('nuevoCargadoAt: cambiar sólo el nombre no renueva el vencimiento de la fo
   assert.equal(nuevoCargadoAt({ anterior: antes, mismoUsuario: true, cambiaFoto: false, ahora }), antes)
 })
 
-caso('nuevoCargadoAt: foto nueva u otro usuario arrancan el reloj de nuevo', () => {
+caso('nuevoCargadoAt: sólo una foto nueva arranca el reloj', () => {
   const antes = 1_000_000
   const ahora = antes + 30 * 60 * 1000
   assert.equal(nuevoCargadoAt({ anterior: antes, mismoUsuario: true, cambiaFoto: true, ahora }), ahora)
-  assert.equal(nuevoCargadoAt({ anterior: antes, mismoUsuario: false, cambiaFoto: false, ahora }), ahora)
-  assert.equal(nuevoCargadoAt({ anterior: null, mismoUsuario: true, cambiaFoto: false, ahora }), ahora)
+  assert.equal(nuevoCargadoAt({ anterior: null, mismoUsuario: true, cambiaFoto: true, ahora }), ahora)
+  assert.equal(nuevoCargadoAt({ anterior: antes, mismoUsuario: false, cambiaFoto: true, ahora }), ahora)
+})
+
+caso('nuevoCargadoAt: sin foto cargada todavía, guardar el nombre no la da por vigente', () => {
+  const antes = 1_000_000
+  const ahora = antes + 30 * 60 * 1000
+  // nunca se cargó la foto (o falló la carga): sigue vencido, se vuelve a pedir
+  assert.equal(nuevoCargadoAt({ anterior: null, mismoUsuario: true, cambiaFoto: false, ahora }), null)
+  // otro usuario sin foto: no hereda el reloj del anterior
+  assert.equal(nuevoCargadoAt({ anterior: antes, mismoUsuario: false, cambiaFoto: false, ahora }), null)
 })
 
 console.log(`\n${casos} casos OK`)

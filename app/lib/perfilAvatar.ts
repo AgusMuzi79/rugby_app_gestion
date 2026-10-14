@@ -29,14 +29,15 @@ export function avatarVencido(cargadoAt: number | null, ahora: number): boolean 
   return cargadoAt === null || ahora - cargadoAt >= AVATAR_TTL_MS
 }
 
-// cargadoAt mide la edad de la URL firmada de la foto: sólo arranca de nuevo
-// si cambia la foto o el usuario. Guardar sólo el nombre no la renueva.
+// cargadoAt mide la edad de la URL firmada de la foto: sólo arranca cuando
+// llega una foto. Guardar sólo el nombre no la renueva, y si la foto nunca se
+// cargó (o es otro usuario) queda null para que se vuelva a pedir.
 export function nuevoCargadoAt(args: {
   anterior:     number | null
   mismoUsuario: boolean
   cambiaFoto:   boolean
   ahora:        number
-}): number {
-  if (!args.mismoUsuario || args.cambiaFoto || args.anterior === null) return args.ahora
-  return args.anterior
+}): number | null {
+  if (args.cambiaFoto) return args.ahora
+  return args.mismoUsuario ? args.anterior : null
 }

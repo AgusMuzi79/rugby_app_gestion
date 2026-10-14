@@ -19,8 +19,9 @@ export function useSolicitudBaja() {
   const [cargando, setCargando]   = useState(true)
   const [enviando, setEnviando]   = useState(false)
 
-  const cargar = useCallback(async () => {
-    if (!userId) { setCargando(false); return }
+  // Devuelve false si la lectura falló.
+  const cargar = useCallback(async (): Promise<boolean> => {
+    if (!userId) { setCargando(false); return true }
     const { data, error } = await supabase
       .from('solicitudes_baja')
       .select('estado, created_at, procesada_at')
@@ -34,6 +35,7 @@ export function useSolicitudBaja() {
       setUltima(data ? { ...data, estado: data.estado as EstadoSolicitudBaja } : null)
     }
     setCargando(false)
+    return !error
   }, [userId])
 
   useEffect(() => { void cargar() }, [cargar])
@@ -49,7 +51,14 @@ export function useSolicitudBaja() {
         .select('estado, created_at, procesada_at')
         .single()
       if (error) {
-        if (esSolicitudDuplicada(error)) { await cargar(); return null }
+        if (esSolicitudDuplicada(error)) {
+          // Ya había una pendiente (índice único). Si además falla la recarga,
+          // se muestra igual como pedida para no contradecir el aviso de éxito
+          // (la fecha exacta aparece en la próxima carga).
+          const leida = await cargar()
+          if (!leida) setUltima({ estado: 'pendiente', created_at: new Date().toISOString(), procesada_at: null })
+          return null
+        }
         return 'No se pudo enviar la solicitud. Revisá tu conexión y probá de nuevo.'
       }
       setUltima({ ...data, estado: data.estado as EstadoSolicitudBaja })
