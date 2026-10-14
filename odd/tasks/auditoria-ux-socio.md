@@ -96,6 +96,15 @@ Root cause of most contrast failures: commit `cab360a` (new visual identity) inv
 - [x] T17 — commit `79b53cd` — **Tokens: one source** (P2). 126 hex literals in the socio screens (`#8E8574` ×34, `#2C2418` ×27) while `ThemeContext` already has `muted`, `card`, `fondo`. Merge `constants/theme.ts` and `ThemeContext` into one semantic set and replace literals. Large mechanical change — do last, after T4, in its own commit.
 - [x] T18 — commit `b1ee852` (icon-set item skipped, see evidence) — P3, if time: single icon set (Feather + MaterialCommunityIcons mixed in calendario); `noticias.tsx:105` `onTextLayout` → `setState` per card; `verCarnetBtn` without horizontal margin (`carnet.tsx:464`).
 
+## Follow-ups (2026-10-14)
+
+Branch `fix/auditoria-ux-followups` (from `main` @ `c28da75`). The open follow-ups from the 2026-10-14 Status line, one work commit each.
+
+- [ ] F1 — **"CERRAR SESIÓN" contrast** (WCAG 1.4.3). Mi perfil (socio `SobreScreen.tsx`, tutor `(tutor)/sobre.tsx`) uses `rojoUrgente #CC4127` on `fondo` = 3.90. Use the existing `rojoTexto` (5.57); pair asserted in `contraste.check.ts`. No token value changes.
+- [ ] F2 — **`admin-socios` manual alta sets `nombre_padron`** (and keeps it in sync when Secretaría edits the name), plus the web Secretaría path if it writes names directly.
+- [ ] F3 — **cliente-gimnasio carnet uses `CarnetQR`**; drop `useCarnet({ tickEnData })` and `secondsLeft` if unused.
+- [ ] F4 — **`.claude/context/estado-expo.md` theme section** matches the fixed dark `ThemeContext` derived from `constants/theme.ts`.
+
 ## Acceptance criteria
 
 - A socio with semáforo rojo and 3 periods owed sees the 3-period total under "TOTAL A TRANSFERIR" and a banner that agrees with "DEUDA SEGÚN EL CLUB".
