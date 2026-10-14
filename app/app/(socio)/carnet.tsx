@@ -469,7 +469,7 @@ const s = StyleSheet.create({
 
   verCarnetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, marginTop: 8,
+    gap: 8, marginTop: 8, marginHorizontal: 20,
     borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4,
     paddingVertical: 12, minHeight: 44,
   },

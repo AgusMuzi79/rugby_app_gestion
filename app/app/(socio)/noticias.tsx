@@ -104,7 +104,8 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
       <Text
         style={s.cardCuerpo}
         numberOfLines={5}
-        onTextLayout={e => setTruncado(e.nativeEvent.lines.length >= 5)}
+        // Sólo cambia de false a true una vez: no hay setState en cada layout
+        onTextLayout={e => { if (!truncado && e.nativeEvent.lines.length >= 5) setTruncado(true) }}
       >
         {noticia.cuerpo}
       </Text>
