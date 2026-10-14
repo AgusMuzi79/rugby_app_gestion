@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useTerminos } from '@/hooks/useTerminos'
+import { useSolicitudBaja } from '@/hooks/useSolicitudBaja'
+import { mensajeConfirmacionBaja } from '@/lib/solicitudBaja'
 import { useTheme } from '@/contexts/ThemeContext'
 import { fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/authStore'
@@ -19,6 +21,58 @@ const GOLD_DEEP = '#C9890A'
 const ROJO      = '#CC4127'
 const VERDE     = '#22C55E'
 
+// Fila "SOLICITAR BAJA DE LA CUENTA" de CUENTA (App Store 5.1.1(v)). La app
+// no borra nada: deja una solicitud y Secretaría la procesa y contacta a la
+// persona. socioId null = cuenta sin registro de socio (familiar/tutor, staff).
+// Se exporta para reusarla en el Mi perfil del tutor.
+export function FilaSolicitudBaja({ socioId }: { socioId: string | null }) {
+  const { colors } = useTheme()
+  const { cargando, enviando, vista, solicitar } = useSolicitudBaja()
+
+  if (cargando) return null
+
+  const estilo = [s.rowBtn, s.bajaBtn, { backgroundColor: colors.card, borderColor: colors.grisClaro }]
+
+  if (!vista.mostrarBoton) {
+    return (
+      <View style={estilo}>
+        <Text style={[s.bajaTexto, { color: colors.muted }]}>{vista.texto}</Text>
+      </View>
+    )
+  }
+
+  function confirmar() {
+    Alert.alert('Solicitar baja', mensajeConfirmacionBaja(socioId !== null), [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Solicitar baja',
+        style: 'destructive',
+        onPress: async () => {
+          const error = await solicitar(socioId)
+          if (error) Alert.alert('No se pudo enviar', error)
+          else Alert.alert('Solicitud enviada', 'Secretaría te va a contactar para confirmar la baja.')
+        },
+      },
+    ])
+  }
+
+  return (
+    <TouchableOpacity
+      style={[estilo, { opacity: enviando ? 0.6 : 1 }]}
+      onPress={confirmar}
+      disabled={enviando}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: enviando, busy: enviando }}
+    >
+      {enviando
+        ? <ActivityIndicator color={GOLD} />
+        : <Text style={[s.bajaTexto, { color: colors.texto }]}>SOLICITAR BAJA DE LA CUENTA</Text>
+      }
+    </TouchableOpacity>
+  )
+}
+
 export function SobreScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -27,6 +81,7 @@ export function SobreScreen() {
     nombre, setNombre, guardandoNombre, nombreGuardado, guardarNombre,
     enviandoReset, resetEnviado, enviarResetPassword,
     foto, cambiandoFoto, cambiarFoto,
+    socioId,
   } = useSobre()
   const { signOut }              = useSignOut()
   const { pdfUrl }               = useTerminos()
@@ -206,6 +261,7 @@ export function SobreScreen() {
               <Text style={[s.rowBtnTexto, { color: colors.texto }]}>Términos y condiciones</Text>
             </TouchableOpacity>
           )}
+          <FilaSolicitudBaja socioId={socioId} />
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: ROJO }]}
             onPress={signOut}
@@ -259,6 +315,8 @@ const s = StyleSheet.create({
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },
   rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 16 },
   terminosBtn: { marginBottom: 10 },
+  bajaBtn:     { marginBottom: 10 },
+  bajaTexto:   { fontFamily: fonts.label, fontSize: 14, letterSpacing: 2, textAlign: 'center' },
 
   // Cuenta
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },

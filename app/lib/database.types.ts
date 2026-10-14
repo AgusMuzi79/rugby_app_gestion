@@ -2272,6 +2272,58 @@ export type Database = {
           },
         ]
       }
+      solicitudes_baja: {
+        Row: {
+          created_at: string
+          estado: string
+          id: string
+          procesada_at: string | null
+          procesada_por: string | null
+          profile_id: string
+          socio_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          id?: string
+          procesada_at?: string | null
+          procesada_por?: string | null
+          profile_id: string
+          socio_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          id?: string
+          procesada_at?: string | null
+          procesada_por?: string | null
+          profile_id?: string
+          socio_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_baja_procesada_por_fkey"
+            columns: ["procesada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_baja_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_baja_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       terminos_aceptaciones: {
         Row: {
           aceptado_at: string

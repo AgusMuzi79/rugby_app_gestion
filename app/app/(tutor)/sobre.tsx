@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useTerminos } from '@/hooks/useTerminos'
+import { FilaSolicitudBaja } from '@/components/shared/SobreScreen'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useTutorStore } from '@/stores/tutorStore'
 import { fonts } from '@/constants/theme'
@@ -28,7 +29,7 @@ const RELACION_LABEL: Record<string, string> = {
 export default function TutorSobreScreen() {
   const insets = useSafeAreaInsets()
   const { colors } = useTheme()
-  const { perfil, loading, enviandoReset, resetEnviado, enviarResetPassword } = useSobre()
+  const { perfil, loading, enviandoReset, resetEnviado, enviarResetPassword, socioId } = useSobre()
   const { signOut } = useSignOut()
   const { pdfUrl }  = useTerminos()
   const menores        = useTutorStore(s => s.menores)
@@ -130,6 +131,8 @@ export default function TutorSobreScreen() {
               <Text style={[s.rowBtnTexto, { color: colors.texto }]}>Términos y condiciones</Text>
             </TouchableOpacity>
           )}
+          {/* El tutor no suele tener registro de socio: pide eliminar su cuenta */}
+          <FilaSolicitudBaja socioId={socioId} />
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: ROJO }]}
             onPress={signOut}

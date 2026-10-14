@@ -33,6 +33,8 @@ export function useSobre() {
   const [resetEnviado, setResetEnviado]       = useState(false)
   const [foto, setFoto]                       = useState<string | null>(null)
   const [cambiandoFoto, setCambiandoFoto]     = useState(false)
+  // id del registro en socios (null: familiar/tutor o staff sin socio)
+  const [socioId, setSocioId]                 = useState<string | null>(null)
 
   const rolRef    = useRef<string>('')
   const socioIdRef = useRef<string | null>(null)
@@ -63,6 +65,7 @@ export function useSobre() {
       .maybeSingle()
 
     socioIdRef.current = socio?.id ?? null
+    setSocioId(socio?.id ?? null)
 
     let fotoCargada: string | null = null
     if (socio?.foto_path) {
@@ -223,5 +226,6 @@ export function useSobre() {
     foto,
     cambiandoFoto,
     cambiarFoto,
+    socioId,
   }
 }

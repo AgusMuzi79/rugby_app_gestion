@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
+import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -836,6 +837,9 @@ export default function SociosPage() {
           + NUEVO SOCIO
         </button>
       </div>
+
+      {/* Solicitudes de baja pedidas desde la app (sólo si hay pendientes) */}
+      <SolicitudesBaja />
 
       {/* Barra de búsqueda + filtros */}
       <div className="flex gap-4 mb-6 items-center">
