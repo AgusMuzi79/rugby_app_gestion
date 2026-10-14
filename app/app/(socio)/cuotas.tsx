@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
-import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
-import { useDeudaDetalle } from '@/hooks/useDeudaDetalle'
+import { useCuotas, type ComprobanteConEstado, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
+import { comprobanteParaPeriodos } from '@/lib/comprobanteEnviado'
+import { useDeudaDetalle, type DeudaDetalle } from '@/hooks/useDeudaDetalle'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 
@@ -42,9 +43,62 @@ function esMesEnCurso(periodo: string): boolean {
   return periodo === new Date().toISOString().slice(0, 7)
 }
 
-function whatsappComprobanteUrl(periodo: string, monto: number): string {
-  const mensaje = `Hola! Te mando el comprobante de mi cuota de ${periodoLabel(periodo)} ($${monto.toLocaleString('es-AR')}).`
+function whatsappComprobanteUrl(concepto: string, monto: number): string {
+  const mensaje = `Hola! Te mando el comprobante de ${concepto} ($${monto.toLocaleString('es-AR')}).`
   return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
+}
+
+// Comprobante NO REGISTRADO tras la gracia: mismo número de Secretaría.
+function whatsappNoFiguraUrl(c: ComprobanteConEstado): string {
+  const que = c.periodos.length > 0
+    ? `de ${c.periodos.map(periodoLabel).join(', ')}`
+    : 'de mi saldo anterior'
+  const mensaje = `Hola! El ${diaMes(c.enviadoAt)} te mandé el comprobante del pago ${que} y todavía no figura en la app.`
+  return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
+}
+
+// dd/mm de una fecha. Las columnas date ('YYYY-MM-DD') se leen por partes:
+// new Date('2026-10-10') es medianoche UTC y en Argentina mostraría el 09/10.
+function diaMes(fecha: string): string {
+  const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  if (soloFecha) return `${soloFecha[3]}/${soloFecha[2]}`
+  const d = new Date(fecha)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// La cuota virtual no es "la cuota de este mes": su monto es toda la deuda
+// según NUVIX, así que se titula con la fecha de corte de esa importación.
+function tituloCuota(cuota: Cuota, fechaCorte: string | null): string {
+  if (!cuota.id.startsWith('virtual-')) return periodoLabel(cuota.periodo).toUpperCase()
+  return `DEUDA AL ${diaMes(fechaCorte ?? new Date().toISOString())}`
+}
+
+function conceptoWhatsapp(cuota: Cuota, fechaCorte: string | null): string {
+  if (!cuota.id.startsWith('virtual-')) return `mi cuota de ${periodoLabel(cuota.periodo)}`
+  return `mi deuda al ${diaMes(fechaCorte ?? new Date().toISOString())}`
+}
+
+interface FilaDesglose { key: string; label: string; monto: number }
+
+// Desglose de la cuota virtual: los períodos que debe según NUVIX (+ saldo
+// anterior), que suman exactamente su monto. Si no hay detalle de NUVIX (el
+// monto cayó al total mensual), el desglose de categoría + servicios de hoy.
+function desgloseVirtual(
+  deuda: DeudaDetalle | null,
+  categoriaLabel: string,
+  montoCategoria: number,
+  serviciosActivos: ServicioActivo[],
+): FilaDesglose[] {
+  if (deuda && (deuda.periodos.length > 0 || deuda.saldoAnterior > 0)) {
+    const filas = deuda.periodos.map(p => ({ key: p.periodo, label: periodoLabel(p.periodo), monto: p.vencido }))
+    if (deuda.saldoAnterior > 0) filas.push({ key: 'saldo-anterior', label: 'Saldo anterior', monto: deuda.saldoAnterior })
+    return filas
+  }
+  if (!categoriaLabel) return []
+  return [
+    { key: 'categoria', label: categoriaLabel, monto: montoCategoria },
+    ...serviciosActivos.map(srv => ({ key: srv.id, label: srv.nombre, monto: srv.monto_mensual })),
+  ]
 }
 
 function fechaCorta(iso: string): string {
@@ -70,47 +124,51 @@ function fechaEdicion(): string {
 function PagoModal({
   cuota,
   onClose,
-  categoriaLabel,
-  montoCategoria,
-  serviciosActivos,
+  titulo,
+  conceptoMensaje,
+  desglose,
+  onEnviar,
 }: {
   cuota:             Cuota
   onClose:           () => void
-  categoriaLabel:    string
-  montoCategoria:    number
-  serviciosActivos:  ServicioActivo[]
+  titulo:            string
+  conceptoMensaje:   string
+  desglose:          FilaDesglose[]
+  onEnviar:          (c: Cuota) => Promise<void>
 }) {
-  // El desglose (categoría + servicios) se calcula siempre con los precios
-  // ACTUALES — sólo coincide con cuota.monto para la cuota virtual del mes en
-  // curso (se calculan juntos, en el mismo fetch). Una cuota real ya creada
-  // en la tabla `cuotas` tiene su monto congelado al momento de generarse, así
-  // que mostrarle un desglose con precios de hoy podría no sumar ese total
-  // (por ejemplo, después de un aumento de cuota). Para esas, mostramos sólo
-  // el total sin fabricar un desglose que no le corresponde.
+  // Primero se guarda el envío (la card pasa a ENVIADO), después se abre
+  // WhatsApp y se cierra el modal para que al volver se vea la card.
+  async function enviarComprobante() {
+    await onEnviar(cuota)
+    Linking.openURL(whatsappComprobanteUrl(conceptoMensaje, cuota.monto))
+    onClose()
+  }
+
+  // El desglose sólo existe para la cuota virtual (ver desgloseVirtual), que
+  // se calcula en el mismo fetch que su monto. Una cuota real ya creada en la
+  // tabla `cuotas` tiene su monto congelado al momento de generarse, así que
+  // mostrarle un desglose con precios de hoy podría no sumar ese total (por
+  // ejemplo, después de un aumento de cuota). Para esas, mostramos sólo el
+  // total sin fabricar un desglose que no le corresponde.
   const esVirtual = cuota.id.startsWith('virtual-')
+  const insets = useSafeAreaInsets()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={m.sheet}>
-          {/* Handle */}
-          <View style={m.handle} />
+        <View style={[m.sheet, { paddingBottom: insets.bottom + 24 }]}>
 
-          <Text style={m.sheetTitle}>{periodoLabel(cuota.periodo).toUpperCase()}</Text>
+          <Text style={m.sheetTitle}>{titulo}</Text>
 
           {/* Desglose */}
           <View style={m.breakdown}>
-            {esVirtual && (
+            {esVirtual && desglose.length > 0 && (
               <>
-                <View style={m.bRow}>
-                  <Text style={m.bLabel}>{categoriaLabel || 'Cuota base'}</Text>
-                  <Text style={m.bMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
-                </View>
-                {serviciosActivos.map(srv => (
-                  <View key={srv.id} style={m.bRow}>
-                    <Text style={m.bLabel}>{srv.nombre}</Text>
-                    <Text style={m.bMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
+                {desglose.map(f => (
+                  <View key={f.key} style={m.bRow}>
+                    <Text style={m.bLabel}>{f.label}</Text>
+                    <Text style={m.bMonto}>${f.monto.toLocaleString('es-AR')}</Text>
                   </View>
                 ))}
                 <View style={m.bSep} />
@@ -125,14 +183,15 @@ function PagoModal({
           {/* Alias */}
           <View style={m.aliasBox}>
             <Text style={m.aliasEtiqueta}>ALIAS</Text>
-            <Text style={m.aliasValor}>{ALIAS_CLUB}</Text>
+            {/* selectable: mantener apretado para copiar (COPIAR ALIAS llega con expo-clipboard) */}
+            <Text style={m.aliasValor} selectable>{ALIAS_CLUB}</Text>
             <Text style={m.aliasSub}>Transferí desde tu app bancaria o billetera virtual</Text>
           </View>
 
           {/* Acción */}
           <TouchableOpacity
             style={m.subirBtn}
-            onPress={() => Linking.openURL(whatsappComprobanteUrl(cuota.periodo, cuota.monto))}
+            onPress={enviarComprobante}
             activeOpacity={0.8}
           >
             <Feather name="send" size={14} color={colors.oro} />
@@ -156,13 +215,13 @@ function PagoModal({
 
 function DeudaClubModal({ onClose, socioId }: { onClose: () => void; socioId?: string }) {
   const { data, loading } = useDeudaDetalle(socioId)
+  const insets = useSafeAreaInsets()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={[m.sheet, dm.sheet]}>
-          <View style={m.handle} />
+        <View style={[m.sheet, dm.sheet, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={m.sheetTitle}>DEUDA SEGÚN EL CLUB</Text>
 
           {loading ? (
@@ -268,45 +327,56 @@ function DeudaClubModal({ onClose, socioId }: { onClose: () => void; socioId?: s
 function CuotaCard({
   cuota,
   onVerPago,
-  categoriaLabel,
-  montoCategoria,
-  serviciosActivos,
+  titulo,
+  desglose,
+  comprobante,
+  onEscribirSecretaria,
 }: {
-  cuota:            Cuota
-  onVerPago:        (c: Cuota) => void
-  categoriaLabel:   string
-  montoCategoria:   number
-  serviciosActivos: ServicioActivo[]
+  cuota:                Cuota
+  onVerPago:            (c: Cuota) => void
+  titulo:               string
+  desglose:             FilaDesglose[]
+  comprobante:          ComprobanteConEstado | null
+  onEscribirSecretaria: (c: ComprobanteConEstado) => void
 }) {
   const [expandida, setExpandida] = useState(false)
 
   const pagada      = cuota.estado === 'pagado'
   const enRevision  = cuota.estado === 'en_revision'
   const pendiente   = cuota.estado === 'pendiente'
-  // Mismo criterio que PagoModal: el desglose con precios de hoy sólo es
-  // fiel para la cuota virtual del mes en curso, no para una cuota real ya
-  // creada con un monto congelado de otro momento.
+  // Mismo criterio que PagoModal: el desglose sólo es fiel para la cuota
+  // virtual, no para una cuota real ya creada con un monto congelado de otro
+  // momento.
   const esVirtual   = cuota.id.startsWith('virtual-')
+  // Comprobante mandado por WhatsApp desde este dispositivo (sólo cuotas
+  // pendientes; los REGISTRADO se muestran en el banner de arriba).
+  const enviado     = pendiente && comprobante?.estado === 'ENVIADO'
+  const noRegistrado = pendiente && comprobante?.estado === 'NO_REGISTRADO'
 
-  const borderColor = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#2C2418'
-  const badgeBg     = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#3A2800'
-  const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : 'PENDIENTE'
+  const borderColor = pagada ? colors.exito : enRevision || enviado ? colors.oroHondo : noRegistrado ? colors.rojoUrgente : colors.borde
+  const badgeBg     = pagada ? colors.exito : enRevision || enviado ? colors.oroHondo : '#3A2800' // único: fondo oscuro del badge PENDIENTE / NO REGISTRADO
+  const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : enviado ? 'ENVIADO' : noRegistrado ? 'NO REGISTRADO' : 'PENDIENTE'
+  // Sobre oroHondo el texto crema no llega a 4.5:1 → texto oscuro.
+  const badgeTexto  = enRevision || enviado ? colors.sobreOro : colors.texto
 
   return (
     <TouchableOpacity
       style={[s.card, { borderLeftColor: borderColor }]}
       onPress={() => setExpandida(v => !v)}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityHint={expandida ? 'Oculta el detalle' : 'Muestra el detalle'}
+      accessibilityState={{ expanded: expandida }}
     >
       {/* Fila principal */}
       <View style={s.cardRow}>
         <View style={s.cardLeft}>
-          <Text style={s.cardPeriodo}>{periodoLabel(cuota.periodo).toUpperCase()}</Text>
+          <Text style={s.cardPeriodo}>{titulo}</Text>
           <Text style={s.cardMonto}>{montoStr(cuota.monto)}</Text>
         </View>
         <View style={s.cardRight}>
           <View style={[s.estadoBadge, { backgroundColor: badgeBg }]}>
-            <Text style={s.estadoText}>{badgeLabel}</Text>
+            <Text style={[s.estadoText, { color: badgeTexto }]}>{badgeLabel}</Text>
           </View>
           <Feather
             name={expandida ? 'chevron-up' : 'chevron-down'}
@@ -317,20 +387,42 @@ function CuotaCard({
         </View>
       </View>
 
+      {/* Feedback del comprobante mandado por WhatsApp */}
+      {enviado && comprobante && (
+        <View style={[s.infoRow, s.comprobanteRow]}>
+          <Feather name="clock" size={12} color={colors.oroHondo} />
+          <Text style={s.infoText}>
+            Mandaste el comprobante el {diaMes(comprobante.enviadoAt)} por WhatsApp. Secretaría lo carga y se actualiza con la próxima importación.
+          </Text>
+        </View>
+      )}
+      {noRegistrado && comprobante && (
+        <View style={[s.comprobanteRow, { gap: 10 }]}>
+          <View style={s.infoRow}>
+            <Feather name="alert-circle" size={12} color={colors.rojoUrgente} />
+            <Text style={s.infoText}>Todavía no figura tu pago. Escribile a Secretaría.</Text>
+          </View>
+          <TouchableOpacity
+            style={s.escribirBtn}
+            onPress={() => onEscribirSecretaria(comprobante)}
+            activeOpacity={0.8}
+          >
+            <Feather name="message-circle" size={14} color={colors.oro} />
+            <Text style={s.escribirBtnText}>ESCRIBIR A SECRETARÍA</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Expansión */}
       {expandida && (
         <View style={s.detalle}>
-          {/* Desglose — sólo para la cuota virtual del mes en curso, ver nota arriba */}
-          {esVirtual && !!categoriaLabel && (
+          {/* Desglose — sólo para la cuota virtual, ver nota arriba */}
+          {esVirtual && desglose.length > 0 && (
             <View style={s.desgloseBox}>
-              <View style={s.desgloseRow}>
-                <Text style={s.desgloseItem}>{categoriaLabel}</Text>
-                <Text style={s.desgloseMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
-              </View>
-              {serviciosActivos.map(srv => (
-                <View key={srv.id} style={s.desgloseRow}>
-                  <Text style={s.desgloseItem}>{srv.nombre}</Text>
-                  <Text style={s.desgloseMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
+              {desglose.map(f => (
+                <View key={f.key} style={s.desgloseRow}>
+                  <Text style={s.desgloseItem}>{f.label}</Text>
+                  <Text style={s.desgloseMonto}>${f.monto.toLocaleString('es-AR')}</Text>
                 </View>
               ))}
             </View>
@@ -339,7 +431,7 @@ function CuotaCard({
           {/* Estado detallado */}
           {pagada && cuota.fecha_pago && (
             <View style={s.infoRow}>
-              <Feather name="check-circle" size={12} color="#1A7A1A" />
+              <Feather name="check-circle" size={12} color={colors.exito} />
               <Text style={s.infoText}>Pagado el {fechaCorta(cuota.fecha_pago)}</Text>
             </View>
           )}
@@ -349,17 +441,19 @@ function CuotaCard({
               <Text style={s.infoText}>Comprobante recibido · aguardando confirmación de Secretaría</Text>
             </View>
           )}
-          {pendiente && (
-            <TouchableOpacity
-              style={s.pagarBtn}
-              onPress={() => onVerPago(cuota)}
-              activeOpacity={0.8}
-            >
-              <Feather name="arrow-right-circle" size={14} color={colors.tinta} />
-              <Text style={s.pagarBtnText}>VER CÓMO PAGAR</Text>
-            </TouchableOpacity>
-          )}
         </View>
+      )}
+
+      {/* Acción de pago siempre visible en las pendientes, sin expandir */}
+      {pendiente && (
+        <TouchableOpacity
+          style={[s.pagarBtn, s.pagarBtnCard]}
+          onPress={() => onVerPago(cuota)}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-right-circle" size={14} color={colors.sobreOro} />
+          <Text style={s.pagarBtnText}>VER CÓMO PAGAR</Text>
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   )
@@ -376,16 +470,20 @@ export default function CuotasScreen() {
   // no write to the club's data. Other roles: socioId undefined -> unchanged.
   const { socioId } = useSocioObjetivo()
   const {
-    cuotas, loading, refetch,
+    cuotas, loading, error, refreshing, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
-    alDia, deudaActualizadaAt,
+    alDia, deudaActualizadaAt, deuda, pendientes,
+    comprobantes, marcarComprobanteEnviado,
   } = useCuotas(socioId)
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
   const [deudaModal, setDeudaModal] = useState(false)
 
-  const pendientes   = cuotas.filter(c => c.estado === 'pendiente').length
   const enRevision   = cuotas.filter(c => c.estado === 'en_revision').length
+  const fechaCorte   = deuda?.fechaCorte ?? deudaActualizadaAt
+  const desglose     = desgloseVirtual(deuda, categoriaLabel, montoCategoria, serviciosActivos)
+  const registrados  = comprobantes.filter(c => c.estado === 'REGISTRADO')
+  const vigentes     = comprobantes.filter(c => c.estado !== 'REGISTRADO')
 
   return (
     <View style={s.root}>
@@ -398,8 +496,17 @@ export default function CuotasScreen() {
         <TutorMenorSelector />
       </View>
 
+      {/* `loading` es sólo la primera carga (o el reintento tras un error):
+          al volver a la pestaña se recarga sin desmontar la lista. */}
       {loading ? (
         <ActivityIndicator color={colors.oro} style={{ marginTop: 60 }} />
+      ) : error ? (
+        <View style={s.centrado}>
+          <Text style={s.errorTexto}>{error}</Text>
+          <TouchableOpacity onPress={refetch} style={s.reintentarBtn} activeOpacity={0.8}>
+            <Text style={s.reintentarTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           ref={scrollRef}
@@ -407,7 +514,7 @@ export default function CuotasScreen() {
           keyExtractor={c => c.id}
           contentContainerStyle={s.listContent}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refreshing}
           ListHeaderComponent={
             <View>
               {/* Resumen mensual */}
@@ -436,11 +543,21 @@ export default function CuotasScreen() {
                 </View>
               )}
 
+              {/* Comprobantes mandados por WhatsApp que ya aparecen en NUVIX */}
+              {registrados.map(c => (
+                <View key={c.clave} style={[s.banner, s.bannerRegistrado]}>
+                  <Feather name="check-circle" size={14} color={colors.exito} />
+                  <Text style={s.bannerText}>
+                    Pago registrado ✓ — el comprobante que mandaste el {diaMes(c.enviadoAt)} ya figura en el club.
+                  </Text>
+                </View>
+              ))}
+
               {/* Banners de alerta */}
               {pendientes > 0 && (
                 <View style={[s.banner, s.bannerPendiente]}>
-                  <Feather name="alert-circle" size={14} color="#F3EFE4" />
-                  <Text style={s.bannerText}>
+                  <Feather name="alert-circle" size={14} color={colors.sobreOro} />
+                  <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                     {pendientes === 1
                       ? 'Tenés 1 cuota pendiente de pago.'
                       : `Tenés ${pendientes} cuotas pendientes de pago.`}
@@ -449,15 +566,15 @@ export default function CuotasScreen() {
               )}
               {enRevision > 0 && (
                 <View style={[s.banner, s.bannerRevision]}>
-                  <Feather name="clock" size={14} color={colors.tinta} />
-                  <Text style={[s.bannerText, { color: colors.tinta }]}>
+                  <Feather name="clock" size={14} color={colors.sobreOro} />
+                  <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                     {enRevision === 1
                       ? '1 comprobante en revisión por Secretaría.'
                       : `${enRevision} comprobantes en revisión por Secretaría.`}
                   </Text>
                 </View>
               )}
-              {!alDia && (
+              {alDia === false && (
                 <TouchableOpacity
                   style={[s.banner, s.bannerDeudaClub]}
                   onPress={() => setDeudaModal(true)}
@@ -482,9 +599,13 @@ export default function CuotasScreen() {
             <CuotaCard
               cuota={item}
               onVerPago={c => setCuotaModal(c)}
-              categoriaLabel={categoriaLabel}
-              montoCategoria={montoCategoria}
-              serviciosActivos={serviciosActivos}
+              titulo={tituloCuota(item, fechaCorte)}
+              desglose={desglose}
+              comprobante={comprobanteParaPeriodos(
+                vigentes,
+                item.id.startsWith('virtual-') ? item.periodosNuvix ?? [] : [item.periodo],
+              )}
+              onEscribirSecretaria={c => Linking.openURL(whatsappNoFiguraUrl(c))}
             />
           )}
           ListEmptyComponent={
@@ -499,9 +620,10 @@ export default function CuotasScreen() {
         <PagoModal
           cuota={cuotaModal}
           onClose={() => setCuotaModal(null)}
-          categoriaLabel={categoriaLabel}
-          montoCategoria={montoCategoria}
-          serviciosActivos={serviciosActivos}
+          titulo={tituloCuota(cuotaModal, fechaCorte)}
+          conceptoMensaje={conceptoWhatsapp(cuotaModal, fechaCorte)}
+          desglose={desglose}
+          onEnviar={marcarComprobanteEnviado}
         />
       )}
 
@@ -512,41 +634,36 @@ export default function CuotasScreen() {
 
 // ─── Styles pantalla ─────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const DIVIDER = '#2C2418'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: FONDO },
+  root:         { flex: 1, backgroundColor: colors.fondo },
   listContent:  { paddingHorizontal: 20, paddingBottom: 60, gap: 10 },
 
   edicionBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
-  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oroSobreClaro },
   edicionFecha: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   secRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   secTitle:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine: { flex: 1, height: 1, backgroundColor: DIVIDER },
+  secLine: { flex: 1, height: 1, backgroundColor: colors.borde },
 
   resumenCard: {
-    backgroundColor: CARD, borderRadius: 6, borderWidth: 1, borderColor: DIVIDER,
+    backgroundColor: colors.card, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 16, gap: 12, marginBottom: 4,
   },
   serviciosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   servicioChip: {
     borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8,
-    borderColor: DIVIDER, gap: 2,
+    borderColor: colors.borde, gap: 2,
   },
-  servicioNombre: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: TEXTO },
-  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
-  totalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTopWidth: 1, borderTopColor: DIVIDER },
-  totalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED },
-  totalMonto:{ fontFamily: fonts.titulo, fontSize: 23, color: TEXTO },
+  servicioNombre: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: colors.texto },
+  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted },
+  totalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borde },
+  totalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.muted },
+  totalMonto:{ fontFamily: fonts.titulo, fontSize: 23, color: colors.texto },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -554,42 +671,60 @@ const s = StyleSheet.create({
   },
   bannerPendiente: { backgroundColor: colors.oroHondo },
   bannerRevision:  { backgroundColor: colors.oro },
+  bannerRegistrado: {
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde,
+    borderLeftWidth: 3, borderLeftColor: colors.exito,
+  },
   bannerDeudaClub: {
-    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde,
     borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente,
   },
-  bannerText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
+  bannerText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   // Cards de cuota
   card: {
-    backgroundColor: CARD, borderRadius: 4, borderWidth: 1,
-    borderColor: DIVIDER, borderLeftWidth: 3, padding: 16,
+    backgroundColor: colors.card, borderRadius: 4, borderWidth: 1,
+    borderColor: colors.borde, borderLeftWidth: 3, padding: 16,
   },
   cardRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLeft:   { gap: 4, flex: 1 },
   cardRight:  { alignItems: 'flex-end' },
-  cardPeriodo:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED },
-  cardMonto:  { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO },
+  cardPeriodo:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.muted },
+  cardMonto:  { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   estadoBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2 },
-  estadoText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXTO },
+  estadoText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.texto },
 
-  detalle:  { marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: DIVIDER, paddingTop: 14 },
+  detalle:  { marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: colors.borde, paddingTop: 14 },
   desgloseBox: { gap: 6 },
   desgloseRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, flex: 1 },
-  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
+  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted, flex: 1 },
+  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, flex: 1, fontStyle: 'italic' },
+  infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, flex: 1, fontStyle: 'italic' },
+  comprobanteRow: { marginTop: 12 },
+
+  escribirBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 12, minHeight: 44,
+  },
+  escribirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   pagarBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: colors.oro, paddingVertical: 12, borderRadius: 4,
+    backgroundColor: colors.oro, paddingVertical: 12, minHeight: 44, borderRadius: 4,
   },
-  pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.tinta },
+  pagarBtnCard: { marginTop: 14 },
+  pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.sobreOro },
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: colors.muted },
+
+  // Error de carga — mismo patrón que calendario.tsx
+  centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
+  reintentarBtn:   { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
 // ─── Styles modal de pago ─────────────────────────────────────────────────────
@@ -601,33 +736,31 @@ const m = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
   },
   sheet: {
-    backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 24, paddingBottom: 36, gap: 16,
-    borderTopWidth: 1, borderColor: '#2C2418',
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#3A2E1E',
-    alignSelf: 'center', marginBottom: 4,
+    backgroundColor: colors.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    // paddingBottom va en línea: insets.bottom + 24 (barra de gestos / home indicator).
+    // Sin "handle": no se puede arrastrar para cerrar, se cierra con CERRAR o tocando afuera.
+    padding: 24, gap: 16,
+    borderTopWidth: 1, borderColor: colors.borde,
   },
   sheetTitle: {
-    fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4',
+    fontFamily: fonts.titulo, fontSize: 26, color: colors.texto,
   },
 
   breakdown: { gap: 8 },
   bRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574', flex: 1 },
-  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#F3EFE4' },
-  bSep:      { height: 1, backgroundColor: '#2C2418', marginVertical: 4 },
-  bTotalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: '#8E8574', flex: 1 },
-  bTotal:    { fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4' },
+  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted, flex: 1 },
+  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto },
+  bSep:      { height: 1, backgroundColor: colors.borde, marginVertical: 4 },
+  bTotalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.muted, flex: 1 },
+  bTotal:    { fontFamily: fonts.titulo, fontSize: 26, color: colors.texto },
 
   aliasBox: {
-    backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
+    backgroundColor: colors.fondo, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 16, gap: 4, alignItems: 'center',
   },
-  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: '#8E8574' },
+  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: colors.muted },
   aliasValor:    { fontFamily: fonts.titulo, fontSize: 25, color: colors.oro, letterSpacing: 1 },
-  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', fontStyle: 'italic', textAlign: 'center' },
+  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, fontStyle: 'italic', textAlign: 'center' },
 
   subirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
@@ -636,12 +769,12 @@ const m = StyleSheet.create({
   subirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   subirHint: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted,
     fontStyle: 'italic', textAlign: 'center', lineHeight: 17,
   },
 
-  cerrarBtn: { alignItems: 'center', paddingVertical: 8 },
-  cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: '#8E8574' },
+  cerrarBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 44 },
+  cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.muted },
 })
 
 // ─── Styles modal detalle de deuda ────────────────────────────────────────────
@@ -652,51 +785,51 @@ const dm = StyleSheet.create({
 
   selloBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
+    backgroundColor: colors.fondo, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 12, marginBottom: 16,
   },
-  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 15 },
+  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, flex: 1, fontStyle: 'italic', lineHeight: 17 },
 
   emptyText: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted,
     fontStyle: 'italic', textAlign: 'center', paddingVertical: 20,
   },
 
   periodoBox: {
-    borderBottomWidth: 1, borderBottomColor: '#2C2418', paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.borde, paddingVertical: 12,
   },
   periodoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   periodoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   periodoLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
-  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: '#F3EFE4' },
+  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: colors.texto },
 
   mesEnCursoTag: {
-    borderWidth: 1, borderColor: '#8E8574', borderRadius: 3,
+    borderWidth: 1, borderColor: colors.muted, borderRadius: 3,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   mesEnCursoTagText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: colors.muted,
   },
 
   subRows: { marginTop: 8, gap: 4, paddingLeft: 4 },
   subRow:  { flexDirection: 'row', justifyContent: 'space-between' },
-  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', flex: 1 },
-  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#F3EFE4' },
+  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, flex: 1 },
+  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.texto },
 
   regularizacionBox: {
-    marginTop: 12, backgroundColor: '#15110A', borderRadius: 6,
-    borderWidth: 1, borderColor: '#2C2418', padding: 12,
+    marginTop: 12, backgroundColor: colors.fondo, borderRadius: 6,
+    borderWidth: 1, borderColor: colors.borde, padding: 12,
   },
   regularizacionTitle: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: colors.muted, marginBottom: 8,
   },
   regularizacionHint: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
-    fontStyle: 'italic', marginTop: 8, lineHeight: 15,
+    fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted,
+    fontStyle: 'italic', marginTop: 8, lineHeight: 17,
   },
 
   proximosBox: { marginTop: 16 },
   proximosTitle: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: colors.muted, marginBottom: 8,
   },
 })

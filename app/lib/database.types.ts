@@ -2148,6 +2148,7 @@ export type Database = {
           mp_card_retries: number
           mp_card_retry_at: string | null
           mp_customer_id: string | null
+          nombre_padron: string | null
           numero_socio: string
           profile_id: string
           recordatorio_deuda_enviado_at: string | null
@@ -2178,6 +2179,7 @@ export type Database = {
           mp_card_retries?: number
           mp_card_retry_at?: string | null
           mp_customer_id?: string | null
+          nombre_padron?: string | null
           numero_socio?: string
           profile_id: string
           recordatorio_deuda_enviado_at?: string | null
@@ -2208,6 +2210,7 @@ export type Database = {
           mp_card_retries?: number
           mp_card_retry_at?: string | null
           mp_customer_id?: string | null
+          nombre_padron?: string | null
           numero_socio?: string
           profile_id?: string
           recordatorio_deuda_enviado_at?: string | null
@@ -2267,6 +2270,58 @@ export type Database = {
             foreignKeyName: "socios_secrets_socio_id_fkey"
             columns: ["socio_id"]
             isOneToOne: true
+            referencedRelation: "socios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitudes_baja: {
+        Row: {
+          created_at: string
+          estado: string
+          id: string
+          procesada_at: string | null
+          procesada_por: string | null
+          profile_id: string
+          socio_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          estado?: string
+          id?: string
+          procesada_at?: string | null
+          procesada_por?: string | null
+          profile_id: string
+          socio_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          estado?: string
+          id?: string
+          procesada_at?: string | null
+          procesada_por?: string | null
+          profile_id?: string
+          socio_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitudes_baja_procesada_por_fkey"
+            columns: ["procesada_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_baja_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitudes_baja_socio_id_fkey"
+            columns: ["socio_id"]
+            isOneToOne: false
             referencedRelation: "socios"
             referencedColumns: ["id"]
           },

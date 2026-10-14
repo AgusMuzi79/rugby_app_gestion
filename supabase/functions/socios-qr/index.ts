@@ -49,6 +49,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { verifyTOTP } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
+import { nombreVisible } from '../_shared/nombre-padron.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -216,6 +217,7 @@ const SOCIO_SELECT = `
   semaforo,
   foto_path,
   foto_validada,
+  nombre_padron,
   categorias_socio ( nombre ),
   profiles!socios_profile_id_fkey ( nombre )
 `
@@ -227,6 +229,7 @@ type SocioRow = {
   semaforo: string | null
   foto_path: string | null
   foto_validada: boolean
+  nombre_padron: string | null
   categorias_socio: { nombre: string } | null
   profiles: { nombre: string } | null
 }
@@ -234,7 +237,8 @@ type SocioRow = {
 function socioResponse(socio: SocioRow) {
   return {
     valido:        true,
-    nombre:        socio.profiles?.nombre ?? '—',
+    // Mismo nombre que el carnet: el del padrón, con el del perfil de respaldo.
+    nombre:        nombreVisible(socio.nombre_padron, socio.profiles?.nombre),
     numero_socio:  socio.numero_socio,
     estado:        socio.estado,
     semaforo:      socio.semaforo,
@@ -593,7 +597,7 @@ async function handleListarAccesos(
         es_invitado,
         invitado_dni,
         invitado_nombre,
-        socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
+        socios ( numero_socio, nombre_padron, profiles!socios_profile_id_fkey ( nombre ) )
       `)
       .gte('creado_en', inicio.toISOString())
       .lt('creado_en', fin.toISOString())
@@ -612,7 +616,7 @@ async function handleListarAccesos(
     es_invitado: boolean
     invitado_dni: string | null
     invitado_nombre: string | null
-    socios: { numero_socio: string; profiles: { nombre: string } | null } | null
+    socios: { numero_socio: string; nombre_padron: string | null; profiles: { nombre: string } | null } | null
   }
 
   const rows = resultado.data as unknown as AccesoRow[]
@@ -669,7 +673,7 @@ async function handleListarAccesos(
     invitado_dni:    a.invitado_dni,
     veces_invitado:  vecesPorFila[i],
     numero_socio:    a.es_invitado ? '—' : (a.socios?.numero_socio ?? '—'),
-    nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : (a.socios?.profiles?.nombre ?? '—'),
+    nombre:          a.es_invitado ? (a.invitado_nombre ?? 'Invitado') : nombreVisible(a.socios?.nombre_padron, a.socios?.profiles?.nombre),
   }))
 
   return jsonOk({ fecha: desde, desde, hasta, accesos })

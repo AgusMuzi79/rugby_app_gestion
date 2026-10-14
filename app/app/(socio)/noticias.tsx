@@ -59,6 +59,8 @@ function FiltroBar({
             style={[s.filtroChip, activo ? s.filtroChipActivo : s.filtroChipInactivo]}
             onPress={() => onChange(f.value)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activo }}
           >
             <Text style={[s.filtroText, activo ? s.filtroTextActivo : s.filtroTextInactivo]}>
               {f.label}
@@ -102,7 +104,8 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
       <Text
         style={s.cardCuerpo}
         numberOfLines={5}
-        onTextLayout={e => setTruncado(e.nativeEvent.lines.length >= 5)}
+        // Sólo cambia de false a true una vez: no hay setState en cada layout
+        onTextLayout={e => { if (!truncado && e.nativeEvent.lines.length >= 5) setTruncado(true) }}
       >
         {noticia.cuerpo}
       </Text>
@@ -118,12 +121,12 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
 // ─── Modal de detalle ──────────────────────────────────────────────────────────
 
 function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => void }) {
+  const insets = useSafeAreaInsets()
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={m.sheet}>
-          <View style={m.handle} />
+        <View style={[m.sheet, { paddingBottom: insets.bottom + 24 }]}>
 
           <View style={s.cardMeta}>
             <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
@@ -153,7 +156,7 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
 
 export default function NoticiasPublicasScreen() {
   const insets = useSafeAreaInsets()
-  const { noticias, loading, refetch } = useNoticias(true)
+  const { noticias, loading, error, refreshing, refrescar } = useNoticias(true)
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [noticiaAbierta, setNoticiaAbierta] = useState<Noticia | null>(null)
   const scrollRef = useRef<FlatList>(null)
@@ -181,8 +184,23 @@ export default function NoticiasPublicasScreen() {
         <FiltroBar filtro={filtro} onChange={setFiltro} />
       </View>
 
-      {loading ? (
+      {/* Falló una recarga con noticias ya en pantalla: se avisa sin tapar la lista */}
+      {error && noticias.length > 0 && (
+        <Text style={s.errorRecarga} accessibilityRole="alert">
+          No se pudieron actualizar las noticias. Deslizá hacia abajo para reintentar.
+        </Text>
+      )}
+
+      {/* Spinner sólo sin datos: al volver a la pestaña la lista queda montada */}
+      {loading && noticias.length === 0 ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : error && noticias.length === 0 ? (
+        <View style={s.centrado}>
+          <Text style={s.errorTexto}>{error}</Text>
+          <TouchableOpacity onPress={refrescar} style={s.reintentarBtn} activeOpacity={0.8}>
+            <Text style={s.reintentarTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : noticiasFiltradas.length === 0 ? (
         <View style={s.emptyContainer}>
           <Text style={s.emptyText}>
@@ -200,8 +218,8 @@ export default function NoticiasPublicasScreen() {
           renderItem={({ item }) => (
             <NoticiaCard noticia={item} onPress={() => setNoticiaAbierta(item)} />
           )}
-          onRefresh={refetch}
-          refreshing={loading}
+          onRefresh={refrescar}
+          refreshing={refreshing}
         />
       )}
 
@@ -215,7 +233,7 @@ export default function NoticiasPublicasScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   topSection:    {},
   activityIndicator: { marginTop: 40 },
   listContent:   { paddingHorizontal: 20, paddingBottom: 60, gap: 16, paddingTop: 16 },
@@ -226,7 +244,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -241,31 +259,31 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
-  secLine: { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine: { flex: 1, height: 1, backgroundColor: colors.borde },
 
   // Filtro bar
   filtroBar: {
     flexDirection: 'row', gap: 8,
     paddingHorizontal: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: '#2C2418',
+    borderBottomWidth: 1, borderBottomColor: colors.borde,
   },
   filtroChip: {
     flex: 1, borderWidth: 1, borderRadius: 3,
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 6, minHeight: 44, justifyContent: 'center',
     alignItems: 'center',
   },
   filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
-  filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: '#2C2418' },
+  filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: colors.borde },
   filtroText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
   },
-  filtroTextActivo:  { color: colors.oro },
-  filtroTextInactivo:{ color: '#8E8574' },
+  filtroTextActivo:  { color: colors.sobreOro },
+  filtroTextInactivo:{ color: colors.muted },
 
   // Cards
   card: {
     borderWidth: 1, borderRadius: 4, padding: 18, gap: 10,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
   cardMeta:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   metaTiempo: {
@@ -273,21 +291,28 @@ const s = StyleSheet.create({
   },
   deporteBadge: {
     borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2,
-    borderColor: '#2C2418',
+    borderColor: colors.borde,
   },
   deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
-  cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: '#2C2418' },
-  cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: '#F3EFE4' },
-  divider:    { height: 1, backgroundColor: '#2C2418' },
-  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: '#F3EFE4' },
+  cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: colors.borde },
+  cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: colors.texto },
+  divider:    { height: 1, backgroundColor: colors.borde },
+  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: colors.texto },
   leerMas: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oro, marginTop: -2,
   },
-  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#8E8574' },
+  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: '#8E8574' },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: colors.muted },
+
+  // Error de carga — mismo patrón que calendario.tsx
+  centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
+  errorRecarga:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 14, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  reintentarBtn:   { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
 // ─── Estilos del modal de detalle ──────────────────────────────────────────────
@@ -300,18 +325,15 @@ const m = StyleSheet.create({
   },
   sheet: {
     maxHeight: '85%',
-    backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 24, paddingBottom: 36, gap: 16,
-    borderTopWidth: 1, borderColor: '#2C2418',
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#3A2E1E',
-    alignSelf: 'center', marginBottom: 4,
+    backgroundColor: colors.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    // paddingBottom en línea (insets.bottom + 24); sin "handle" porque no se arrastra.
+    padding: 24, gap: 16,
+    borderTopWidth: 1, borderColor: colors.borde,
   },
   scroll: { marginTop: 4 },
-  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: '#2C2418', marginBottom: 12 },
-  titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: '#F3EFE4' },
-  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: '#F3EFE4' },
+  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: colors.borde, marginBottom: 12 },
+  titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: colors.texto },
+  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: colors.texto },
   cerrarBtn: {
     borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
     paddingVertical: 14, alignItems: 'center',

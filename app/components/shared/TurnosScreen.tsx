@@ -76,7 +76,7 @@ function FranjaRow({
       </TouchableOpacity>
 
       {puedeFijo && (
-        <TouchableOpacity disabled={ocupado} onPress={() => onHacerFijo(franja)} activeOpacity={0.75}>
+        <TouchableOpacity style={s.linkBtn} disabled={ocupado} onPress={() => onHacerFijo(franja)} activeOpacity={0.75} accessibilityRole="button">
           <Text style={s.linkFijo}>HACER TURNO FIJO</Text>
         </TouchableOpacity>
       )}
@@ -163,7 +163,7 @@ export default function TurnosScreen() {
                 </Text>
               )}
             </View>
-            <TouchableOpacity disabled={ocupado} onPress={() => onCancelarFijo(t)} activeOpacity={0.75}>
+            <TouchableOpacity style={[s.linkBtn, s.linkBtnCancelar]} disabled={ocupado} onPress={() => onCancelarFijo(t)} activeOpacity={0.75} accessibilityRole="button">
               <Text style={s.linkCancelar}>CANCELAR</Text>
             </TouchableOpacity>
           </View>
@@ -224,7 +224,7 @@ export default function TurnosScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#15110A' },
+  root:        { flex: 1, backgroundColor: colors.fondo },
   listContent: { paddingHorizontal: 20, paddingBottom: 60 },
   encabezado:  { gap: 10, paddingTop: 16 },
   centro:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
@@ -233,38 +233,41 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     color: colors.oroHondo, marginTop: 14,
   },
-  vacio: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#8E8574', paddingVertical: 8 },
+  vacio: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted, paddingVertical: 8 },
 
   fijoCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderWidth: 1, borderRadius: 4, padding: 14,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
-  fijoAviso: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.rojoUrgente, marginTop: 2 },
+  fijoAviso: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.rojoTexto, marginTop: 2 },
 
   dia:       { marginTop: 14, gap: 8 },
   diaTitulo: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   franja: {
     borderWidth: 1, borderRadius: 4, padding: 14, gap: 10,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
   franjaMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  horario:    { fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4' },
-  profesor:   { fontFamily: fonts.cuerpo, fontSize: 14, color: '#B8AD96', marginTop: 2 },
-  lugares:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
-  motivoCierre: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 2 },
+  horario:    { fontFamily: fonts.titulo, fontSize: 18, color: colors.texto },
+  profesor:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.textoSecundario, marginTop: 2 },
+  lugares:    { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 2 },
+  motivoCierre: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 2 },
   fijoTag:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo, marginTop: 4 },
 
   estado:       { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5 },
   estadoLibre:  { color: colors.oro },
-  estadoOk:     { color: '#2ECC71' },
-  estadoNeutro: { color: '#8E8574' },
+  estadoOk:     { color: colors.estadoActivo },
+  estadoNeutro: { color: colors.muted },
 
+  // Links de texto: el área táctil llega a 44pt aunque el texto mida ~15
+  linkBtn:          { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  linkBtnCancelar:  { alignSelf: 'center', paddingHorizontal: 8 },
   linkFijo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oroHondo },
-  linkCancelar: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.rojoUrgente },
+  linkCancelar: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.rojoTexto },
 
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, color: '#F3EFE4', textAlign: 'center' },
-  reintentar:     { borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 24 },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto, textAlign: 'center' },
+  reintentar:     { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 24 },
   reintentarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 })

@@ -8,8 +8,8 @@ const LOGO = require('@/assets/images/logo.png')
 import { useRouter } from 'expo-router'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
+import { QRCarnet, CuentaRegresivaQR } from '@/components/socio/CarnetQR'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCarnet, useDependientesMenores } from '@/hooks/useCarnet'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
@@ -32,9 +32,9 @@ function fechaEdicion(): string {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  activo:   '#2ECC71',
+  activo:   colors.estadoActivo,
   moroso:   colors.rojoUrgente,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  colors.rojoUrgente,
 }
 const ESTADO_LABEL: Record<string, string> = {
@@ -52,15 +52,21 @@ function estadoVisual(data: { estado: string; semaforo: string | null }): string
   return data.estado
 }
 
+// Texto del badge de estado: oscuro sobre verde / naranja (el blanco no llega
+// a 4.5:1), blanco sobre rojo (MOROSO / INACTIVO, 4.82).
+function estadoTextoColor(estado: string): string {
+  return estado === 'activo' || estado === 'pendiente' ? colors.sobreOro : colors.blanco
+}
+
 // ─── Tarjeta física ───────────────────────────────────────────────────────────
 
 const CARD_WIDTH  = Dimensions.get('window').width - 48
 const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.63) // proporción ID card 85.6×54mm
 
 const ESTADO_BG: Record<string, string> = {
-  activo:    '#2ECC71',
+  activo:    colors.estadoActivo,
   moroso:    colors.rojoUrgente,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  colors.rojoUrgente,
 }
 
@@ -106,7 +112,8 @@ function TarjetaFisicaModal({
 
         <View style={tm.sheet}>
           {/* Tarjeta */}
-          <View style={[tm.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
+          {/* minHeight (no height): con letra grande del sistema la tarjeta crece en vez de recortar */}
+          <View style={[tm.card, { width: CARD_WIDTH, minHeight: CARD_HEIGHT }]}>
 
             {/* Franja superior */}
             <View style={tm.cardHeader}>
@@ -147,8 +154,8 @@ function TarjetaFisicaModal({
                 {/* Roles */}
                 <RolesChips roles={data.roles} />
 
-                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' }]}>
-                  <Text style={tm.estadoChipText}>
+                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' /* único: estado desconocido */ }]}>
+                  <Text style={[tm.estadoChipText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                     {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                   </Text>
                 </View>
@@ -168,7 +175,8 @@ function TarjetaFisicaModal({
                 que tiene fondo sólido y antes la tapaba por completo. */}
             {SOCIOS_BADGE_J.has(data.numero_socio) && (
               <View style={tm.badgeJ}>
-                <Text style={tm.badgeJText}>J</Text>
+                {/* Caja fija de 15pt: decorativa, no escala con la letra del sistema */}
+                <Text style={tm.badgeJText} maxFontSizeMultiplier={1}>J</Text>
               </View>
             )}
           </View>
@@ -194,7 +202,9 @@ export default function CarnetScreen() {
   // Tutor (also served from app/(tutor)/carnet.tsx): always the selected minor's
   // carnet. For every other role socioIdTutor is undefined -> unchanged.
   const { esTutor, socioId: socioIdTutor } = useSocioObjetivo()
-  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
+  // tickEnData: false — la cuenta regresiva vive en CuentaRegresivaQR, así la
+  // pantalla sólo se re-renderiza cuando cambia el código (cada 60s).
+  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined, { tickEnData: false })
   const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
@@ -243,6 +253,8 @@ export default function CarnetScreen() {
             style={[s.familiaChip, !verComoId && s.familiaChipActivo]}
             onPress={() => setVerComoId(null)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !verComoId }}
           >
             <Text style={[s.familiaChipTexto, !verComoId && s.familiaChipTextoActivo]}>MI CARNET</Text>
           </TouchableOpacity>
@@ -252,6 +264,9 @@ export default function CarnetScreen() {
               style={[s.familiaChip, verComoId === d.id && s.familiaChipActivo]}
               onPress={() => setVerComoId(d.id)}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Carnet de ${d.nombre}`}
+              accessibilityState={{ selected: verComoId === d.id }}
             >
               <Text style={[s.familiaChipTexto, verComoId === d.id && s.familiaChipTextoActivo]} numberOfLines={1}>
                 {d.nombre.split(' ')[0]}
@@ -266,6 +281,16 @@ export default function CarnetScreen() {
       ) : error ? (
         <View style={s.errorContainer}>
           <Text style={s.errorText}>{error}</Text>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            disabled={refreshing}
+            style={s.reintentarBtn}
+            activeOpacity={0.8}
+          >
+            {refreshing
+              ? <ActivityIndicator color={colors.oro} size="small" />
+              : <Text style={s.reintentarTexto}>Reintentar</Text>}
+          </TouchableOpacity>
         </View>
       ) : data ? (
         <>
@@ -277,8 +302,8 @@ export default function CarnetScreen() {
               onPress={() => router.navigate('/(socio)/sobre')}
               activeOpacity={0.8}
             >
-              <Feather name="camera" size={14} color={colors.tinta} />
-              <Text style={[s.bannerText, { color: colors.tinta }]}>
+              <Feather name="camera" size={14} color={colors.sobreOro} />
+              <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                 Todavía no subiste tu foto de perfil. Tocá para subirla desde Mi Perfil.
               </Text>
             </TouchableOpacity>
@@ -298,29 +323,15 @@ export default function CarnetScreen() {
 
               {/* QR Code */}
               <View style={s.qrWrapper}>
-                <QRCode
-                  value={data.qrContent}
-                  size={210}
-                  backgroundColor="#FFFFFF"
-                  color="#000000"
-                />
+                <QRCarnet value={data.qrContent} />
               </View>
 
-              {/* Countdown */}
-              <View style={s.countdownRow}>
-                <Text style={s.countdownLabel}>Se renueva en</Text>
-                <Text style={s.countdownNum}>{data.secondsLeft}s</Text>
-              </View>
-              <View style={s.progressTrack}>
-                {/* width is truly dynamic (secondsLeft changes every tick) — must remain inline */}
-                <View
-                  style={[s.progressFill, { width: `${(data.secondsLeft / 60) * 100}%` }]}
-                />
-              </View>
+              {/* Countdown — con su propio intervalo (no re-renderiza la pantalla) */}
+              <CuentaRegresivaQR />
 
               {/* Estado */}
               <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
-                <Text style={s.estadoText}>
+                <Text style={[s.estadoText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                   {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                 </Text>
               </View>
@@ -368,7 +379,7 @@ export default function CarnetScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 60 },
   activityIndicator: { marginTop: 60 },
 
@@ -378,7 +389,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -386,23 +397,23 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: '#F3EFE4', marginBottom: 14 },
-  divider:         { height: 1, backgroundColor: '#2C2418' },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: colors.texto, marginBottom: 14 },
+  divider:         { height: 1, backgroundColor: colors.borde },
 
   familiaRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8,
     paddingHorizontal: 20, paddingTop: 14,
   },
   familiaChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418',
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, minHeight: 44, justifyContent: 'center',
+    backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde,
   },
   familiaChipActivo: {
     backgroundColor: colors.oro + '33', borderColor: colors.oro,
   },
   familiaChipTexto: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
   familiaChipTextoActivo: {
     color: colors.oro,
@@ -413,35 +424,28 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 4,
     marginHorizontal: 20, marginTop: 14,
   },
-  bannerFoto:  { backgroundColor: '#E67E22' },
-  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
+  bannerFoto:  { backgroundColor: colors.estadoPendiente },
+  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine:  { flex: 1, height: 1, backgroundColor: colors.borde },
 
   carnetCard: {
     borderWidth: 1, borderRadius: 6, padding: 24,
     alignItems: 'center', gap: 12,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
-  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
-  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: '#F3EFE4' },
+  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: colors.muted },
+  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: colors.texto },
 
   qrWrapper: {
     padding: 16, backgroundColor: colors.blanco,
     borderRadius: 6, borderWidth: 1, borderColor: colors.grisClaro,
     marginVertical: 4,
   },
-
-  countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: '#F3EFE4' },
-
-  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
-  progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
 
   estadoBadge: {
     paddingHorizontal: 14, paddingVertical: 5, borderRadius: 3, marginTop: 6,
@@ -450,22 +454,24 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
+  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: colors.muted },
 
-  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
+  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: colors.muted },
   codigoValue: {
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
-    textAlign: 'center', color: '#F3EFE4',
+    textAlign: 'center', color: colors.texto,
   },
 
-  errorContainer: { padding: 40, alignItems: 'center' },
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
+  errorContainer: { padding: 40, alignItems: 'center', gap: 12 },
+  reintentarBtn:  { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto:{ fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
 
   verCarnetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, marginTop: 8,
+    gap: 8, marginTop: 8, marginHorizontal: 20,
     borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4,
-    paddingVertical: 12,
+    paddingVertical: 12, minHeight: 44,
   },
   verCarnetText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
@@ -490,8 +496,8 @@ const tm = StyleSheet.create({
   // Tarjeta
   card: {
     borderRadius: 10, overflow: 'hidden',
-    backgroundColor: '#1C1710',
-    borderWidth: 1, borderColor: '#3A2E1E',
+    backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.bordeRealce,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -501,11 +507,11 @@ const tm = StyleSheet.create({
   },
   cardClub: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   cardYear: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
-    color: colors.oroHondo,
+    color: colors.oroSobreClaro,
   },
   cardBody: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
@@ -513,31 +519,32 @@ const tm = StyleSheet.create({
   },
   foto: {
     width: 72, height: 88, borderRadius: 4,
-    borderWidth: 1, borderColor: '#3A2E1E',
+    borderWidth: 1, borderColor: colors.bordeRealce,
   },
   fotoPlaceholder: {
+    // único: hueco de foto, más oscuro que la tarjeta
     backgroundColor: '#0E0B07', alignItems: 'center', justifyContent: 'center',
   },
   datosCol: {
     flex: 1, gap: 4,
   },
   nombre: {
-    fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4', lineHeight: 22,
+    fontFamily: fonts.titulo, fontSize: 18, color: colors.texto, lineHeight: 22,
   },
   numRow: {
     flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2,
   },
   numLabel: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.muted,
   },
   numValue: {
     fontFamily: fonts.titulo, fontSize: 19, color: colors.oro,
   },
   dividerLine: {
-    height: 1, backgroundColor: '#2C2418', marginVertical: 4,
+    height: 1, backgroundColor: colors.borde, marginVertical: 4,
   },
   categoriaText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted,
   },
   divisionText: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.oro,
@@ -553,7 +560,7 @@ const tm = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: colors.oro,
   },
   rolText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574', marginTop: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted, marginTop: 2,
   },
   estadoChip: {
     alignSelf: 'flex-start',
@@ -575,7 +582,7 @@ const tm = StyleSheet.create({
   },
   badgeJText: {
     fontFamily: fonts.titulo, fontSize: 13, lineHeight: 12,
-    color: colors.tinta,
+    color: colors.sobreOro,
   },
   cardFooter: {
     alignItems: 'center', paddingVertical: 6,
@@ -584,16 +591,16 @@ const tm = StyleSheet.create({
   },
   cardFooterText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 3,
-    textTransform: 'uppercase', color: colors.oroHondo,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
 
   // Botón cerrar
   cerrarBtn: {
-    paddingHorizontal: 32, paddingVertical: 12,
-    borderWidth: 1, borderColor: '#3A2E1E', borderRadius: 4,
+    paddingHorizontal: 32, paddingVertical: 12, minHeight: 44, justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.bordeRealce, borderRadius: 4,
   },
   cerrarText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
 })

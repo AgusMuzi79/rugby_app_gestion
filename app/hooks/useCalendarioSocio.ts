@@ -41,11 +41,23 @@ export function useCalendarioSocio(socioId?: string) {
   const [resultados, setResultados]                   = useState<ResultadoCalendario[]>([])
   const [filtroDeporte, setFiltroDeporte]             = useState<FiltrodeDeporte>('todos')
   const [error, setError]                             = useState<string | null>(null)
+  // Spinner de pantalla completa sólo hasta la primera carga exitosa: al
+  // volver a la pestaña se recarga en silencio sin desmontar la lista.
+  const [cargado, setCargado]                         = useState(false)
+  const [refreshing, setRefreshing]                   = useState(false)
 
   useEffect(() => {
+    setCargado(false)
     if (session) fetchDatos()
   }, [session, socioId])
   useRefreshOnFocus(fetchDatos)
+
+  // Pull-to-refresh y "Reintentar": con su propio indicador.
+  async function recargar() {
+    setRefreshing(true)
+    await fetchDatos()
+    setRefreshing(false)
+  }
 
   async function fetchDatos() {
     if (!session) return
@@ -87,7 +99,9 @@ export function useCalendarioSocio(socioId?: string) {
       const desde  = hace30.toISOString().split('T')[0]
 
       // ── Próximos partidos ──────────────────────────────────────────────────
-      const { data: eventosData } = await supabase
+      // supabase-js no tira: el error viene en la respuesta. Se relanza para
+      // que el catch muestre "Error al cargar" en vez de "Sin partidos".
+      const { data: eventosData, error: errEventos } = await supabase
         .from('eventos')
         .select('id, fecha, hora, lugar, rival, division_id, divisiones(nombre, deporte)')
         .eq('tipo', 'partido')
@@ -95,6 +109,7 @@ export function useCalendarioSocio(socioId?: string) {
         .gte('fecha', hoy)
         .lte('fecha', hasta)
         .order('fecha', { ascending: true })
+      if (errEventos) throw errEventos
 
       type RawEvento = {
         id: string; fecha: string; hora: string | null; lugar: string | null
@@ -118,7 +133,7 @@ export function useCalendarioSocio(socioId?: string) {
       setPartidos(partidosNorm)
 
       // ── Resultados recientes ───────────────────────────────────────────────
-      const { data: resultadosData } = await supabase
+      const { data: resultadosData, error: errResultados } = await supabase
         .from('eventos')
         .select('id, fecha, rival, division_id, divisiones(nombre, deporte), resultados(puntos_propios, puntos_rival)')
         .eq('tipo', 'partido')
@@ -127,6 +142,7 @@ export function useCalendarioSocio(socioId?: string) {
         .gte('fecha', desde)
         .order('fecha', { ascending: false })
         .limit(15)
+      if (errResultados) throw errResultados
 
       type RawResultado = {
         id: string; fecha: string; rival: string | null; division_id: string
@@ -149,6 +165,7 @@ export function useCalendarioSocio(socioId?: string) {
         }
       })
       setResultados(resultadosNorm)
+      setCargado(true)
     } catch {
       setError('Error al cargar el calendario.')
     }
@@ -165,7 +182,8 @@ export function useCalendarioSocio(socioId?: string) {
     : resultados.filter(r => r.deporte === filtroDeporte)
 
   return {
-    loading,
+    loading: loading && !cargado,
+    refreshing,
     error,
     jugadorDivisionId,
     jugadorDivisionNombre,
@@ -173,6 +191,6 @@ export function useCalendarioSocio(socioId?: string) {
     resultados: resultadosFiltrados,
     filtroDeporte,
     setFiltroDeporte,
-    recargar: fetchDatos,
+    recargar,
   }
 }

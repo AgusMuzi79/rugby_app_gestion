@@ -53,7 +53,7 @@ const s = StyleSheet.create({
   unicoRow: { paddingHorizontal: 20, paddingTop: 14, gap: 4 },
   unicoLabel: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
   unicoNombre: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 1.5, color: colors.oro },
 
@@ -63,12 +63,12 @@ const s = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418',
+    backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde,
   },
   chipActivo: { backgroundColor: colors.oro + '33', borderColor: colors.oro },
   chipTexto: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
   chipTextoActivo: { color: colors.oro },
 })
