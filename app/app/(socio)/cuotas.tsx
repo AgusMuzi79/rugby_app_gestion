@@ -184,7 +184,8 @@ function PagoModal({
           {/* Alias */}
           <View style={m.aliasBox}>
             <Text style={m.aliasEtiqueta}>ALIAS</Text>
-            <Text style={m.aliasValor}>{ALIAS_CLUB}</Text>
+            {/* selectable: mantener apretado para copiar (COPIAR ALIAS llega con expo-clipboard) */}
+            <Text style={m.aliasValor} selectable>{ALIAS_CLUB}</Text>
             <Text style={m.aliasSub}>Transferí desde tu app bancaria o billetera virtual</Text>
           </View>
 
@@ -436,17 +437,19 @@ function CuotaCard({
               <Text style={s.infoText}>Comprobante recibido · aguardando confirmación de Secretaría</Text>
             </View>
           )}
-          {pendiente && (
-            <TouchableOpacity
-              style={s.pagarBtn}
-              onPress={() => onVerPago(cuota)}
-              activeOpacity={0.8}
-            >
-              <Feather name="arrow-right-circle" size={14} color={colors.tinta} />
-              <Text style={s.pagarBtnText}>VER CÓMO PAGAR</Text>
-            </TouchableOpacity>
-          )}
         </View>
+      )}
+
+      {/* Acción de pago siempre visible en las pendientes, sin expandir */}
+      {pendiente && (
+        <TouchableOpacity
+          style={[s.pagarBtn, s.pagarBtnCard]}
+          onPress={() => onVerPago(cuota)}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-right-circle" size={14} color={colors.tinta} />
+          <Text style={s.pagarBtnText}>VER CÓMO PAGAR</Text>
+        </TouchableOpacity>
       )}
     </TouchableOpacity>
   )
@@ -712,6 +715,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.oro, paddingVertical: 12, borderRadius: 4,
   },
+  pagarBtnCard: { marginTop: 14 },
   pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.tinta },
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
