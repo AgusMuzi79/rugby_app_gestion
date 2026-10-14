@@ -120,12 +120,12 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
 // ─── Modal de detalle ──────────────────────────────────────────────────────────
 
 function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => void }) {
+  const insets = useSafeAreaInsets()
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={m.sheet}>
-          <View style={m.handle} />
+        <View style={[m.sheet, { paddingBottom: insets.bottom + 24 }]}>
 
           <View style={s.cardMeta}>
             <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
@@ -325,12 +325,9 @@ const m = StyleSheet.create({
   sheet: {
     maxHeight: '85%',
     backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 24, paddingBottom: 36, gap: 16,
+    // paddingBottom en línea (insets.bottom + 24); sin "handle" porque no se arrastra.
+    padding: 24, gap: 16,
     borderTopWidth: 1, borderColor: '#2C2418',
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#3A2E1E',
-    alignSelf: 'center', marginBottom: 4,
   },
   scroll: { marginTop: 4 },
   imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: '#2C2418', marginBottom: 12 },

@@ -151,14 +151,13 @@ function PagoModal({
   // ejemplo, después de un aumento de cuota). Para esas, mostramos sólo el
   // total sin fabricar un desglose que no le corresponde.
   const esVirtual = cuota.id.startsWith('virtual-')
+  const insets = useSafeAreaInsets()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={m.sheet}>
-          {/* Handle */}
-          <View style={m.handle} />
+        <View style={[m.sheet, { paddingBottom: insets.bottom + 24 }]}>
 
           <Text style={m.sheetTitle}>{titulo}</Text>
 
@@ -216,13 +215,13 @@ function PagoModal({
 
 function DeudaClubModal({ onClose, socioId }: { onClose: () => void; socioId?: string }) {
   const { data, loading } = useDeudaDetalle(socioId)
+  const insets = useSafeAreaInsets()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
         <TouchableOpacity style={m.overlayBg} activeOpacity={1} onPress={onClose} />
-        <View style={[m.sheet, dm.sheet]}>
-          <View style={m.handle} />
+        <View style={[m.sheet, dm.sheet, { paddingBottom: insets.bottom + 24 }]}>
           <Text style={m.sheetTitle}>DEUDA SEGÚN EL CLUB</Text>
 
           {loading ? (
@@ -743,12 +742,10 @@ const m = StyleSheet.create({
   },
   sheet: {
     backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
-    padding: 24, paddingBottom: 36, gap: 16,
+    // paddingBottom va en línea: insets.bottom + 24 (barra de gestos / home indicator).
+    // Sin "handle": no se puede arrastrar para cerrar, se cierra con CERRAR o tocando afuera.
+    padding: 24, gap: 16,
     borderTopWidth: 1, borderColor: '#2C2418',
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: '#3A2E1E',
-    alignSelf: 'center', marginBottom: 4,
   },
   sheetTitle: {
     fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4',
