@@ -112,7 +112,8 @@ function TarjetaFisicaModal({
 
         <View style={tm.sheet}>
           {/* Tarjeta */}
-          <View style={[tm.card, { width: CARD_WIDTH, height: CARD_HEIGHT }]}>
+          {/* minHeight (no height): con letra grande del sistema la tarjeta crece en vez de recortar */}
+          <View style={[tm.card, { width: CARD_WIDTH, minHeight: CARD_HEIGHT }]}>
 
             {/* Franja superior */}
             <View style={tm.cardHeader}>
@@ -174,7 +175,8 @@ function TarjetaFisicaModal({
                 que tiene fondo sólido y antes la tapaba por completo. */}
             {SOCIOS_BADGE_J.has(data.numero_socio) && (
               <View style={tm.badgeJ}>
-                <Text style={tm.badgeJText}>J</Text>
+                {/* Caja fija de 15pt: decorativa, no escala con la letra del sistema */}
+                <Text style={tm.badgeJText} maxFontSizeMultiplier={1}>J</Text>
               </View>
             )}
           </View>

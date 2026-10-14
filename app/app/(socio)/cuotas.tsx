@@ -796,7 +796,7 @@ const dm = StyleSheet.create({
     backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
     padding: 12, marginBottom: 16,
   },
-  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 15 },
+  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 17 },
 
   emptyText: {
     fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574',
@@ -833,7 +833,7 @@ const dm = StyleSheet.create({
   },
   regularizacionHint: {
     fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
-    fontStyle: 'italic', marginTop: 8, lineHeight: 15,
+    fontStyle: 'italic', marginTop: 8, lineHeight: 17,
   },
 
   proximosBox: { marginTop: 16 },
