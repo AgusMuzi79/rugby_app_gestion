@@ -30,6 +30,7 @@ import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { parsePadronSocios, categoriaNombreDb, type SocioPadron, type Sexo } from '../_shared/parse-padron-socios.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 import { generateSecret } from '../_shared/totp.ts'
+import { nombrePadronACambiar } from '../_shared/nombre-padron.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export, mismo patrón
 // que importar-deuda y scripts/import-socios-masivo.mjs.
 import XLSX from 'npm:xlsx@0.18.5'
@@ -47,7 +48,9 @@ interface SocioDb {
   fotoValidada:    boolean
   cobroConTarjeta: boolean
   dni:             string
-  nombre:          string
+  // socios.nombre_padron (null: alta manual o socio previo a la migración
+  // 20261021000000 sin backfill). profiles.nombre ya no se lee ni se pisa.
+  nombrePadron:    string | null
   sexo:            Sexo | null
 }
 
@@ -78,6 +81,7 @@ interface DiffReingreso {
   profileId:   string
   fotoValidada: boolean
   cobroConTarjeta: boolean
+  nombrePadronNuevo: string | null
 }
 
 interface DiffActualizar {
@@ -89,7 +93,7 @@ interface DiffActualizar {
   fechaNacimiento: string | null
   cobroConTarjeta: boolean | null
   dni:         string | null
-  nombreNuevo: string | null
+  nombrePadronNuevo: string | null
   sexo:        Sexo | null
 }
 
@@ -171,7 +175,7 @@ Deno.serve(async (req: Request) => {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from('socios')
-      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta, dni, sexo, profiles!socios_profile_id_fkey(nombre)')
+      .select('id, numero_socio, estado, categoria_id, fecha_nacimiento, profile_id, foto_validada, excluir_de_import, cobro_con_tarjeta, dni, sexo, nombre_padron')
       .range(from, from + 999)
     if (error) return jsonError(500, `Error leyendo socios: ${error.message}`)
     sociosDbRaw = sociosDbRaw.concat(data ?? [])
@@ -190,7 +194,7 @@ Deno.serve(async (req: Request) => {
         fotoValidada:    s.foto_validada as boolean,
         cobroConTarjeta: s.cobro_con_tarjeta as boolean,
         dni:             s.dni as string,
-        nombre:          (s.profiles as { nombre: string } | null)?.nombre ?? '',
+        nombrePadron:    (s.nombre_padron as string | null) ?? null,
         sexo:            (s.sexo as Sexo | null) ?? null,
       }])
   )
@@ -304,6 +308,7 @@ function calcularDiff(
         numeroSocio, nombre: fila.nombre,
         socioId: existente.id, profileId: existente.profileId, fotoValidada: existente.fotoValidada,
         cobroConTarjeta: fila.pagaConTarjeta,
+        nombrePadronNuevo: nombrePadronACambiar(fila.nombre, existente.nombrePadron),
       })
       continue
     }
@@ -317,13 +322,15 @@ function calcularDiff(
     // así que ella no podía loguearse con el DNI corregido por más veces que se
     // reimportara el padrón. Mismo día: un cambio de apellido en NUVIX tampoco se
     // reflejaba — el nombre nunca se comparaba, sólo se usaba al crear una alta.
-    // El nombre vive en `profiles.nombre`, no en `socios` — se actualiza aparte
-    // en aplicarDiff().
+    // El nombre del padrón vive en socios.nombre_padron (auditoría UX socio,
+    // T12, 2026-10-13): es el que muestra el carnet. profiles.nombre es el que
+    // el socio edita en Mi perfil y el importador ya no lo pisa.
     const cambioCategoria = !!categoriaId && categoriaId !== existente.categoriaId
     const cambioFecha     = !!fila.fechaNacimiento && fila.fechaNacimiento !== existente.fechaNacimiento
     const cambioTarjeta   = fila.pagaConTarjeta !== existente.cobroConTarjeta
     const cambioDni       = !fila.dniSintetico && fila.dni !== existente.dni
-    const cambioNombre    = !!fila.nombre && fila.nombre !== existente.nombre
+    const nombrePadronNuevo = nombrePadronACambiar(fila.nombre, existente.nombrePadron)
+    const cambioNombre    = nombrePadronNuevo !== null
     // Sexo: nunca se pisa con null (columna faltante o valor inválido en el export).
     const cambioSexo      = !!fila.sexo && fila.sexo !== existente.sexo
     if (cambioCategoria || cambioFecha || cambioTarjeta || cambioDni || cambioNombre || cambioSexo) {
@@ -333,7 +340,7 @@ function calcularDiff(
         fechaNacimiento: cambioFecha ? fila.fechaNacimiento : null,
         cobroConTarjeta: cambioTarjeta ? fila.pagaConTarjeta : null,
         dni:             cambioDni ? fila.dni : null,
-        nombreNuevo:     cambioNombre ? fila.nombre : null,
+        nombrePadronNuevo,
         sexo:            cambioSexo ? fila.sexo : null,
       })
     } else {
@@ -438,6 +445,7 @@ async function aplicarDiff(diff: Diff) {
           dni:              alta.dni,
           categoria_id:     alta.categoriaId,
           fecha_nacimiento: alta.fechaNacimiento,
+          nombre_padron:    alta.nombre.trim() || null,
           estado:           'pendiente',
           foto_validada:    false,
           cobro_con_tarjeta: alta.cobroConTarjeta,
@@ -486,7 +494,10 @@ async function aplicarDiff(diff: Diff) {
       const nuevoEstado = r.fotoValidada ? 'activo' : 'pendiente'
       const [unbanRes, socioRes] = await Promise.all([
         supabaseAdmin.auth.admin.updateUserById(r.profileId, { ban_duration: 'none' }),
-        supabaseAdmin.from('socios').update({ estado: nuevoEstado, cobro_con_tarjeta: r.cobroConTarjeta }).eq('id', r.socioId),
+        supabaseAdmin.from('socios').update({
+          estado: nuevoEstado, cobro_con_tarjeta: r.cobroConTarjeta,
+          ...(r.nombrePadronNuevo ? { nombre_padron: r.nombrePadronNuevo } : {}),
+        }).eq('id', r.socioId),
       ])
       if (unbanRes.error) throw new Error(unbanRes.error.message)
       if (socioRes.error) throw new Error(socioRes.error.message)
@@ -508,15 +519,12 @@ async function aplicarDiff(diff: Diff) {
       if (u.cobroConTarjeta !== null) patch.cobro_con_tarjeta = u.cobroConTarjeta
       if (u.dni)                     patch.dni              = u.dni
       if (u.sexo)                    patch.sexo             = u.sexo
+      // Sólo el nombre del padrón: profiles.nombre (editable en Mi perfil) ya
+      // no se pisa en la actualización. Al crear la cuenta (altas) sí se setea.
+      if (u.nombrePadronNuevo)       patch.nombre_padron    = u.nombrePadronNuevo
 
       if (Object.keys(patch).length > 0) {
         const { error } = await supabaseAdmin.from('socios').update(patch).eq('id', u.socioId)
-        if (error) throw new Error(error.message)
-      }
-
-      // El nombre vive en `profiles`, no en `socios` — update aparte.
-      if (u.nombreNuevo) {
-        const { error } = await supabaseAdmin.from('profiles').update({ nombre: u.nombreNuevo }).eq('id', u.profileId)
         if (error) throw new Error(error.message)
       }
 

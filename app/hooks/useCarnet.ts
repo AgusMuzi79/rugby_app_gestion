@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { generateTOTP, secondsUntilRefresh } from '@/lib/totp-client'
+import { esColumnaInexistente, nombreCarnet } from '@/lib/nombrePadron'
 
 const TOTP_STEP = 60
 
@@ -50,14 +51,19 @@ export function useDependientesMenores() {
       const db = supabase as any
       const { data: propio } = await db.from('socios').select('id').eq('profile_id', userId).single()
       if (!propio || cancelado) return
-      const { data } = await db
+      const dependientesQuery = (conPadron: boolean) => db
         .from('socios')
-        .select('id, profiles!socios_profile_id_fkey ( nombre )')
+        .select(conPadron
+          ? 'id, nombre_padron, profiles!socios_profile_id_fkey ( nombre )'
+          : 'id, profiles!socios_profile_id_fkey ( nombre )')
         .eq('cabecera_id', propio.id)
+      let { data, error } = await dependientesQuery(true)
+      // Migración de nombre_padron todavía sin aplicar: se repite sin la columna.
+      if (esColumnaInexistente(error)) ({ data } = await dependientesQuery(false))
       if (cancelado) return
-      const lista: DependienteMenor[] = (data ?? []).map((d: { id: string; profiles: { nombre: string } | null }) => ({
+      const lista: DependienteMenor[] = (data ?? []).map((d: { id: string; nombre_padron?: string | null; profiles: { nombre: string } | null }) => ({
         id:     d.id,
-        nombre: d.profiles?.nombre ?? '—',
+        nombre: nombreCarnet(d.nombre_padron, d.profiles?.nombre),
       }))
       setDependientes(lista)
     })()
@@ -115,24 +121,35 @@ export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tic
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
 
-    const socioQuery = socioIdObjetivo
-      ? db
-          .from('socios')
-          .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre ), profiles!socios_profile_id_fkey ( nombre, roles )')
-          .eq('id', socioIdObjetivo)
-          .single()
-      : db
-          .from('socios')
-          .select('id, numero_socio, estado, semaforo, foto_path, categorias_socio ( nombre )')
-          .eq('profile_id', userId)
-          .single()
+    // nombre_padron (T12): el carnet muestra el nombre del padrón, no el que
+    // el socio edita en Mi perfil (profiles.nombre, de respaldo).
+    const socioQuery = (conPadron: boolean) => {
+      const padron = conPadron ? ', nombre_padron' : ''
+      return socioIdObjetivo
+        ? db
+            .from('socios')
+            .select(`id, numero_socio, estado, semaforo, foto_path${padron}, categorias_socio ( nombre ), profiles!socios_profile_id_fkey ( nombre, roles )`)
+            .eq('id', socioIdObjetivo)
+            .single()
+        : db
+            .from('socios')
+            .select(`id, numero_socio, estado, semaforo, foto_path${padron}, categorias_socio ( nombre )`)
+            .eq('profile_id', userId)
+            .single()
+    }
 
-    const [{ data: socio, error: errSocio }, profileResult] = await Promise.all([
-      socioQuery,
+    const [primerIntento, profileResult] = await Promise.all([
+      socioQuery(true),
       socioIdObjetivo
         ? Promise.resolve({ data: null })
         : supabase.from('profiles').select('nombre, roles').eq('id', userId).single(),
     ])
+    let { data: socio, error: errSocio } = primerIntento
+    // Si la app (OTA) llega antes que la migración de nombre_padron, la
+    // columna no existe y el select entero falla: se repite sin ella.
+    if (esColumnaInexistente(errSocio)) {
+      ;({ data: socio, error: errSocio } = await socioQuery(false))
+    }
 
     // PGRST116 = .single() sin filas (de verdad no hay socio); cualquier otro
     // error es de red/servidor y no tiene que leerse como "no existe tu registro".
@@ -176,7 +193,7 @@ export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tic
     const code      = generateTOTP(secret)
     const sLeft     = secondsUntilRefresh()
     const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
-    const nombre    = profile?.nombre ?? '—'
+    const nombre    = nombreCarnet(socio.nombre_padron as string | null | undefined, profile?.nombre)
     const roles     = (profile?.roles as string[] | null) ?? ['socio']
     const divData   = jugador?.divisiones as { nombre: string; deporte: string } | null
 

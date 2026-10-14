@@ -8,7 +8,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "version:bump": "node scripts/bump-version.mjs",
-    "test:admin": "npx --yes tsx@4.20.6 lib/comunicadosAdmin.check.ts && npx --yes tsx@4.20.6 lib/sistemaAdmin.check.ts && npx --yes tsx@4.20.6 lib/balanceEvento.check.ts && npx --yes tsx@4.20.6 lib/cobrosPorDivision.check.ts && npx --yes tsx@4.20.6 lib/deudaSocio.check.ts && npx --yes tsx@4.20.6 lib/comprobanteEnviado.check.ts && npx --yes tsx@4.20.6 lib/contraste.check.ts && npx --yes tsx@4.20.6 lib/perfilAvatar.check.ts && npx --yes tsx@4.20.6 lib/solicitudBaja.check.ts",
+    "test:admin": "npx --yes tsx@4.20.6 lib/comunicadosAdmin.check.ts && npx --yes tsx@4.20.6 lib/sistemaAdmin.check.ts && npx --yes tsx@4.20.6 lib/balanceEvento.check.ts && npx --yes tsx@4.20.6 lib/cobrosPorDivision.check.ts && npx --yes tsx@4.20.6 lib/deudaSocio.check.ts && npx --yes tsx@4.20.6 lib/comprobanteEnviado.check.ts && npx --yes tsx@4.20.6 lib/contraste.check.ts && npx --yes tsx@4.20.6 lib/perfilAvatar.check.ts && npx --yes tsx@4.20.6 lib/solicitudBaja.check.ts && npx --yes tsx@4.20.6 lib/nombrePadron.check.ts",
     "test:noticias": "npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts"
   },
   "dependencies": {

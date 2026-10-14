@@ -227,6 +227,12 @@ export function SobreScreen() {
               }
             </TouchableOpacity>
           </View>
+          {/* El carnet usa socios.nombre_padron, no este nombre (T12) */}
+          {socioId !== null && (
+            <Text style={[s.nombreHint, { color: colors.muted }]}>
+              En tu carnet figura el nombre del padrón del club.
+            </Text>
+          )}
         </View>
 
         {/* ── Seguridad ───────────────────────────────────────────── */}
@@ -310,6 +316,7 @@ const s = StyleSheet.create({
   inputField:      { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17 },
   guardarBtn:      { paddingHorizontal: 16, paddingVertical: 14, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
   guardarBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: '#0E0E0E' },
+  nombreHint:      { fontFamily: fonts.cuerpo, fontStyle: 'italic', fontSize: 14, lineHeight: 20, marginTop: 8 },
 
   // Seguridad
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },

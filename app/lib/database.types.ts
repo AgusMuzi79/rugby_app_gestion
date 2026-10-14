@@ -2148,6 +2148,7 @@ export type Database = {
           mp_card_retries: number
           mp_card_retry_at: string | null
           mp_customer_id: string | null
+          nombre_padron: string | null
           numero_socio: string
           profile_id: string
           recordatorio_deuda_enviado_at: string | null
@@ -2178,6 +2179,7 @@ export type Database = {
           mp_card_retries?: number
           mp_card_retry_at?: string | null
           mp_customer_id?: string | null
+          nombre_padron?: string | null
           numero_socio?: string
           profile_id: string
           recordatorio_deuda_enviado_at?: string | null
@@ -2208,6 +2210,7 @@ export type Database = {
           mp_card_retries?: number
           mp_card_retry_at?: string | null
           mp_customer_id?: string | null
+          nombre_padron?: string | null
           numero_socio?: string
           profile_id?: string
           recordatorio_deuda_enviado_at?: string | null
