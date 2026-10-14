@@ -93,8 +93,8 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-10-14):**
-- **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10).
-- **iOS:** versión 1.0.8 (build 22) **publicada** en el App Store (8/10).
+- **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10). **1.0.9** (2026-10-14, PR #28: copiar alias, `expo-image`): `.aab` del build EAS `fe0b89ca` subido a mano a Play Console por Agus (el submit de Android no está configurado en `eas.json`).
+- **iOS:** versión 1.0.8 (build 22) **publicada** en el App Store (8/10). **1.0.9 (build 23)** enviada a revisión 2026-10-14 con publicación automática al 100 % al aprobarse ("Automatically release this version").
 - **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad).
 - **OTA sobre 1.0.8** (2026-10-09, `eas update --branch production`, Android + iOS, grupo `36c30c7b`): Manager crea viajes/tercer tiempos, eventos con varias divisiones, monto sugerido en cobranzas. Las OTA se publican desde el checkout principal (necesitan `app/.env.local`, que los worktrees no tienen).
 - **OTA sobre 1.0.8** (2026-10-09, grupo `02918d37`, desde `main` tras el PR #16): pestaña Noticias de Subcomisión (título, descripción, imagen + push a socios); Crónica abre notificaciones.
@@ -105,7 +105,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
-- Auditoría UX socio: probar en teléfono (letra al máximo, VoiceOver/TalkBack, modo avión, vuelta desde WhatsApp, QR en la puerta); T15 en el próximo build nativo (`expo-clipboard`, `expo-image`, opcional `expo-brightness`, `supportsTablet: false`). Nota de review de App Store Connect actualizada (2026-10-14, Notes de la 1.0.8: alta sólo por Secretaría salvo familiar/tutor; la baja se inicia desde el botón que abre `uncasapp.com/eliminar-cuenta`) — revisar que pase a la próxima versión. Falta aceptar el nuevo License Agreement de Apple (Account Holder).
+- Release 1.0.9: confirmar la aprobación de Apple y el estado del release en Play Console. Desde el merge del PR #28 (`runtimeVersion` = `appVersion`), las OTA desde `main` sólo llegan a la 1.0.9: la 1.0.8 ya no recibe updates. El agente de Chrome no puede leer Play Console con la sesión de agusmuzi79@gmail.com (la cuenta de desarrollador es otra).
 - Integración Banco Macro (reemplazaría el alias manual de pago).
 - Dar de baja el proyecto viejo de Vercel (`web-chi-nine-26.vercel.app`) — bloqueado hasta que Agus loguee Chrome con su cuenta personal. Antes, revisar las URLs de la ficha de Play Console (las de App Store ya apuntan a `uncasapp.com`). Ese proyecto además deja un check "Vercel – web" en rojo en cada PR (no relacionado con los cambios).
 - Probar el flujo de familiar/tutor (1.0.8) en un teléfono con un menor real.
