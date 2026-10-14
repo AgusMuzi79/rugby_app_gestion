@@ -8,8 +8,8 @@ const LOGO = require('@/assets/images/logo.png')
 import { useRouter } from 'expo-router'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import QRCode from 'react-native-qrcode-svg'
 import { Header } from '@/components/shared/Header'
+import { QRCarnet, CuentaRegresivaQR } from '@/components/socio/CarnetQR'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCarnet, useDependientesMenores } from '@/hooks/useCarnet'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
@@ -194,7 +194,9 @@ export default function CarnetScreen() {
   // Tutor (also served from app/(tutor)/carnet.tsx): always the selected minor's
   // carnet. For every other role socioIdTutor is undefined -> unchanged.
   const { esTutor, socioId: socioIdTutor } = useSocioObjetivo()
-  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
+  // tickEnData: false — la cuenta regresiva vive en CuentaRegresivaQR, así la
+  // pantalla sólo se re-renderiza cuando cambia el código (cada 60s).
+  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined, { tickEnData: false })
   const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
@@ -308,25 +310,11 @@ export default function CarnetScreen() {
 
               {/* QR Code */}
               <View style={s.qrWrapper}>
-                <QRCode
-                  value={data.qrContent}
-                  size={210}
-                  backgroundColor="#FFFFFF"
-                  color="#000000"
-                />
+                <QRCarnet value={data.qrContent} />
               </View>
 
-              {/* Countdown */}
-              <View style={s.countdownRow}>
-                <Text style={s.countdownLabel}>Se renueva en</Text>
-                <Text style={s.countdownNum}>{data.secondsLeft}s</Text>
-              </View>
-              <View style={s.progressTrack}>
-                {/* width is truly dynamic (secondsLeft changes every tick) — must remain inline */}
-                <View
-                  style={[s.progressFill, { width: `${(data.secondsLeft / 60) * 100}%` }]}
-                />
-              </View>
+              {/* Countdown — con su propio intervalo (no re-renderiza la pantalla) */}
+              <CuentaRegresivaQR />
 
               {/* Estado */}
               <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
@@ -445,13 +433,6 @@ const s = StyleSheet.create({
     borderRadius: 6, borderWidth: 1, borderColor: colors.grisClaro,
     marginVertical: 4,
   },
-
-  countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: '#F3EFE4' },
-
-  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
-  progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
 
   estadoBadge: {
     paddingHorizontal: 14, paddingVertical: 5, borderRadius: 3, marginTop: 6,

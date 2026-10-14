@@ -70,7 +70,11 @@ export function useDependientesMenores() {
 // socioIdObjetivo: sin valor = mi propio carnet (comportamiento de siempre).
 // Con valor = el carnet de un dependiente menor de 13 a mi cargo (titular de
 // grupo familiar) — validado server-side en socios-qr/get-secret, no acá.
-export function useCarnet(socioIdObjetivo?: string) {
+// tickEnData: true (default) actualiza data.secondsLeft cada segundo (re-render
+// de toda la pantalla, lo usa (cliente-gimnasio)/carnet.tsx). false: data sólo
+// cambia cuando cambia el código; la cuenta regresiva la lleva un componente
+// aparte (components/socio/CarnetQR.tsx).
+export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tickEnData?: boolean } = {}) {
   const { session }  = useAuthStore()
   const userId       = session?.user.id
   const [loading, setLoading] = useState(true)
@@ -213,12 +217,12 @@ export function useCarnet(socioIdObjetivo?: string) {
 
       if (nowStep !== lastStepRef.current) {
         await buildCarnet()
-      } else {
+      } else if (tickEnData) {
         setData(prev => prev ? { ...prev, secondsLeft: sLeft } : null)
       }
     }, 1000)
     return () => clearInterval(timer)
-  }, [buildCarnet])
+  }, [buildCarnet, tickEnData])
 
   const refresh = useCallback(async () => {
     fotoUrlRef.current = undefined  // fuerza re-fetch de la foto
