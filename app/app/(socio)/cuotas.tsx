@@ -2,8 +2,9 @@ import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, ActivityIndicator, ScrollView, Linking,
 } from 'react-native'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
+import * as Clipboard from 'expo-clipboard'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
@@ -153,6 +154,30 @@ function PagoModal({
   const esVirtual = cuota.id.startsWith('virtual-')
   const insets = useSafeAreaInsets()
 
+  // "✓ COPIADO" durante 2 s después de copiar; el timeout se limpia al
+  // desmontar (cerrar el modal) para no hacer setState sobre un componente ido.
+  const [copiado, setCopiado] = useState(false)
+  const copiadoTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const montado        = useRef(true)
+  useEffect(() => () => {
+    montado.current = false
+    if (copiadoTimeout.current) clearTimeout(copiadoTimeout.current)
+  }, [])
+
+  async function copiarAlias() {
+    // Si el portapapeles falla no se muestra "copiado"; queda el alias seleccionable.
+    try {
+      await Clipboard.setStringAsync(ALIAS_CLUB)
+    } catch {
+      return
+    }
+    // El modal pudo cerrarse mientras se copiaba: no tocar estado ni dejar timers.
+    if (!montado.current) return
+    setCopiado(true)
+    if (copiadoTimeout.current) clearTimeout(copiadoTimeout.current)
+    copiadoTimeout.current = setTimeout(() => setCopiado(false), 2000)
+  }
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
@@ -183,8 +208,24 @@ function PagoModal({
           {/* Alias */}
           <View style={m.aliasBox}>
             <Text style={m.aliasEtiqueta}>ALIAS</Text>
-            {/* selectable: mantener apretado para copiar (COPIAR ALIAS llega con expo-clipboard) */}
+            {/* selectable queda como respaldo: mantener apretado para copiar */}
             <Text style={m.aliasValor} selectable>{ALIAS_CLUB}</Text>
+            <TouchableOpacity
+              style={m.copiarBtn}
+              onPress={copiarAlias}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={copiado ? 'Alias copiado' : 'Copiar alias'}
+            >
+              <Feather
+                name={copiado ? 'check' : 'copy'}
+                size={14}
+                color={copiado ? colors.confirmacion : colors.oro}
+              />
+              <Text style={[m.copiarBtnText, copiado && { color: colors.confirmacion }]}>
+                {copiado ? '✓ COPIADO' : 'COPIAR ALIAS'}
+              </Text>
+            </TouchableOpacity>
             <Text style={m.aliasSub}>Transferí desde tu app bancaria o billetera virtual</Text>
           </View>
 
@@ -761,6 +802,12 @@ const m = StyleSheet.create({
   aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: colors.muted },
   aliasValor:    { fontFamily: fonts.titulo, fontSize: 25, color: colors.oro, letterSpacing: 1 },
   aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, fontStyle: 'italic', textAlign: 'center' },
+  copiarBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    minHeight: 44, minWidth: 160, paddingHorizontal: 16, marginVertical: 4,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4,
+  },
+  copiarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   subirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,

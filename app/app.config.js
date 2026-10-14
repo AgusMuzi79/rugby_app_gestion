@@ -5,7 +5,7 @@ const config = {
   name: IS_DEV ? 'Uncas (Dev)' : 'Uncas Rugby App',
   slug: 'uncas-rugby-app',
   scheme: 'uncasrugby',
-  version: '1.0.8',
+  version: '1.0.9',
   orientation: 'portrait',
   icon: './assets/images/logo.png',
   userInterfaceStyle: 'dark',
@@ -16,6 +16,9 @@ const config = {
     backgroundColor: '#15110A',
   },
   ios: {
+    // Se mantiene en true: la 1.0.8 salió con soporte de iPad y App Store
+    // Connect rechaza un build que saca una familia de dispositivos. En iPad
+    // el carnet queda con ancho máximo (CARD_WIDTH en (socio)/carnet.tsx).
     supportsTablet: true,
     bundleIdentifier: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
     // Apple rechaza el ícono si tiene canal alfa — a diferencia de `icon`/Android,
