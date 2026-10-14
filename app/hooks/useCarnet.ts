@@ -123,12 +123,20 @@ export function useCarnet(socioIdObjetivo?: string) {
           .eq('profile_id', userId)
           .single()
 
-    const [{ data: socio }, profileResult] = await Promise.all([
+    const [{ data: socio, error: errSocio }, profileResult] = await Promise.all([
       socioQuery,
       socioIdObjetivo
         ? Promise.resolve({ data: null })
         : supabase.from('profiles').select('nombre, roles').eq('id', userId).single(),
     ])
+
+    // PGRST116 = .single() sin filas (de verdad no hay socio); cualquier otro
+    // error es de red/servidor y no tiene que leerse como "no existe tu registro".
+    if (errSocio && errSocio.code !== 'PGRST116') {
+      setError('No se pudo cargar el carnet. Revisá tu conexión.')
+      setLoading(false)
+      return
+    }
 
     if (!socio) {
       setError(socioIdObjetivo ? 'No se encontró el carnet de este dependiente.' : 'No se encontró tu registro de socio.')

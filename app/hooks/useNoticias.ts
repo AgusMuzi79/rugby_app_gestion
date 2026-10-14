@@ -27,6 +27,7 @@ export function useNoticias(soloPublicadas: boolean) {
   const [noticias, setNoticias] = useState<Noticia[]>([])
   const [loading, setLoading]   = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const [error, setError]       = useState<string | null>(null)
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -39,7 +40,16 @@ export function useNoticias(soloPublicadas: boolean) {
 
     if (soloPublicadas) q = q.eq('publicada', true)
 
-    const { data } = await q
+    const { data, error: errLectura } = await q
+
+    // Sin red no es lo mismo que "no hay noticias": se avisa y se deja
+    // reintentar (las que ya estaban cargadas se mantienen).
+    if (errLectura) {
+      setError('No se pudieron cargar las noticias. Revisá tu conexión.')
+      setLoading(false)
+      return
+    }
+    setError(null)
 
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => {
       const imagenPath = n.imagen_path as string | null
@@ -113,5 +123,5 @@ export function useNoticias(soloPublicadas: boolean) {
     setNoticias(prev => prev.filter(n => n.id !== noticiaId))
   }, [])
 
-  return { noticias, loading, guardando, crear, togglePublicar, eliminar, refetch: fetch }
+  return { noticias, loading, error, guardando, crear, togglePublicar, eliminar, refetch: fetch }
 }

@@ -266,6 +266,16 @@ export default function CarnetScreen() {
       ) : error ? (
         <View style={s.errorContainer}>
           <Text style={s.errorText}>{error}</Text>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            disabled={refreshing}
+            style={s.reintentarBtn}
+            activeOpacity={0.8}
+          >
+            {refreshing
+              ? <ActivityIndicator color={colors.oro} size="small" />
+              : <Text style={s.reintentarTexto}>Reintentar</Text>}
+          </TouchableOpacity>
         </View>
       ) : data ? (
         <>
@@ -458,7 +468,9 @@ const s = StyleSheet.create({
     textAlign: 'center', color: '#F3EFE4',
   },
 
-  errorContainer: { padding: 40, alignItems: 'center' },
+  errorContainer: { padding: 40, alignItems: 'center', gap: 12 },
+  reintentarBtn:  { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto:{ fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
   errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
 
   verCarnetBtn: {

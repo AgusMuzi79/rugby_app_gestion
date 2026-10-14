@@ -153,7 +153,7 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
 
 export default function NoticiasPublicasScreen() {
   const insets = useSafeAreaInsets()
-  const { noticias, loading, refetch } = useNoticias(true)
+  const { noticias, loading, error, refetch } = useNoticias(true)
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [noticiaAbierta, setNoticiaAbierta] = useState<Noticia | null>(null)
   const scrollRef = useRef<FlatList>(null)
@@ -183,6 +183,13 @@ export default function NoticiasPublicasScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : error && noticias.length === 0 ? (
+        <View style={s.centrado}>
+          <Text style={s.errorTexto}>{error}</Text>
+          <TouchableOpacity onPress={refetch} style={s.reintentarBtn} activeOpacity={0.8}>
+            <Text style={s.reintentarTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : noticiasFiltradas.length === 0 ? (
         <View style={s.emptyContainer}>
           <Text style={s.emptyText}>
@@ -288,6 +295,12 @@ const s = StyleSheet.create({
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: '#8E8574' },
+
+  // Error de carga — mismo patrón que calendario.tsx
+  centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 16, textAlign: 'center' },
+  reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
 // ─── Estilos del modal de detalle ──────────────────────────────────────────────

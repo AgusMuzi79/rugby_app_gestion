@@ -463,7 +463,7 @@ export default function CuotasScreen() {
   // no write to the club's data. Other roles: socioId undefined -> unchanged.
   const { socioId } = useSocioObjetivo()
   const {
-    cuotas, loading, refetch,
+    cuotas, loading, error, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
     alDia, deudaActualizadaAt, deuda, pendientes,
     comprobantes, marcarComprobanteEnviado,
@@ -491,6 +491,13 @@ export default function CuotasScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.oro} style={{ marginTop: 60 }} />
+      ) : error ? (
+        <View style={s.centrado}>
+          <Text style={s.errorTexto}>{error}</Text>
+          <TouchableOpacity onPress={refetch} style={s.reintentarBtn} activeOpacity={0.8}>
+            <Text style={s.reintentarTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <FlatList
           ref={scrollRef}
@@ -558,7 +565,7 @@ export default function CuotasScreen() {
                   </Text>
                 </View>
               )}
-              {!alDia && (
+              {alDia === false && (
                 <TouchableOpacity
                   style={[s.banner, s.bannerDeudaClub]}
                   onPress={() => setDeudaModal(true)}
@@ -707,6 +714,12 @@ const s = StyleSheet.create({
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
+
+  // Error de carga — mismo patrón que calendario.tsx
+  centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 16, textAlign: 'center' },
+  reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
 // ─── Styles modal de pago ─────────────────────────────────────────────────────

@@ -87,7 +87,9 @@ export function useCalendarioSocio(socioId?: string) {
       const desde  = hace30.toISOString().split('T')[0]
 
       // ── Próximos partidos ──────────────────────────────────────────────────
-      const { data: eventosData } = await supabase
+      // supabase-js no tira: el error viene en la respuesta. Se relanza para
+      // que el catch muestre "Error al cargar" en vez de "Sin partidos".
+      const { data: eventosData, error: errEventos } = await supabase
         .from('eventos')
         .select('id, fecha, hora, lugar, rival, division_id, divisiones(nombre, deporte)')
         .eq('tipo', 'partido')
@@ -95,6 +97,7 @@ export function useCalendarioSocio(socioId?: string) {
         .gte('fecha', hoy)
         .lte('fecha', hasta)
         .order('fecha', { ascending: true })
+      if (errEventos) throw errEventos
 
       type RawEvento = {
         id: string; fecha: string; hora: string | null; lugar: string | null
@@ -118,7 +121,7 @@ export function useCalendarioSocio(socioId?: string) {
       setPartidos(partidosNorm)
 
       // ── Resultados recientes ───────────────────────────────────────────────
-      const { data: resultadosData } = await supabase
+      const { data: resultadosData, error: errResultados } = await supabase
         .from('eventos')
         .select('id, fecha, rival, division_id, divisiones(nombre, deporte), resultados(puntos_propios, puntos_rival)')
         .eq('tipo', 'partido')
@@ -127,6 +130,7 @@ export function useCalendarioSocio(socioId?: string) {
         .gte('fecha', desde)
         .order('fecha', { ascending: false })
         .limit(15)
+      if (errResultados) throw errResultados
 
       type RawResultado = {
         id: string; fecha: string; rival: string | null; division_id: string
