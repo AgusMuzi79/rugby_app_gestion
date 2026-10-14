@@ -7,19 +7,19 @@ export default function SecretariaLayout() {
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="diario"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} /> }}
+        options={{ title: 'Inicio', tabBarIcon: ({ color, size }) => <Feather name="home" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="socios"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
+        options={{ title: 'Socios', tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="noticias"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
+        options={{ title: 'Noticias', tabBarIcon: ({ color, size }) => <Feather name="file-text" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="sobre"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
+        options={{ title: 'Mi perfil', href: null, tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
     </Tabs>
   )

@@ -1,0 +1,68 @@
+// Verificación autocontenida de perfilAvatar.ts (no hay runner de tests en app/).
+//   npx tsx app/lib/perfilAvatar.check.ts
+// Sale con código distinto de 0 si algo falla.
+
+import assert from 'node:assert/strict'
+import { inicialesNombre, rutaPerfil, avatarVencido, AVATAR_TTL_MS } from './perfilAvatar'
+
+let casos = 0
+function caso(nombre: string, fn: () => void) {
+  fn()
+  casos++
+  console.log(`ok   - ${nombre}`)
+}
+
+// ─── Iniciales ────────────────────────────────────────────────────────────────
+
+caso('iniciales: nombre y apellido', () => {
+  assert.equal(inicialesNombre('Agustín Muzi'), 'AM')
+})
+
+caso('iniciales: primera y última palabra con varios nombres', () => {
+  assert.equal(inicialesNombre('Juan Pablo  de la Fuente'), 'JF')
+})
+
+caso('iniciales: una sola palabra', () => {
+  assert.equal(inicialesNombre('josefina'), 'J')
+})
+
+caso('iniciales: conserva tildes y ñ', () => {
+  assert.equal(inicialesNombre('ñandú álvarez'), 'ÑÁ')
+})
+
+caso('iniciales: vacío, null o sólo espacios → cadena vacía', () => {
+  assert.equal(inicialesNombre(''), '')
+  assert.equal(inicialesNombre('   '), '')
+  assert.equal(inicialesNombre(null), '')
+  assert.equal(inicialesNombre(undefined), '')
+})
+
+// ─── Ruta de Mi Perfil según el grupo de rol ─────────────────────────────────
+
+caso('ruta: grupo de rol → su sobre', () => {
+  assert.equal(rutaPerfil(['(socio)', 'carnet']), '/(socio)/sobre')
+  assert.equal(rutaPerfil(['(tutor)', 'cuotas']), '/(tutor)/sobre')
+  assert.equal(rutaPerfil(['(cliente-gimnasio)', 'turnos']), '/(cliente-gimnasio)/sobre')
+  assert.equal(rutaPerfil(['(subcomision)']), '/(subcomision)/sobre')
+})
+
+caso('ruta: fuera de un grupo de rol → null (sin avatar)', () => {
+  assert.equal(rutaPerfil(['(auth)', 'login']), null)
+  assert.equal(rutaPerfil([]), null)
+  assert.equal(rutaPerfil(['index']), null)
+  assert.equal(rutaPerfil(['(desconocido)', 'x']), null)
+})
+
+// ─── Vencimiento de la URL firmada de la foto ────────────────────────────────
+
+caso('vencido: nunca cargado → true', () => {
+  assert.equal(avatarVencido(null, 1_000_000), true)
+})
+
+caso('vencido: dentro del TTL → false; en el borde → true', () => {
+  const t = 10_000_000
+  assert.equal(avatarVencido(t, t + AVATAR_TTL_MS - 1), false)
+  assert.equal(avatarVencido(t, t + AVATAR_TTL_MS), true)
+})
+
+console.log(`\n${casos} casos OK`)

@@ -42,6 +42,9 @@ const pares: [string, string, string][] = [
   ['rojoTexto sobre fondo (errores)', colors.rojoTexto, FONDO],
   ['rojoTexto sobre card (Turnos)', colors.rojoTexto, CARD],
   ['blanco sobre rojoUrgente (badge MOROSO / INACTIVO)', colors.blanco, colors.rojoUrgente],
+  // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN)
+  ['etiqueta activa de la tab bar', '#E8B53C', '#0E0E0E'],
+  ['etiqueta inactiva de la tab bar', '#8E8574', '#0E0E0E'],
 ]
 
 for (const [nombre, texto, fondo] of pares) {

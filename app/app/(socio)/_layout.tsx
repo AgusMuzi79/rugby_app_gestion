@@ -7,27 +7,27 @@ export default function SocioLayout() {
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="carnet"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size} color={color} /> }}
+        options={{ title: 'Carnet', tabBarIcon: ({ color, size }) => <Feather name="credit-card" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="cuotas"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="dollar-sign" size={size} color={color} /> }}
+        options={{ title: 'Cuotas', tabBarIcon: ({ color, size }) => <Feather name="dollar-sign" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="turnos"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="clock" size={size} color={color} /> }}
+        options={{ title: 'Gimnasio', tabBarIcon: ({ color, size }) => <Feather name="clock" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="noticias"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
+        options={{ title: 'Noticias', tabBarIcon: ({ color, size }) => <Feather name="file-text" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="calendario"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size} color={color} /> }}
+        options={{ title: 'Calendario', tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="sobre"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
+        options={{ title: 'Mi perfil', href: null, tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
     </Tabs>
   )

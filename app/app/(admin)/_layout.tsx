@@ -9,19 +9,19 @@ export default function AdminLayout() {
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="usuarios"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
+        options={{ title: 'Usuarios', tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="comunicados"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
+        options={{ title: 'Comunicados', tabBarIcon: ({ color, size }) => <Feather name="rss" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="sistema"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="server" size={size} color={color} /> }}
+        options={{ title: 'Sistema', tabBarIcon: ({ color, size }) => <Feather name="server" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="sobre"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
+        options={{ title: 'Mi perfil', tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
     </Tabs>
   )

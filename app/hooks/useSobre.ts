@@ -6,6 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_LABELS, Rol } from '@/constants/roles'
+import { usePerfilAvatarStore } from '@/lib/perfilAvatarStore'
 
 export interface PerfilData {
   nombre:     string
@@ -63,17 +64,20 @@ export function useSobre() {
 
     socioIdRef.current = socio?.id ?? null
 
+    let fotoCargada: string | null = null
     if (socio?.foto_path) {
       // Tiene registro de socio con foto → usar bucket (misma foto que el carnet)
       const { data: signed } = await supabase.storage
         .from('socios-fotos')
         .createSignedUrl(socio.foto_path as string, 3600)
-      if (signed?.signedUrl) setFoto(signed.signedUrl)
+      if (signed?.signedUrl) { setFoto(signed.signedUrl); fotoCargada = signed.signedUrl }
     } else {
       // Sin socio o sin foto en bucket → fallback a AsyncStorage
       const fotoGuardada = await AsyncStorage.getItem(`@perfil_foto_${session.user.id}`)
-      if (fotoGuardada) setFoto(fotoGuardada)
+      if (fotoGuardada) { setFoto(fotoGuardada); fotoCargada = fotoGuardada }
     }
+    // Mismos datos para el avatar del Header (sin volver a pedirlos)
+    usePerfilAvatarStore.getState().setAvatar(session.user.id, { nombre: profile.nombre, fotoUrl: fotoCargada })
 
     let divisionNombres: string[] = []
     if (profile.divisiones && profile.divisiones.length > 0) {
@@ -105,6 +109,7 @@ export function useSobre() {
       Alert.alert('Error', 'No se pudo guardar el nombre.')
     } else {
       setPerfil(prev => prev ? { ...prev, nombre: nombre.trim() } : prev)
+      usePerfilAvatarStore.getState().setAvatar(session.user.id, { nombre: nombre.trim() })
       setNombreGuardado(true)
       setTimeout(() => setNombreGuardado(false), 2000)
     }
@@ -180,6 +185,7 @@ export function useSobre() {
           .from('socios-fotos')
           .createSignedUrl(filePath, 3600)
         setFoto(signed?.signedUrl ?? null)
+        if (session?.user) usePerfilAvatarStore.getState().setAvatar(session.user.id, { fotoUrl: signed?.signedUrl ?? null })
 
         // Auto-validación (2026-08-24): sin AWS configurado, admin-socios ya
         // aprueba directo al propio socio. Paso secundario — si falla (red,
@@ -199,6 +205,7 @@ export function useSobre() {
       if (!session?.user) return
       const uri = result.assets[0].uri
       setFoto(uri)
+      usePerfilAvatarStore.getState().setAvatar(session.user.id, { fotoUrl: uri })
       await AsyncStorage.setItem(`@perfil_foto_${session.user.id}`, uri)
     }
   }

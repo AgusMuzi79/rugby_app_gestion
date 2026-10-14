@@ -11,19 +11,20 @@ export default function PorteriaLayout() {
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen
         name="scanner"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="camera" size={size} color={color} /> }}
+        options={{ title: 'Escanear', tabBarIcon: ({ color, size }) => <Feather name="camera" size={size} color={color} /> }}
       />
       {/* Sólo Buffet publica promos — el resto de las cuentas Lector no ven esta tab */}
       <Tabs.Screen
         name="promos"
         options={{
+          title: 'Promos',
           href: esBuffet ? undefined : null,
           tabBarIcon: ({ color, size }) => <Feather name="tag" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="sobre"
-        options={{ tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
+        options={{ title: 'Mi perfil', tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
     </Tabs>
   )
