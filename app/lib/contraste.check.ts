@@ -51,6 +51,8 @@ const pares: [string, string, string][] = [
   ['textoSecundario sobre card (Turnos profesor)', colors.textoSecundario, colors.card],
   ['confirmacion sobre card (Calendario ganado)', colors.confirmacion, colors.card],
   ['sobreOro sobre confirmacion (Mi perfil Guardar ✓)', colors.sobreOro, colors.confirmacion],
+  // Mi perfil (socio y tutor): texto y borde de CERRAR SESIÓN sobre el fondo.
+  ['CERRAR SESIÓN sobre fondo (Mi perfil)', colors.rojoTexto, colors.fondo],
   // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN)
   ['etiqueta activa de la tab bar', '#E8B53C', '#0E0E0E'],
   ['etiqueta inactiva de la tab bar', '#8E8574', '#0E0E0E'],
