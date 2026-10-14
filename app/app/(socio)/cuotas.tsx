@@ -365,6 +365,9 @@ function CuotaCard({
       style={[s.card, { borderLeftColor: borderColor }]}
       onPress={() => setExpandida(v => !v)}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityHint={expandida ? 'Oculta el detalle' : 'Muestra el detalle'}
+      accessibilityState={{ expanded: expandida }}
     >
       {/* Fila principal */}
       <View style={s.cardRow}>

@@ -251,6 +251,8 @@ export default function CarnetScreen() {
             style={[s.familiaChip, !verComoId && s.familiaChipActivo]}
             onPress={() => setVerComoId(null)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !verComoId }}
           >
             <Text style={[s.familiaChipTexto, !verComoId && s.familiaChipTextoActivo]}>MI CARNET</Text>
           </TouchableOpacity>
@@ -260,6 +262,9 @@ export default function CarnetScreen() {
               style={[s.familiaChip, verComoId === d.id && s.familiaChipActivo]}
               onPress={() => setVerComoId(d.id)}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Carnet de ${d.nombre}`}
+              accessibilityState={{ selected: verComoId === d.id }}
             >
               <Text style={[s.familiaChipTexto, verComoId === d.id && s.familiaChipTextoActivo]} numberOfLines={1}>
                 {d.nombre.split(' ')[0]}

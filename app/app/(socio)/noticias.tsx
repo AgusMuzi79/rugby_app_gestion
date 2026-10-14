@@ -59,6 +59,8 @@ function FiltroBar({
             style={[s.filtroChip, activo ? s.filtroChipActivo : s.filtroChipInactivo]}
             onPress={() => onChange(f.value)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activo }}
           >
             <Text style={[s.filtroText, activo ? s.filtroTextActivo : s.filtroTextInactivo]}>
               {f.label}

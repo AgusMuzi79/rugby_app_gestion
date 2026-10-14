@@ -76,7 +76,15 @@ export function SobreScreen() {
         {/* ── Foto + rol ───────────────────────────────────────────── */}
         <View style={[s.card, { backgroundColor: colors.card }]}>
           <View style={[s.cardAccent, { backgroundColor: GOLD }]} />
-          <TouchableOpacity onPress={cambiarFoto} style={s.fotoWrap} activeOpacity={0.8} disabled={cambiandoFoto}>
+          <TouchableOpacity
+            onPress={cambiarFoto}
+            style={s.fotoWrap}
+            activeOpacity={0.8}
+            disabled={cambiandoFoto}
+            accessibilityRole="button"
+            accessibilityLabel="Cambiar foto de perfil"
+            accessibilityState={{ disabled: cambiandoFoto, busy: cambiandoFoto }}
+          >
             {cambiandoFoto ? (
               <View style={[s.fotoCirculo, { backgroundColor: colors.grisClaro }]}>
                 <ActivityIndicator color={GOLD} />
@@ -117,6 +125,8 @@ export function SobreScreen() {
                   ]}
                   onPress={() => cambiarRol(r)}
                   activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: r === rol }}
                 >
                   <Text style={[s.rolBtnTexto, { color: r === rol ? '#0E0E0E' : colors.muted }]}>
                     {ROL_LABELS[r].toUpperCase()}
