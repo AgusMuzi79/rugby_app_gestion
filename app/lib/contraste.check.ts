@@ -42,6 +42,15 @@ const pares: [string, string, string][] = [
   ['rojoTexto sobre fondo (errores)', colors.rojoTexto, FONDO],
   ['rojoTexto sobre card (Turnos)', colors.rojoTexto, CARD],
   ['blanco sobre rojoUrgente (badge MOROSO / INACTIVO)', colors.blanco, colors.rojoUrgente],
+  // Semánticos de T17 (mismos valores que los literales que reemplazan, salvo
+  // #0E0E0E → sobreOro en Mi perfil y #EF4444 → rojoTexto en Calendario).
+  ['texto sobre fondo', colors.texto, colors.fondo],
+  ['texto sobre card', colors.texto, colors.card],
+  ['muted sobre fondo', colors.muted, colors.fondo],
+  ['muted sobre card', colors.muted, colors.card],
+  ['textoSecundario sobre card (Turnos profesor)', colors.textoSecundario, colors.card],
+  ['confirmacion sobre card (Calendario ganado)', colors.confirmacion, colors.card],
+  ['sobreOro sobre confirmacion (Mi perfil Guardar ✓)', colors.sobreOro, colors.confirmacion],
   // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN)
   ['etiqueta activa de la tab bar', '#E8B53C', '#0E0E0E'],
   ['etiqueta inactiva de la tab bar', '#8E8574', '#0E0E0E'],

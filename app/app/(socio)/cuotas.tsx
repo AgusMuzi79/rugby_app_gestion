@@ -353,11 +353,11 @@ function CuotaCard({
   const enviado     = pendiente && comprobante?.estado === 'ENVIADO'
   const noRegistrado = pendiente && comprobante?.estado === 'NO_REGISTRADO'
 
-  const borderColor = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : noRegistrado ? colors.rojoUrgente : '#2C2418'
-  const badgeBg     = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : '#3A2800'
+  const borderColor = pagada ? colors.exito : enRevision || enviado ? colors.oroHondo : noRegistrado ? colors.rojoUrgente : colors.borde
+  const badgeBg     = pagada ? colors.exito : enRevision || enviado ? colors.oroHondo : '#3A2800' // único: fondo oscuro del badge PENDIENTE / NO REGISTRADO
   const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : enviado ? 'ENVIADO' : noRegistrado ? 'NO REGISTRADO' : 'PENDIENTE'
   // Sobre oroHondo el texto crema no llega a 4.5:1 → texto oscuro.
-  const badgeTexto  = enRevision || enviado ? colors.sobreOro : TEXTO
+  const badgeTexto  = enRevision || enviado ? colors.sobreOro : colors.texto
 
   return (
     <TouchableOpacity
@@ -431,7 +431,7 @@ function CuotaCard({
           {/* Estado detallado */}
           {pagada && cuota.fecha_pago && (
             <View style={s.infoRow}>
-              <Feather name="check-circle" size={12} color="#1A7A1A" />
+              <Feather name="check-circle" size={12} color={colors.exito} />
               <Text style={s.infoText}>Pagado el {fechaCorta(cuota.fecha_pago)}</Text>
             </View>
           )}
@@ -546,7 +546,7 @@ export default function CuotasScreen() {
               {/* Comprobantes mandados por WhatsApp que ya aparecen en NUVIX */}
               {registrados.map(c => (
                 <View key={c.clave} style={[s.banner, s.bannerRegistrado]}>
-                  <Feather name="check-circle" size={14} color="#1A7A1A" />
+                  <Feather name="check-circle" size={14} color={colors.exito} />
                   <Text style={s.bannerText}>
                     Pago registrado ✓ — el comprobante que mandaste el {diaMes(c.enviadoAt)} ya figura en el club.
                   </Text>
@@ -634,14 +634,9 @@ export default function CuotasScreen() {
 
 // ─── Styles pantalla ─────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const DIVIDER = '#2C2418'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: FONDO },
+  root:         { flex: 1, backgroundColor: colors.fondo },
   listContent:  { paddingHorizontal: 20, paddingBottom: 60, gap: 10 },
 
   edicionBar: {
@@ -653,22 +648,22 @@ const s = StyleSheet.create({
 
   secRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   secTitle:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine: { flex: 1, height: 1, backgroundColor: DIVIDER },
+  secLine: { flex: 1, height: 1, backgroundColor: colors.borde },
 
   resumenCard: {
-    backgroundColor: CARD, borderRadius: 6, borderWidth: 1, borderColor: DIVIDER,
+    backgroundColor: colors.card, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 16, gap: 12, marginBottom: 4,
   },
   serviciosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   servicioChip: {
     borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8,
-    borderColor: DIVIDER, gap: 2,
+    borderColor: colors.borde, gap: 2,
   },
-  servicioNombre: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: TEXTO },
-  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
-  totalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTopWidth: 1, borderTopColor: DIVIDER },
-  totalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED },
-  totalMonto:{ fontFamily: fonts.titulo, fontSize: 23, color: TEXTO },
+  servicioNombre: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: colors.texto },
+  servicioMonto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted },
+  totalRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borde },
+  totalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.muted },
+  totalMonto:{ fontFamily: fonts.titulo, fontSize: 23, color: colors.texto },
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -677,36 +672,36 @@ const s = StyleSheet.create({
   bannerPendiente: { backgroundColor: colors.oroHondo },
   bannerRevision:  { backgroundColor: colors.oro },
   bannerRegistrado: {
-    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
-    borderLeftWidth: 3, borderLeftColor: '#1A7A1A',
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde,
+    borderLeftWidth: 3, borderLeftColor: colors.exito,
   },
   bannerDeudaClub: {
-    backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde,
     borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente,
   },
-  bannerText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
+  bannerText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   // Cards de cuota
   card: {
-    backgroundColor: CARD, borderRadius: 4, borderWidth: 1,
-    borderColor: DIVIDER, borderLeftWidth: 3, padding: 16,
+    backgroundColor: colors.card, borderRadius: 4, borderWidth: 1,
+    borderColor: colors.borde, borderLeftWidth: 3, padding: 16,
   },
   cardRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLeft:   { gap: 4, flex: 1 },
   cardRight:  { alignItems: 'flex-end' },
-  cardPeriodo:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED },
-  cardMonto:  { fontFamily: fonts.titulo, fontSize: 28, color: TEXTO },
+  cardPeriodo:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.muted },
+  cardMonto:  { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   estadoBadge:{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2 },
-  estadoText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXTO },
+  estadoText: { fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.texto },
 
-  detalle:  { marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: DIVIDER, paddingTop: 14 },
+  detalle:  { marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: colors.borde, paddingTop: 14 },
   desgloseBox: { gap: 6 },
   desgloseRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, flex: 1 },
-  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
+  desgloseItem:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted, flex: 1 },
+  desgloseMonto:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
 
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, flex: 1, fontStyle: 'italic' },
+  infoText:{ fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, flex: 1, fontStyle: 'italic' },
   comprobanteRow: { marginTop: 12 },
 
   escribirBtn: {
@@ -723,7 +718,7 @@ const s = StyleSheet.create({
   pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.sobreOro },
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: colors.muted },
 
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
@@ -741,31 +736,31 @@ const m = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
   },
   sheet: {
-    backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    backgroundColor: colors.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
     // paddingBottom va en línea: insets.bottom + 24 (barra de gestos / home indicator).
     // Sin "handle": no se puede arrastrar para cerrar, se cierra con CERRAR o tocando afuera.
     padding: 24, gap: 16,
-    borderTopWidth: 1, borderColor: '#2C2418',
+    borderTopWidth: 1, borderColor: colors.borde,
   },
   sheetTitle: {
-    fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4',
+    fontFamily: fonts.titulo, fontSize: 26, color: colors.texto,
   },
 
   breakdown: { gap: 8 },
   bRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574', flex: 1 },
-  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#F3EFE4' },
-  bSep:      { height: 1, backgroundColor: '#2C2418', marginVertical: 4 },
-  bTotalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: '#8E8574', flex: 1 },
-  bTotal:    { fontFamily: fonts.titulo, fontSize: 26, color: '#F3EFE4' },
+  bLabel:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted, flex: 1 },
+  bMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto },
+  bSep:      { height: 1, backgroundColor: colors.borde, marginVertical: 4 },
+  bTotalLabel:{ fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: colors.muted, flex: 1 },
+  bTotal:    { fontFamily: fonts.titulo, fontSize: 26, color: colors.texto },
 
   aliasBox: {
-    backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
+    backgroundColor: colors.fondo, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 16, gap: 4, alignItems: 'center',
   },
-  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: '#8E8574' },
+  aliasEtiqueta: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 3, color: colors.muted },
   aliasValor:    { fontFamily: fonts.titulo, fontSize: 25, color: colors.oro, letterSpacing: 1 },
-  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', fontStyle: 'italic', textAlign: 'center' },
+  aliasSub:      { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, fontStyle: 'italic', textAlign: 'center' },
 
   subirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
@@ -774,12 +769,12 @@ const m = StyleSheet.create({
   subirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   subirHint: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted,
     fontStyle: 'italic', textAlign: 'center', lineHeight: 17,
   },
 
   cerrarBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 44 },
-  cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: '#8E8574' },
+  cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.muted },
 })
 
 // ─── Styles modal detalle de deuda ────────────────────────────────────────────
@@ -790,51 +785,51 @@ const dm = StyleSheet.create({
 
   selloBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#15110A', borderRadius: 6, borderWidth: 1, borderColor: '#2C2418',
+    backgroundColor: colors.fondo, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 12, marginBottom: 16,
   },
-  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', flex: 1, fontStyle: 'italic', lineHeight: 17 },
+  selloText: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, flex: 1, fontStyle: 'italic', lineHeight: 17 },
 
   emptyText: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted,
     fontStyle: 'italic', textAlign: 'center', paddingVertical: 20,
   },
 
   periodoBox: {
-    borderBottomWidth: 1, borderBottomColor: '#2C2418', paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: colors.borde, paddingVertical: 12,
   },
   periodoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   periodoLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   periodoLabel:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
-  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: '#F3EFE4' },
+  periodoMonto:  { fontFamily: fonts.titulo, fontSize: 21, color: colors.texto },
 
   mesEnCursoTag: {
-    borderWidth: 1, borderColor: '#8E8574', borderRadius: 3,
+    borderWidth: 1, borderColor: colors.muted, borderRadius: 3,
     paddingHorizontal: 6, paddingVertical: 2,
   },
   mesEnCursoTagText: {
-    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: colors.muted,
   },
 
   subRows: { marginTop: 8, gap: 4, paddingLeft: 4 },
   subRow:  { flexDirection: 'row', justifyContent: 'space-between' },
-  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', flex: 1 },
-  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#F3EFE4' },
+  subRowLabel: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, flex: 1 },
+  subRowMonto: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.texto },
 
   regularizacionBox: {
-    marginTop: 12, backgroundColor: '#15110A', borderRadius: 6,
-    borderWidth: 1, borderColor: '#2C2418', padding: 12,
+    marginTop: 12, backgroundColor: colors.fondo, borderRadius: 6,
+    borderWidth: 1, borderColor: colors.borde, padding: 12,
   },
   regularizacionTitle: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: colors.muted, marginBottom: 8,
   },
   regularizacionHint: {
-    fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574',
+    fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted,
     fontStyle: 'italic', marginTop: 8, lineHeight: 17,
   },
 
   proximosBox: { marginTop: 16 },
   proximosTitle: {
-    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: '#8E8574', marginBottom: 8,
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, color: colors.muted, marginBottom: 8,
   },
 })

@@ -11,6 +11,8 @@ export const QRCarnet = memo(function QRCarnet({ value }: { value: string }) {
     <QRCode
       value={value}
       size={210}
+      // Negro sobre blanco fijo, fuera de los tokens: el lector necesita el
+      // máximo contraste y un rediseño no debe tocarlo.
       backgroundColor="#FFFFFF"
       color="#000000"
     />
@@ -43,9 +45,9 @@ export function CuentaRegresivaQR() {
 
 const s = StyleSheet.create({
   countdownRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
-  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#8E8574' },
-  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: '#F3EFE4' },
+  countdownLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.muted },
+  countdownNum:   { fontFamily: fonts.titulo, fontSize: 23, color: colors.texto },
 
-  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: '#2C2418' },
+  progressTrack: { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: colors.borde },
   progressFill:  { height: '100%', backgroundColor: colors.oro, borderRadius: 2 },
 })

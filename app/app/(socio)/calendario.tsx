@@ -16,17 +16,6 @@ import { Header } from '@/components/shared/Header'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 
-// ─── Tokens ───────────────────────────────────────────────────────────────────
-
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
-const ORO     = '#F5B41C'
-const VERDE   = '#22C55E'
-const ROJO    = '#EF4444'
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fechaEdicion(): string {
@@ -92,7 +81,7 @@ function DeporteDivision({ deporte, division }: { deporte: string; division: str
   const label = d ? d.label : deporte.toUpperCase()
   return (
     <View style={s.deporteFila} accessibilityLabel={`${label}, ${division}`}>
-      {d && <MaterialCommunityIcons name={d.icono} size={15} color={ORO} />}
+      {d && <MaterialCommunityIcons name={d.icono} size={15} color={colors.oro} />}
       <Text style={s.partidoDiv}>
         {label} · {division.toUpperCase()}
       </Text>
@@ -138,7 +127,7 @@ function CardResultado({ resultado }: { resultado: ResultadoCalendario }) {
       {tieneScore ? (
         <Text style={[
           s.scoreTexto,
-          { color: gano ? VERDE : empato ? MUTED : ROJO },
+          { color: gano ? colors.confirmacion : empato ? colors.muted : colors.rojoTexto },
         ]}>
           {resultado.puntos_propios} — {resultado.puntos_rival}
         </Text>
@@ -232,7 +221,7 @@ export default function CalendarioSocioScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={ORO} size="large" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={colors.oro} size="large" style={{ marginTop: 60 }} />
       ) : error ? (
         <View style={s.centrado}>
           <Text style={s.errorTexto}>{error}</Text>
@@ -252,7 +241,7 @@ export default function CalendarioSocioScreen() {
           renderItem={renderItem}
           contentContainerStyle={s.listaContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={ORO} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={colors.oro} />}
         />
       )}
     </View>
@@ -262,7 +251,7 @@ export default function CalendarioSocioScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: FONDO },
+  root:     { flex: 1, backgroundColor: colors.fondo },
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
 
   edicionBar: {
@@ -277,45 +266,45 @@ const s = StyleSheet.create({
   },
   filtroChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 22, minHeight: 44, justifyContent: 'center',
-    borderWidth: 1, borderColor: DIVIDER, backgroundColor: CARD,
+    borderWidth: 1, borderColor: colors.borde, backgroundColor: colors.card,
   },
-  filtroChipActivo:      { backgroundColor: ORO, borderColor: ORO },
-  filtroChipTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED },
-  filtroChipTextoActivo: { color: FONDO },
+  filtroChipActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },
+  filtroChipTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: colors.muted },
+  filtroChipTextoActivo: { color: colors.sobreOro },
 
   listaContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  seccionHeader: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: MUTED, marginBottom: 10 },
-  vacio:         { fontFamily: fonts.cuerpo, color: MUTED, fontStyle: 'italic', fontSize: 15, marginBottom: 8 },
+  seccionHeader: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.muted, marginBottom: 10 },
+  vacio:         { fontFamily: fonts.cuerpo, color: colors.muted, fontStyle: 'italic', fontSize: 15, marginBottom: 8 },
 
   card: {
-    backgroundColor: CARD, borderRadius: 6, borderWidth: 1, borderColor: DIVIDER,
+    backgroundColor: colors.card, borderRadius: 6, borderWidth: 1, borderColor: colors.borde,
     padding: 16, marginBottom: 8, gap: 4,
   },
-  cardDestacada: { borderColor: ORO },
+  cardDestacada: { borderColor: colors.oro },
 
   miDivisionBadge: {
-    alignSelf: 'flex-start', backgroundColor: ORO + '22', borderRadius: 3,
+    alignSelf: 'flex-start', backgroundColor: colors.oro + '22', borderRadius: 3,
     paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4,
   },
-  miDivisionTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: ORO },
+  miDivisionTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oro },
 
-  partidoFecha: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED },
-  partidoHora:  { fontFamily: fonts.label, fontSize: 13, color: MUTED, letterSpacing: 1 },
-  partidoVs:    { fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO, fontWeight: '600', marginTop: 2 },
-  partidoLugar: { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED },
+  partidoFecha: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: colors.muted },
+  partidoHora:  { fontFamily: fonts.label, fontSize: 13, color: colors.muted, letterSpacing: 1 },
+  partidoVs:    { fontFamily: fonts.cuerpo, fontSize: 18, color: colors.texto, fontWeight: '600', marginTop: 2 },
+  partidoLugar: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted },
   deporteFila:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  partidoDiv:   { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1.5 },
+  partidoDiv:   { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1.5 },
 
   scoreTexto: { fontFamily: fonts.titulo, fontSize: 23, fontWeight: '700', marginTop: 2 },
-  sinScore:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, fontStyle: 'italic' },
+  sinScore:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, fontStyle: 'italic' },
 
   bannerJugador: {
-    backgroundColor: ORO + '22', borderRadius: 6, borderWidth: 1, borderColor: ORO,
+    backgroundColor: colors.oro + '22', borderRadius: 6, borderWidth: 1, borderColor: colors.oro,
     paddingVertical: 10, paddingHorizontal: 16, marginBottom: 16,
   },
-  bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: ORO },
+  bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: colors.oro },
 
   errorTexto:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16 },
-  reintentarBtn: { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: ORO, borderRadius: 4 },
-  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1 },
+  reintentarBtn: { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })

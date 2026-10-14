@@ -11,15 +11,10 @@ import { useTerminos } from '@/hooks/useTerminos'
 import { useSolicitudBaja } from '@/hooks/useSolicitudBaja'
 import { mensajeConfirmacionBaja } from '@/lib/solicitudBaja'
 import { useTheme } from '@/contexts/ThemeContext'
-import { fonts } from '@/constants/theme'
+import { colors as paleta, fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { ROL_LABELS, ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
-
-const GOLD      = '#F5B41C'
-const GOLD_DEEP = '#C9890A'
-const ROJO      = '#CC4127'
-const VERDE     = '#22C55E'
 
 // Fila "SOLICITAR BAJA DE LA CUENTA" de CUENTA (App Store 5.1.1(v)). La app
 // no borra nada: deja una solicitud y Secretaría la procesa y contacta a la
@@ -66,7 +61,7 @@ export function FilaSolicitudBaja({ socioId }: { socioId: string | null }) {
       accessibilityState={{ disabled: enviando, busy: enviando }}
     >
       {enviando
-        ? <ActivityIndicator color={GOLD} />
+        ? <ActivityIndicator color={colors.oro} />
         : <Text style={[s.bajaTexto, { color: colors.texto }]}>SOLICITAR BAJA DE LA CUENTA</Text>
       }
     </TouchableOpacity>
@@ -98,7 +93,7 @@ export function SobreScreen() {
   if (loading) {
     return (
       <View style={[s.root, s.center, { backgroundColor: colors.fondo, paddingTop: insets.top }]}>
-        <ActivityIndicator color={GOLD} />
+        <ActivityIndicator color={colors.oro} />
       </View>
     )
   }
@@ -131,14 +126,14 @@ export function SobreScreen() {
 
         {/* ── Header ──────────────────────────────────────────────── */}
         <View style={s.headerZone}>
-          <Text style={[s.seccion, { color: GOLD }]}>SECCIÓN · SOBRE</Text>
+          <Text style={[s.seccion, { color: colors.oro }]}>SECCIÓN · SOBRE</Text>
           <Text style={[s.titulo, { color: colors.texto }]}>Mi perfil</Text>
           <View style={[s.headerLine, { backgroundColor: border }]} />
         </View>
 
         {/* ── Foto + rol ───────────────────────────────────────────── */}
         <View style={[s.card, { backgroundColor: colors.card }]}>
-          <View style={[s.cardAccent, { backgroundColor: GOLD }]} />
+          <View style={[s.cardAccent, { backgroundColor: colors.oro }]} />
           <TouchableOpacity
             onPress={cambiarFoto}
             style={s.fotoWrap}
@@ -150,22 +145,22 @@ export function SobreScreen() {
           >
             {cambiandoFoto ? (
               <View style={[s.fotoCirculo, { backgroundColor: colors.grisClaro }]}>
-                <ActivityIndicator color={GOLD} />
+                <ActivityIndicator color={colors.oro} />
               </View>
             ) : foto ? (
               <Image source={{ uri: foto }} style={s.fotoImg} />
             ) : (
               <View style={[s.fotoCirculo, { backgroundColor: colors.grisClaro }]}>
-                <Text style={[s.fotoIniciales, { color: GOLD }]}>{iniciales}</Text>
+                <Text style={[s.fotoIniciales, { color: colors.oro }]}>{iniciales}</Text>
               </View>
             )}
             {!cambiandoFoto && (
-              <View style={[s.fotoBadge, { backgroundColor: GOLD }]}>
+              <View style={[s.fotoBadge, { backgroundColor: colors.oro }]}>
                 <Text style={s.fotoBadgeTexto}>✎</Text>
               </View>
             )}
           </TouchableOpacity>
-          <Text style={[s.rolLabel, { color: GOLD_DEEP }]}>{rolDisplay}</Text>
+          <Text style={[s.rolLabel, { color: colors.oroHondo }]}>{rolDisplay}</Text>
           {perfil && perfil.divisiones.length > 1 && (
             <Text style={[s.divisionesExtra, { color: colors.muted }]}>
               {perfil.divisiones.join(' · ')}
@@ -176,22 +171,22 @@ export function SobreScreen() {
         {/* ── Selector de rol (solo si hay más de un rol) ─────────── */}
         {roles.length > 1 && (
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: GOLD }]}>VISTA ACTIVA</Text>
+            <Text style={[s.sectionTitle, { color: colors.oro }]}>VISTA ACTIVA</Text>
             <View style={s.rolesRow}>
               {roles.map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[
                     s.rolBtn,
-                    { borderColor: r === rol ? GOLD : colors.grisClaro },
-                    r === rol && { backgroundColor: GOLD },
+                    { borderColor: r === rol ? colors.oro : colors.grisClaro },
+                    r === rol && { backgroundColor: colors.oro },
                   ]}
                   onPress={() => cambiarRol(r)}
                   activeOpacity={0.8}
                   accessibilityRole="button"
                   accessibilityState={{ selected: r === rol }}
                 >
-                  <Text style={[s.rolBtnTexto, { color: r === rol ? '#0E0E0E' : colors.muted }]}>
+                  <Text style={[s.rolBtnTexto, { color: r === rol ? colors.sobreOro : colors.muted }]}>
                     {ROL_LABELS[r].toUpperCase()}
                   </Text>
                 </TouchableOpacity>
@@ -202,7 +197,7 @@ export function SobreScreen() {
 
         {/* ── Nombre ──────────────────────────────────────────────── */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: GOLD }]}>NOMBRE</Text>
+          <Text style={[s.sectionTitle, { color: colors.oro }]}>NOMBRE</Text>
           <View style={[s.inputRow, { backgroundColor: colors.card, borderColor: border }]}>
             <TextInput
               style={[s.inputField, { color: colors.texto, fontFamily: fonts.cuerpo }]}
@@ -215,14 +210,14 @@ export function SobreScreen() {
             <TouchableOpacity
               style={[
                 s.guardarBtn,
-                { backgroundColor: nombreGuardado ? VERDE : GOLD, opacity: guardandoNombre ? 0.6 : 1 },
+                { backgroundColor: nombreGuardado ? colors.confirmacion : colors.oro, opacity: guardandoNombre ? 0.6 : 1 },
               ]}
               onPress={guardarNombre}
               disabled={guardandoNombre}
               activeOpacity={0.8}
             >
               {guardandoNombre
-                ? <ActivityIndicator size="small" color="#0E0E0E" />
+                ? <ActivityIndicator size="small" color={colors.sobreOro} />
                 : <Text style={s.guardarBtnTexto}>{nombreGuardado ? '✓' : 'Guardar'}</Text>
               }
             </TouchableOpacity>
@@ -237,7 +232,7 @@ export function SobreScreen() {
 
         {/* ── Seguridad ───────────────────────────────────────────── */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: GOLD }]}>SEGURIDAD</Text>
+          <Text style={[s.sectionTitle, { color: colors.oro }]}>SEGURIDAD</Text>
           <TouchableOpacity
             style={[s.rowBtn, { backgroundColor: colors.card, borderColor: border, opacity: enviandoReset ? 0.6 : 1 }]}
             onPress={enviarResetPassword}
@@ -245,8 +240,8 @@ export function SobreScreen() {
             activeOpacity={0.8}
           >
             {enviandoReset
-              ? <ActivityIndicator color={GOLD} />
-              : <Text style={[s.rowBtnTexto, { color: resetEnviado ? VERDE : colors.texto }]}>
+              ? <ActivityIndicator color={colors.oro} />
+              : <Text style={[s.rowBtnTexto, { color: resetEnviado ? colors.confirmacion : colors.texto }]}>
                   {resetEnviado ? '✓ Email enviado' : 'Cambiar contraseña'}
                 </Text>
             }
@@ -255,7 +250,7 @@ export function SobreScreen() {
 
         {/* ── Cuenta ──────────────────────────────────────────────── */}
         <View style={s.section}>
-          <Text style={[s.sectionTitle, { color: GOLD }]}>CUENTA</Text>
+          <Text style={[s.sectionTitle, { color: colors.oro }]}>CUENTA</Text>
           {!!pdfUrl && (
             <TouchableOpacity
               style={[s.rowBtn, s.terminosBtn, { backgroundColor: colors.card, borderColor: border }]}
@@ -269,11 +264,11 @@ export function SobreScreen() {
           )}
           <FilaSolicitudBaja socioId={socioId} />
           <TouchableOpacity
-            style={[s.signOutBtn, { borderColor: ROJO }]}
+            style={[s.signOutBtn, { borderColor: colors.rojoUrgente }]}
             onPress={signOut}
             activeOpacity={0.75}
           >
-            <Text style={[s.signOutTexto, { color: ROJO }]}>CERRAR SESIÓN</Text>
+            <Text style={[s.signOutTexto, { color: colors.rojoUrgente }]}>CERRAR SESIÓN</Text>
           </TouchableOpacity>
         </View>
 
@@ -303,7 +298,7 @@ const s = StyleSheet.create({
   fotoCirculo: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center' },
   fotoIniciales: { fontFamily: fonts.titulo, fontSize: 28 },
   fotoBadge:    { position: 'absolute', bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  fotoBadgeTexto: { fontSize: 14, color: '#0E0E0E' },
+  fotoBadgeTexto: { fontSize: 14, color: paleta.sobreOro },
   rolLabel:        { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, marginTop: 4 },
   divisionesExtra: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, marginTop: 4 },
 
@@ -315,7 +310,7 @@ const s = StyleSheet.create({
   inputRow:        { flexDirection: 'row', alignItems: 'center', borderRadius: 2, borderWidth: 1, overflow: 'hidden' },
   inputField:      { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17 },
   guardarBtn:      { paddingHorizontal: 16, paddingVertical: 14, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
-  guardarBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: '#0E0E0E' },
+  guardarBtnTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: paleta.sobreOro },
   nombreHint:      { fontFamily: fonts.cuerpo, fontStyle: 'italic', fontSize: 14, lineHeight: 20, marginTop: 8 },
 
   // Seguridad

@@ -233,7 +233,7 @@ export default function NoticiasPublicasScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   topSection:    {},
   activityIndicator: { marginTop: 40 },
   listContent:   { paddingHorizontal: 20, paddingBottom: 60, gap: 16, paddingTop: 16 },
@@ -259,13 +259,13 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
-  secLine: { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine: { flex: 1, height: 1, backgroundColor: colors.borde },
 
   // Filtro bar
   filtroBar: {
     flexDirection: 'row', gap: 8,
     paddingHorizontal: 20, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: '#2C2418',
+    borderBottomWidth: 1, borderBottomColor: colors.borde,
   },
   filtroChip: {
     flex: 1, borderWidth: 1, borderRadius: 3,
@@ -273,17 +273,17 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
-  filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: '#2C2418' },
+  filtroChipInactivo:{ backgroundColor: 'transparent', borderColor: colors.borde },
   filtroText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
   },
   filtroTextActivo:  { color: colors.sobreOro },
-  filtroTextInactivo:{ color: '#8E8574' },
+  filtroTextInactivo:{ color: colors.muted },
 
   // Cards
   card: {
     borderWidth: 1, borderRadius: 4, padding: 18, gap: 10,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
   cardMeta:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   metaTiempo: {
@@ -291,21 +291,21 @@ const s = StyleSheet.create({
   },
   deporteBadge: {
     borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2,
-    borderColor: '#2C2418',
+    borderColor: colors.borde,
   },
   deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
-  cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: '#2C2418' },
-  cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: '#F3EFE4' },
-  divider:    { height: 1, backgroundColor: '#2C2418' },
-  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: '#F3EFE4' },
+  cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: colors.borde },
+  cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: colors.texto },
+  divider:    { height: 1, backgroundColor: colors.borde },
+  cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: colors.texto },
   leerMas: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oro, marginTop: -2,
   },
-  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#8E8574' },
+  cardAutor:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: '#8E8574' },
+  emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: colors.muted },
 
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
@@ -325,15 +325,15 @@ const m = StyleSheet.create({
   },
   sheet: {
     maxHeight: '85%',
-    backgroundColor: '#1C1710', borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    backgroundColor: colors.card, borderTopLeftRadius: 16, borderTopRightRadius: 16,
     // paddingBottom en línea (insets.bottom + 24); sin "handle" porque no se arrastra.
     padding: 24, gap: 16,
-    borderTopWidth: 1, borderColor: '#2C2418',
+    borderTopWidth: 1, borderColor: colors.borde,
   },
   scroll: { marginTop: 4 },
-  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: '#2C2418', marginBottom: 12 },
-  titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: '#F3EFE4' },
-  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: '#F3EFE4' },
+  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: colors.borde, marginBottom: 12 },
+  titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: colors.texto },
+  cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: colors.texto },
   cerrarBtn: {
     borderWidth: 1, borderColor: colors.oro, borderRadius: 4,
     paddingVertical: 14, alignItems: 'center',

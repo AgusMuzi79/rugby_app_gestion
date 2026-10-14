@@ -32,9 +32,9 @@ function fechaEdicion(): string {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  activo:   '#2ECC71',
+  activo:   colors.estadoActivo,
   moroso:   colors.rojoUrgente,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  colors.rojoUrgente,
 }
 const ESTADO_LABEL: Record<string, string> = {
@@ -64,9 +64,9 @@ const CARD_WIDTH  = Dimensions.get('window').width - 48
 const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.63) // proporción ID card 85.6×54mm
 
 const ESTADO_BG: Record<string, string> = {
-  activo:    '#2ECC71',
+  activo:    colors.estadoActivo,
   moroso:    colors.rojoUrgente,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  colors.rojoUrgente,
 }
 
@@ -154,7 +154,7 @@ function TarjetaFisicaModal({
                 {/* Roles */}
                 <RolesChips roles={data.roles} />
 
-                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' }]}>
+                <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' /* único: estado desconocido */ }]}>
                   <Text style={[tm.estadoChipText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                     {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                   </Text>
@@ -379,7 +379,7 @@ export default function CarnetScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 60 },
   activityIndicator: { marginTop: 60 },
 
@@ -397,8 +397,8 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: '#F3EFE4', marginBottom: 14 },
-  divider:         { height: 1, backgroundColor: '#2C2418' },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: colors.texto, marginBottom: 14 },
+  divider:         { height: 1, backgroundColor: colors.borde },
 
   familiaRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 8,
@@ -406,14 +406,14 @@ const s = StyleSheet.create({
   },
   familiaChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, minHeight: 44, justifyContent: 'center',
-    backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418',
+    backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde,
   },
   familiaChipActivo: {
     backgroundColor: colors.oro + '33', borderColor: colors.oro,
   },
   familiaChipTexto: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
   familiaChipTextoActivo: {
     color: colors.oro,
@@ -424,22 +424,22 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 4,
     marginHorizontal: 20, marginTop: 14,
   },
-  bannerFoto:  { backgroundColor: '#E67E22' },
-  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: '#F3EFE4' },
+  bannerFoto:  { backgroundColor: colors.estadoPendiente },
+  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingHorizontal: 20, paddingTop: 22, marginTop: 18 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine:  { flex: 1, height: 1, backgroundColor: colors.borde },
 
   carnetCard: {
     borderWidth: 1, borderRadius: 6, padding: 24,
     alignItems: 'center', gap: 12,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
-  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
-  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: '#F3EFE4' },
+  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: colors.muted },
+  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: colors.texto },
 
   qrWrapper: {
     padding: 16, backgroundColor: colors.blanco,
@@ -454,12 +454,12 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
+  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: colors.muted },
 
-  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
+  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: colors.muted },
   codigoValue: {
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
-    textAlign: 'center', color: '#F3EFE4',
+    textAlign: 'center', color: colors.texto,
   },
 
   errorContainer: { padding: 40, alignItems: 'center', gap: 12 },
@@ -496,8 +496,8 @@ const tm = StyleSheet.create({
   // Tarjeta
   card: {
     borderRadius: 10, overflow: 'hidden',
-    backgroundColor: '#1C1710',
-    borderWidth: 1, borderColor: '#3A2E1E',
+    backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.bordeRealce,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -519,31 +519,32 @@ const tm = StyleSheet.create({
   },
   foto: {
     width: 72, height: 88, borderRadius: 4,
-    borderWidth: 1, borderColor: '#3A2E1E',
+    borderWidth: 1, borderColor: colors.bordeRealce,
   },
   fotoPlaceholder: {
+    // único: hueco de foto, más oscuro que la tarjeta
     backgroundColor: '#0E0B07', alignItems: 'center', justifyContent: 'center',
   },
   datosCol: {
     flex: 1, gap: 4,
   },
   nombre: {
-    fontFamily: fonts.titulo, fontSize: 18, color: '#F3EFE4', lineHeight: 22,
+    fontFamily: fonts.titulo, fontSize: 18, color: colors.texto, lineHeight: 22,
   },
   numRow: {
     flexDirection: 'row', alignItems: 'baseline', gap: 1, marginTop: 2,
   },
   numLabel: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.muted,
   },
   numValue: {
     fontFamily: fonts.titulo, fontSize: 19, color: colors.oro,
   },
   dividerLine: {
-    height: 1, backgroundColor: '#2C2418', marginVertical: 4,
+    height: 1, backgroundColor: colors.borde, marginVertical: 4,
   },
   categoriaText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574',
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted,
   },
   divisionText: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.2, color: colors.oro,
@@ -559,7 +560,7 @@ const tm = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1, color: colors.oro,
   },
   rolText: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574', marginTop: 2,
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted, marginTop: 2,
   },
   estadoChip: {
     alignSelf: 'flex-start',
@@ -596,10 +597,10 @@ const tm = StyleSheet.create({
   // Botón cerrar
   cerrarBtn: {
     paddingHorizontal: 32, paddingVertical: 12, minHeight: 44, justifyContent: 'center',
-    borderWidth: 1, borderColor: '#3A2E1E', borderRadius: 4,
+    borderWidth: 1, borderColor: colors.bordeRealce, borderRadius: 4,
   },
   cerrarText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: '#8E8574',
+    textTransform: 'uppercase', color: colors.muted,
   },
 })
