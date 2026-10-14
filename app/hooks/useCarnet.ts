@@ -77,7 +77,8 @@ export function useDependientesMenores() {
 // Con valor = el carnet de un dependiente menor de 13 a mi cargo (titular de
 // grupo familiar) — validado server-side en socios-qr/get-secret, no acá.
 // tickEnData: true (default) actualiza data.secondsLeft cada segundo (re-render
-// de toda la pantalla, lo usa (cliente-gimnasio)/carnet.tsx). false: data sólo
+// de toda la pantalla; ya no lo usa ninguna pantalla — socio, tutor y
+// cliente-gimnasio pasan false, pendiente sacar la opción). false: data sólo
 // cambia cuando cambia el código; la cuenta regresiva la lleva un componente
 // aparte (components/socio/CarnetQR.tsx).
 export function useCarnet(socioIdObjetivo?: string, { tickEnData = true }: { tickEnData?: boolean } = {}) {
