@@ -5,7 +5,7 @@ const config = {
   name: IS_DEV ? 'Uncas (Dev)' : 'Uncas Rugby App',
   slug: 'uncas-rugby-app',
   scheme: 'uncasrugby',
-  version: '1.0.8',
+  version: '1.0.9',
   orientation: 'portrait',
   icon: './assets/images/logo.png',
   userInterfaceStyle: 'dark',
@@ -16,7 +16,8 @@ const config = {
     backgroundColor: '#15110A',
   },
   ios: {
-    supportsTablet: true,
+    // Sin layout de iPad todavía: el carnet (CARD_WIDTH) se estira a ~720pt.
+    supportsTablet: false,
     bundleIdentifier: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
     // Apple rechaza el ícono si tiene canal alfa — a diferencia de `icon`/Android,
     // no puede reusar logo.png (tiene transparencia). Ver assets/images/icon-store-512.png.
