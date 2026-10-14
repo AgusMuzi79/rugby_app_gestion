@@ -9,7 +9,7 @@ import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCuotas, type Cuota, type ServicioActivo } from '@/hooks/useCuotas'
-import { useDeudaDetalle } from '@/hooks/useDeudaDetalle'
+import { useDeudaDetalle, type DeudaDetalle } from '@/hooks/useDeudaDetalle'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
 import { colors, fonts } from '@/constants/theme'
 
@@ -42,9 +42,53 @@ function esMesEnCurso(periodo: string): boolean {
   return periodo === new Date().toISOString().slice(0, 7)
 }
 
-function whatsappComprobanteUrl(periodo: string, monto: number): string {
-  const mensaje = `Hola! Te mando el comprobante de mi cuota de ${periodoLabel(periodo)} ($${monto.toLocaleString('es-AR')}).`
+function whatsappComprobanteUrl(concepto: string, monto: number): string {
+  const mensaje = `Hola! Te mando el comprobante de ${concepto} ($${monto.toLocaleString('es-AR')}).`
   return `https://wa.me/${WHATSAPP_SECRETARIA}?text=${encodeURIComponent(mensaje)}`
+}
+
+// dd/mm de una fecha. Las columnas date ('YYYY-MM-DD') se leen por partes:
+// new Date('2026-10-10') es medianoche UTC y en Argentina mostraría el 09/10.
+function diaMes(fecha: string): string {
+  const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fecha)
+  if (soloFecha) return `${soloFecha[3]}/${soloFecha[2]}`
+  const d = new Date(fecha)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// La cuota virtual no es "la cuota de este mes": su monto es toda la deuda
+// según NUVIX, así que se titula con la fecha de corte de esa importación.
+function tituloCuota(cuota: Cuota, fechaCorte: string | null): string {
+  if (!cuota.id.startsWith('virtual-')) return periodoLabel(cuota.periodo).toUpperCase()
+  return `DEUDA AL ${diaMes(fechaCorte ?? new Date().toISOString())}`
+}
+
+function conceptoWhatsapp(cuota: Cuota, fechaCorte: string | null): string {
+  if (!cuota.id.startsWith('virtual-')) return `mi cuota de ${periodoLabel(cuota.periodo)}`
+  return `mi deuda al ${diaMes(fechaCorte ?? new Date().toISOString())}`
+}
+
+interface FilaDesglose { key: string; label: string; monto: number }
+
+// Desglose de la cuota virtual: los períodos que debe según NUVIX (+ saldo
+// anterior), que suman exactamente su monto. Si no hay detalle de NUVIX (el
+// monto cayó al total mensual), el desglose de categoría + servicios de hoy.
+function desgloseVirtual(
+  deuda: DeudaDetalle | null,
+  categoriaLabel: string,
+  montoCategoria: number,
+  serviciosActivos: ServicioActivo[],
+): FilaDesglose[] {
+  if (deuda && (deuda.periodos.length > 0 || deuda.saldoAnterior > 0)) {
+    const filas = deuda.periodos.map(p => ({ key: p.periodo, label: periodoLabel(p.periodo), monto: p.vencido }))
+    if (deuda.saldoAnterior > 0) filas.push({ key: 'saldo-anterior', label: 'Saldo anterior', monto: deuda.saldoAnterior })
+    return filas
+  }
+  if (!categoriaLabel) return []
+  return [
+    { key: 'categoria', label: categoriaLabel, monto: montoCategoria },
+    ...serviciosActivos.map(srv => ({ key: srv.id, label: srv.nombre, monto: srv.monto_mensual })),
+  ]
 }
 
 function fechaCorta(iso: string): string {
@@ -70,23 +114,22 @@ function fechaEdicion(): string {
 function PagoModal({
   cuota,
   onClose,
-  categoriaLabel,
-  montoCategoria,
-  serviciosActivos,
+  titulo,
+  conceptoMensaje,
+  desglose,
 }: {
   cuota:             Cuota
   onClose:           () => void
-  categoriaLabel:    string
-  montoCategoria:    number
-  serviciosActivos:  ServicioActivo[]
+  titulo:            string
+  conceptoMensaje:   string
+  desglose:          FilaDesglose[]
 }) {
-  // El desglose (categoría + servicios) se calcula siempre con los precios
-  // ACTUALES — sólo coincide con cuota.monto para la cuota virtual del mes en
-  // curso (se calculan juntos, en el mismo fetch). Una cuota real ya creada
-  // en la tabla `cuotas` tiene su monto congelado al momento de generarse, así
-  // que mostrarle un desglose con precios de hoy podría no sumar ese total
-  // (por ejemplo, después de un aumento de cuota). Para esas, mostramos sólo
-  // el total sin fabricar un desglose que no le corresponde.
+  // El desglose sólo existe para la cuota virtual (ver desgloseVirtual), que
+  // se calcula en el mismo fetch que su monto. Una cuota real ya creada en la
+  // tabla `cuotas` tiene su monto congelado al momento de generarse, así que
+  // mostrarle un desglose con precios de hoy podría no sumar ese total (por
+  // ejemplo, después de un aumento de cuota). Para esas, mostramos sólo el
+  // total sin fabricar un desglose que no le corresponde.
   const esVirtual = cuota.id.startsWith('virtual-')
 
   return (
@@ -97,20 +140,16 @@ function PagoModal({
           {/* Handle */}
           <View style={m.handle} />
 
-          <Text style={m.sheetTitle}>{periodoLabel(cuota.periodo).toUpperCase()}</Text>
+          <Text style={m.sheetTitle}>{titulo}</Text>
 
           {/* Desglose */}
           <View style={m.breakdown}>
-            {esVirtual && (
+            {esVirtual && desglose.length > 0 && (
               <>
-                <View style={m.bRow}>
-                  <Text style={m.bLabel}>{categoriaLabel || 'Cuota base'}</Text>
-                  <Text style={m.bMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
-                </View>
-                {serviciosActivos.map(srv => (
-                  <View key={srv.id} style={m.bRow}>
-                    <Text style={m.bLabel}>{srv.nombre}</Text>
-                    <Text style={m.bMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
+                {desglose.map(f => (
+                  <View key={f.key} style={m.bRow}>
+                    <Text style={m.bLabel}>{f.label}</Text>
+                    <Text style={m.bMonto}>${f.monto.toLocaleString('es-AR')}</Text>
                   </View>
                 ))}
                 <View style={m.bSep} />
@@ -132,7 +171,7 @@ function PagoModal({
           {/* Acción */}
           <TouchableOpacity
             style={m.subirBtn}
-            onPress={() => Linking.openURL(whatsappComprobanteUrl(cuota.periodo, cuota.monto))}
+            onPress={() => Linking.openURL(whatsappComprobanteUrl(conceptoMensaje, cuota.monto))}
             activeOpacity={0.8}
           >
             <Feather name="send" size={14} color={colors.oro} />
@@ -268,24 +307,22 @@ function DeudaClubModal({ onClose, socioId }: { onClose: () => void; socioId?: s
 function CuotaCard({
   cuota,
   onVerPago,
-  categoriaLabel,
-  montoCategoria,
-  serviciosActivos,
+  titulo,
+  desglose,
 }: {
   cuota:            Cuota
   onVerPago:        (c: Cuota) => void
-  categoriaLabel:   string
-  montoCategoria:   number
-  serviciosActivos: ServicioActivo[]
+  titulo:           string
+  desglose:         FilaDesglose[]
 }) {
   const [expandida, setExpandida] = useState(false)
 
   const pagada      = cuota.estado === 'pagado'
   const enRevision  = cuota.estado === 'en_revision'
   const pendiente   = cuota.estado === 'pendiente'
-  // Mismo criterio que PagoModal: el desglose con precios de hoy sólo es
-  // fiel para la cuota virtual del mes en curso, no para una cuota real ya
-  // creada con un monto congelado de otro momento.
+  // Mismo criterio que PagoModal: el desglose sólo es fiel para la cuota
+  // virtual, no para una cuota real ya creada con un monto congelado de otro
+  // momento.
   const esVirtual   = cuota.id.startsWith('virtual-')
 
   const borderColor = pagada ? '#1A7A1A' : enRevision ? colors.oroHondo : '#2C2418'
@@ -301,7 +338,7 @@ function CuotaCard({
       {/* Fila principal */}
       <View style={s.cardRow}>
         <View style={s.cardLeft}>
-          <Text style={s.cardPeriodo}>{periodoLabel(cuota.periodo).toUpperCase()}</Text>
+          <Text style={s.cardPeriodo}>{titulo}</Text>
           <Text style={s.cardMonto}>{montoStr(cuota.monto)}</Text>
         </View>
         <View style={s.cardRight}>
@@ -320,17 +357,13 @@ function CuotaCard({
       {/* Expansión */}
       {expandida && (
         <View style={s.detalle}>
-          {/* Desglose — sólo para la cuota virtual del mes en curso, ver nota arriba */}
-          {esVirtual && !!categoriaLabel && (
+          {/* Desglose — sólo para la cuota virtual, ver nota arriba */}
+          {esVirtual && desglose.length > 0 && (
             <View style={s.desgloseBox}>
-              <View style={s.desgloseRow}>
-                <Text style={s.desgloseItem}>{categoriaLabel}</Text>
-                <Text style={s.desgloseMonto}>${montoCategoria.toLocaleString('es-AR')}</Text>
-              </View>
-              {serviciosActivos.map(srv => (
-                <View key={srv.id} style={s.desgloseRow}>
-                  <Text style={s.desgloseItem}>{srv.nombre}</Text>
-                  <Text style={s.desgloseMonto}>${srv.monto_mensual.toLocaleString('es-AR')}</Text>
+              {desglose.map(f => (
+                <View key={f.key} style={s.desgloseRow}>
+                  <Text style={s.desgloseItem}>{f.label}</Text>
+                  <Text style={s.desgloseMonto}>${f.monto.toLocaleString('es-AR')}</Text>
                 </View>
               ))}
             </View>
@@ -378,14 +411,15 @@ export default function CuotasScreen() {
   const {
     cuotas, loading, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
-    alDia, deudaActualizadaAt,
+    alDia, deudaActualizadaAt, deuda, pendientes,
   } = useCuotas(socioId)
 
   const [cuotaModal, setCuotaModal] = useState<Cuota | null>(null)
   const [deudaModal, setDeudaModal] = useState(false)
 
-  const pendientes   = cuotas.filter(c => c.estado === 'pendiente').length
   const enRevision   = cuotas.filter(c => c.estado === 'en_revision').length
+  const fechaCorte   = deuda?.fechaCorte ?? deudaActualizadaAt
+  const desglose     = desgloseVirtual(deuda, categoriaLabel, montoCategoria, serviciosActivos)
 
   return (
     <View style={s.root}>
@@ -482,9 +516,8 @@ export default function CuotasScreen() {
             <CuotaCard
               cuota={item}
               onVerPago={c => setCuotaModal(c)}
-              categoriaLabel={categoriaLabel}
-              montoCategoria={montoCategoria}
-              serviciosActivos={serviciosActivos}
+              titulo={tituloCuota(item, fechaCorte)}
+              desglose={desglose}
             />
           )}
           ListEmptyComponent={
@@ -499,9 +532,9 @@ export default function CuotasScreen() {
         <PagoModal
           cuota={cuotaModal}
           onClose={() => setCuotaModal(null)}
-          categoriaLabel={categoriaLabel}
-          montoCategoria={montoCategoria}
-          serviciosActivos={serviciosActivos}
+          titulo={tituloCuota(cuotaModal, fechaCorte)}
+          conceptoMensaje={conceptoWhatsapp(cuotaModal, fechaCorte)}
+          desglose={desglose}
         />
       )}
 

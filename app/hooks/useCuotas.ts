@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useAuthStore } from '@/stores/authStore'
+import { contarPendientes, deudaTotal } from '@/lib/deudaSocio'
+import { cargarDeudaDetalle, type DeudaDetalle } from './useDeudaDetalle'
 
 export interface Cuota {
   id:                string
@@ -10,6 +12,9 @@ export interface Cuota {
   estado:            'pendiente' | 'en_revision' | 'pagado'
   fecha_pago:        string | null
   comprobante_path:  string | null
+  // Sólo la cuota virtual: períodos de NUVIX que cubre su monto (vacío si la
+  // deuda es sólo saldo anterior).
+  periodosNuvix?:    string[]
 }
 
 export interface ServicioActivo {
@@ -42,6 +47,8 @@ export function useCuotas(socioId?: string) {
   // propósito: el socio no ve colores ni se compara contra otros socios.
   const [alDia,             setAlDia]             = useState(true)
   const [deudaActualizadaAt, setDeudaActualizadaAt] = useState<string | null>(null)
+  // Deuda NUVIX detrás de la cuota virtual (null si no hay cuota virtual).
+  const [deuda,             setDeuda]             = useState<DeudaDetalle | null>(null)
 
   const fetch = useCallback(async () => {
     if (!session?.user.id) return
@@ -109,24 +116,41 @@ export function useCuotas(socioId?: string) {
     // de deuda real. Tampoco se ofrece si el socio paga con débito automático
     // (cobro_con_tarjeta) — a esos no les corresponde transferir por alias, el
     // cobro es automático y el semáforo puede tardar en reflejarlo.
+    // El monto es la deuda real de NUVIX (todos los períodos vencidos + saldo
+    // anterior, sin el plan de regularización) — misma query que el modal
+    // "Deuda según el club", para que los dos números coincidan. Si por algún
+    // motivo no hay comprobantes (importación sin filas de este socio), cae al
+    // total mensual como antes.
     const hoy = periodoHoy()
+    let deudaVirtual: DeudaDetalle | null = null
     if (!alDiaSegunClub && !socio.cobro_con_tarjeta && !normalized.some(c => c.periodo === hoy)) {
+      const { data: detalle } = await cargarDeudaDetalle(socio.id)
+      const totalDeuda = detalle ? deudaTotal(detalle) : 0
+      deudaVirtual = detalle
       normalized.unshift({
         id:               `virtual-${hoy}`,
         periodo:          hoy,
-        monto:            total,
+        monto:            totalDeuda > 0 ? totalDeuda : total,
         estado:           'pendiente',
         fecha_pago:       null,
         comprobante_path: null,
+        periodosNuvix:    detalle ? detalle.periodos.map(p => p.periodo) : [],
       })
     }
 
+    setDeuda(deudaVirtual)
     setCuotas(normalized)
     setLoading(false)
   }, [session, socioId])
 
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
+
+  const virtual = cuotas.find(c => c.id.startsWith('virtual-'))
+  const pendientes = contarPendientes({
+    periodosPendientes: cuotas.filter(c => c.estado === 'pendiente' && c !== virtual).map(c => c.periodo),
+    periodosNuvix:      virtual ? virtual.periodosNuvix ?? [] : null,
+  })
 
   return {
     cuotas,
@@ -138,5 +162,7 @@ export function useCuotas(socioId?: string) {
     montoCategoria,
     alDia,
     deudaActualizadaAt,
+    deuda,
+    pendientes,
   }
 }
