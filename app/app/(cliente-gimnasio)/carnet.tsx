@@ -51,10 +51,7 @@ export default function CarnetClienteGimnasioScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  // tickEnData: false — la cuenta regresiva vive en CuentaRegresivaQR (mismo
-  // componente que el carnet de socio), así la pantalla sólo se re-renderiza
-  // cuando cambia el código (cada 60s).
-  const { loading, error, data, refresh } = useCarnet(undefined, { tickEnData: false })
+  const { loading, error, data, refresh } = useCarnet()
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = useCallback(async () => {
@@ -198,5 +195,5 @@ const s = StyleSheet.create({
   },
 
   errorContainer: { padding: 40, alignItems: 'center' },
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
 })

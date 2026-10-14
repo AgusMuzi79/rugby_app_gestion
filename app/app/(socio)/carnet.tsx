@@ -202,9 +202,7 @@ export default function CarnetScreen() {
   // Tutor (also served from app/(tutor)/carnet.tsx): always the selected minor's
   // carnet. For every other role socioIdTutor is undefined -> unchanged.
   const { esTutor, socioId: socioIdTutor } = useSocioObjetivo()
-  // tickEnData: false — la cuenta regresiva vive en CuentaRegresivaQR, así la
-  // pantalla sólo se re-renderiza cuando cambia el código (cada 60s).
-  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined, { tickEnData: false })
+  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
   const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
