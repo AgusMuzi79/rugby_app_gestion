@@ -267,7 +267,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
-  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oroSobreClaro },
   edicionFecha: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   filtroBar: {
@@ -313,7 +313,7 @@ const s = StyleSheet.create({
   },
   bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: ORO },
 
-  errorTexto:    { fontFamily: fonts.cuerpo, color: ROJO, fontSize: 16 },
+  errorTexto:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16 },
   reintentarBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: ORO, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1 },
 })

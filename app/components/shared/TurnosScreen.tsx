@@ -240,7 +240,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderRadius: 4, padding: 14,
     backgroundColor: '#1C1710', borderColor: '#2C2418',
   },
-  fijoAviso: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.rojoUrgente, marginTop: 2 },
+  fijoAviso: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.rojoTexto, marginTop: 2 },
 
   dia:       { marginTop: 14, gap: 8 },
   diaTitulo: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
   estadoNeutro: { color: '#8E8574' },
 
   linkFijo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oroHondo },
-  linkCancelar: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.rojoUrgente },
+  linkCancelar: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.rojoTexto },
 
   errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, color: '#F3EFE4', textAlign: 'center' },
   reintentar:     { borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 24 },

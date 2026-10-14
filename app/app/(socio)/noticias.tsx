@@ -241,7 +241,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -274,7 +274,7 @@ const s = StyleSheet.create({
   filtroText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
   },
-  filtroTextActivo:  { color: colors.oro },
+  filtroTextActivo:  { color: colors.sobreOro },
   filtroTextInactivo:{ color: '#8E8574' },
 
   // Cards
@@ -306,8 +306,8 @@ const s = StyleSheet.create({
 
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
-  errorTexto:      { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 16, textAlign: 'center' },
-  errorRecarga:    { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 14, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
+  errorRecarga:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 14, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
   reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })

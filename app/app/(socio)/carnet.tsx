@@ -52,6 +52,12 @@ function estadoVisual(data: { estado: string; semaforo: string | null }): string
   return data.estado
 }
 
+// Texto del badge de estado: oscuro sobre verde / naranja (el blanco no llega
+// a 4.5:1), blanco sobre rojo (MOROSO / INACTIVO, 4.82).
+function estadoTextoColor(estado: string): string {
+  return estado === 'activo' || estado === 'pendiente' ? colors.sobreOro : colors.blanco
+}
+
 // ─── Tarjeta física ───────────────────────────────────────────────────────────
 
 const CARD_WIDTH  = Dimensions.get('window').width - 48
@@ -148,7 +154,7 @@ function TarjetaFisicaModal({
                 <RolesChips roles={data.roles} />
 
                 <View style={[tm.estadoChip, { backgroundColor: ESTADO_BG[estadoVisual(data)] ?? '#555' }]}>
-                  <Text style={tm.estadoChipText}>
+                  <Text style={[tm.estadoChipText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                     {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                   </Text>
                 </View>
@@ -289,8 +295,8 @@ export default function CarnetScreen() {
               onPress={() => router.navigate('/(socio)/sobre')}
               activeOpacity={0.8}
             >
-              <Feather name="camera" size={14} color={colors.tinta} />
-              <Text style={[s.bannerText, { color: colors.tinta }]}>
+              <Feather name="camera" size={14} color={colors.sobreOro} />
+              <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                 Todavía no subiste tu foto de perfil. Tocá para subirla desde Mi Perfil.
               </Text>
             </TouchableOpacity>
@@ -318,7 +324,7 @@ export default function CarnetScreen() {
 
               {/* Estado */}
               <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
-                <Text style={s.estadoText}>
+                <Text style={[s.estadoText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                   {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
                 </Text>
               </View>
@@ -376,7 +382,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -452,7 +458,7 @@ const s = StyleSheet.create({
   errorContainer: { padding: 40, alignItems: 'center', gap: 12 },
   reintentarBtn:  { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto:{ fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
-  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoUrgente },
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
 
   verCarnetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -494,11 +500,11 @@ const tm = StyleSheet.create({
   },
   cardClub: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2.5,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   cardYear: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1,
-    color: colors.oroHondo,
+    color: colors.oroSobreClaro,
   },
   cardBody: {
     flex: 1, flexDirection: 'row', alignItems: 'center',
@@ -568,7 +574,7 @@ const tm = StyleSheet.create({
   },
   badgeJText: {
     fontFamily: fonts.titulo, fontSize: 13, lineHeight: 12,
-    color: colors.tinta,
+    color: colors.sobreOro,
   },
   cardFooter: {
     alignItems: 'center', paddingVertical: 6,
@@ -577,7 +583,7 @@ const tm = StyleSheet.create({
   },
   cardFooterText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 3,
-    textTransform: 'uppercase', color: colors.oroHondo,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
 
   // Botón cerrar

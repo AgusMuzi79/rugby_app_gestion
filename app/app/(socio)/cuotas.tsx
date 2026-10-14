@@ -357,6 +357,8 @@ function CuotaCard({
   const borderColor = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : noRegistrado ? colors.rojoUrgente : '#2C2418'
   const badgeBg     = pagada ? '#1A7A1A' : enRevision || enviado ? colors.oroHondo : '#3A2800'
   const badgeLabel  = pagada ? 'PAGADA' : enRevision ? 'EN REVISIÓN' : enviado ? 'ENVIADO' : noRegistrado ? 'NO REGISTRADO' : 'PENDIENTE'
+  // Sobre oroHondo el texto crema no llega a 4.5:1 → texto oscuro.
+  const badgeTexto  = enRevision || enviado ? colors.sobreOro : TEXTO
 
   return (
     <TouchableOpacity
@@ -372,7 +374,7 @@ function CuotaCard({
         </View>
         <View style={s.cardRight}>
           <View style={[s.estadoBadge, { backgroundColor: badgeBg }]}>
-            <Text style={s.estadoText}>{badgeLabel}</Text>
+            <Text style={[s.estadoText, { color: badgeTexto }]}>{badgeLabel}</Text>
           </View>
           <Feather
             name={expandida ? 'chevron-up' : 'chevron-down'}
@@ -447,7 +449,7 @@ function CuotaCard({
           onPress={() => onVerPago(cuota)}
           activeOpacity={0.8}
         >
-          <Feather name="arrow-right-circle" size={14} color={colors.tinta} />
+          <Feather name="arrow-right-circle" size={14} color={colors.sobreOro} />
           <Text style={s.pagarBtnText}>VER CÓMO PAGAR</Text>
         </TouchableOpacity>
       )}
@@ -552,8 +554,8 @@ export default function CuotasScreen() {
               {/* Banners de alerta */}
               {pendientes > 0 && (
                 <View style={[s.banner, s.bannerPendiente]}>
-                  <Feather name="alert-circle" size={14} color="#F3EFE4" />
-                  <Text style={s.bannerText}>
+                  <Feather name="alert-circle" size={14} color={colors.sobreOro} />
+                  <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                     {pendientes === 1
                       ? 'Tenés 1 cuota pendiente de pago.'
                       : `Tenés ${pendientes} cuotas pendientes de pago.`}
@@ -562,8 +564,8 @@ export default function CuotasScreen() {
               )}
               {enRevision > 0 && (
                 <View style={[s.banner, s.bannerRevision]}>
-                  <Feather name="clock" size={14} color={colors.tinta} />
-                  <Text style={[s.bannerText, { color: colors.tinta }]}>
+                  <Feather name="clock" size={14} color={colors.sobreOro} />
+                  <Text style={[s.bannerText, { color: colors.sobreOro }]}>
                     {enRevision === 1
                       ? '1 comprobante en revisión por Secretaría.'
                       : `${enRevision} comprobantes en revisión por Secretaría.`}
@@ -644,7 +646,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.tinta,
   },
-  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oro },
+  edicionLabel: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: colors.oroSobreClaro },
   edicionFecha: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.grisClaro },
 
   secRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -716,14 +718,14 @@ const s = StyleSheet.create({
     backgroundColor: colors.oro, paddingVertical: 12, borderRadius: 4,
   },
   pagarBtnCard: { marginTop: 14 },
-  pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.tinta },
+  pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.sobreOro },
 
   emptyContainer: { paddingTop: 60, alignItems: 'center' },
   emptyText:      { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
-  errorTexto:      { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 16, textAlign: 'center' },
+  errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
   reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
