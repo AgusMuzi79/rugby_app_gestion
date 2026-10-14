@@ -1,8 +1,12 @@
 import {
-  View, Text, Image, FlatList, StyleSheet, ActivityIndicator,
+  View, Text, FlatList, StyleSheet, ActivityIndicator,
   TouchableOpacity, Modal, ScrollView,
 } from 'react-native'
 import { useState, useMemo, useRef } from 'react'
+// expo-image: caché en memoria y disco, las imágenes de noticias no se vuelven
+// a bajar cada vez que se abre la pestaña. contentFit="cover" = el resizeMode
+// por defecto del Image de react-native que se usaba antes.
+import { Image } from 'expo-image'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
@@ -94,7 +98,7 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
       </View>
 
       {noticia.imagenUrl && (
-        <Image source={{ uri: noticia.imagenUrl }} style={s.cardImagen} />
+        <Image source={{ uri: noticia.imagenUrl }} style={s.cardImagen} contentFit="cover" cachePolicy="memory-disk" />
       )}
 
       <Text style={s.cardTitulo}>{noticia.titulo}</Text>
@@ -135,7 +139,7 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
 
           <ScrollView style={m.scroll} showsVerticalScrollIndicator={false}>
             {noticia.imagenUrl && (
-              <Image source={{ uri: noticia.imagenUrl }} style={m.imagen} />
+              <Image source={{ uri: noticia.imagenUrl }} style={m.imagen} contentFit="cover" cachePolicy="memory-disk" />
             )}
             <Text style={m.titulo}>{noticia.titulo}</Text>
             <View style={[s.divider, { marginVertical: 12 }]} />
