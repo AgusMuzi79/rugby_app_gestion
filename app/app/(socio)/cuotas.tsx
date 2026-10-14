@@ -712,13 +712,13 @@ const s = StyleSheet.create({
 
   escribirBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 12,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4, paddingVertical: 12, minHeight: 44,
   },
   escribirBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   pagarBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: colors.oro, paddingVertical: 12, borderRadius: 4,
+    backgroundColor: colors.oro, paddingVertical: 12, minHeight: 44, borderRadius: 4,
   },
   pagarBtnCard: { marginTop: 14 },
   pagarBtnText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.sobreOro },
@@ -729,7 +729,7 @@ const s = StyleSheet.create({
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
-  reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarBtn:   { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
@@ -781,7 +781,7 @@ const m = StyleSheet.create({
     fontStyle: 'italic', textAlign: 'center', lineHeight: 17,
   },
 
-  cerrarBtn: { alignItems: 'center', paddingVertical: 8 },
+  cerrarBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 8, minHeight: 44 },
   cerrarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: '#8E8574' },
 })
 

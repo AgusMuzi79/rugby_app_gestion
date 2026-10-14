@@ -276,7 +276,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, gap: 8,
   },
   filtroChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 22, minHeight: 44, justifyContent: 'center',
     borderWidth: 1, borderColor: DIVIDER, backgroundColor: CARD,
   },
   filtroChipActivo:      { backgroundColor: ORO, borderColor: ORO },
@@ -316,6 +316,6 @@ const s = StyleSheet.create({
   bannerJugadorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: ORO },
 
   errorTexto:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16 },
-  reintentarBtn: { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: ORO, borderRadius: 4 },
+  reintentarBtn: { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: ORO, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: ORO, letterSpacing: 1 },
 })

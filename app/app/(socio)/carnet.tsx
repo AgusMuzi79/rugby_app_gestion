@@ -403,7 +403,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 14,
   },
   familiaChip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, minHeight: 44, justifyContent: 'center',
     backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418',
   },
   familiaChipActivo: {
@@ -461,7 +461,7 @@ const s = StyleSheet.create({
   },
 
   errorContainer: { padding: 40, alignItems: 'center', gap: 12 },
-  reintentarBtn:  { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarBtn:  { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto:{ fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
   errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
 
@@ -469,7 +469,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginTop: 8,
     borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 4,
-    paddingVertical: 12,
+    paddingVertical: 12, minHeight: 44,
   },
   verCarnetText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
@@ -593,7 +593,7 @@ const tm = StyleSheet.create({
 
   // Botón cerrar
   cerrarBtn: {
-    paddingHorizontal: 32, paddingVertical: 12,
+    paddingHorizontal: 32, paddingVertical: 12, minHeight: 44, justifyContent: 'center',
     borderWidth: 1, borderColor: '#3A2E1E', borderRadius: 4,
   },
   cerrarText: {

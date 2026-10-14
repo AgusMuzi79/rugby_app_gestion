@@ -268,7 +268,7 @@ const s = StyleSheet.create({
   },
   filtroChip: {
     flex: 1, borderWidth: 1, borderRadius: 3,
-    paddingHorizontal: 12, paddingVertical: 6,
+    paddingHorizontal: 12, paddingVertical: 6, minHeight: 44, justifyContent: 'center',
     alignItems: 'center',
   },
   filtroChipActivo:  { backgroundColor: colors.tinta, borderColor: colors.tinta },
@@ -310,7 +310,7 @@ const s = StyleSheet.create({
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   errorTexto:      { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 16, textAlign: 'center' },
   errorRecarga:    { fontFamily: fonts.cuerpo, color: colors.rojoTexto, fontSize: 14, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
+  reintentarBtn:   { minHeight: 44, justifyContent: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })
 
