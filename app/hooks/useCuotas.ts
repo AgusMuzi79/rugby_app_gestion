@@ -74,14 +74,20 @@ export function useCuotas(socioId?: string) {
   const [deuda,             setDeuda]             = useState<DeudaDetalle | null>(null)
   const [comprobantes,      setComprobantes]      = useState<ComprobanteConEstado[]>([])
   const registradosRef = useRef(new Map<string, ComprobanteConEstado>())
+  const reqRef         = useRef(0)
 
   const fetch = useCallback(async () => {
     if (!session?.user.id) return
+    // Sólo la última carga escribe estado: si el tutor cambia de menor (o hay
+    // un refetch encima), la respuesta de la carga anterior se descarta.
+    const req = ++reqRef.current
+    const vigente = () => req === reqRef.current
     setLoading(true)
 
     // Un fetch fallido (sin red, RLS, etc.) no puede verse como "no hay
     // cuotas" ni como "al día": se limpia todo y la pantalla muestra el error.
     const fallar = () => {
+      if (!vigente()) return
       setError('No se pudieron cargar tus cuotas. Revisá tu conexión.')
       setCuotas([])
       setAlDia(null)
@@ -97,7 +103,10 @@ export function useCuotas(socioId?: string) {
       .maybeSingle()
 
     if (errSocio) { fallar(); return }
-    if (!socio) { setError(null); setLoading(false); return }
+    if (!socio) {
+      if (vigente()) { setError(null); setLoading(false) }
+      return
+    }
 
     const alDiaSegunClub = !['amarillo', 'rojo'].includes(socio.semaforo)
 
@@ -177,15 +186,24 @@ export function useCuotas(socioId?: string) {
     // Comprobantes mandados por WhatsApp desde este dispositivo, contra la
     // última importación. Los REGISTRADO se muestran una vez: se borran de
     // AsyncStorage acá y quedan en memoria mientras la pantalla esté montada.
-    const periodosAdeudados = detalle ? detalle.periodos.map(p => p.periodo) : []
+    // Adeudado = período en NUVIX o cuota de la app todavía sin pagar. Si hay
+    // deuda que NUVIX no asigna a un período, un período que dejó de figurar
+    // no alcanza para dar el pago por registrado.
+    const periodosAdeudados = [
+      ...(detalle ? detalle.periodos.map(p => p.periodo) : []),
+      ...normalized.filter(c => !c.id.startsWith('virtual-') && c.estado !== 'pagado').map(c => c.periodo),
+    ]
+    const deudaSinPeriodo = !alDiaSegunClub &&
+      (!detalle || detalle.periodos.length === 0 || detalle.saldoAnterior > 0)
     const prefijo = prefijoComprobantes(socioId)
     const guardados = await leerComprobantesEnviados(prefijo)
+    if (!vigente()) return
     const conEstado: ComprobanteConEstado[] = guardados.map(e => ({
       ...e,
       estado: estadoComprobante(
         e.enviadoAt,
         detalle?.fechaCorte ?? null,
-        sigueAdeudado(e.periodos, periodosAdeudados, !alDiaSegunClub),
+        sigueAdeudado(e.periodos, periodosAdeudados, !alDiaSegunClub, deudaSinPeriodo),
       ),
     }))
     for (const e of conEstado) {
@@ -195,6 +213,7 @@ export function useCuotas(socioId?: string) {
       }
     }
     const vigentes = conEstado.filter(e => e.estado !== 'REGISTRADO')
+    if (!vigente()) return
 
     setError(null)
     setAlDia(alDiaSegunClub)
@@ -215,6 +234,7 @@ export function useCuotas(socioId?: string) {
   // El tutor cambió de menor: no mostrar las cuotas del anterior mientras
   // cargan las nuevas (la pantalla sólo muestra spinner si no hay datos).
   useEffect(() => {
+    reqRef.current++
     setCargado(false)
     setCuotas([])
     setAlDia(null)

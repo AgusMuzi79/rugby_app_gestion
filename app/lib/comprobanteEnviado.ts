@@ -66,11 +66,22 @@ export function parseEntradaComprobante(clave: string, raw: string | null): Comp
   }
 }
 
-// Una entrada sigue adeudada si alguno de sus períodos sigue figurando en
-// NUVIX. Sin períodos (sólo saldo anterior): si el socio sigue con deuda.
-export function sigueAdeudado(cubiertos: string[], periodosAdeudados: string[], hayDeuda: boolean): boolean {
+// Una entrada sigue adeudada si alguno de sus períodos sigue figurando como
+// adeudado (NUVIX o cuota pendiente de la app). Sin períodos (sólo saldo
+// anterior): si el socio sigue con deuda.
+// deudaSinPeriodo: hay deuda que NUVIX no asigna a un período (saldo anterior,
+// o semáforo con deuda sin filas en la importación). Un período que dejó de
+// figurar puede estar ahí adentro, así que no alcanza para dar el pago por
+// registrado: ante la duda, NO_REGISTRADO y nunca un REGISTRADO falso.
+export function sigueAdeudado(
+  cubiertos: string[],
+  periodosAdeudados: string[],
+  hayDeuda: boolean,
+  deudaSinPeriodo = false,
+): boolean {
   if (cubiertos.length === 0) return hayDeuda
-  return cubiertos.some(p => periodosAdeudados.includes(p))
+  if (cubiertos.some(p => periodosAdeudados.includes(p))) return true
+  return deudaSinPeriodo
 }
 
 // El comprobante que corresponde mostrar en una card: el más reciente cuyos

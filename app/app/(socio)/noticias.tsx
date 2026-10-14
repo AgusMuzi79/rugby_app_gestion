@@ -181,6 +181,13 @@ export default function NoticiasPublicasScreen() {
         <FiltroBar filtro={filtro} onChange={setFiltro} />
       </View>
 
+      {/* Falló una recarga con noticias ya en pantalla: se avisa sin tapar la lista */}
+      {error && noticias.length > 0 && (
+        <Text style={s.errorRecarga} accessibilityRole="alert">
+          No se pudieron actualizar las noticias. Deslizá hacia abajo para reintentar.
+        </Text>
+      )}
+
       {/* Spinner sólo sin datos: al volver a la pestaña la lista queda montada */}
       {loading && noticias.length === 0 ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
@@ -300,6 +307,7 @@ const s = StyleSheet.create({
   // Error de carga — mismo patrón que calendario.tsx
   centrado:        { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   errorTexto:      { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 16, textAlign: 'center' },
+  errorRecarga:    { fontFamily: fonts.cuerpo, color: '#EF4444', fontSize: 14, textAlign: 'center', paddingHorizontal: 16, paddingVertical: 8 },
   reintentarBtn:   { marginTop: 8, paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: colors.oro, borderRadius: 4 },
   reintentarTexto: { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 1 },
 })

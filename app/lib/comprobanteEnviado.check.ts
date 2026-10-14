@@ -112,6 +112,15 @@ caso('sigueAdeudado: sólo saldo anterior depende de si hay deuda', () => {
   assert.equal(sigueAdeudado([], [], false), false)
 })
 
+caso('sigueAdeudado: deuda sin período (saldo anterior o importación sin filas) no confirma el pago', () => {
+  // cuota real 2026-09 que ya no figura como período, pero el socio sigue con
+  // deuda que NUVIX no asigna a ningún período: puede estar ahí adentro
+  assert.equal(sigueAdeudado(['2026-09'], [], true, true), true)
+  assert.equal(sigueAdeudado(['2026-09'], ['2026-10'], true, true), true)
+  // sin deuda sin período, el período que ya no figura sí quedó registrado
+  assert.equal(sigueAdeudado(['2026-09'], ['2026-10'], true, false), false)
+})
+
 const e = (clave: string, enviadoAt: string, periodos: string[]): ComprobanteEnviado => ({ clave, enviadoAt, periodos })
 
 caso('comprobanteParaPeriodos: el más reciente que se solapa', () => {
