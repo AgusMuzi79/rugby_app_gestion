@@ -16,8 +16,10 @@ const config = {
     backgroundColor: '#15110A',
   },
   ios: {
-    // Sin layout de iPad todavía: el carnet (CARD_WIDTH) se estira a ~720pt.
-    supportsTablet: false,
+    // Se mantiene en true: la 1.0.8 salió con soporte de iPad y App Store
+    // Connect rechaza un build que saca una familia de dispositivos. En iPad
+    // el carnet queda con ancho máximo (CARD_WIDTH en (socio)/carnet.tsx).
+    supportsTablet: true,
     bundleIdentifier: IS_DEV ? 'com.uncas.rugbyapp.dev' : 'com.uncas.rugbyapp',
     // Apple rechaza el ícono si tiene canal alfa — a diferencia de `icon`/Android,
     // no puede reusar logo.png (tiene transparencia). Ver assets/images/icon-store-512.png.

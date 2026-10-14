@@ -158,7 +158,9 @@ function PagoModal({
   // desmontar (cerrar el modal) para no hacer setState sobre un componente ido.
   const [copiado, setCopiado] = useState(false)
   const copiadoTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const montado        = useRef(true)
   useEffect(() => () => {
+    montado.current = false
     if (copiadoTimeout.current) clearTimeout(copiadoTimeout.current)
   }, [])
 
@@ -169,6 +171,8 @@ function PagoModal({
     } catch {
       return
     }
+    // El modal pudo cerrarse mientras se copiaba: no tocar estado ni dejar timers.
+    if (!montado.current) return
     setCopiado(true)
     if (copiadoTimeout.current) clearTimeout(copiadoTimeout.current)
     copiadoTimeout.current = setTimeout(() => setCopiado(false), 2000)

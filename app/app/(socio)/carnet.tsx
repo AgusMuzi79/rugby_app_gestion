@@ -60,7 +60,8 @@ function estadoTextoColor(estado: string): string {
 
 // ─── Tarjeta física ───────────────────────────────────────────────────────────
 
-const CARD_WIDTH  = Dimensions.get('window').width - 48
+// Ancho máximo para que en iPad (supportsTablet) no se estire a ~720pt.
+const CARD_WIDTH  = Math.min(Dimensions.get('window').width - 48, 420)
 const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.63) // proporción ID card 85.6×54mm
 
 const ESTADO_BG: Record<string, string> = {
