@@ -178,3 +178,9 @@ Post-deploy sanity checks (read-only SQL):
 - `select policyname, cmd from pg_policies where tablename = 'solicitudes_baja';` → 4 policies (insert own, select own, Secretaría/admin select, update), no DELETE.
 - RLS test idea: as a socio test account, insert `{profile_id: own, socio_id: own}` → ok; second insert → 23505; insert with someone else's `socio_id` or `profile_id` → RLS error; select → only own rows; update → 0 rows. As Secretaría: list + mark processed from the panel. As a socio: try `update socios set nombre_padron = 'X'` on own row → "No autorizado".
 - Next real padrón import: preview should not list mass "actualizados" for names; after confirming, a socio who edited their name in Mi perfil keeps it in Mi perfil and sees the padrón name on the carnet.
+- 2026-10-14 Tanda 3 review (RDD): assess over `5a757b9..9271608` = medium, `slice_budget_reached` (24 files, 938 lines; includes the Tanda 2 fix `6191b35`, `under_budget` alone); user granted consent; lens `review-reliability` → approved, acknowledged (authority burned). Findings fixed by user decision in commit `4b17f57` (route: inline):
+  - `nuevoCargadoAt` started the 50-min window on a name-only save when no photo had loaded yet (or on user change), blocking the photo fetch: now only a new photo starts it; otherwise it keeps the previous value for the same user or `null`. RED: `AssertionError actual 2800000, expected null`. GREEN: `12 casos OK`.
+  - `supabase/functions/_shared/nombre-padron.check.ts` now runs in `test:admin` (`6 casos OK`).
+  - `useSolicitudBaja`: on a duplicate (23505) whose reload also fails, the row shows as pending instead of keeping the button after the success Alert.
+  - Still uncovered by automated checks: hook-level paths (duplicate reload, read-error fallback, `useCarnet` 42703 retry).
+  - `npx tsc --noEmit` exit 0; `npm run test:admin` exit 0. Not verified on device.
