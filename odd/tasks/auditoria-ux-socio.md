@@ -100,7 +100,8 @@ Root cause of most contrast failures: commit `cab360a` (new visual identity) inv
 
 Branch `fix/auditoria-ux-followups` (from `main` @ `c28da75`). The open follow-ups from the 2026-10-14 Status line, one work commit each.
 
-- [ ] F1 — **"CERRAR SESIÓN" contrast** (WCAG 1.4.3). Mi perfil (socio `SobreScreen.tsx`, tutor `(tutor)/sobre.tsx`) uses `rojoUrgente #CC4127` on `fondo` = 3.90. Use the existing `rojoTexto` (5.57); pair asserted in `contraste.check.ts`. No token value changes.
+- [x] F1 — **"CERRAR SESIÓN" contrast** (WCAG 1.4.3). Mi perfil (socio `SobreScreen.tsx`, tutor `(tutor)/sobre.tsx`) uses `rojoUrgente #CC4127` on `fondo` = 3.90. Use the existing `rojoTexto` (5.57); pair asserted in `contraste.check.ts`. No token value changes. — commit `79406c9`
+  - Evidence (route: delegated writer): text and border of CERRAR SESIÓN → `colors.rojoTexto` in both screens (tutor's local `ROJO = '#CC4127'` constant removed). RED: new pair "CERRAR SESIÓN sobre fondo" with `rojoUrgente` → `AssertionError` (exit 1). GREEN: pair with `rojoTexto` = 5.57, `22 casos OK`. `npx tsc --noEmit` exit 0; `npm run test:admin` exit 0. OTA-able. Not verified on device.
 - [ ] F2 — **`admin-socios` manual alta sets `nombre_padron`** (and keeps it in sync when Secretaría edits the name), plus the web Secretaría path if it writes names directly.
 - [ ] F3 — **cliente-gimnasio carnet uses `CarnetQR`**; drop `useCarnet({ tickEnData })` and `secondsLeft` if unused.
 - [ ] F4 — **`.claude/context/estado-expo.md` theme section** matches the fixed dark `ThemeContext` derived from `constants/theme.ts`.
