@@ -53,6 +53,9 @@ const pares: [string, string, string][] = [
   ['sobreOro sobre confirmacion (Mi perfil Guardar ✓)', colors.sobreOro, colors.confirmacion],
   // Mi perfil (socio y tutor): texto y borde de CERRAR SESIÓN sobre el fondo.
   ['CERRAR SESIÓN sobre fondo (Mi perfil)', colors.rojoTexto, colors.fondo],
+  // Cuotas, modal de pago: botón COPIAR ALIAS / ✓ COPIADO dentro del recuadro del alias.
+  ['COPIAR ALIAS sobre fondo (modal de pago)', colors.oro, colors.fondo],
+  ['✓ COPIADO sobre fondo (modal de pago)', colors.confirmacion, colors.fondo],
   // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN)
   ['etiqueta activa de la tab bar', '#E8B53C', '#0E0E0E'],
   ['etiqueta inactiva de la tab bar', '#8E8574', '#0E0E0E'],
