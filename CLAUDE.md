@@ -99,9 +99,8 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - **OTA sobre 1.0.8** (2026-10-09, `eas update --branch production`, Android + iOS, grupo `36c30c7b`): Manager crea viajes/tercer tiempos, eventos con varias divisiones, monto sugerido en cobranzas. Las OTA se publican desde el checkout principal (necesitan `app/.env.local`, que los worktrees no tienen).
 - **OTA sobre 1.0.8** (2026-10-09, grupo `02918d37`, desde `main` tras el PR #16): pestaña Noticias de Subcomisión (título, descripción, imagen + push a socios); Crónica abre notificaciones.
 - **OTA sobre 1.0.8** (2026-10-12, grupo `31406ae9`, desde `main` tras el PR #19): pestaña Egresos del Manager y pestaña Eventos de Subcomisión (cobros + egresos por división).
-- URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
-
 - **OTA sobre 1.0.8** (2026-10-14, grupo `60df6f11`, desde `main` tras el PR #23): auditoría UX del socio (cuotas, contraste, navegación, baja de cuenta, nombre del padrón). Es la última OTA: cubre todo `main` a esa fecha.
+- URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Auditoría UX socio: probar en teléfono (letra al máximo, VoiceOver/TalkBack, modo avión, vuelta desde WhatsApp, QR en la puerta); pegar en App Store Connect la nota de review de la baja de cuenta (está en `odd/tasks/auditoria-ux-socio.md`); T15 en el próximo build nativo (`expo-clipboard`, `expo-image`, opcional `expo-brightness`, `supportsTablet: false`); follow-ups anotados en el doc (contraste de "CERRAR SESIÓN", `admin-socios` no completa `nombre_padron`).
