@@ -156,7 +156,7 @@ export default function CalendarioSocioScreen() {
   // selected minor's. Other roles: socioId undefined -> unchanged.
   const { socioId } = useSocioObjetivo()
   const {
-    loading, error,
+    loading, refreshing, error,
     jugadorDivisionNombre,
     partidos, resultados,
     filtroDeporte, setFiltroDeporte,
@@ -250,7 +250,7 @@ export default function CalendarioSocioScreen() {
           renderItem={renderItem}
           contentContainerStyle={s.listaContent}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={recargar} tintColor={ORO} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={recargar} tintColor={ORO} />}
         />
       )}
     </View>

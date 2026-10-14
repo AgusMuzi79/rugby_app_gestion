@@ -463,7 +463,7 @@ export default function CuotasScreen() {
   // no write to the club's data. Other roles: socioId undefined -> unchanged.
   const { socioId } = useSocioObjetivo()
   const {
-    cuotas, loading, error, refetch,
+    cuotas, loading, error, refreshing, refetch,
     serviciosActivos, totalMensual, categoriaLabel, montoCategoria,
     alDia, deudaActualizadaAt, deuda, pendientes,
     comprobantes, marcarComprobanteEnviado,
@@ -489,6 +489,8 @@ export default function CuotasScreen() {
         <TutorMenorSelector />
       </View>
 
+      {/* `loading` es sólo la primera carga (o el reintento tras un error):
+          al volver a la pestaña se recarga sin desmontar la lista. */}
       {loading ? (
         <ActivityIndicator color={colors.oro} style={{ marginTop: 60 }} />
       ) : error ? (
@@ -505,7 +507,7 @@ export default function CuotasScreen() {
           keyExtractor={c => c.id}
           contentContainerStyle={s.listContent}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refreshing}
           ListHeaderComponent={
             <View>
               {/* Resumen mensual */}

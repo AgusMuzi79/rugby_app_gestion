@@ -57,6 +57,8 @@ export function useCuotas(socioId?: string) {
 
   const [cuotas,           setCuotas]           = useState<Cuota[]>([])
   const [loading,          setLoading]          = useState(true)
+  // true una vez que hubo una carga exitosa para este socio (ver `loading` abajo)
+  const [cargado,          setCargado]          = useState(false)
   const [serviciosActivos, setServiciosActivos] = useState<ServicioActivo[]>([])
   const [totalMensual,     setTotalMensual]     = useState(0)
   const [categoriaLabel,   setCategoriaLabel]   = useState<string>('')
@@ -84,6 +86,7 @@ export function useCuotas(socioId?: string) {
       setCuotas([])
       setAlDia(null)
       setDeuda(null)
+      setCargado(false)
       setLoading(false)
     }
 
@@ -205,11 +208,32 @@ export function useCuotas(socioId?: string) {
     const registrados = [...registradosRef.current.values()].filter(e => e.clave.startsWith(prefijo))
     setComprobantes([...vigentes, ...registrados])
     setCuotas(normalized)
+    setCargado(true)
     setLoading(false)
   }, [session, socioId])
 
+  // El tutor cambió de menor: no mostrar las cuotas del anterior mientras
+  // cargan las nuevas (la pantalla sólo muestra spinner si no hay datos).
+  useEffect(() => {
+    setCargado(false)
+    setCuotas([])
+    setAlDia(null)
+    setDeuda(null)
+    setComprobantes([])
+  }, [socioId])
+
   useEffect(() => { fetch() }, [fetch])
+  // Al volver a la pestaña se recarga en silencio: la lista queda montada
+  // (sin spinner ni salto de scroll) y se actualiza cuando llega la respuesta.
   useRefreshOnFocus(fetch)
+
+  // Pull-to-refresh: `refreshing` es sólo para el RefreshControl.
+  const [refreshing, setRefreshing] = useState(false)
+  const refetch = useCallback(async () => {
+    setRefreshing(true)
+    await fetch()
+    setRefreshing(false)
+  }, [fetch])
 
   // Se llama al tocar "ENVIAR COMPROBANTE POR WHATSAPP", antes de abrir
   // WhatsApp: la card pasa a ENVIADO apenas se vuelve a la app.
@@ -241,9 +265,12 @@ export function useCuotas(socioId?: string) {
 
   return {
     cuotas,
-    loading,
+    // Spinner de pantalla completa sólo hasta tener datos: las recargas
+    // (foco, pull) no desmontan la lista.
+    loading: loading && !cargado,
     error,
-    refetch: fetch,
+    refreshing,
+    refetch,
     serviciosActivos,
     totalMensual,
     categoriaLabel,

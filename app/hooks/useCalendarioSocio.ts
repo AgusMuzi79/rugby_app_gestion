@@ -41,11 +41,23 @@ export function useCalendarioSocio(socioId?: string) {
   const [resultados, setResultados]                   = useState<ResultadoCalendario[]>([])
   const [filtroDeporte, setFiltroDeporte]             = useState<FiltrodeDeporte>('todos')
   const [error, setError]                             = useState<string | null>(null)
+  // Spinner de pantalla completa sólo hasta la primera carga exitosa: al
+  // volver a la pestaña se recarga en silencio sin desmontar la lista.
+  const [cargado, setCargado]                         = useState(false)
+  const [refreshing, setRefreshing]                   = useState(false)
 
   useEffect(() => {
+    setCargado(false)
     if (session) fetchDatos()
   }, [session, socioId])
   useRefreshOnFocus(fetchDatos)
+
+  // Pull-to-refresh y "Reintentar": con su propio indicador.
+  async function recargar() {
+    setRefreshing(true)
+    await fetchDatos()
+    setRefreshing(false)
+  }
 
   async function fetchDatos() {
     if (!session) return
@@ -153,6 +165,7 @@ export function useCalendarioSocio(socioId?: string) {
         }
       })
       setResultados(resultadosNorm)
+      setCargado(true)
     } catch {
       setError('Error al cargar el calendario.')
     }
@@ -169,7 +182,8 @@ export function useCalendarioSocio(socioId?: string) {
     : resultados.filter(r => r.deporte === filtroDeporte)
 
   return {
-    loading,
+    loading: loading && !cargado,
+    refreshing,
     error,
     jugadorDivisionId,
     jugadorDivisionNombre,
@@ -177,6 +191,6 @@ export function useCalendarioSocio(socioId?: string) {
     resultados: resultadosFiltrados,
     filtroDeporte,
     setFiltroDeporte,
-    recargar: fetchDatos,
+    recargar,
   }
 }

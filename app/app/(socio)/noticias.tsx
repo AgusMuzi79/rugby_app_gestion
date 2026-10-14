@@ -153,7 +153,7 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
 
 export default function NoticiasPublicasScreen() {
   const insets = useSafeAreaInsets()
-  const { noticias, loading, error, refetch } = useNoticias(true)
+  const { noticias, loading, error, refreshing, refrescar } = useNoticias(true)
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [noticiaAbierta, setNoticiaAbierta] = useState<Noticia | null>(null)
   const scrollRef = useRef<FlatList>(null)
@@ -181,12 +181,13 @@ export default function NoticiasPublicasScreen() {
         <FiltroBar filtro={filtro} onChange={setFiltro} />
       </View>
 
-      {loading ? (
+      {/* Spinner sólo sin datos: al volver a la pestaña la lista queda montada */}
+      {loading && noticias.length === 0 ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : error && noticias.length === 0 ? (
         <View style={s.centrado}>
           <Text style={s.errorTexto}>{error}</Text>
-          <TouchableOpacity onPress={refetch} style={s.reintentarBtn} activeOpacity={0.8}>
+          <TouchableOpacity onPress={refrescar} style={s.reintentarBtn} activeOpacity={0.8}>
             <Text style={s.reintentarTexto}>Reintentar</Text>
           </TouchableOpacity>
         </View>
@@ -207,8 +208,8 @@ export default function NoticiasPublicasScreen() {
           renderItem={({ item }) => (
             <NoticiaCard noticia={item} onPress={() => setNoticiaAbierta(item)} />
           )}
-          onRefresh={refetch}
-          refreshing={loading}
+          onRefresh={refrescar}
+          refreshing={refreshing}
         />
       )}
 

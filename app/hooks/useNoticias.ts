@@ -73,6 +73,16 @@ export function useNoticias(soloPublicadas: boolean) {
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
+  // Pull-to-refresh con su propio indicador: `loading` también se prende en
+  // las recargas silenciosas (foco, realtime), así que la pantalla del socio
+  // usa `refreshing` para el RefreshControl y `loading` sólo sin datos.
+  const [refreshing, setRefreshing] = useState(false)
+  const refrescar = useCallback(async () => {
+    setRefreshing(true)
+    await fetch()
+    setRefreshing(false)
+  }, [fetch])
+
   useEffect(() => {
     const channel = supabase
       .channel(`noticias-rt-${soloPublicadas ? 'pub' : 'all'}`)
@@ -123,5 +133,5 @@ export function useNoticias(soloPublicadas: boolean) {
     setNoticias(prev => prev.filter(n => n.id !== noticiaId))
   }, [])
 
-  return { noticias, loading, error, guardando, crear, togglePublicar, eliminar, refetch: fetch }
+  return { noticias, loading, error, guardando, crear, togglePublicar, eliminar, refetch: fetch, refreshing, refrescar }
 }
