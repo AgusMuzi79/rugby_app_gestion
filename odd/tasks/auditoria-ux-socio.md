@@ -38,7 +38,7 @@ Root cause of most contrast failures: commit `cab360a` (new visual identity) inv
     - `fechaCorte ≥ enviadoAt + 2 días` and still owed → **NO REGISTRADO** ("Todavía no figura tu pago. Escribile a Secretaría.") + WhatsApp button reusing the same number.
   - Badge + line in CuotaCard; the pending banner (T1) does not count ENVIADO periods as "pendientes" while in grace.
   - Known limit: per device (reinstall or second phone loses it). Later upgrade, not now: table `comprobantes_enviados(socio_id, periodo, enviado_at)` insertable by the socio via RLS, same states, visible to Secretaría.
-- [ ] T3 — **Pay action visible + copyable alias** (S3 ×2). Move the "VER CÓMO PAGAR" button out of the `expandida` block (`cuotas.tsx:352-361`) so every pending card shows it. Alias: `<Text selectable>` on `cuotas.tsx:128` now; "COPIAR ALIAS" button with `expo-clipboard` in T15.
+- [x] T3 — **Pay action visible + copyable alias** (S3 ×2). Move the "VER CÓMO PAGAR" button out of the `expandida` block (`cuotas.tsx:352-361`) so every pending card shows it. Alias: `<Text selectable>` on `cuotas.tsx:128` now; "COPIAR ALIAS" button with `expo-clipboard` in T15. — commit `031da4b`
 
 ### Contrast
 
@@ -128,3 +128,4 @@ Root cause of most contrast failures: commit `cab360a` (new visual identity) inv
   - Stale fetch after a tutor switches minor: request counter `reqRef` in `useCuotas`; only the latest load writes state.
   - Noticias refresh failure with cached items now shows an inline error line (`accessibilityRole="alert"`).
   - `npx tsc --noEmit` exit 0; `npm run test:admin` exit 0. Not verified on device.
+- 2026-10-13 T3 (route: delegated writer) — commit `031da4b`. `CuotaCard`: "VER CÓMO PAGAR" moved out of the `expandida` block, rendered at the bottom of every `pendiente` card (also ENVIADO / NO REGISTRADO, which are still pending); the expansion keeps the desglose and estado lines. PagoModal alias is `<Text selectable>` (long-press to copy); the clipboard button stays in T15. Test-first exception: pure JSX move, no logic to RED. `npx tsc --noEmit` exit 0; `npm run test:admin` exit 0. Not verified on device (nested touchable inside the card, long-press selection on Android).
