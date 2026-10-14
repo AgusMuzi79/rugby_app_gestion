@@ -1,11 +1,13 @@
 import {
   View, Text, ScrollView, TouchableOpacity,
   ActivityIndicator, StyleSheet, TextInput, Image,
+  KeyboardAvoidingView, Platform, Linking,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
+import { useTerminos } from '@/hooks/useTerminos'
 import { useTheme } from '@/contexts/ThemeContext'
 import { fonts } from '@/constants/theme'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,6 +29,7 @@ export function SobreScreen() {
     foto, cambiandoFoto, cambiarFoto,
   } = useSobre()
   const { signOut }              = useSignOut()
+  const { pdfUrl }               = useTerminos()
   const { colors } = useTheme()
   const { rol, roles, setRolActivo } = useAuthStore()
 
@@ -60,10 +63,15 @@ export function SobreScreen() {
   const border = colors.grisClaro
 
   return (
-    <View style={[s.root, { backgroundColor: colors.fondo, paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[s.root, { backgroundColor: colors.fondo, paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
+        // Sin esto el primer toque en "Guardar" sólo cierra el teclado
+        keyboardShouldPersistTaps="handled"
       >
 
         {/* ── Header ──────────────────────────────────────────────── */}
@@ -187,6 +195,16 @@ export function SobreScreen() {
         {/* ── Cuenta ──────────────────────────────────────────────── */}
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: GOLD }]}>CUENTA</Text>
+          {!!pdfUrl && (
+            <TouchableOpacity
+              style={[s.rowBtn, s.terminosBtn, { backgroundColor: colors.card, borderColor: border }]}
+              onPress={() => Linking.openURL(pdfUrl)}
+              activeOpacity={0.8}
+              accessibilityRole="link"
+            >
+              <Text style={[s.rowBtnTexto, { color: colors.texto }]}>Términos y condiciones</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: ROJO }]}
             onPress={signOut}
@@ -199,7 +217,7 @@ export function SobreScreen() {
         <Text style={[s.version, { color: colors.muted }]}>UNCAS RUGBY APP · V1.0</Text>
 
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -239,6 +257,7 @@ const s = StyleSheet.create({
   // Seguridad
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },
   rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 16 },
+  terminosBtn: { marginBottom: 10 },
 
   // Cuenta
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },

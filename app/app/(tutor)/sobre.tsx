@@ -1,9 +1,10 @@
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Linking,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
+import { useTerminos } from '@/hooks/useTerminos'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useTutorStore } from '@/stores/tutorStore'
 import { fonts } from '@/constants/theme'
@@ -29,6 +30,7 @@ export default function TutorSobreScreen() {
   const { colors } = useTheme()
   const { perfil, loading, enviandoReset, resetEnviado, enviarResetPassword } = useSobre()
   const { signOut } = useSignOut()
+  const { pdfUrl }  = useTerminos()
   const menores        = useTutorStore(s => s.menores)
   const seleccionadoId = useTutorStore(s => s.socioSeleccionadoId)
   const seleccionar    = useTutorStore(s => s.setSocioSeleccionado)
@@ -117,6 +119,16 @@ export default function TutorSobreScreen() {
 
         <View style={s.section}>
           <Text style={[s.sectionTitle, { color: GOLD }]}>CUENTA</Text>
+          {!!pdfUrl && (
+            <TouchableOpacity
+              style={[s.rowBtn, s.terminosBtn, { backgroundColor: colors.card, borderColor: border }]}
+              onPress={() => Linking.openURL(pdfUrl)}
+              activeOpacity={0.8}
+              accessibilityRole="link"
+            >
+              <Text style={[s.rowBtnTexto, { color: colors.texto }]}>Términos y condiciones</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={[s.signOutBtn, { borderColor: ROJO }]}
             onPress={signOut}
@@ -158,6 +170,7 @@ const s = StyleSheet.create({
 
   rowBtn:      { borderRadius: 2, borderWidth: 1, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center' },
   rowBtnTexto: { fontFamily: fonts.cuerpo, fontSize: 16 },
+  terminosBtn: { marginBottom: 10 },
 
   signOutBtn:   { borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', borderRadius: 2 },
   signOutTexto: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 3 },
