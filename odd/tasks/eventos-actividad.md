@@ -66,5 +66,8 @@ Route evidence: mapping needed 4+ files (mapper ran); write spans 10+ non-trivia
     gender); entrenamiento/partido keep `<Etiqueta> cancelado — <división>`.
   - Checks: `npm run test:admin` (app) exit 0 incl. tipoEvento (11 casos OK); `npx tsc --noEmit` app
     exit 0; `npx tsc --noEmit` web exit 0. Edge Function not type-checked (no Deno installed).
-- Next: commit T1/T2 as work units, then T3 (load schedule) after the migration is applied to
+- 2026-10-18: work-unit commits 18bd952 (db) + 67257d2 (app/web/edge). Native review: medium risk,
+  consent granted, lens review-reliability, approved and acknowledged (lineage review-0643627a4b055033).
+  Engram mirror pending (session not registered).
+- Next: then T3 (load schedule) after the migration is applied to
   production with confirmation. The notifications Edge Function needs a deploy for the new label.
