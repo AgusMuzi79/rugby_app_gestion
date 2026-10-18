@@ -76,5 +76,8 @@ Route evidence: mapping needed 4+ files (mapper ran); write spans 10+ non-trivia
 - 2026-10-18: user authorized production. Migration 20261022000000 applied (`supabase db push`,
   confirmed in `migration list`). Loader run for division `Mayores` (rugby plantel superior; M19 -> Mayores):
   dry-run 36 to insert / 0 existing, then commit; verified 36 rows (24 gym 20:30, 3 Seven, 9 actividades).
+- 2026-10-18: user clarified plantel superior = M19 and up (M19, M20, M21, M22, Mayores, all rugby
+  caballeros). Loader run for M19-M22: dry-run 144 / 0 existing, then commit; verified 36 events in each
+  of the 5 divisions (180 total).
 - Next: open PR, merge, deploy `notifications` Edge Function and publish OTA from main
   so coordinators can create activities and cancellations push the right label.
