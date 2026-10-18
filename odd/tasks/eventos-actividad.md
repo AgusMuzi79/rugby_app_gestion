@@ -32,7 +32,7 @@ loading the schedule data (separate step, production write, needs confirmation).
 ## Tasks
 - [x] T1 Migration `20261022000000_eventos_actividad.sql` + `database.types.ts` + SQL scenario test. Route: delegated (writer).
 - [x] T2 Pure helper `app/lib/tipoEvento.ts` (+ `.check.ts`) and mobile/web/edge call sites. Route: delegated (writer).
-- [ ] T3 Load the schedule for plantel superior (after migration is applied to production, with confirmation).
+- [x] T3 Load the schedule for plantel superior (after migration is applied to production, with confirmation).
 
 Route evidence: mapping needed 4+ files (mapper ran); write spans 10+ non-trivial files -> one writer.
 
@@ -73,5 +73,8 @@ Route evidence: mapping needed 4+ files (mapper ran); write spans 10+ non-trivia
   lists superior divisions when none given). Gym at 20:30 (user: starts 20:45, cite earlier); Saturday
   activities and Seven trainings without hour. Tested on throwaway postgres:17: 36 events/division,
   dry-run rolls back, rerun inserts 0. Not run in production (prod access not authorized in session).
-- Next: then T3 (load schedule) after the migration is applied to
-  production with confirmation. The notifications Edge Function needs a deploy for the new label.
+- 2026-10-18: user authorized production. Migration 20261022000000 applied (`supabase db push`,
+  confirmed in `migration list`). Loader run for division `Mayores` (rugby plantel superior; M19 -> Mayores):
+  dry-run 36 to insert / 0 existing, then commit; verified 36 rows (24 gym 20:30, 3 Seven, 9 actividades).
+- Next: open PR, merge, deploy `notifications` Edge Function and publish OTA from main
+  so coordinators can create activities and cancellations push the right label.
