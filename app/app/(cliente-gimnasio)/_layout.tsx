@@ -14,7 +14,7 @@ export default function ClienteGimnasioLayout() {
       />
       <Tabs.Screen
         name="turnos"
-        options={{ title: 'Gimnasio', tabBarIcon: ({ color, size }) => <Feather name="clock" size={size} color={color} /> }}
+        options={{ title: 'Agenda', tabBarIcon: ({ color, size }) => <Feather name="list" size={size} color={color} /> }}
       />
       <Tabs.Screen
         name="sobre"

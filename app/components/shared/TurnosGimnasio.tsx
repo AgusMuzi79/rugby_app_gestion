@@ -1,0 +1,289 @@
+import { useState, type ReactElement } from 'react'
+import {
+  View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity, Alert,
+} from 'react-native'
+import {
+  useTurnos, type DiaTurnos, type FranjaTurno, type TurnoFijo, type ResultadoAccion,
+} from '@/hooks/useTurnos'
+import { colors, fonts } from '@/constants/theme'
+
+// Turnero del gimnasio sin Header: lo usan TurnosScreen (cliente-gimnasio) y la
+// Agenda del socio. `encabezado` se dibuja arriba, dentro de la misma lista
+// (la Agenda pone ahí "MIS EVENTOS"); `onRefresh` se suma al pull-to-refresh.
+
+const DIAS_LARGO = ['', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+function fechaCorta(fecha: string): string {
+  const [, mm, dd] = fecha.split('-')
+  return `${dd}/${mm}`
+}
+
+function etiquetaDia(dia: DiaTurnos): string {
+  return `${DIAS_LARGO[dia.dia_semana] ?? ''} ${fechaCorta(dia.fecha)}`.toUpperCase()
+}
+
+function lugares(n: number): string {
+  return n === 1 ? 'Queda 1 lugar' : `Quedan ${n} lugares`
+}
+
+// ─── Fila de franja ───────────────────────────────────────────────────────────
+
+function FranjaRow({
+  franja, fecha, esFijo, ocupado, onReservar, onCancelar, onHacerFijo,
+}: {
+  franja:      FranjaTurno
+  fecha:       string
+  esFijo:      boolean
+  ocupado:     boolean
+  onReservar:  (f: FranjaTurno, fecha: string) => void
+  onCancelar:  (f: FranjaTurno, fecha: string) => void
+  onHacerFijo: (f: FranjaTurno) => void
+}) {
+  const horario = `${franja.hora_desde} – ${franja.hora_hasta}`
+
+  // Estado visible, en orden de precedencia.
+  let estado: string
+  let estilo = s.estadoNeutro
+  if (franja.reservada) { estado = 'Reservado'; estilo = s.estadoOk }
+  else if (franja.cerrado) estado = 'Cerrado'
+  else if (franja.pasada) estado = 'Pasó el horario'
+  else if (franja.disponibles === 0) estado = 'Completo'
+  else { estado = 'Reservá'; estilo = s.estadoLibre }
+
+  const puedeCancelar = franja.reservada && !franja.pasada && franja.reserva_id !== null
+  const puedeReservar = !franja.reservada && !franja.cerrado && !franja.pasada && franja.disponibles > 0
+  const puedeFijo     = !esFijo && !franja.cerrado
+
+  return (
+    <View style={s.franja}>
+      <TouchableOpacity
+        style={s.franjaMain}
+        activeOpacity={0.75}
+        disabled={ocupado || !(puedeCancelar || puedeReservar)}
+        onPress={() => (puedeCancelar ? onCancelar(franja, fecha) : onReservar(franja, fecha))}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={s.horario}>{horario}</Text>
+          {!!franja.profesor && <Text style={s.profesor}>Prof. {franja.profesor}</Text>}
+          {franja.cerrado ? (
+            !!franja.motivo_cierre && <Text style={s.motivoCierre}>Cerrado: {franja.motivo_cierre}</Text>
+          ) : (
+            <Text style={s.lugares}>{lugares(franja.disponibles)}</Text>
+          )}
+          {esFijo && <Text style={s.fijoTag}>TURNO FIJO</Text>}
+        </View>
+        <Text style={[s.estado, estilo]}>{estado.toUpperCase()}</Text>
+      </TouchableOpacity>
+
+      {puedeFijo && (
+        <TouchableOpacity style={s.linkBtn} disabled={ocupado} onPress={() => onHacerFijo(franja)} activeOpacity={0.75} accessibilityRole="button">
+          <Text style={s.linkFijo}>HACER TURNO FIJO</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  )
+}
+
+// ─── Turnero ──────────────────────────────────────────────────────────────────
+
+export function TurnosGimnasio({ encabezado, onRefresh }: {
+  encabezado?: ReactElement
+  onRefresh?:  () => void
+} = {}) {
+  const {
+    dias, fijos, loading, error,
+    refetch, reservar, cancelar, crearFijo, cancelarFijo,
+  } = useTurnos()
+  const [ocupado, setOcupado] = useState(false)
+
+  // Corre una acción; el motivo de un rechazo se muestra en un Alert.
+  async function correr(accion: () => Promise<ResultadoAccion>) {
+    setOcupado(true)
+    const r = await accion()
+    setOcupado(false)
+    if (!r.ok) Alert.alert('No se pudo completar', r.motivo ?? 'Probá de nuevo.')
+  }
+
+  const fijoIds = new Set(fijos.map(f => f.franja_id))
+
+  function onReservar(f: FranjaTurno, fecha: string) {
+    correr(() => reservar(f.franja_id, fecha))
+  }
+
+  function onCancelar(f: FranjaTurno, fecha: string) {
+    Alert.alert(
+      'Cancelar reserva',
+      `¿Cancelás tu turno del ${fechaCorta(fecha)} de ${f.hora_desde} a ${f.hora_hasta}?`,
+      [
+        { text: 'No', style: 'cancel' },
+        { text: 'Cancelá', style: 'destructive', onPress: () => correr(() => cancelar(f.reserva_id as string)) },
+      ],
+    )
+  }
+
+  function onHacerFijo(f: FranjaTurno) {
+    Alert.alert(
+      'Turno fijo',
+      `Se te reservará este horario (${f.hora_desde} a ${f.hora_hasta}) todas las semanas. Si faltás varias veces seguidas, se libera. ¿Confirmás?`,
+      [
+        { text: 'No', style: 'cancel' },
+        { text: 'Confirmar', onPress: () => correr(() => crearFijo(f.franja_id)) },
+      ],
+    )
+  }
+
+  function onCancelarFijo(t: TurnoFijo) {
+    Alert.alert(
+      'Cancelar turno fijo',
+      'Se cancela el turno fijo y también las reservas futuras que tenga. ¿Confirmás?',
+      [
+        { text: 'No', style: 'cancel' },
+        { text: 'Cancelá', style: 'destructive', onPress: () => correr(() => cancelarFijo(t.turno_fijo_id)) },
+      ],
+    )
+  }
+
+  const diasConFranjas = dias.filter(d => d.franjas.length > 0)
+
+  function recargar() {
+    refetch()
+    onRefresh?.()
+  }
+
+  const cabecera = (
+    <View style={s.encabezado}>
+      {encabezado}
+      <Text style={s.seccion}>MIS TURNOS FIJOS</Text>
+      {fijos.length === 0 ? (
+        <Text style={s.vacio}>No tenés turnos fijos.</Text>
+      ) : (
+        fijos.map(t => (
+          <View key={t.turno_fijo_id} style={s.fijoCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.horario}>
+                {DIAS_LARGO[t.dia_semana ?? 0] ?? ''} {t.hora_desde} – {t.hora_hasta}
+              </Text>
+              {t.faltas_consecutivas > 0 && (
+                <Text style={s.fijoAviso}>
+                  {t.faltas_consecutivas === 1
+                    ? 'Faltaste 1 vez seguida'
+                    : `Faltaste ${t.faltas_consecutivas} veces seguidas`}
+                </Text>
+              )}
+            </View>
+            <TouchableOpacity style={[s.linkBtn, s.linkBtnCancelar]} disabled={ocupado} onPress={() => onCancelarFijo(t)} activeOpacity={0.75} accessibilityRole="button">
+              <Text style={s.linkCancelar}>CANCELAR</Text>
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+
+      <Text style={s.seccion}>RESERVAR TURNO</Text>
+    </View>
+  )
+
+  // Con encabezado (Agenda), un error o la carga del turnero no lo tapan.
+  if ((loading && dias.length === 0 && !error) || error) {
+    const estado = error ? (
+      <View style={s.centro}>
+        <Text style={s.errorText}>{error}</Text>
+        <TouchableOpacity style={s.reintentar} onPress={refetch} activeOpacity={0.75}>
+          <Text style={s.reintentarText}>REINTENTAR</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <ActivityIndicator color={colors.oro} style={{ marginTop: 40 }} />
+    )
+    if (!encabezado) return estado
+    return (
+      <FlatList
+        data={[]}
+        renderItem={null}
+        contentContainerStyle={s.listContent}
+        ListHeaderComponent={<View style={s.encabezado}>{encabezado}</View>}
+        ListFooterComponent={estado}
+        onRefresh={recargar}
+        refreshing={false}
+      />
+    )
+  }
+
+  return (
+    <FlatList
+      data={diasConFranjas}
+      keyExtractor={d => d.fecha}
+      contentContainerStyle={s.listContent}
+      ListHeaderComponent={cabecera}
+      ListEmptyComponent={<Text style={s.vacio}>Todavía no hay turnos cargados</Text>}
+      renderItem={({ item }) => (
+        <View style={s.dia}>
+          <Text style={s.diaTitulo}>{etiquetaDia(item)}</Text>
+          {item.franjas.map(f => (
+            <FranjaRow
+              key={f.franja_id}
+              franja={f}
+              fecha={item.fecha}
+              esFijo={fijoIds.has(f.franja_id)}
+              ocupado={ocupado}
+              onReservar={onReservar}
+              onCancelar={onCancelar}
+              onHacerFijo={onHacerFijo}
+            />
+          ))}
+        </View>
+      )}
+      onRefresh={recargar}
+      refreshing={loading}
+    />
+  )
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  listContent: { paddingHorizontal: 20, paddingBottom: 60 },
+  encabezado:  { gap: 10, paddingTop: 16 },
+  centro:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
+
+  seccion: {
+    fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5,
+    color: colors.oroHondo, marginTop: 14,
+  },
+  vacio: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted, paddingVertical: 8 },
+
+  fijoCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1, borderRadius: 4, padding: 14,
+    backgroundColor: colors.card, borderColor: colors.borde,
+  },
+  fijoAviso: { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.rojoTexto, marginTop: 2 },
+
+  dia:       { marginTop: 14, gap: 8 },
+  diaTitulo: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
+
+  franja: {
+    borderWidth: 1, borderRadius: 4, padding: 14, gap: 10,
+    backgroundColor: colors.card, borderColor: colors.borde,
+  },
+  franjaMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  horario:    { fontFamily: fonts.titulo, fontSize: 18, color: colors.texto },
+  profesor:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.textoSecundario, marginTop: 2 },
+  lugares:    { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 2 },
+  motivoCierre: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 2 },
+  fijoTag:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo, marginTop: 4 },
+
+  estado:       { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5 },
+  estadoLibre:  { color: colors.oro },
+  estadoOk:     { color: colors.estadoActivo },
+  estadoNeutro: { color: colors.muted },
+
+  // Links de texto: el área táctil llega a 44pt aunque el texto mida ~15
+  linkBtn:          { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  linkBtnCancelar:  { alignSelf: 'center', paddingHorizontal: 8 },
+  linkFijo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.oroHondo },
+  linkCancelar: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.rojoTexto },
+
+  errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto, textAlign: 'center' },
+  reintentar:     { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 24 },
+  reintentarText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
+})

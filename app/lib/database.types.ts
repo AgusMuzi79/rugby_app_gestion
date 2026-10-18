@@ -2503,6 +2503,10 @@ export type Database = {
         }
         Returns: string
       }
+      agenda_socio: {
+        Args: { p_desde?: string; p_hasta?: string }
+        Returns: Json
+      }
       buscar_socios_por_nombre: {
         Args: { q: string }
         Returns: {
