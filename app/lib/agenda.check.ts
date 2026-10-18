@@ -12,6 +12,7 @@ import {
   mostrarTabAgenda,
   parsearAgenda,
   puedeVerAgenda,
+  ventanaAgenda,
   type DivisionAgenda,
   type EventoAgenda,
 } from './agenda'
@@ -134,6 +135,14 @@ caso('con más de una división se agrega el nombre de la división', () => {
     'Partido vs SIC · Sub 14',
   )
   assert.equal(lineaEvento(ev({ division_id: 'd1' }), [M15, SUB14]), 'Entrenamiento · M15')
+})
+
+caso('la ventana va de hoy a 7 días adelante, en fecha local', () => {
+  assert.deepEqual(ventanaAgenda(new Date(2026, 9, 18, 23, 30)), { p_desde: '2026-10-18', p_hasta: '2026-10-25' })
+})
+
+caso('la ventana cruza fin de mes y de año', () => {
+  assert.deepEqual(ventanaAgenda(new Date(2026, 11, 28, 9, 0)), { p_desde: '2026-12-28', p_hasta: '2027-01-04' })
 })
 
 console.log(`\n${casos} casos OK`)

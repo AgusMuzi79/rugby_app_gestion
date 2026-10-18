@@ -30,6 +30,18 @@ export interface Agenda {
 
 export const AGENDA_VACIA: Agenda = { tiene_gimnasio: false, divisiones: [], eventos: [] }
 
+// La Agenda muestra sólo la próxima semana (ver todo el bloque era demasiado).
+export const DIAS_AGENDA = 7
+
+// Ventana [hoy, hoy + dias] en fecha local del teléfono: en UTC, después de
+// las 21 hs de Argentina ya sería el día siguiente.
+export function ventanaAgenda(hoy: Date = new Date(), dias: number = DIAS_AGENDA): { p_desde: string; p_hasta: string } {
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const hasta = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + dias)
+  return { p_desde: iso(hoy), p_hasta: iso(hasta) }
+}
+
 // Sin gimnasio ni división, la pestaña no tiene nada que mostrar.
 export function puedeVerAgenda(a: Pick<Agenda, 'tiene_gimnasio' | 'divisiones'>): boolean {
   return a.tiene_gimnasio || a.divisiones.length > 0
