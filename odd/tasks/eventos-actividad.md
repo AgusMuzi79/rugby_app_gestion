@@ -69,5 +69,9 @@ Route evidence: mapping needed 4+ files (mapper ran); write spans 10+ non-trivia
 - 2026-10-18: work-unit commits 18bd952 (db) + 67257d2 (app/web/edge). Native review: medium risk,
   consent granted, lens review-reliability, approved and acknowledged (lineage review-0643627a4b055033).
   Engram mirror pending (session not registered).
+- 2026-10-18: T3 prepared: `scripts/cronograma-post-temporada-2026.sql` (dry-run by default, idempotent,
+  lists superior divisions when none given). Gym at 20:30 (user: starts 20:45, cite earlier); Saturday
+  activities and Seven trainings without hour. Tested on throwaway postgres:17: 36 events/division,
+  dry-run rolls back, rerun inserts 0. Not run in production (prod access not authorized in session).
 - Next: then T3 (load schedule) after the migration is applied to
   production with confirmation. The notifications Edge Function needs a deploy for the new label.
