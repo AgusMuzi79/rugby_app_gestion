@@ -42,7 +42,8 @@ export default function InformesPage() {
       ] = await Promise.all([
         supabase.from('divisiones').select('id, nombre, categoria').eq('activa', true).order('nombre'),
         supabase.from('jugadores').select('id, nombre_completo, division_id').eq('activo', true),
-        supabase.from('eventos').select('id, tipo, division_id, fecha, rival').eq('cancelado', false),
+        // Only used for attendance: activities take none, so they stay out of % and the 4-absences check.
+        supabase.from('eventos').select('id, tipo, division_id, fecha, rival').eq('cancelado', false).neq('tipo', 'actividad'),
         supabase.from('asistencias').select('evento_id, jugador_id, estado'),
         supabase.from('resultados').select('evento_id, puntos_propios, puntos_rival, eventos(rival, division_id, fecha)'),
         supabase.from('fichajes').select('id, jugador_id, fecha_fichaje, jugadores(nombre_completo, division_id)').order('fecha_fichaje', { ascending: false }),

@@ -35,6 +35,8 @@ interface CancelacionPayload {
   fecha:          string
   // Older app builds don't send it; they only cancelled trainings.
   tipoEvento?:    string
+  // Only sent for tipo 'actividad': the activity's own title.
+  tituloEvento?:  string | null
 }
 
 // ─── Caller autorizado por tipo de notificación ─────────────────────────────────
@@ -196,9 +198,20 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen
   })
 }
 
+// Same labels as app/lib/tipoEvento.ts etiquetaEvento / tituloCancelacion (Deno can't import app/).
+// A missing tipoEvento stays 'Entrenamiento' for older app builds.
+function etiquetaCancelacion(p: CancelacionPayload): string {
+  if (p.tipoEvento === 'partido') return 'Partido'
+  if (p.tipoEvento === 'actividad') return p.tituloEvento?.trim() || 'Actividad'
+  return 'Entrenamiento'
+}
+
 async function notificarCancelacion(p: CancelacionPayload): Promise<void> {
-  const etiqueta = p.tipoEvento === 'partido' ? 'Partido' : 'Entrenamiento'
-  const titulo  = `${etiqueta} cancelado — ${p.divisionNombre}`
+  const etiqueta = etiquetaCancelacion(p)
+  // Activity titles can be of either gender: "Cancelado: X" instead of "X cancelado".
+  const titulo  = p.tipoEvento === 'actividad'
+    ? `Cancelado: ${etiqueta} — ${p.divisionNombre}`
+    : `${etiqueta} cancelado — ${p.divisionNombre}`
   const mensaje = p.mensaje
   const tokens  = await getTokensJugadoresDivision(p.divisionId)
   await enviarExpoPush(tokens, titulo, mensaje, {

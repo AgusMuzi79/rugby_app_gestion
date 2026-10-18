@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
+import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,9 @@ function formatBadgeEvento(ev: ProximoEvento): string {
 }
 
 function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
-  return ev.tipo === 'partido' ? `vs ${ev.rival ?? 'Rival'}` : divisionNombre
+  if (ev.tipo === 'partido') return `vs ${ev.rival ?? 'Rival'}`
+  if (ev.tipo === 'actividad') return etiquetaEvento(ev)
+  return divisionNombre
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -55,9 +58,11 @@ function CardEvento({
           {ev.lugar ? (
             <Text style={s.eventoLugar}>{ev.lugar}</Text>
           ) : null}
-          <TouchableOpacity style={s.asistenciaBtn} onPress={onAsistencia} activeOpacity={0.85}>
-            <Text style={s.asistenciaBtnText}>TOMAR ASISTENCIA →</Text>
-          </TouchableOpacity>
+          {admiteAsistencia(ev.tipo) && (
+            <TouchableOpacity style={s.asistenciaBtn} onPress={onAsistencia} activeOpacity={0.85}>
+              <Text style={s.asistenciaBtnText}>TOMAR ASISTENCIA →</Text>
+            </TouchableOpacity>
+          )}
         </>
       ) : (
         <Text style={s.sinEventoText}>Sin eventos programados hoy.</Text>

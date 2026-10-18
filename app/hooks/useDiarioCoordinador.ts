@@ -11,6 +11,7 @@ import {
 export interface EventoSemana {
   id:             string
   tipo:           string
+  titulo:         string | null
   fecha:          string
   hora:           string | null
   lugar:          string | null
@@ -81,7 +82,7 @@ export function useDiarioCoordinador() {
       const [divsRes, semanaRes, eventos30Res, cobranzasActivasRes] = await Promise.all([
         supabase.from('divisiones').select('id, nombre').in('id', divIds).order('nombre'),
         supabase.from('eventos')
-          .select('id, tipo, fecha, hora, lugar, rival, division_id, divisiones(nombre)')
+          .select('id, tipo, titulo, fecha, hora, lugar, rival, division_id, divisiones(nombre)')
           .in('division_id', divIds)
           .gte('fecha', hoy()).lte('fecha', en7Dias())
           .eq('cancelado', false).order('fecha').order('hora', { nullsFirst: false }),
@@ -90,6 +91,8 @@ export function useDiarioCoordinador() {
           .in('division_id', divIds)
           .gte('fecha', hace30Dias()).lte('fecha', hoy())
           .eq('cancelado', false)
+          // Activities take no attendance: they would break the "last 4 eventos" streak.
+          .neq('tipo', 'actividad')
           .order('fecha', { ascending: false }),
         supabase.from('eventos_financieros')
           .select(SELECT_DIVISIONES_EVENTO)
@@ -108,6 +111,7 @@ export function useDiarioCoordinador() {
       const eventosSemana: EventoSemana[] = (semanaRes.data ?? []).map(ev => ({
         id:             ev.id,
         tipo:           ev.tipo,
+        titulo:         ev.titulo,
         fecha:          ev.fecha,
         hora:           ev.hora,
         lugar:          ev.lugar,
