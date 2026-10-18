@@ -1,12 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import {
-  agruparPorFecha, etiquetaFecha, horaCorta, lineaEvento, type Agenda,
+  DIAS_AGENDA, agruparPorFecha, etiquetaFecha, horaCorta, lineaEvento, type Agenda,
 } from '@/lib/agenda'
 import { letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 
-// Sección "MIS EVENTOS" de la Agenda del socio: eventos próximos de sus
-// divisiones agrupados por día. Sin división no se muestra (sólo gimnasio).
+// Sección "MIS EVENTOS" de la Agenda del socio: eventos de sus divisiones en
+// los próximos DIAS_AGENDA días, agrupados por día. Sin división no se muestra (sólo gimnasio).
 
 export function AgendaEventos({ agenda, loading, error, onReintentar }: {
   agenda:       Agenda | null
@@ -35,7 +35,7 @@ export function AgendaEventos({ agenda, loading, error, onReintentar }: {
     <View style={s.bloque}>
       <Text style={s.seccion}>MIS EVENTOS</Text>
       {grupos.length === 0 ? (
-        <Text style={s.vacio}>No hay eventos próximos de tu división.</Text>
+        <Text style={s.vacio}>No hay eventos de tu división en los próximos {DIAS_AGENDA} días.</Text>
       ) : (
         grupos.map(g => (
           <View key={g.fecha} style={s.dia}>

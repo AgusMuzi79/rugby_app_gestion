@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { parsearAgenda, type Agenda } from '@/lib/agenda'
+import { parsearAgenda, ventanaAgenda, type Agenda } from '@/lib/agenda'
 
 // Agenda del socio logueado (RPC `agenda_socio`). El layout de (socio) la
 // carga una sola vez con `useAgendaEstado` (decide si se ve la pestaña) y la
@@ -28,7 +28,7 @@ export function useAgendaEstado(): EstadoAgenda {
     if (!userId) return
     setLoading(true)
     try {
-      const { data, error: err } = await supabase.rpc('agenda_socio')
+      const { data, error: err } = await supabase.rpc('agenda_socio', ventanaAgenda())
       if (err) throw err
       setAgenda(parsearAgenda(data))
       setError(null)
