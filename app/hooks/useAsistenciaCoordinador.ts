@@ -64,7 +64,9 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
         .eq('division_id', divisionId)
         .eq('cancelado', false)
         .gte('fecha', hace30Str)
-        .lte('fecha', hoy),
+        .lte('fecha', hoy)
+        // Activities take no attendance; counting them would lower every percentage.
+        .neq('tipo', 'actividad'),
       supabase
         .from('asistencias')
         .select('jugador_id, estado, created_at')

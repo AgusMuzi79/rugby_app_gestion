@@ -572,6 +572,7 @@ export type Database = {
           modalidad: string | null
           rival: string | null
           tipo: string
+          titulo: string | null
           updated_at: string
         }
         Insert: {
@@ -586,6 +587,7 @@ export type Database = {
           modalidad?: string | null
           rival?: string | null
           tipo: string
+          titulo?: string | null
           updated_at?: string
         }
         Update: {
@@ -600,6 +602,7 @@ export type Database = {
           modalidad?: string | null
           rival?: string | null
           tipo?: string
+          titulo?: string | null
           updated_at?: string
         }
         Relationships: [

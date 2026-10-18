@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 
 export interface ProximoEvento {
   id:    string
-  tipo:  'entrenamiento' | 'partido'
+  tipo:  TipoEventoCalendario
+  titulo: string | null // only for actividad
   fecha: string
   hora:  string | null
   lugar: string | null
@@ -69,9 +71,9 @@ export function useDiarioEntrenador() {
           supabase.from('jugadores')
             .select('id', { count: 'exact', head: true })
             .eq('division_id', divId).eq('activo', true),
-          // Próximo evento (entrenamiento o partido)
+          // Próximo evento (entrenamiento, partido o actividad)
           supabase.from('eventos')
-            .select('id, tipo, fecha, hora, lugar, rival')
+            .select('id, tipo, titulo, fecha, hora, lugar, rival')
             .eq('division_id', divId).eq('cancelado', false)
             .gte('fecha', hoy())
             .order('fecha').order('hora', { nullsFirst: false })
@@ -140,7 +142,7 @@ export function useDiarioEntrenador() {
 
       const rawEvento = proximoEventoRes.data?.[0]
       const proximoEvento: ProximoEvento | null = rawEvento
-        ? { id: rawEvento.id, tipo: rawEvento.tipo as 'entrenamiento' | 'partido',
+        ? { id: rawEvento.id, tipo: rawEvento.tipo as TipoEventoCalendario, titulo: rawEvento.titulo,
             fecha: rawEvento.fecha, hora: rawEvento.hora, lugar: rawEvento.lugar, rival: rawEvento.rival }
         : null
 

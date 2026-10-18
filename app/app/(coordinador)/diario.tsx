@@ -14,6 +14,7 @@ import {
   type BarraAsistencia,
 } from '@/hooks/useDiarioCoordinador'
 import { colors, fonts } from '@/constants/theme'
+import { etiquetaEvento } from '@/lib/tipoEvento'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ function formatHora(hora: string | null): string {
 
 function nombreEvento(ev: EventoSemana): string {
   if (ev.tipo === 'partido') return `vs ${ev.rival ?? 'Rival'}`
+  if (ev.tipo === 'actividad') return etiquetaEvento(ev)
   return ev.divisionNombre
 }
 

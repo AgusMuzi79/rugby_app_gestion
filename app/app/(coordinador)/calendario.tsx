@@ -18,6 +18,7 @@ import {
   MAX_DIVISIONES_PARTIDO, partidoMultiDivisionValido, recortarParaPartido,
 } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import { etiquetaEvento, letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -47,22 +48,32 @@ function esPasado(iso: string) {
   return iso < new Date().toISOString().split('T')[0]
 }
 
+function tituloEvento(evento: EventoCalendario, prefijoPartido = '') {
+  return evento.tipo === 'partido'
+    ? `${prefijoPartido}vs. ${evento.rival ?? 'Rival'}`
+    : etiquetaEvento(evento)
+}
+
 // ─── FilaEvento ───────────────────────────────────────────────────────────────
 
 function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancelar?: (e: EventoCalendario) => void }) {
   const pasado    = esPasado(evento.fecha)
   const hoy       = esHoy(evento.fecha)
-  const esPartido = evento.tipo === 'partido'
+  const badge     = evento.tipo === 'partido'
+    ? styles.badgePartido
+    : evento.tipo === 'actividad' ? styles.badgeActividad : styles.badgeEntrenamiento
 
   return (
     <View style={[styles.fila, pasado && styles.filaPasada]}>
-      <View style={[styles.tipoBadge, esPartido ? styles.badgePartido : styles.badgeEntrenamiento]}>
-        <Text style={styles.tipoBadgeTexto}>{esPartido ? 'P' : 'E'}</Text>
+      <View style={[styles.tipoBadge, badge]}>
+        <Text style={[styles.tipoBadgeTexto, evento.tipo === 'actividad' && styles.tipoBadgeTextoActividad]}>
+          {letraEvento(evento.tipo)}
+        </Text>
       </View>
       <View style={styles.filaInfo}>
         <View style={styles.filaTituloRow}>
           <Text style={[styles.eventoTitulo, pasado && styles.eventoTituloPasado]} numberOfLines={1}>
-            {esPartido ? `vs. ${evento.rival ?? 'Rival'}` : 'Entrenamiento'}
+            {tituloEvento(evento)}
           </Text>
           {hoy && <View style={styles.hoyBadge}><Text style={styles.hoyTexto}>HOY</Text></View>}
         </View>
@@ -138,19 +149,38 @@ function ModalNuevoEvento({
             {/* Tipo */}
             <Text style={styles.inputLabel}>TIPO</Text>
             <View style={styles.tipoRow}>
-              {(['entrenamiento', 'partido'] as TipoEvento[]).map(t => (
+              {(['entrenamiento', 'partido', 'actividad'] as TipoEvento[]).map(t => (
                 <TouchableOpacity
                   key={t}
                   style={[styles.tipoBoton, form.tipo === t && styles.tipoBotonActivo]}
                   onPress={() => cambiarTipo(t)}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.tipoBotonTexto, form.tipo === t && styles.tipoBotonTextoActivo]}>
+                  <Text
+                    style={[styles.tipoBotonTexto, form.tipo === t && styles.tipoBotonTextoActivo]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                  >
                     {t.charAt(0).toUpperCase() + t.slice(1)}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Título — obligatorio para actividad */}
+            {form.tipo === 'actividad' && (
+              <>
+                <Text style={styles.inputLabel}>TÍTULO</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: Charla de nutrición"
+                  placeholderTextColor={MUTED}
+                  value={form.titulo}
+                  onChangeText={v => setForm({ ...form, titulo: v })}
+                  maxLength={80}
+                />
+              </>
+            )}
 
             {/* División (solo si tiene más de una) */}
             {divisiones.length > 1 && (
@@ -304,7 +334,7 @@ function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCa
 
           <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.modalBody}>
             <Text style={styles.cancelarInfo}>
-              {evento.tipo === 'partido' ? `Partido vs. ${evento.rival ?? 'Rival'}` : 'Entrenamiento'}
+              {tituloEvento(evento, 'Partido ')}
               {' — '}
               {fechaCorta(evento.fecha)}
             </Text>
@@ -376,6 +406,7 @@ export default function CalendarioScreen() {
     const ok = await cancelarEvento(
       eventoCancelar.id,
       eventoCancelar.tipo,
+      eventoCancelar.titulo,
       eventoCancelar.division_id,
       eventoCancelar.division_nombre,
       eventoCancelar.fecha,
@@ -482,7 +513,9 @@ const styles = StyleSheet.create({
   tipoBadge:      { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   badgePartido:   { backgroundColor: TEXTO },
   badgeEntrenamiento: { backgroundColor: CARD, borderWidth: 1, borderColor: DIVIDER },
+  badgeActividad: { backgroundColor: colors.oro },
   tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', color: colors.oro },
+  tipoBadgeTextoActividad: { color: colors.sobreOro },
   eventoTitulo:   { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, fontWeight: '500', flex: 1 },
   eventoTituloPasado: { color: MUTED },
   eventoMeta:     { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 2 },

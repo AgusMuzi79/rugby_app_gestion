@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { tituloActividadValido, tituloCancelacion, type TipoEventoCalendario } from '@/lib/tipoEvento'
 
-export type TipoEvento = 'entrenamiento' | 'partido'
+export type TipoEvento = TipoEventoCalendario
 export type ModalidadPartido = 'singles' | 'dobles'
 
 export interface EventoCalendario {
@@ -15,6 +16,8 @@ export interface EventoCalendario {
   lugar: string | null
   rival: string | null
   modalidad: string | null
+  // Only set for tipo = 'actividad' (required there by a DB check).
+  titulo: string | null
   cancelado: boolean
   creado_por: string
   created_at: string
@@ -31,6 +34,7 @@ export interface NuevoEventoForm {
   lugar: string
   rival: string
   modalidad: ModalidadPartido | ''
+  titulo: string
 }
 
 // Only rugby plays partidos shared by two divisions; other sports use one division per partido.
@@ -60,6 +64,7 @@ const FORM_VACIO: NuevoEventoForm = {
   lugar: '',
   rival: '',
   modalidad: '',
+  titulo: '',
 }
 
 export interface UseCalendarioReturn {
@@ -73,7 +78,7 @@ export interface UseCalendarioReturn {
   setForm: (form: NuevoEventoForm) => void
   resetForm: () => void
   crearEvento: () => Promise<boolean>
-  cancelarEvento: (id: string, tipo: string, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
+  cancelarEvento: (id: string, tipo: string, titulo: string | null, divisionId: string, divisionNombre: string, fecha: string, mensaje: string) => Promise<boolean>
   cancelando: boolean
   errorCancelacion: string | null
   recargar: () => void
@@ -154,6 +159,7 @@ export function useCalendario(): UseCalendarioReturn {
       lugar: string | null
       rival: string | null
       modalidad: string | null
+      titulo: string | null
       cancelado: boolean
       creado_por: string
       created_at: string
@@ -168,6 +174,7 @@ export function useCalendario(): UseCalendarioReturn {
       lugar: e.lugar,
       rival: e.rival,
       modalidad: e.modalidad,
+      titulo: e.titulo,
       cancelado: e.cancelado,
       creado_por: e.creado_por,
       created_at: e.created_at,
@@ -206,6 +213,10 @@ export function useCalendario(): UseCalendarioReturn {
       setErrorGuardado('El nombre del rival es obligatorio para un partido.')
       return false
     }
+    if (form.tipo === 'actividad' && !tituloActividadValido(form.titulo)) {
+      setErrorGuardado('El título es obligatorio para una actividad.')
+      return false
+    }
 
     setGuardando(true)
     setErrorGuardado(null)
@@ -220,6 +231,7 @@ export function useCalendario(): UseCalendarioReturn {
       hora: form.hora.trim() || null,
       lugar: form.lugar.trim() || null,
       rival: form.tipo === 'partido' ? (form.rival.trim() || null) : null,
+      titulo: form.tipo === 'actividad' ? form.titulo.trim() : null,
       // A partido may mix a tennis and a non-tennis division; modalidad only applies to tennis.
       modalidad: form.tipo === 'partido' && divisiones.find(d => d.id === divisionId)?.deporte === 'tenis'
         ? (form.modalidad || null)
@@ -244,6 +256,7 @@ export function useCalendario(): UseCalendarioReturn {
   async function cancelarEvento(
     id: string,
     tipo: string,
+    titulo: string | null,
     divisionId: string,
     divisionNombre: string,
     fecha: string,
@@ -269,9 +282,8 @@ export function useCalendario(): UseCalendarioReturn {
     setEventos(prev => prev.filter(e => e.id !== id))
 
     // Publicar noticia automática
-    const etiqueta = tipo === 'partido' ? 'Partido' : 'Entrenamiento'
     await supabase.from('noticias').insert({
-      titulo:                  `${etiqueta} cancelado — ${divisionNombre}`,
+      titulo:                  tituloCancelacion({ tipo, titulo }, divisionNombre),
       cuerpo:                  mensaje,
       autor_id:                session.user.id,
       publicada:               true,
@@ -284,7 +296,7 @@ export function useCalendario(): UseCalendarioReturn {
     void supabase.functions.invoke('notifications', {
       body: {
         type: 'cancelacion_entrenamiento',
-        payload: { divisionId, divisionNombre, mensaje, fecha, tipoEvento: tipo },
+        payload: { divisionId, divisionNombre, mensaje, fecha, tipoEvento: tipo, tituloEvento: titulo },
       },
     })
 
