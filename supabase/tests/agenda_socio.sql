@@ -1,5 +1,7 @@
--- Pruebas de escenario para la migración 20261023000000_agenda_socio
--- (RPC agenda_socio: eventos de las divisiones del socio + si tiene gimnasio).
+-- Pruebas de escenario para las migraciones 20261023000000_agenda_socio
+-- (RPC agenda_socio: eventos de las divisiones del socio + si tiene gimnasio) y
+-- 20261024000000_agenda_exige_servicio (la división sólo cuenta si el socio
+-- tiene un servicio activo de ese deporte).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name agenda-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -73,17 +75,28 @@ create or replace function get_socio_id() returns uuid language sql security def
 $$;
 
 -- ─── Datos ────────────────────────────────────────────────────────────────────
--- p1: juega en M15 (rugby), sin gimnasio.
+-- p1: juega en M15 (rugby), con servicio Rugby, sin gimnasio.
 -- p2: socio con servicio "Gimnasio" activo, sin división.
 -- p3: categoría 'Cliente Gimnasio', sin división.
 -- p4: nada (sólo un servicio inactivo de gimnasio y un jugador inactivo).
 -- p5: perfil sin fila en socios (p. ej. staff).
--- p6: juega en M15 y en Sub 14 (hockey) y en una división inactiva.
+-- p6: juega en M15, en Sub 14 (hockey) y en una división inactiva; servicios Rugby y Hockey.
+-- p7: juega en M15 sin ningún servicio.
+-- p8: juega en M15 con sólo el servicio Gimnasio.
+-- p9: juega en M15 con 'Rugby Inclusivo'.
+-- pa: servicio Rugby pero juega sólo en Sub 14 (hockey).
+-- pb: juega en M15 con un servicio de rugby inactivo.
+-- pc: servicio Rugby, juega en M15 y en Sub 14 (hockey).
+-- pd: 'Carnet Tenis', juega en Tenis Menores.
 
 insert into profiles values
   ('a0000000-0000-0000-0000-000000000001'), ('a0000000-0000-0000-0000-000000000002'),
   ('a0000000-0000-0000-0000-000000000003'), ('a0000000-0000-0000-0000-000000000004'),
-  ('a0000000-0000-0000-0000-000000000005'), ('a0000000-0000-0000-0000-000000000006');
+  ('a0000000-0000-0000-0000-000000000005'), ('a0000000-0000-0000-0000-000000000006'),
+  ('a0000000-0000-0000-0000-000000000007'), ('a0000000-0000-0000-0000-000000000008'),
+  ('a0000000-0000-0000-0000-000000000009'), ('a0000000-0000-0000-0000-00000000000a'),
+  ('a0000000-0000-0000-0000-00000000000b'), ('a0000000-0000-0000-0000-00000000000c'),
+  ('a0000000-0000-0000-0000-00000000000d');
 
 insert into categorias_socio values
   ('c0000000-0000-0000-0000-000000000001', 'Activo'),
@@ -94,30 +107,58 @@ insert into socios values
   ('50000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001'),
   ('50000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000002'),
   ('50000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000001'),
-  ('50000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000001');
+  ('50000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000007', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000009', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-00000000000b', 'a0000000-0000-0000-0000-00000000000b', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-00000000000c', 'a0000000-0000-0000-0000-00000000000c', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-00000000000d', 'a0000000-0000-0000-0000-00000000000d', 'c0000000-0000-0000-0000-000000000001');
 
 insert into servicios_opcionales values
   ('e0000000-0000-0000-0000-000000000001', 'Gimnasio', true),
   ('e0000000-0000-0000-0000-000000000002', 'Gimnasio (viejo)', false),
-  ('e0000000-0000-0000-0000-000000000003', 'Rugby', true);
+  ('e0000000-0000-0000-0000-000000000003', 'Rugby', true),
+  ('e0000000-0000-0000-0000-000000000004', 'Hockey', true),
+  ('e0000000-0000-0000-0000-000000000005', 'Rugby Inclusivo', true),
+  ('e0000000-0000-0000-0000-000000000006', 'Rugby (viejo)', false),
+  ('e0000000-0000-0000-0000-000000000007', 'Carnet Tenis', true);
 
 insert into socio_servicios values
   ('50000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000003'),
   ('50000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001'),
-  ('50000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000002');
+  ('50000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000002'),
+  ('50000000-0000-0000-0000-000000000006', 'e0000000-0000-0000-0000-000000000003'),
+  ('50000000-0000-0000-0000-000000000006', 'e0000000-0000-0000-0000-000000000004'),
+  ('50000000-0000-0000-0000-000000000008', 'e0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-000000000009', 'e0000000-0000-0000-0000-000000000005'),
+  ('50000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000003'),
+  ('50000000-0000-0000-0000-00000000000b', 'e0000000-0000-0000-0000-000000000006'),
+  ('50000000-0000-0000-0000-00000000000c', 'e0000000-0000-0000-0000-000000000003'),
+  ('50000000-0000-0000-0000-00000000000d', 'e0000000-0000-0000-0000-000000000007');
 
 insert into divisiones values
   ('d0000000-0000-0000-0000-000000000001', 'M15', 'rugby', true),
   ('d0000000-0000-0000-0000-000000000002', 'Sub 14', 'hockey', true),
   ('d0000000-0000-0000-0000-000000000003', 'M17', 'rugby', true),
-  ('d0000000-0000-0000-0000-000000000004', 'Vieja', 'rugby', false);
+  ('d0000000-0000-0000-0000-000000000004', 'Vieja', 'rugby', false),
+  ('d0000000-0000-0000-0000-000000000005', 'Tenis Menores', 'tenis', true);
 
 insert into jugadores (division_id, activo, socio_id) values
   ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-000000000001'),
   ('d0000000-0000-0000-0000-000000000003', false, '50000000-0000-0000-0000-000000000004'),
   ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-000000000006'),
   ('d0000000-0000-0000-0000-000000000002', true,  '50000000-0000-0000-0000-000000000006'),
-  ('d0000000-0000-0000-0000-000000000004', true,  '50000000-0000-0000-0000-000000000006');
+  ('d0000000-0000-0000-0000-000000000004', true,  '50000000-0000-0000-0000-000000000006'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-000000000007'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-000000000008'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-000000000009'),
+  ('d0000000-0000-0000-0000-000000000002', true,  '50000000-0000-0000-0000-00000000000a'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-00000000000b'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-00000000000c'),
+  ('d0000000-0000-0000-0000-000000000002', true,  '50000000-0000-0000-0000-00000000000c'),
+  ('d0000000-0000-0000-0000-000000000005', true,  '50000000-0000-0000-0000-00000000000d');
 
 insert into eventos (id, tipo, titulo, division_id, fecha, hora, rival, cancelado) values
   ('e1000000-0000-0000-0000-000000000001', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000001', current_date + 2, '19:00', null, false),
@@ -129,12 +170,15 @@ insert into eventos (id, tipo, titulo, division_id, fecha, hora, rival, cancelad
   ('e1000000-0000-0000-0000-000000000007', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000003', current_date + 2, null, null, false),  -- otra división
   ('e1000000-0000-0000-0000-000000000008', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000002', current_date + 4, null, null, false),  -- Sub 14
   ('e1000000-0000-0000-0000-000000000009', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000004', current_date + 4, null, null, false),  -- división inactiva
-  ('e1000000-0000-0000-0000-00000000000a', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000001', current_date + 200, null, null, false);-- más allá del tope
+  ('e1000000-0000-0000-0000-00000000000a', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000001', current_date + 200, null, null, false),-- más allá del tope
+  ('e1000000-0000-0000-0000-00000000000b', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000005', current_date + 1, null, null, false);  -- Tenis Menores
 
--- ─── Migración bajo prueba ────────────────────────────────────────────────────
--- Si todavía no existe, el \ir aborta el script (RED).
+-- ─── Migraciones bajo prueba ──────────────────────────────────────────────────
+-- Se aplican en orden, como en producción. Si alguna todavía no existe, el \ir
+-- aborta el script (RED).
 
 \ir ../migrations/20261023000000_agenda_socio.sql
+\ir ../migrations/20261024000000_agenda_exige_servicio.sql
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -221,6 +265,30 @@ select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-000000000006')), 'M15,S
   'varias divisiones activas, sin la inactiva');
 select t_espera(t_ids(t_agenda('a0000000-0000-0000-0000-000000000006')), '3,1,8,2',
   'eventos de todas sus divisiones activas, nunca de la inactiva ni de otras');
+
+-- La división exige un servicio activo de su deporte.
+select t_espera(t_agenda('a0000000-0000-0000-0000-000000000007')::text,
+  '{"eventos": [], "divisiones": [], "tiene_gimnasio": false}',
+  'jugador sin ningún servicio no ve su división ni sus eventos');
+select t_espera(t_agenda('a0000000-0000-0000-0000-000000000008')::text,
+  '{"eventos": [], "divisiones": [], "tiene_gimnasio": true}',
+  'jugador con sólo Gimnasio tiene gimnasio pero no ve su división');
+select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-000000000009')), 'M15',
+  'Rugby Inclusivo habilita la división de rugby');
+select t_espera(t_ids(t_agenda('a0000000-0000-0000-0000-000000000009')), '3,1,2',
+  'Rugby Inclusivo ve los eventos de su división de rugby');
+select t_espera(t_agenda('a0000000-0000-0000-0000-00000000000a')::text,
+  '{"eventos": [], "divisiones": [], "tiene_gimnasio": false}',
+  'servicio de rugby no habilita una división de hockey');
+select t_espera(t_agenda('a0000000-0000-0000-0000-00000000000b')::text,
+  '{"eventos": [], "divisiones": [], "tiene_gimnasio": false}',
+  'servicio de rugby inactivo no habilita la división');
+select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-00000000000c')), 'M15',
+  'con varias divisiones sólo cuenta la del deporte contratado');
+select t_espera(t_ids(t_agenda('a0000000-0000-0000-0000-00000000000c')), '3,1,2',
+  'sólo los eventos de la división del deporte contratado');
+select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-00000000000d')), 'Tenis Menores',
+  'Carnet Tenis habilita la división de tenis');
 
 -- Permisos.
 select t_espera(has_function_privilege('authenticated', 'agenda_socio(date, date)', 'execute')::text, 'true',
