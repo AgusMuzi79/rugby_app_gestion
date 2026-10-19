@@ -11,6 +11,7 @@ import {
   lineaEvento,
   mostrarTabAgenda,
   parsearAgenda,
+  nombreMisDivisiones,
   puedeVerAgenda,
   ventanaAgenda,
   type DivisionAgenda,
@@ -143,6 +144,17 @@ caso('la ventana va de hoy a 7 días adelante, en fecha local', () => {
 
 caso('la ventana cruza fin de mes y de año', () => {
   assert.deepEqual(ventanaAgenda(new Date(2026, 11, 28, 9, 0)), { p_desde: '2026-12-28', p_hasta: '2027-01-04' })
+})
+
+caso('nombreMisDivisiones: sin divisiones es null', () => {
+  assert.equal(nombreMisDivisiones([]), null)
+})
+
+caso('nombreMisDivisiones: una, dos y tres divisiones', () => {
+  const M21: DivisionAgenda = { id: 'd3', nombre: 'M21', deporte: 'rugby' }
+  assert.equal(nombreMisDivisiones([M15]), 'M15')
+  assert.equal(nombreMisDivisiones([M15, SUB14]), 'M15 y Sub 14')
+  assert.equal(nombreMisDivisiones([M15, SUB14, M21]), 'M15, Sub 14 y M21')
 })
 
 console.log(`\n${casos} casos OK`)
