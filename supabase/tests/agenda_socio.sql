@@ -1,7 +1,8 @@
 -- Pruebas de escenario para las migraciones 20261023000000_agenda_socio
 -- (RPC agenda_socio: eventos de las divisiones del socio + si tiene gimnasio) y
 -- 20261024000000_agenda_exige_servicio (la división sólo cuenta si el socio
--- tiene un servicio activo de ese deporte).
+-- tiene un servicio activo de ese deporte) y 20261025000000_agenda_becados (la
+-- categoría 'Becado <deporte>' cuenta como el servicio de ese deporte).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name agenda-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -88,6 +89,8 @@ $$;
 -- pb: juega en M15 con un servicio de rugby inactivo.
 -- pc: servicio Rugby, juega en M15 y en Sub 14 (hockey).
 -- pd: 'Carnet Tenis', juega en Tenis Menores.
+-- pe: categoría 'Becado Rugby', sólo servicio Gimnasio, juega en M15.
+-- pf: categoría 'Becado Rugby', sin servicios, juega sólo en Sub 14 (hockey).
 
 insert into profiles values
   ('a0000000-0000-0000-0000-000000000001'), ('a0000000-0000-0000-0000-000000000002'),
@@ -96,11 +99,13 @@ insert into profiles values
   ('a0000000-0000-0000-0000-000000000007'), ('a0000000-0000-0000-0000-000000000008'),
   ('a0000000-0000-0000-0000-000000000009'), ('a0000000-0000-0000-0000-00000000000a'),
   ('a0000000-0000-0000-0000-00000000000b'), ('a0000000-0000-0000-0000-00000000000c'),
-  ('a0000000-0000-0000-0000-00000000000d');
+  ('a0000000-0000-0000-0000-00000000000d'), ('a0000000-0000-0000-0000-00000000000e'),
+  ('a0000000-0000-0000-0000-00000000000f');
 
 insert into categorias_socio values
   ('c0000000-0000-0000-0000-000000000001', 'Activo'),
-  ('c0000000-0000-0000-0000-000000000002', 'Cliente Gimnasio');
+  ('c0000000-0000-0000-0000-000000000002', 'Cliente Gimnasio'),
+  ('c0000000-0000-0000-0000-000000000003', 'Becado Rugby');
 
 insert into socios values
   ('50000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001'),
@@ -114,7 +119,9 @@ insert into socios values
   ('50000000-0000-0000-0000-00000000000a', 'a0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-000000000001'),
   ('50000000-0000-0000-0000-00000000000b', 'a0000000-0000-0000-0000-00000000000b', 'c0000000-0000-0000-0000-000000000001'),
   ('50000000-0000-0000-0000-00000000000c', 'a0000000-0000-0000-0000-00000000000c', 'c0000000-0000-0000-0000-000000000001'),
-  ('50000000-0000-0000-0000-00000000000d', 'a0000000-0000-0000-0000-00000000000d', 'c0000000-0000-0000-0000-000000000001');
+  ('50000000-0000-0000-0000-00000000000d', 'a0000000-0000-0000-0000-00000000000d', 'c0000000-0000-0000-0000-000000000001'),
+  ('50000000-0000-0000-0000-00000000000e', 'a0000000-0000-0000-0000-00000000000e', 'c0000000-0000-0000-0000-000000000003'),
+  ('50000000-0000-0000-0000-00000000000f', 'a0000000-0000-0000-0000-00000000000f', 'c0000000-0000-0000-0000-000000000003');
 
 insert into servicios_opcionales values
   ('e0000000-0000-0000-0000-000000000001', 'Gimnasio', true),
@@ -136,7 +143,8 @@ insert into socio_servicios values
   ('50000000-0000-0000-0000-00000000000a', 'e0000000-0000-0000-0000-000000000003'),
   ('50000000-0000-0000-0000-00000000000b', 'e0000000-0000-0000-0000-000000000006'),
   ('50000000-0000-0000-0000-00000000000c', 'e0000000-0000-0000-0000-000000000003'),
-  ('50000000-0000-0000-0000-00000000000d', 'e0000000-0000-0000-0000-000000000007');
+  ('50000000-0000-0000-0000-00000000000d', 'e0000000-0000-0000-0000-000000000007'),
+  ('50000000-0000-0000-0000-00000000000e', 'e0000000-0000-0000-0000-000000000001');
 
 insert into divisiones values
   ('d0000000-0000-0000-0000-000000000001', 'M15', 'rugby', true),
@@ -158,7 +166,9 @@ insert into jugadores (division_id, activo, socio_id) values
   ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-00000000000b'),
   ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-00000000000c'),
   ('d0000000-0000-0000-0000-000000000002', true,  '50000000-0000-0000-0000-00000000000c'),
-  ('d0000000-0000-0000-0000-000000000005', true,  '50000000-0000-0000-0000-00000000000d');
+  ('d0000000-0000-0000-0000-000000000005', true,  '50000000-0000-0000-0000-00000000000d'),
+  ('d0000000-0000-0000-0000-000000000001', true,  '50000000-0000-0000-0000-00000000000e'),
+  ('d0000000-0000-0000-0000-000000000002', true,  '50000000-0000-0000-0000-00000000000f');
 
 insert into eventos (id, tipo, titulo, division_id, fecha, hora, rival, cancelado) values
   ('e1000000-0000-0000-0000-000000000001', 'entrenamiento', null, 'd0000000-0000-0000-0000-000000000001', current_date + 2, '19:00', null, false),
@@ -179,6 +189,7 @@ insert into eventos (id, tipo, titulo, division_id, fecha, hora, rival, cancelad
 
 \ir ../migrations/20261023000000_agenda_socio.sql
 \ir ../migrations/20261024000000_agenda_exige_servicio.sql
+\ir ../migrations/20261025000000_agenda_becados.sql
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -289,6 +300,17 @@ select t_espera(t_ids(t_agenda('a0000000-0000-0000-0000-00000000000c')), '3,1,2'
   'sólo los eventos de la división del deporte contratado');
 select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-00000000000d')), 'Tenis Menores',
   'Carnet Tenis habilita la división de tenis');
+
+-- Becados: la categoría 'Becado <deporte>' cuenta como el servicio.
+select t_espera(t_divs(t_agenda('a0000000-0000-0000-0000-00000000000e')), 'M15',
+  'Becado Rugby sin servicio de rugby ve su división de rugby');
+select t_espera(t_ids(t_agenda('a0000000-0000-0000-0000-00000000000e')), '3,1,2',
+  'Becado Rugby ve los eventos de su división');
+select t_espera(t_agenda('a0000000-0000-0000-0000-00000000000e')->>'tiene_gimnasio', 'true',
+  'Becado Rugby con Gimnasio sigue teniendo gimnasio');
+select t_espera(t_agenda('a0000000-0000-0000-0000-00000000000f')::text,
+  '{"eventos": [], "divisiones": [], "tiene_gimnasio": false}',
+  'Becado Rugby no habilita una división de hockey');
 
 -- Permisos.
 select t_espera(has_function_privilege('authenticated', 'agenda_socio(date, date)', 'execute')::text, 'true',
