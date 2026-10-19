@@ -2,7 +2,9 @@
 -- (RPC agenda_socio: eventos de las divisiones del socio + si tiene gimnasio) y
 -- 20261024000000_agenda_exige_servicio (la división sólo cuenta si el socio
 -- tiene un servicio activo de ese deporte) y 20261025000000_agenda_becados (la
--- categoría 'Becado <deporte>' cuenta como el servicio de ese deporte).
+-- categoría 'Becado <deporte>' cuenta como el servicio de ese deporte). Corre
+-- también 20261026000000_recordatorio_eventos, que reescribe agenda_socio con
+-- el helper socio_habilitado_deporte: todos los casos tienen que seguir igual.
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name agenda-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -25,6 +27,7 @@ begin;
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;
   if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon; end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role; end if;
 end $$;
 
 create schema if not exists auth;
@@ -32,7 +35,13 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('test.uid', true), '')::uuid
 $$;
 
-create table profiles (id uuid primary key);
+-- roles/divisiones/activo: los lee reclamar_recordatorios_eventos (20261026000000).
+create table profiles (
+  id         uuid primary key,
+  roles      text[] not null default '{socio}',
+  divisiones uuid[],
+  activo     boolean not null default true
+);
 create table categorias_socio (id uuid primary key, nombre text not null);
 create table socios (
   id           uuid primary key,
@@ -190,6 +199,7 @@ insert into eventos (id, tipo, titulo, division_id, fecha, hora, rival, cancelad
 \ir ../migrations/20261023000000_agenda_socio.sql
 \ir ../migrations/20261024000000_agenda_exige_servicio.sql
 \ir ../migrations/20261025000000_agenda_becados.sql
+\ir ../migrations/20261026000000_recordatorio_eventos.sql
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
