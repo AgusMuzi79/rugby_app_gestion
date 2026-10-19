@@ -42,6 +42,15 @@ export function ventanaAgenda(hoy: Date = new Date(), dias: number = DIAS_AGENDA
   return { p_desde: iso(hoy), p_hasta: iso(hasta) }
 }
 
+// "M15", "M15 y Sub 14", "M15, Sub 14 y M21"; null si no juega en ninguna.
+// La usa el banner "Jugás en …" del Calendario del socio.
+export function nombreMisDivisiones(divisiones: DivisionAgenda[]): string | null {
+  const nombres = divisiones.map(d => d.nombre)
+  if (nombres.length === 0) return null
+  if (nombres.length === 1) return nombres[0]
+  return `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}`
+}
+
 // Sin gimnasio ni división, la pestaña no tiene nada que mostrar.
 export function puedeVerAgenda(a: Pick<Agenda, 'tiene_gimnasio' | 'divisiones'>): boolean {
   return a.tiene_gimnasio || a.divisiones.length > 0

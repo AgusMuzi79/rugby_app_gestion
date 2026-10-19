@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { nombreMisDivisiones, parsearAgenda, ventanaAgenda, type DivisionAgenda } from '@/lib/agenda'
 
 export type FiltrodeDeporte = 'todos' | 'rugby' | 'hockey' | 'tenis'
 
@@ -30,12 +31,13 @@ export interface ResultadoCalendario {
 }
 
 // socioId: undefined = own socio (profile_id = auth.uid()); given = that socio
-// by id (tutor viewing a linked minor). Only used to highlight "mi equipo".
+// by id (tutor viewing a linked minor). Only used to highlight "mi equipo",
+// which today only works for the own socio (see agenda_socio below).
 export function useCalendarioSocio(socioId?: string) {
   const { session } = useAuthStore()
 
   const [loading, setLoading]                         = useState(true)
-  const [jugadorDivisionId, setJugadorDivisionId]     = useState<string | null>(null)
+  const [jugadorDivisionIds, setJugadorDivisionIds]   = useState<string[]>([])
   const [jugadorDivisionNombre, setJugadorDivisionNombre] = useState<string | null>(null)
   const [partidos, setPartidos]                       = useState<PartidoCalendario[]>([])
   const [resultados, setResultados]                   = useState<ResultadoCalendario[]>([])
@@ -65,30 +67,20 @@ export function useCalendarioSocio(socioId?: string) {
     setError(null)
 
     try {
-      // ── Detectar si el socio es jugador ──────────────────────────────────────
-      const { data: socio } = await supabase
-        .from('socios')
-        .select('id, dni')
-        .eq(socioId ? 'id' : 'profile_id', socioId ?? session.user.id)
-        .maybeSingle()
-
-      if (socio?.dni) {
-        const { data: jugador } = await supabase
-          .from('jugadores')
-          .select('division_id, divisiones(nombre)')
-          .eq('dni', socio.dni)
-          .eq('activo', true)
-          .maybeSingle()
-
-        if (jugador?.division_id) {
-          const div = jugador.divisiones as { nombre: string } | null
-          setJugadorDivisionId(jugador.division_id)
-          setJugadorDivisionNombre(div?.nombre ?? null)
-        } else {
-          setJugadorDivisionId(null)
-          setJugadorDivisionNombre(null)
-        }
+      // ── Divisiones donde juega el socio ("MI EQUIPO") ────────────────────────
+      // Los socios no pueden leer `jugadores` (RLS); agenda_socio() devuelve
+      // sus divisiones de forma segura. Ventana de un día: sólo interesan las
+      // divisiones, no los eventos. Resuelve el socio logueado, así que para
+      // el tutor (socioId del menor) no aplica. Si falla, el calendario se
+      // muestra igual sin destacar.
+      let misDivisiones: DivisionAgenda[] = []
+      if (!socioId) {
+        const { data: agendaData, error: errAgenda } = await supabase.rpc('agenda_socio', ventanaAgenda(new Date(), 0))
+        if (!errAgenda) misDivisiones = parsearAgenda(agendaData).divisiones
       }
+      const misDivisionIds = new Set(misDivisiones.map(d => d.id))
+      setJugadorDivisionIds([...misDivisionIds])
+      setJugadorDivisionNombre(nombreMisDivisiones(misDivisiones))
 
       const hoy    = new Date().toISOString().split('T')[0]
       const en60   = new Date()
@@ -117,8 +109,6 @@ export function useCalendarioSocio(socioId?: string) {
         divisiones: { nombre: string; deporte: string } | null
       }
 
-      const miDivisionId = jugadorDivisionId ?? null
-
       const partidosNorm: PartidoCalendario[] = (eventosData ?? []).map((e: RawEvento) => ({
         id:              e.id,
         fecha:           e.fecha,
@@ -128,7 +118,7 @@ export function useCalendarioSocio(socioId?: string) {
         division_id:     e.division_id,
         division_nombre: e.divisiones?.nombre ?? '',
         deporte:         e.divisiones?.deporte ?? 'rugby',
-        es_mi_division:  e.division_id === miDivisionId,
+        es_mi_division:  misDivisionIds.has(e.division_id),
       }))
       setPartidos(partidosNorm)
 
@@ -161,7 +151,7 @@ export function useCalendarioSocio(socioId?: string) {
           deporte:         e.divisiones?.deporte ?? 'rugby',
           puntos_propios:  r?.puntos_propios ?? null,
           puntos_rival:    r?.puntos_rival ?? null,
-          es_mi_division:  e.division_id === miDivisionId,
+          es_mi_division:  misDivisionIds.has(e.division_id),
         }
       })
       setResultados(resultadosNorm)
@@ -185,7 +175,7 @@ export function useCalendarioSocio(socioId?: string) {
     loading: loading && !cargado,
     refreshing,
     error,
-    jugadorDivisionId,
+    jugadorDivisionIds,
     jugadorDivisionNombre,
     partidos:   partidosFiltrados,
     resultados: resultadosFiltrados,
