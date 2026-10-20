@@ -90,7 +90,14 @@ Deno.serve(async (req: Request) => {
     const plan = planificarRecordatorios(eventos, await profilesPorSocio(socioIds))
     const tokens = await tokensPorProfile([...new Set(plan.map((r) => r.profileId))])
     const items = mensajesRecordatorios(plan, tokens)
-    const { entregados, fallidos } = await enviarPush(items)
+    // Los errores de Expo (tickets rechazados, chunks fallidos) se juntan para el registro.
+    const errores: string[] = []
+    const { entregados, fallidos } = await enviarPush(items, {
+      log: (...args: unknown[]) => {
+        console.error(...args)
+        errores.push(args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a) ?? String(a))).join(' '))
+      },
+    })
 
     const resumen = {
       eventos: eventos.length,
@@ -100,6 +107,20 @@ Deno.serve(async (req: Request) => {
       fallidos,
     }
     console.log('recordatorio-eventos:', JSON.stringify(resumen))
+
+    // Registro de la corrida (migración 20261027000000). Si falla, sólo se loguea.
+    const detalle = plan.map((r) => ({
+      titulo: r.title,
+      cuerpo: r.body,
+      profile_id: r.profileId,
+      tokens: (tokens.get(r.profileId) ?? []).length,
+      entregado: entregados.has(`${r.sesion}#${r.profileId}`),
+    }))
+    const { error: errLog } = await supabaseAdmin
+      .from('recordatorio_eventos_envios')
+      .insert({ ...resumen, detalle, errores })
+    if (errLog) console.error('recordatorio-eventos: no se pudo registrar la corrida:', errLog.message)
+
     return jsonOk(resumen)
   } catch (e) {
     const motivo = e instanceof Error ? e.message : String(e)
