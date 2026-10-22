@@ -15,8 +15,8 @@
 #   R2_BUCKET             Bucket name
 #
 # Each secret is exposed only to the step that needs it, and third-party code is pinned.
-# Retention: the newest KEEP backups are kept; older ones are deleted only after today's
-# backup was uploaded and verified, so a stopped workflow never empties the bucket.
+# Retention: backups older than KEEP_DAYS are deleted only after today's backup was uploaded
+# and verified, so a stopped workflow never empties the bucket.
 # Restore: see docs/backup-restore.md.
 
 name: Supabase backup
@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  KEEP: 90
+  KEEP_DAYS: 90 # also stated in docs/backup-restore.md
   PREFIX: supabase/
   AWS_DEFAULT_REGION: auto
   AWS_REQUEST_CHECKSUM_CALCULATION: when_required
@@ -45,18 +45,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
+      # Only presence flags ('true'/'false') reach this step, never the secret values.
       - name: Check secrets
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL != '' }}
-          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT != '' }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET != '' }}
+          HAS_SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL != '' }}
+          HAS_BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT != '' }}
+          HAS_R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' }}
+          HAS_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+          HAS_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' }}
+          HAS_R2_BUCKET: ${{ secrets.R2_BUCKET != '' }}
         run: |
           missing=0
-          for v in SUPABASE_DB_URL BACKUP_AGE_RECIPIENT R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
-            if [ "${!v}" != "true" ]; then echo "::error::Missing repository secret $v"; missing=1; fi
+          for name in SUPABASE_DB_URL BACKUP_AGE_RECIPIENT R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+            flag="HAS_$name"
+            if [ "${!flag}" != "true" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
           done
           exit $missing
 
@@ -77,23 +79,34 @@ jobs:
           stamp=$(date -u +%Y-%m-%d-%H-%M-%S)
           dir="$RUNNER_TEMP/backup/$stamp"
           mkdir -p "$dir"
-          # dump <file> <pattern that proves it has content> <db dump flags...>
+
+          # GitHub masks the secret as a whole; also mask the password alone, raw and
+          # URL-decoded, in case the CLI prints it on its own.
+          password=${SUPABASE_DB_URL#*://}
+          password=${password%@*}
+          password=${password#*:}
+          echo "::add-mask::$password"
+          echo "::add-mask::$(printf '%b' "${password//%/\\x}")"
+
+          # dump <file> <pattern that proves the expected content is there> <db dump flags...>
           dump() {
             local file=$1 expect=$2; shift 2
-            if ! supabase db dump --db-url "$SUPABASE_DB_URL" "$@" -f "$dir/$file" > /dev/null 2>&1; then
-              echo "::error::supabase db dump failed for $file (output hidden: it may contain the connection string)"
+            if ! supabase db dump --db-url "$SUPABASE_DB_URL" "$@" -f "$dir/$file" > "$dir.log" 2>&1; then
+              echo "::error::supabase db dump failed for $file. Last lines (credentials redacted):"
+              tail -n 20 "$dir.log" | sed -E 's#(postgres(ql)?://)[^@[:space:]]+@#\1***@#g'
               exit 1
             fi
             if ! grep -Eq "$expect" "$dir/$file"; then
-              echo "::error::$file has no content matching '$expect'"
+              echo "::error::$file has no line matching '$expect'"
               exit 1
             fi
             echo "$file: $(du -k "$dir/$file" | cut -f1) KB"
           }
-          dump schema.sql  'CREATE TABLE'          --schema public
-          dump data.sql    '^(INSERT INTO|COPY) '  --data-only --schema public
-          dump auth.sql    '^(INSERT INTO|COPY) '  --data-only --schema auth
-          dump storage.sql '^(INSERT INTO|COPY) '  --data-only --schema storage
+          dump schema.sql  '^CREATE TABLE IF NOT EXISTS "public"\."socios" \(' --schema public
+          dump data.sql    '^(INSERT INTO|COPY) "public"\."socios"'   --data-only --schema public
+          dump auth.sql    '^(INSERT INTO|COPY) "auth"\."users"'      --data-only --schema auth
+          dump storage.sql '^(INSERT INTO|COPY) "storage"\."buckets"' --data-only --schema storage
+          rm -f "$dir.log"
           echo "STAMP=$stamp" >> "$GITHUB_ENV"
 
       - name: Encrypt
@@ -137,14 +150,28 @@ jobs:
           fi
           echo "Uploaded and verified $key ($local_size bytes)"
 
-          # Keys are timestamped, so lexical order is chronological.
-          aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$PREFIX" \
-            --endpoint-url "$endpoint" --query 'Contents[].Key' --output text \
-            | tr '\t' '\n' | grep -E '\.tar\.gz\.age$' | sort | head -n -"$KEEP" \
-            | while read -r old; do
-                aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$endpoint" --only-show-errors
-                echo "Rotated $old"
-              done
+          # Rotation never fails the run: today's backup is already safe. Problems are warnings.
+          set +e +o pipefail
+          cutoff="$PREFIX$(date -u -d "-$KEEP_DAYS days" +%Y-%m-%d)"
+          if ! keys=$(aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$PREFIX" \
+              --endpoint-url "$endpoint" --query 'Contents[].Key' --output text); then
+            echo "::warning::Could not list backups; rotation skipped"
+            exit 0
+          fi
+          # Keys start with the UTC date, so comparing strings compares dates.
+          for old in $(printf '%s\n' $keys | grep -E '\.tar\.gz\.age$' | sort); do
+            [[ "$old" < "$cutoff" ]] || continue
+            deleted=false
+            for attempt in 1 2 3; do
+              if aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$endpoint" --only-show-errors; then
+                deleted=true
+                break
+              fi
+              sleep 5
+            done
+            if $deleted; then echo "Rotated $old"; else echo "::warning::Could not delete $old"; fi
+          done
+          exit 0
 
       - name: Clean up
         if: always()

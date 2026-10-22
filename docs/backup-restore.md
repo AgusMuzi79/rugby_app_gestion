@@ -22,8 +22,9 @@ never upload a backup unencrypted, and never commit the age private key.
    manager as well: without it, no backup can be restored.
 2. **R2 bucket** (Cloudflare dashboard > R2): create a private bucket and an R2 API token with
    *Object Read & Write* scoped to that bucket. Do NOT add a lifecycle rule: the workflow keeps
-   the newest 90 backups itself and deletes older ones only after a new backup is verified, so
-   backups never expire while the workflow is stopped.
+   the last 90 days of backups itself (`KEEP_DAYS` in the workflow; update this line if it
+   changes) and deletes older ones only after a new backup is verified, so backups never
+   expire while the workflow is stopped.
 3. **Supabase connection string**: Dashboard > Connect > *Session pooler* (port 5432). GitHub
    runners are IPv4-only and the direct host is IPv6 on the Free plan. URL-encode the password
    if it has special characters.
@@ -33,9 +34,15 @@ never upload a backup unencrypted, and never commit the age private key.
 5. Run it once by hand: Actions > *Supabase backup* > *Run workflow*, and check the file
    appears in the bucket. Then do a trial restore into staging (below).
 
-GitHub emails the repository owner when a scheduled run fails. GitHub also disables scheduled
-workflows in public repositories after 60 days without commits; re-enable it from the
-Actions tab if that happens.
+When a scheduled run fails, GitHub notifies the person who last changed the `cron` line of
+the workflow (not necessarily the repository owner), according to their notification
+settings. If someone else edits the schedule, they become the one notified. GitHub also
+disables scheduled workflows in public repositories after 60 days without commits; re-enable
+it from the Actions tab if that happens.
+
+Each run checks that the dumps contain the `socios` table and rows of `public.socios`,
+`auth.users` and `storage.buckets`, and that the uploaded file matches the local size. That
+does not prove a backup restores: do a trial restore into staging every 3 months.
 
 The Supabase CLI version and the `supabase/setup-cli` action are pinned in the workflow.
 Bump them on purpose, and run the workflow by hand after a bump.
