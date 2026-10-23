@@ -3,6 +3,7 @@ import {
   ActivityIndicator, StyleSheet, TextInput, Image,
   KeyboardAvoidingView, Platform, Linking, Alert,
 } from 'react-native'
+import { useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useSobre } from '@/hooks/useSobre'
@@ -38,9 +39,67 @@ export function FilaSolicitudBaja() {
   )
 }
 
+// Selector "VISTA ACTIVA" (solo si la cuenta tiene más de un rol). Se exporta
+// para el Mi perfil del tutor: un cliente gimnasio que además es tutor tiene
+// que poder volver a su propio carnet desde la vista de tutor.
+export function SelectorVistaActiva() {
+  const router = useRouter()
+  const { colors } = useTheme()
+  const { rol, roles, setRolActivo } = useAuthStore()
+  const [cambiando, setCambiando] = useState(false)
+
+  // The active role lives in profiles.rol (routing, RLS and socios-qr read it),
+  // so only switch the local view once the write succeeded.
+  async function cambiarRol(nuevoRol: Rol) {
+    if (nuevoRol === rol || cambiando) return
+    setCambiando(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Sin sesión')
+      const { error } = await supabase.from('profiles').update({ rol: nuevoRol }).eq('id', user.id)
+      if (error) throw error
+      setRolActivo(nuevoRol)
+      router.replace(ROL_RUTA_INICIAL[nuevoRol] as any)
+    } catch {
+      Alert.alert('No se pudo cambiar la vista', 'Revisá tu conexión y probá de nuevo.')
+    } finally {
+      setCambiando(false)
+    }
+  }
+
+  if (roles.length <= 1) return null
+
+  return (
+    <View style={s.section}>
+      <Text style={[s.sectionTitle, { color: colors.oro }]}>VISTA ACTIVA</Text>
+      <View style={s.rolesRow}>
+        {roles.map((r) => (
+          <TouchableOpacity
+            key={r}
+            style={[
+              s.rolBtn,
+              { borderColor: r === rol ? colors.oro : colors.grisClaro },
+              r === rol && { backgroundColor: colors.oro },
+              cambiando && { opacity: 0.6 },
+            ]}
+            onPress={() => cambiarRol(r)}
+            disabled={cambiando}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: r === rol, disabled: cambiando, busy: cambiando }}
+          >
+            <Text style={[s.rolBtnTexto, { color: r === rol ? colors.sobreOro : colors.muted }]}>
+              {ROL_LABELS[r].toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  )
+}
+
 export function SobreScreen() {
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const {
     perfil, loading,
     nombre, setNombre, guardandoNombre, nombreGuardado, guardarNombre,
@@ -51,14 +110,6 @@ export function SobreScreen() {
   const { signOut }              = useSignOut()
   const { pdfUrl }               = useTerminos()
   const { colors } = useTheme()
-  const { rol, roles, setRolActivo } = useAuthStore()
-
-  async function cambiarRol(nuevoRol: Rol) {
-    if (nuevoRol === rol) return
-    await supabase.from('profiles').update({ rol: nuevoRol }).eq('id', (await supabase.auth.getUser()).data.user!.id)
-    setRolActivo(nuevoRol)
-    router.replace(ROL_RUTA_INICIAL[nuevoRol] as any)
-  }
 
   if (loading) {
     return (
@@ -139,31 +190,7 @@ export function SobreScreen() {
         </View>
 
         {/* ── Selector de rol (solo si hay más de un rol) ─────────── */}
-        {roles.length > 1 && (
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.oro }]}>VISTA ACTIVA</Text>
-            <View style={s.rolesRow}>
-              {roles.map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[
-                    s.rolBtn,
-                    { borderColor: r === rol ? colors.oro : colors.grisClaro },
-                    r === rol && { backgroundColor: colors.oro },
-                  ]}
-                  onPress={() => cambiarRol(r)}
-                  activeOpacity={0.8}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: r === rol }}
-                >
-                  <Text style={[s.rolBtnTexto, { color: r === rol ? colors.sobreOro : colors.muted }]}>
-                    {ROL_LABELS[r].toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        )}
+        <SelectorVistaActiva />
 
         {/* ── Nombre ──────────────────────────────────────────────── */}
         <View style={s.section}>
