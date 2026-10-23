@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSobre } from '@/hooks/useSobre'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useTerminos } from '@/hooks/useTerminos'
-import { FilaSolicitudBaja } from '@/components/shared/SobreScreen'
+import { FilaSolicitudBaja, SelectorVistaActiva } from '@/components/shared/SobreScreen'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useTutorStore } from '@/stores/tutorStore'
 import { fonts } from '@/constants/theme'
@@ -66,6 +66,9 @@ export default function TutorSobreScreen() {
           )}
           <Text style={[s.rolLabel, { color: GOLD_DEEP }]}>{perfil?.rolLabel.toUpperCase() ?? ''}</Text>
         </View>
+
+        {/* ── Selector de rol (cuenta con más de un rol, ej. cliente gimnasio + tutor) ── */}
+        <SelectorVistaActiva />
 
         {/* ── Socios a cargo (solo lectura) ────────────────────────── */}
         <View style={s.section}>
