@@ -1,6 +1,6 @@
 # Supabase backup: setup and restore
 
-The workflow `.github/workflows/backup-supabase.yml` dumps the database every day at 03:00
+The workflow `.github/workflows/backup-supabase.yml` dumps the database every day at 03:17
 (Argentina), encrypts it with [age](https://github.com/FiloSottile/age) and uploads it to a
 private Cloudflare R2 bucket. Each backup is one file: `supabase/<UTC timestamp>.tar.gz.age`.
 
@@ -24,20 +24,23 @@ never upload a backup unencrypted, and never commit the age private key.
    *Object Read & Write* scoped to that bucket. Do NOT add a lifecycle rule: the workflow keeps
    the last 90 days of backups itself (`KEEP_DAYS` in the workflow; update this line if it
    changes), deletes older ones only after a new backup is verified, and never goes below
-   14 backups (`KEEP_MIN`) whatever their age. So neither a stopped workflow nor the first run
-   after a long stop can leave the bucket with fewer than 14 backups.
+   14 backups (`KEEP_MIN`; update this line too if it changes) whatever their age. So neither
+   a stopped workflow nor the first run after a long stop can leave the bucket with fewer than
+   `KEEP_MIN` backups. The selection logic is tested in
+   `.github/scripts/backup-rotation.test.sh`, which every run executes first.
 3. **Supabase connection string**: Dashboard > Connect > *Session pooler* (port 5432). GitHub
    runners are IPv4-only and the direct host is IPv6 on the Free plan. URL-encode the password
    if it has special characters.
 4. **Freshness alert** ([healthchecks.io](https://healthchecks.io), free plan): create a check
-   with period 1 day and grace 2 hours, and add your email as its integration. Copy its ping
+   with period 1 day and grace 6 hours (GitHub can start scheduled runs late), and add your
+   email as its integration. Copy its ping
    URL. If no successful ping arrives on time (the workflow failed, was disabled, or the
    secrets broke), healthchecks.io emails you. This is the only alert that does not depend
    on GitHub.
 5. **GitHub secrets** (repo Settings > Secrets and variables > Actions): `SUPABASE_DB_URL`,
    `BACKUP_AGE_RECIPIENT` (the `age1...` public key), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
-   `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, and `HEALTHCHECK_URL` (the ping URL; optional, but
-   without it a silent stop goes unnoticed).
+   `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, and `HEALTHCHECK_URL` (the ping URL). The workflow
+   runs without `HEALTHCHECK_URL`, but then a silent stop goes unnoticed: treat it as required.
 6. Run it once by hand: Actions > *Supabase backup* > *Run workflow*, and check the file
    appears in the bucket and the check turns green. Then do a trial restore into staging
    (below).
@@ -45,8 +48,9 @@ never upload a backup unencrypted, and never commit the age private key.
 When a run fails, the workflow pings healthchecks.io as failed, and GitHub notifies the
 person who last changed the `cron` line of the workflow (not necessarily the repository
 owner), according to their notification settings. GitHub disables scheduled workflows in
-public repositories after 60 days without commits; each run re-enables the workflow through
-the API to avoid that, and if it still happens, healthchecks.io alerts after a day.
+public repositories after 60 days without commits. Each run re-enables the workflow through
+the API (keepalive job), but it is not proven that this resets GitHub's counter. If the
+schedule stops anyway, healthchecks.io alerts within a day: re-enable it from the Actions tab.
 
 Each run checks that the dumps contain the `socios` table and rows of `public.socios`,
 `auth.users` and `storage.buckets`, and that the uploaded file matches the local size. That

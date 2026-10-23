@@ -20,20 +20,19 @@
 # Retention: backups older than KEEP_DAYS are deleted only after today's backup was uploaded
 # and verified, and never below KEEP_MIN backups, so a stopped or resumed workflow never
 # leaves the bucket with fewer than KEEP_MIN.
-# Each run re-enables this workflow through the API so GitHub's 60-day inactivity rule for
-# public repos does not switch the schedule off.
+# Each run re-enables this workflow through the API (separate keepalive job) to try to keep
+# GitHub's 60-day inactivity rule for public repos from switching the schedule off.
 # Restore: see docs/backup-restore.md.
 
 name: Supabase backup
 
 on:
   schedule:
-    - cron: '0 6 * * *' # 03:00 Argentina
+    - cron: '17 6 * * *' # 03:17 Argentina; off the top of the hour, when GitHub delays runs most
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write # keepalive: re-enable this workflow
 
 concurrency:
   group: supabase-backup
@@ -41,7 +40,7 @@ concurrency:
 
 env:
   KEEP_DAYS: 90 # also stated in docs/backup-restore.md
-  KEEP_MIN: 14  # never rotate below this many backups, whatever their age
+  KEEP_MIN: 14  # never rotate below this many backups; also stated in docs/backup-restore.md
   PREFIX: supabase/
   AWS_DEFAULT_REGION: auto
   AWS_REQUEST_CHECKSUM_CALCULATION: when_required
@@ -52,6 +51,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Test rotation logic
+        run: bash .github/scripts/backup-rotation.test.sh
+
       # Only presence flags ('true'/'false') reach this step, never the secret values.
       - name: Check secrets
         env:
@@ -165,16 +172,8 @@ jobs:
             echo "::warning::Could not list backups; rotation skipped"
             exit 0
           fi
-          backups=$(printf '%s\n' $keys | grep -E '\.tar\.gz\.age$' | sort)
-          remaining=$(printf '%s\n' "$backups" | grep -c .)
-          # Keys are PREFIX followed by the UTC date, and cutoff carries the same PREFIX,
-          # so comparing strings compares dates. Oldest first, stop at KEEP_MIN.
-          for old in $backups; do
-            [[ "$old" < "$cutoff" ]] || break
-            if [ "$remaining" -le "$KEEP_MIN" ]; then
-              echo "Keeping $old and older: only $remaining backups left (KEEP_MIN=$KEEP_MIN)"
-              break
-            fi
+          # Selection is tested in .github/scripts/backup-rotation.test.sh.
+          for old in $(echo "$keys" | bash .github/scripts/backup-rotation.sh "$cutoff" "$KEEP_MIN"); do
             deleted=false
             for attempt in 1 2 3; do
               if aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$endpoint" --only-show-errors; then
@@ -183,21 +182,9 @@ jobs:
               fi
               sleep 5
             done
-            if $deleted; then
-              echo "Rotated $old"
-              remaining=$((remaining - 1))
-            else
-              echo "::warning::Could not delete $old"
-            fi
+            if $deleted; then echo "Rotated $old"; else echo "::warning::Could not delete $old"; fi
           done
           exit 0
-
-      - name: Keep schedule enabled
-        if: always()
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/backup-supabase.yml/enable"
 
       - name: Ping healthcheck
         if: always()
@@ -214,3 +201,20 @@ jobs:
       - name: Clean up
         if: always()
         run: rm -rf "$RUNNER_TEMP/backup"
+
+  # Separate job so the write permission on Actions never reaches the backup job, which
+  # handles the secrets and runs third-party code. Unproven against the 60-day rule:
+  # healthchecks.io is the real alert if the schedule stops.
+  keepalive:
+    needs: backup
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Keep schedule enabled
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/backup-supabase.yml/enable"
