@@ -9,10 +9,21 @@
 #
 # Keys are PREFIX followed by the UTC timestamp, and cutoff carries the same PREFIX, so
 # comparing strings compares dates. Only *.tar.gz.age keys count as backups.
+#
+# Fails closed: with a bad argument it prints nothing (deletes nothing) and exits 1.
 set -uo pipefail
 
-cutoff=$1
-keep_min=$2
+cutoff=${1:-}
+keep_min=${2:-}
+
+if ! [[ "$keep_min" =~ ^[0-9]+$ ]] || [ "$keep_min" -lt 1 ]; then
+  echo "backup-rotation: keep_min must be an integer >= 1, got '$keep_min'" >&2
+  exit 1
+fi
+if ! [[ "$cutoff" =~ ^.*[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  echo "backup-rotation: cutoff must end in YYYY-MM-DD, got '$cutoff'" >&2
+  exit 1
+fi
 
 backups=$(tr -s '[:space:]' '\n' | grep -E '\.tar\.gz\.age$' | sort)
 remaining=$(printf '%s\n' "$backups" | grep -c .)

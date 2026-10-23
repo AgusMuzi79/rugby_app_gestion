@@ -103,13 +103,22 @@ jobs:
           echo "::add-mask::$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$password")"
 
           # dump <file> <pattern that proves the expected content is there> <db dump flags...>
+          # Up to 3 attempts, so one transient pooler error does not cost the day's backup.
           dump() {
             local file=$1 expect=$2; shift 2
-            if ! supabase db dump --db-url "$SUPABASE_DB_URL" "$@" -f "$dir/$file" > "$dir.log" 2>&1; then
-              echo "::error::supabase db dump failed for $file. Last lines (credentials redacted):"
-              tail -n 20 "$dir.log" | sed -E 's#(postgres(ql)?://)[^@[:space:]]+@#\1***@#g'
-              exit 1
-            fi
+            local attempt
+            for attempt in 1 2 3; do
+              if supabase db dump --db-url "$SUPABASE_DB_URL" "$@" -f "$dir/$file" > "$dir.log" 2>&1; then
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "::error::supabase db dump failed for $file after 3 attempts. Last lines (credentials redacted):"
+                tail -n 20 "$dir.log" | sed -E 's#(postgres(ql)?://)[^@[:space:]]+@#\1***@#g'
+                exit 1
+              fi
+              echo "Dump of $file failed (attempt $attempt), retrying in 30s"
+              sleep 30
+            done
             if ! grep -Eq "$expect" "$dir/$file"; then
               echo "::error::$file has no line matching '$expect'"
               exit 1
@@ -156,8 +165,14 @@ jobs:
           done
 
           local_size=$(stat -c %s "$file")
-          remote_size=$(aws s3api head-object --bucket "$R2_BUCKET" --key "$key" \
-            --endpoint-url "$endpoint" --query ContentLength --output text)
+          remote_size=""
+          for attempt in 1 2 3; do
+            if remote_size=$(aws s3api head-object --bucket "$R2_BUCKET" --key "$key" \
+                --endpoint-url "$endpoint" --query ContentLength --output text); then
+              break
+            fi
+            sleep 10
+          done
           if [ "$local_size" != "$remote_size" ]; then
             echo "::error::Uploaded size $remote_size does not match local size $local_size"
             exit 1
@@ -172,8 +187,13 @@ jobs:
             echo "::warning::Could not list backups; rotation skipped"
             exit 0
           fi
-          # Selection is tested in .github/scripts/backup-rotation.test.sh.
-          for old in $(echo "$keys" | bash .github/scripts/backup-rotation.sh "$cutoff" "$KEEP_MIN"); do
+          # Selection is tested in .github/scripts/backup-rotation.test.sh. It fails closed:
+          # on a bad argument it selects nothing.
+          if ! to_delete=$(echo "$keys" | bash .github/scripts/backup-rotation.sh "$cutoff" "$KEEP_MIN"); then
+            echo "::warning::Rotation selection refused its arguments; nothing deleted"
+            exit 0
+          fi
+          for old in $to_delete; do
             deleted=false
             for attempt in 1 2 3; do
               if aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$endpoint" --only-show-errors; then

@@ -53,4 +53,16 @@ expect "empty bucket listing (None) selects nothing" \
   "" \
   "$(echo None | bash "$rotation" "$cutoff" 14)"
 
+for bad in "" "x" "-1" "0" "14 # comment"; do
+  out=$(echo "$(key 2026-06-01) $(key 2026-10-22)" | bash "$rotation" "$cutoff" "$bad" 2>/dev/null)
+  status=$?
+  expect "keep_min '$bad' fails closed" "1:" "$status:$out"
+done
+
+for bad in "" "supabase/" "supabase/2026-07"; do
+  out=$(echo "$(key 2026-06-01) $(key 2026-10-22)" | bash "$rotation" "$bad" 1 2>/dev/null)
+  status=$?
+  expect "cutoff '$bad' fails closed" "1:" "$status:$out"
+done
+
 exit $fail
