@@ -50,6 +50,7 @@ import { verifyTOTP } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
+import { motivoRechazoPorEstado } from '../_shared/estado-acceso.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -406,6 +407,10 @@ async function handleValidate(
 
   const row = socio as unknown as SocioRow
 
+  // Dado de baja: no pasa en ningún lector (antes salía verde "AL DÍA").
+  const motivoEstado = motivoRechazoPorEstado(row.estado)
+  if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
+
   let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {
     const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
@@ -460,6 +465,9 @@ async function handleValidateDni(
   }
 
   const row = socio as unknown as SocioRow
+
+  const motivoEstado = motivoRechazoPorEstado(row.estado)
+  if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
 
   let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {
