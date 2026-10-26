@@ -294,7 +294,7 @@ export default function CobranzasScreen() {
     loading, divisionNombre, sinDivision,
     eventos, eventoSeleccionado, paso,
     cargandoJugadores, jugadores, resumen,
-    guardando, guardadoOk, error,
+    guardando, guardadoOk, error, errorCarga, reintentarCarga,
     seleccionarEvento, volverAEventos,
     toggleEstado, actualizarMonto, actualizarFormaDePago,
     guardarCobranzas,
@@ -304,7 +304,11 @@ export default function CobranzasScreen() {
   const [modalJugadorId, setModalJugadorId] = useState<string | null>(null)
   const jugadorModal = jugadores.find(j => j.jugadorId === modalJugadorId) ?? null
 
-  function handleGuardarModal() { guardarCobranzas(); setModalJugadorId(null) }
+  // El modal guarda sólo ese jugador y se cierra cuando quedó guardado.
+  async function handleGuardarModal() {
+    if (!modalJugadorId) return
+    if (await guardarCobranzas(modalJugadorId)) setModalJugadorId(null)
+  }
 
   if (loading) {
     return (
@@ -399,7 +403,14 @@ export default function CobranzasScreen() {
             </View>
           ) : (
             <ScrollView contentContainerStyle={s.jugadoresList}>
-              {jugadores.length === 0 ? (
+              {errorCarga ? (
+                <View style={s.bannerError}>
+                  <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+                  <TouchableOpacity style={s.gestionarBtn} onPress={reintentarCarga} activeOpacity={0.8}>
+                    <Text style={s.gestionarBtnTexto}>REINTENTAR</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : jugadores.length === 0 ? (
                 <Text style={s.emptyTexto}>Sin jugadores activos en tus divisiones del evento.</Text>
               ) : (
                 jugadores.map((j, i) => (
@@ -414,7 +425,7 @@ export default function CobranzasScreen() {
                 ))
               )}
 
-              {error && (
+              {error && !errorCarga && (
                 <View style={s.bannerError}>
                   <Text style={s.bannerErrorTexto}>{error}</Text>
                 </View>
@@ -432,7 +443,7 @@ export default function CobranzasScreen() {
             <View style={s.bottomBar}>
               <TouchableOpacity
                 style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
-                onPress={guardarCobranzas}
+                onPress={() => guardarCobranzas()}
                 disabled={guardando}
                 activeOpacity={0.85}
               >
