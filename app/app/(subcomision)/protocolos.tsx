@@ -15,6 +15,8 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { useProtocolos, type Protocolo, type FormProtocolo } from '@/hooks/useProtocolos'
 import { colors, fonts } from '@/constants/theme'
+import { FEATURES } from '@/constants/features'
+import { Redirect } from 'expo-router'
 
 const GRADO_COLOR: Record<number, string> = {
   1: '#22C55E',
@@ -219,7 +221,14 @@ function ModalSubirProtocolo({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function ProtocolosScreen() {
+// Módulo oculto (FEATURES.lesiones): un deep link vuelve al Inicio. La
+// pantalla y el contenido de los protocolos quedan para cuando se reactive.
+export default function ProtocolosRoute() {
+  if (!FEATURES.lesiones) return <Redirect href="/(subcomision)/diario" />
+  return <ProtocolosScreen />
+}
+
+function ProtocolosScreen() {
   const {
     loading,
     protocolos,

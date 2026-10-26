@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { FEATURES } from '@/constants/features'
 
 export type CronicaTipo = 'urgente' | 'alerta' | 'info'
 
@@ -74,8 +75,10 @@ export function useDiarioSubcomision() {
             .gte('fecha', hace14Dias()).lt('fecha', hace7Dias()).eq('cancelado', false),
           // Total jugadores fichados
           supabase.from('jugadores').select('id', { count: 'exact', head: true }).eq('activo', true),
-          // Lesiones últimos 30 días con grado
-          supabase.from('lesiones').select('id, grado').gte('fecha', hace30Dias()),
+          // Lesiones últimos 30 días con grado (módulo oculto: ni se consulta la tabla)
+          FEATURES.lesiones
+            ? supabase.from('lesiones').select('id, grado').gte('fecha', hace30Dias())
+            : Promise.resolve({ data: [] as { id: string; grado: number }[] }),
           // Último evento financiero activo
           supabase.from('eventos_financieros')
             .select('id, nombre, cobranzas(estado)')
@@ -134,7 +137,9 @@ export function useDiarioSubcomision() {
       }
 
       // Crónica
-      const cronica: CronicaItem[] = (notifRes.data ?? []).map(n => ({
+      const cronica: CronicaItem[] = (notifRes.data ?? [])
+        .filter(n => FEATURES.lesiones || n.tipo !== 'lesion')
+        .map(n => ({
         id: n.id, titulo: n.titulo, mensaje: n.mensaje,
         tipo:      notifTipo(n.tipo),
         createdAt: n.created_at,

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
+import { FEATURES } from '@/constants/features'
 import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -166,6 +167,27 @@ export default function DiarioEntrenadorScreen() {
           {/* ── ATAJOS RÁPIDOS ── */}
           <View style={s.section}>
             <SectionHeader title="ATAJOS RÁPIDOS" />
+            {!FEATURES.lesiones ? (
+              // Lesiones / protocolos ocultos (FEATURES.lesiones): sólo los atajos de partido.
+              <View style={s.grid}>
+                <View style={s.gridRow}>
+                  <TouchableOpacity
+                    style={s.atajoCard}
+                    onPress={() => router.navigate('/(entrenador)/partido')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={s.atajoText}>MESA PARTIDO</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.atajoCard}
+                    onPress={() => router.navigate('/(entrenador)/partido')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={s.atajoText}>RESULTADO</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
             <View style={s.grid}>
               <View style={s.gridRow}>
                 <TouchableOpacity
@@ -200,6 +222,7 @@ export default function DiarioEntrenadorScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+            )}
           </View>
         </>
       )}

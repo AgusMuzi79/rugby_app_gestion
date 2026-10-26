@@ -122,6 +122,9 @@ Deno.serve(async (req: Request) => {
         return jsonError(400, 'Payload incompleto')
       }
       if (type === 'lesion') {
+        // Módulo de lesiones oculto (FEATURES.lesiones en la app): con el
+        // secreto FEATURE_LESIONES=false no se manda ni se guarda nada.
+        if (Deno.env.get('FEATURE_LESIONES') === 'false') return jsonOk({ ok: true, omitido: 'lesiones ocultas' })
         await notificarLesion(np)
       } else if (type === 'fichaje') {
         await notificarFichaje(np)

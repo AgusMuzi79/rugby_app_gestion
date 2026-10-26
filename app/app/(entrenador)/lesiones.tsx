@@ -17,6 +17,8 @@ import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial, DivisionOpcio
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { colors, fonts } from '@/constants/theme'
+import { FEATURES } from '@/constants/features'
+import { Redirect } from 'expo-router'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -445,7 +447,14 @@ function SelectorGrado({
 
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
-export default function LesionesScreen() {
+// Módulo oculto (FEATURES.lesiones): un deep link o un push viejo vuelve al
+// Inicio. La pantalla queda intacta para cuando se reactive.
+export default function LesionesRoute() {
+  if (!FEATURES.lesiones) return <Redirect href="/(entrenador)/diario" />
+  return <LesionesScreen />
+}
+
+function LesionesScreen() {
   const {
     loading, divisiones, divisionId, divisionNombre, sinDivision, seleccionarDivision,
     lesiones, jugadores,

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { FEATURES } from '@/lib/features'
 
 interface Stats {
   asistenciaPct: number
@@ -35,10 +36,13 @@ export default function DashboardPage() {
           .from('jugadores')
           .select('*', { count: 'exact', head: true })
           .eq('activo', true),
-        supabase
-          .from('lesiones')
-          .select('*', { count: 'exact', head: true })
-          .eq('activo', true),
+        // Módulo de lesiones oculto (FEATURES.lesiones): ni se consulta la tabla.
+        FEATURES.lesiones
+          ? supabase
+              .from('lesiones')
+              .select('*', { count: 'exact', head: true })
+              .eq('activo', true)
+          : Promise.resolve({ count: 0 as number | null }),
         supabase
           .from('cobranzas')
           .select('estado, monto'),
@@ -95,12 +99,12 @@ export default function DashboardPage() {
       sub: 'Activos',
       accent: false,
     },
-    {
+    ...(FEATURES.lesiones ? [{
       label: 'LESIONES ACTIVAS',
       value: String(stats?.lesionesActivas ?? 0),
       sub: 'En seguimiento',
       accent: stats?.lesionesActivas ? stats.lesionesActivas > 0 : false,
-    },
+    }] : []),
     {
       label: 'COBRANZAS PENDIENTES',
       value: String(stats?.cobranzasPendientes ?? 0),

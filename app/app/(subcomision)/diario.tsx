@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioSubcomision, type CronicaItem } from '@/hooks/useDiarioSubcomision'
 import { colors, fonts } from '@/constants/theme'
+import { FEATURES } from '@/constants/features'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -159,12 +160,14 @@ export default function DiarioSubcomisionScreen() {
                 />
               </View>
               <View style={s.gridRow}>
-                <StatCard
-                  label="LESIONES"
-                  value={String(data.lesionesRecientes)}
-                  sub="últimos 30 días"
-                  urgente={data.tieneUrgencia}
-                />
+                {FEATURES.lesiones && (
+                  <StatCard
+                    label="LESIONES"
+                    value={String(data.lesionesRecientes)}
+                    sub="últimos 30 días"
+                    urgente={data.tieneUrgencia}
+                  />
+                )}
                 <StatCard
                   label="COBRADO"
                   value={data.pctCobrado !== null ? `${data.pctCobrado}%` : '—'}
