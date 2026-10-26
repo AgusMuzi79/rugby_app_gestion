@@ -33,7 +33,7 @@ export default function PrivacidadPage() {
 
         <h1 className="font-playfair italic text-3xl text-tinta mb-1">Política de Privacidad</h1>
         <p className="font-lora text-tinta/50 text-sm tracking-wide mb-10">
-          UNCAS Rugby Club — app móvil y panel de gestión · Última actualización: agosto de 2026
+          UNCAS Rugby Club — app móvil y panel de gestión · Última actualización: octubre de 2026
         </p>
 
         <Seccion titulo="1. Quién es responsable de tus datos">
@@ -50,7 +50,10 @@ export default function PrivacidadPage() {
             <li>Datos de identidad: nombre, DNI, fecha de nacimiento, foto de carnet.</li>
             <li>Datos de contacto: email, teléfono, dirección.</li>
             <li>Datos de socio: número de socio, categoría, estado de la cuota, comprobantes de pago que subís desde la app.</li>
-            <li>Datos deportivos: división, asistencia a entrenamientos y partidos, resultados, y, si corresponde, registros de lesiones.</li>
+            {/* "registros de lesiones" sale mientras el módulo de lesiones está oculto
+                (FEATURES.lesiones); volver a agregarlo si se reactiva. */}
+            <li>Datos deportivos: división, asistencia a entrenamientos y partidos, resultados.</li>
+            <li>Datos de pago con tarjeta: si adheriste al débito automático con tarjeta, los datos de la tarjeta los guarda Mercado Pago; el Club sólo ve la marca y los últimos 4 dígitos.</li>
             <li>Datos técnicos: token de notificaciones push, para poder enviarte avisos del Club.</li>
           </ul>
         </Seccion>
@@ -82,8 +85,10 @@ export default function PrivacidadPage() {
           </p>
           <ul className="list-disc pl-5 flex flex-col gap-1">
             <li>Supabase — base de datos, autenticación y almacenamiento de archivos (fotos, comprobantes).</li>
+            <li>Amazon Web Services (Rekognition) — revisa automáticamente que la foto de carnet muestre una cara. Cada foto que se sube (también las de socios menores de edad) se envía a este servicio para ese análisis.</li>
+            <li>Mercado Pago — procesa los pagos con tarjeta y, si adheriste al débito automático, guarda los datos de tu tarjeta.</li>
             <li>Expo — envío de notificaciones push.</li>
-            <li>Resend — envío de emails (comprobantes de pago, avisos).</li>
+            <li>Resend — envío de emails de la cuenta (cambio de contraseña, códigos de verificación, avisos).</li>
           </ul>
         </Seccion>
 
@@ -100,14 +105,26 @@ export default function PrivacidadPage() {
           <p>
             Podés pedir acceso, corrección o baja de tus datos personales escribiéndole a Secretaría
             del Club. Si sos menor de edad, tu madre/padre/tutor puede hacerlo en tu representación.
+            Cómo pedir la baja de la cuenta y qué pasa con tus datos está explicado en{' '}
+            <a href="/eliminar-cuenta" className="text-oro-hondo underline">Eliminar tu cuenta</a>.
           </p>
         </Seccion>
 
         <Seccion titulo="8. Contacto">
           <p>
             Para consultas sobre esta política o sobre tus datos personales, contactate con Secretaría
-            de UNCAS Rugby Club.
+            de UNCAS Rugby Club:
           </p>
+          <ul className="list-disc pl-5 flex flex-col gap-1">
+            <li>
+              Por email:{' '}
+              <a href="mailto:uncasrclub@gmail.com" className="text-oro-hondo underline">uncasrclub@gmail.com</a>
+            </li>
+            <li>
+              Por WhatsApp:{' '}
+              <a href="https://wa.me/5492494522888" className="text-oro-hondo underline">+54 9 249 452-2888</a>
+            </li>
+          </ul>
         </Seccion>
       </div>
     </main>
