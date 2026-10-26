@@ -1,0 +1,70 @@
+# Feature: auditoria-ux-auth-tutor-admin
+
+Locator: `odd/tasks/auditoria-ux-auth-tutor-admin.md` (suggested branch `fix/auditoria-ux-auth-tutor-admin`) · Index: `odd/tasks/auditoria-ux-resto.md` · Full report (findings, fixes in code, what is fine, what was not verified): `odd/auditorias/2026-10-26/auth-tutor-admin.md`
+
+## Objective
+
+Any of ~1500 members, of any age, gets in on the first try, understands every error, can recover their password by DNI, and never gets yanked out of a screen.
+
+## Scope / problem (audited 2026-10-26 @ `5a0ce4c`)
+
+Scope: `(auth)/**`, `app/_layout.tsx` (guards), `(tutor)/**`, `(admin)/**`, `components/shared/UsuariosScreen.tsx` (shared), `components/ui/DatePickerField.tsx`; functions `login-dni`, `registro-tutor`, `actualizar-mi-mail`, `admin-usuarios`.
+
+Result: auditor-ux S4 2 · S3 9 · S2 1 · impeccable 8/20. Code-only pass, no device.
+
+## Decisions
+
+- Follow the index order: Tanda 0 and the shared X-tasks first. Covered here: Tanda 0: T2, T3, T6, T16, T17 · X3: helper part of T3 · X4: T1 · X6: T14 · X7: T7. Mark those `[x] covered by …` when the index task lands instead of redoing them.
+- Backend tasks: write migrations/functions and their checks; do **not** deploy to production, leave the deploy steps in "Progress / evidence".
+- Tasks marked **[decision]** wait for the user (consolidated list in the index).
+
+## Compartido
+
+- **`components/shared/UsuariosScreen.tsx`** — también lo usa `(subcomision)/usuarios`. Todo lo reportado acá (contraste del header/botones/badges, ✕ sin label, errores de function tragados, lista vacía falsa, Back roto, `paddingTop: 60`) aplica a subcomisión; no reportarlo de nuevo. La fila de 8 roles es sólo admin (subcomisión ve 4).
+- **`components/ui/DatePickerField.tsx`** — usado por `(entrenador)/lesiones.tsx`, `(manager)/fichajes.tsx`, `(coordinador)/calendario.tsx`, `(secretaria)/socios.tsx`, `components/eventos/EgresosPanel.tsx`. Hallazgo P2 de arriba (paleta clara, sin semántica, "Quitar" chico) cubre a todos.
+- **`app/_layout.tsx` (guard)** — el `router.replace` al home en cada refresh de token afecta a **todos los roles** (auditor-ux #6). Las otras áreas no deberían reportarlo como propio; sí anotar si encuentran pantallas de stack con formularios largos (ahí sí hay pérdida de datos).
+- **`hooks/useTerminos.ts`** — también lo usan `SobreScreen` y `(tutor)/sobre.tsx` para el link al PDF; el fix de errores no cambia esa API.
+- **Patrón `data?.error ?? fnError?.message`** — buscarlo en el resto de `app/hooks` (ver Patterns).
+
+## Fuera de alcance pero grave
+
+1. **`admin-usuarios` deja que Subcomisión banee, borre o lea el mail de cualquier cuenta, incluido el admin.** `supabase/functions/admin-usuarios/index.ts:41-43` sólo verifica que el caller sea `subcomision` o `admin`; `handleDesactivar` (`:227-241`), `handleEliminar` (`:245-253`) y `handleGetUser` (`:257-265`) aceptan cualquier `userId` sin mirar el rol del destino. La UI esconde admin/socios (`useUsuarios.ts:116-125`), pero la function es pública con JWT: cualquier subcomisión puede `deleteUser` del admin o de un socio (borra en cascada su perfil y datos), o banearse a sí misma. Fix: leer `profiles.rol, roles` del `userId` destino y rechazar si es `admin`, si es el propio caller, o si su rol no está en `ROLES_POR_CALLER[callerRol]` (403).
+2. **`useTerminos` deja entrar sin aceptar términos si falla la lectura de la versión activa** (`hooks/useTerminos.ts:35-45`: `!activa` → `pendiente: false`). Con un fallo de red al abrir la app, el usuario entra y nunca queda registro de aceptación de esa versión hasta la próxima apertura. Exposición legal (Ley 25.326 / términos de uso). Fix incluido en T6.
+
+---
+
+## Tareas sugeridas
+
+- [ ] T1 — **Fix auth/admin contrast: primary buttons, error banners, subtitles, Usuarios header and badges** (S4 / P0). `colors.tinta` (now `#F3EFE4`) is used as a dark background: primary CTA gold on cream 1.60:1 in `app/(auth)/{login.tsx:271-288, forgot-password.tsx:177-191, reset-password.tsx:197-210, registro.tsx:269-282, registrar-mail.tsx:153-167, terminos.tsx:182-196, acceso-restringido.tsx:105-117, registro-tutor.tsx:425-440}`, `app/(tutor)/_layout.tsx:86-90`; error banners `#F3EFE4` on `#FEF8EC` 1.09:1 in `reset-password.tsx:212-225`, `registrar-mail.tsx:179-193`, `terminos.tsx:197-210`; subtitles `#7C7267` 3.99:1; `UsuariosScreen.tsx:672-676,733-735` (white on cream 1.15:1) and cream-on-gold buttons `:710,:728,:748,:763,:776`; role badges 2.84–4.09:1; `(admin)/comunicados.tsx:278-285`, `sistema.tsx:222-229`. Fix: buttons `backgroundColor: colors.oro` + text `colors.sobreOro` (10.24:1); banners `colors.card` + `colors.texto` + border `colors.rojoTexto`; subtitles `colors.textoSecundario` (8.47:1); Usuarios header/modal header `colors.fondo` + `colors.texto`; badge text `colors.texto`, role color only as border; edicionBar `colors.card`. Add the pairs to `lib/contraste.check.ts`. [OTA]
+- [ ] T2 — **Decided 2026-10-26: yes, show it: helper "¿Primera vez? Tu contraseña es tu DNI, sin puntos." under the password field** — **Tell first-time members their password is their DNI and accept DNI with dots** (S4). `app/(auth)/login.tsx:82-121` has no hint; `supabase/functions/login-dni/index.ts:40,49-53` matches `profiles.dni` (digits only) against the raw input; `admin-usuarios/index.ts:70` stores DNI with dots. Fix: `identificador.replace(/\D/g,'')` before the lookup; retry `signInWithPassword` with digits only when the password is only digits/dots/spaces; normalize DNI in `admin-usuarios` create; add helper text under the password field ("¿Es tu primera vez? Tu usuario y tu contraseña son tu DNI, sin puntos.") and label "DNI (SIN PUNTOS) O MAIL". [backend: function] + [OTA] +
+- [ ] T3 — **Distinguish login/network/server errors and surface Edge Function messages** (S3). `hooks/useLogin.ts:45-48,55-58` maps every failure to "Credenciales incorrectas"; `useLogin.ts:60-64` + `app/_layout.tsx:147-153` leave the user silently on the login when the profile read fails; `useRegistrarMail.ts:18-21` and `useUsuarios.ts:278,318,393,416` read `data?.error` from a non-2xx response (always null) so users see "Edge Function returned a non-2xx status code"; `useRegistrarMail.ts:25-34` fails silently; `useUsuarios.ts:116-125` swallows the list error; `registro.tsx:69` shows raw GoTrue English. Fix: new `lib/errorFunction.ts` (`FunctionsHttpError` → `await error.context.json()`, `FunctionsFetchError` → "No hay conexión…"), validate empty fields locally, map 401/429/5xx/offline to distinct copy, sign out + explain when the profile can't load, return 429 from `login-dni` when GoTrue rate-limits. [OTA] + [backend: function]
+- [ ] T4 — **Password recovery by DNI with honest instructions** (S3). `app/(auth)/forgot-password.tsx:44-76` only accepts email (members log in by DNI; many have `@uncas.local`), success copy doesn't say what to do if nothing arrives or that the link must be opened on the phone. Fix: field "DNI o mail"; add `action: 'reset'` to `login-dni` that resolves DNI → email and calls `resetPasswordForEmail` (generic OK for synthetic emails); success copy: open on this phone, check spam, "si nunca registraste un mail, acercate a Secretaría con tu DNI". [backend: function] + [OTA]
+- [ ] T5 — **Handle expired/invalid reset links and give reset-password an exit** (S3). `app/_layout.tsx:104-114` ignores `error_code=otp_expired` and sets `isPasswordRecovery` before `setSession` succeeds; `reset-password.tsx` has no way back. Fix: parse `error`/`error_code` from fragment/query → `router.replace('/(auth)/forgot-password', { aviso: 'El link venció o ya se usó. Pedí uno nuevo.' })`; set recovery only after `setSession` without error; add "Cancelar y volver al inicio" (clear flag + signOut); show `aviso` banner on forgot-password. [OTA]
+- [ ] T6 — **Terms gate: don't trap or skip on transient errors; add sign-out** (S3). `hooks/useTerminos.ts:35-52` ignores query errors (fail → trapped or skipped), `:73-79` treats unique violation `23505` as failure; `app/(auth)/terminos.tsx` has no exit and the PDF button no-ops without `pdfUrl`. Fix: on read error keep `pendiente: true` with a retry message; treat `23505` as accepted; add Reintentar + "Cerrar sesión"; disable PDF button when no URL and catch `openURL`. [OTA]
+- [ ] T7 — **Root guard: only redirect when the user is in the wrong route group** (S3). `app/_layout.tsx:138,166-205` re-runs on every `TOKEN_REFRESHED` (`session?.access_token` dep) and `router.replace`s to the role home, yanking users out of whatever they were doing (all roles). Fix: `useSegments()`; skip `replace` when `segments[0]` already equals the destination group (or the destination auth screen); add `segments[0]` to deps; after `actualizar-mi-mail` succeeds call `supabase.auth.refreshSession()` so `useMailSintetico` stops re-gating. [OTA]
+- [ ] T8 — **Autofill/password-manager hints, input labels and keyboard chaining on auth** (S3). Zero `textContentType`/`autoComplete`/`accessibilityLabel`/`returnKeyType` in `login.tsx:84-108`, `reset-password.tsx:53-87`, `registro.tsx:107-157`, `registro-tutor.tsx:160-296`, `registrar-mail.tsx:54-63`, `forgot-password.tsx:65-75`; eye toggles unnamed. Fix: `username`/`password` on login, `newPassword`/`new-password` + `passwordRules="minlength: 8;"` on new passwords, `emailAddress`/`email`, `name`, `birthdate-full`; `accessibilityLabel` = visible label on every input; eye `accessibilityLabel` "Mostrar/Ocultar contraseña"; `returnKeyType="next"` → focus next, `"go"` → submit; visible label on registrar-mail. [OTA]
+- [ ] T9 — **Add a "create family/guardian account" entry point on the login** (S3). The only path to `/(auth)/registro-tutor` is `acceso-restringido.tsx:19-31`, which requires logging in as the minor. Fix: link under "Olvidé mi contraseña" in `login.tsx` → `/(auth)/registro-tutor` (already works without session). [OTA]
+- [ ] T10 — **Wrap the admin role selector** (S3). `UsuariosScreen.tsx:760-761` puts 8 `flex: 1` buttons in one row (~33 pt each, labels unreadable) for `ROLES_CREABLES_ADMIN` (`:326-335`). Fix: `flexWrap: 'wrap'`, `flexBasis: '30%'`, `flexGrow: 1`, `minHeight: 44`, `accessibilityRole="radio"` + `accessibilityState={{ checked }}`. [OTA]
+- [ ] T11 — **Name icon-only buttons and bring targets to 44 pt in admin and registro-tutor** (S3). `comunicados.tsx:141-143` (X 20 pt), `:77-79,319` (trash 30 pt), `:251-253` (FAB); `UsuariosScreen.tsx:347-349` (✕ text), `:180-182`; `registro-tutor.tsx:414-421` (chips ~34 pt); text links in `login.tsx:338-341`, `registro-tutor.tsx:463`, `registrar-mail.tsx:168-171`. Fix: `padding: 12`/`15`, Feather icons, `accessibilityLabel` ("Cerrar sin publicar", `Eliminar "<título>"`, "Nuevo comunicado", "Cerrar"), `accessibilityRole="radio"` + state on chips, `paddingVertical: 12` on text links. [OTA]
+- [ ] T12 — **Restore system Back on the user detail view** (P1). `UsuariosScreen.tsx:63-79,180-182` uses local `paso` state; Android Back leaves the screen. Fix: move detail to a stack route `(admin|subcomision)/usuarios/[id]` or add a focused `BackHandler` that calls `hook.volverALista()`. [OTA]
+- [ ] T13 — **Guard against discarding a typed comunicado and respect the bottom inset** (P1). `comunicados.tsx:107-110,131` clears on X/Back without confirmation; `:335` ignores `insets.bottom`. Fix: confirm "¿Descartar el comunicado?" when title/body not empty; `paddingBottom: insets.bottom + 24`. [OTA]
+- [ ] T14 — **Use safe-area insets (or the shared Header) in UsuariosScreen** (P1). `UsuariosScreen.tsx:672` hard-codes `paddingTop: 60`. Fix: `useSafeAreaInsets().top + 16`, or `<Header />` + `edicionBar` like `comunicados.tsx`/`sistema.tsx`. [OTA]
+- [ ] T15 — **Inline per-field validation on registro-tutor, reset and new-user forms** (S2). `registro-tutor.tsx:92-98,307-311`, `useResetPassword.ts:14-21`, `registro.tsx:60-63`, `useUsuarios.ts:297-301` show one error at a time in a bottom banner. Fix: `tocados` + `errores` map, validate on blur, error text under each field (`colors.rojoTexto`), mark all on submit. [OTA]
+- [ ] T16 — **Block Subcomisión from banning/deleting/reading admins, self or non-staff via admin-usuarios** (out of scope, grave). `supabase/functions/admin-usuarios/index.ts:227-265` act on any `userId`. Fix: load target `profiles.rol, roles`; 403 if target is admin, is the caller, or its role isn't in `ROLES_POR_CALLER[callerRol]`. [backend: function]
+- [ ] T17 — **Decided 2026-10-26: no staging yet (waiting for the DB migration to the club's account). Run the 35-logins-in-5-min test right after that migration, before the launch blast. Meanwhile: check Supabase → Auth → Rate Limits in production and raise "sign-ins/sign-ups" if it is at the default** — **Verify GoTrue sign-in rate limit behind login-dni before launch** (unverified, potential S4). All `signInWithPassword` calls originate from the Edge Function IP; `sign_in_sign_ups` is per IP (30/5 min locally, `supabase/config.toml:202`). Fix: check production Auth → Rate Limits and load-test 35 logins in 5 min on staging; if it trips, raise the limit or forward client IP / move to a per-DNI limiter in the function.
+
+## Acceptance criteria
+
+- Every task's failure scenario (in its line or in the full report) is reproduced before the fix and passes after, as a `*.check.ts`, SQL scenario or written manual step.
+- Every contrast pair listed here is ≥ 4.5:1 (≥ 3:1 for large text / UI components) and added to the contrast check.
+- No screen in scope shows an empty or "sin datos" state when the request actually failed.
+
+## Checks
+
+- `npx tsc --noEmit` in `app/` · `npm run build` in `web/` when web files change.
+- Pure logic in modules with `*.check.ts` via `npx --yes tsx` (RED → GREEN).
+- Device pass at max font size + TalkBack/VoiceOver on the area's main flow.
+
+## Progress / evidence
+
+- 2026-10-26: audit run (auditor-ux + impeccable); S4s re-verified against code; this document created from the report.
