@@ -46,7 +46,7 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { verifyTOTP } from '../_shared/totp.ts'
+import { matchingStep } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
@@ -398,10 +398,10 @@ async function handleValidate(
     return jsonOk({ valido: false, motivo: 'Carnet no configurado. Contactar Secretaría.' })
   }
 
-  // Verificar código TOTP (drift ±1 step = ±30s de tolerancia)
-  const esValido = await verifyTOTP(secretData.totp_secret, code)
+  // Verificar código TOTP (drift ±1 step = ±60s de tolerancia)
+  const paso = await matchingStep(secretData.totp_secret, code)
 
-  if (!esValido) {
+  if (paso === null) {
     return jsonOk({ valido: false, motivo: 'Código QR inválido o expirado' })
   }
 
@@ -429,6 +429,20 @@ async function handleValidate(
         turno,
       })
     }
+  }
+
+  // Un código abre una sola vez: se consume recién al dejar pasar (un rechazo
+  // no lo quema). Si el RPC falla se deja pasar y se loguea: un error de la
+  // base no es una captura reenviada, y cerrar la puerta a todos es peor.
+  const { data: consumido, error: consumoErr } = await supabaseAdmin
+    .rpc('consumir_paso_totp', { p_socio_id: row.id, p_paso: paso })
+  if (consumoErr) {
+    console.error('consumir_paso_totp:', consumoErr.message)
+  } else if (consumido !== true) {
+    return jsonOk({
+      valido: false,
+      motivo: 'Este código ya se usó. Esperá el código siguiente del carnet (cambia cada minuto).',
+    })
   }
 
   if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {

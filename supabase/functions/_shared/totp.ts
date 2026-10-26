@@ -1,8 +1,10 @@
 // TOTP (RFC 6238) — generación y verificación de códigos de 6 dígitos.
 // Secreto: 20 bytes aleatorios en base32 (160 bits, estándar de la industria).
 // Ventana: 60 segundos. Deriva admitida: ±1 step para compensar desfase de reloj.
+// Un código vale una sola vez: socios-qr guarda el último paso usado
+// (socios_secrets.ultimo_paso_usado, ver pasoUsable) y rechaza repetirlo.
 
-const STEP = 60
+export const STEP = 60
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
@@ -62,10 +64,25 @@ async function compute(secret: string, step: number): Promise<string> {
   return code.toString().padStart(6, '0')
 }
 
-export async function verifyTOTP(secret: string, code: string, drift = 1): Promise<boolean> {
-  const step = Math.floor(Date.now() / 1000 / STEP)
+export function codigoEnPaso(secret: string, step: number): Promise<string> {
+  return compute(secret, step)
+}
+
+// Paso (contador de 60 s) con el que coincide el código, o null.
+export async function matchingStep(secret: string, code: string, drift = 1, now = Date.now()): Promise<number | null> {
+  const step = Math.floor(now / 1000 / STEP)
   for (let i = -drift; i <= drift; i++) {
-    if (await compute(secret, step + i) === code) return true
+    if (await compute(secret, step + i) === code) return step + i
   }
-  return false
+  return null
+}
+
+export async function verifyTOTP(secret: string, code: string, drift = 1): Promise<boolean> {
+  return (await matchingStep(secret, code, drift)) !== null
+}
+
+// Un paso sólo se acepta si es posterior al último usado. Misma regla que el
+// UPDATE atómico de consumir_paso_totp() (migración 20261028000002).
+export function pasoUsable(paso: number, ultimoUsado: number | null): boolean {
+  return ultimoUsado === null || paso > ultimoUsado
 }
