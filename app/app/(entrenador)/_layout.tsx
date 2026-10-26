@@ -1,8 +1,12 @@
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { TAB_SCREEN_OPTIONS } from '@/constants/tabOptions'
+import { useSincronizacionOffline } from '@/hooks/useSincronizacionOffline'
 
 export default function EntrenadorLayout() {
+  // Manda la asistencia guardada sin señal cuando vuelve la conexión.
+  useSincronizacionOffline()
+
   return (
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>
       <Tabs.Screen

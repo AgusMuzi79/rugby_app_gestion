@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { nuevoIdCola } from './offlineSync'
 
 export type OperacionOffline = 'asistencia' | 'lesion'
 
@@ -17,7 +18,7 @@ export async function encolar(
   const cola = await obtenerCola()
   const nuevoItem: ItemCola = {
     ...item,
-    id: crypto.randomUUID(),
+    id: nuevoIdCola(),
     creadoEn: Date.now(),
   }
   await AsyncStorage.setItem(CLAVE_COLA, JSON.stringify([...cola, nuevoItem]))
@@ -30,9 +31,15 @@ export async function obtenerCola(): Promise<ItemCola[]> {
 }
 
 export async function eliminarDeCola(id: string): Promise<void> {
+  await eliminarVariosDeCola([id])
+}
+
+// Una sola escritura para todo lo que ya se sincronizó.
+export async function eliminarVariosDeCola(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  const quitar = new Set(ids)
   const cola = await obtenerCola()
-  const filtrada = cola.filter((item) => item.id !== id)
-  await AsyncStorage.setItem(CLAVE_COLA, JSON.stringify(filtrada))
+  await AsyncStorage.setItem(CLAVE_COLA, JSON.stringify(cola.filter((item) => !quitar.has(item.id))))
 }
 
 export async function tamañoCola(): Promise<number> {
