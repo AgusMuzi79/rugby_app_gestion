@@ -32,132 +32,6 @@ const ESTADO_LABEL: Record<string, string> = {
 const FILTROS = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo'] as const
 type Filtro = typeof FILTROS[number]
 
-// ─── Modal Nuevo Socio ────────────────────────────────────────────────────────
-
-function ModalNuevoSocio({
-  visible,
-  categorias,
-  creando,
-  onClose,
-  onCreate,
-}: {
-  visible:    boolean
-  categorias: CategoriaSocio[]
-  creando:    boolean
-  onClose:    () => void
-  onCreate:   (email: string, nombre: string, dni: string, categoria_id: string, fecha_nacimiento?: string) => void
-}) {
-  const [email,           setEmail]           = useState('')
-  const [nombre,          setNombre]          = useState('')
-  const [dni,             setDni]             = useState('')
-  const [catId,           setCatId]           = useState('')
-  const [fechaNacimiento, setFechaNacimiento] = useState('')
-
-  const handleCrear = () => {
-    if (!email.trim())  { Alert.alert('Requerido', 'Email obligatorio.'); return }
-    if (!nombre.trim()) { Alert.alert('Requerido', 'Nombre obligatorio.'); return }
-    if (!dni.trim())    { Alert.alert('Requerido', 'DNI obligatorio.'); return }
-    if (!catId)         { Alert.alert('Requerido', 'Seleccioná una categoría.'); return }
-    // DatePickerField already yields 'YYYY-MM-DD'.
-    const fechaStr = fechaNacimiento || undefined
-    onCreate(email.trim().toLowerCase(), nombre.trim(), dni.trim(), catId, fechaStr)
-  }
-
-  const handleClose = () => {
-    setEmail(''); setNombre(''); setDni(''); setCatId(''); setFechaNacimiento('')
-    onClose()
-  }
-
-  const categoriasActivas = categorias.filter(c => c.activa)
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior="padding" style={ss.kavOverlay}>
-        <TouchableOpacity style={ss.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={ss.modal}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps='handled'
-            contentContainerStyle={ss.modalContent}
-          >
-            <View style={ss.modalHeader}>
-              <Text style={ss.modalTitle}>NUEVO SOCIO</Text>
-              <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-                <Feather name="x" size={20} color={TEXTO} />
-              </TouchableOpacity>
-            </View>
-
-            {[
-              { label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez', keyboard: 'default' as const, caps: 'words' as const },
-              { label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', keyboard: 'email-address' as const, caps: 'none' as const },
-              { label: 'DNI', value: dni, set: setDni, placeholder: '12345678', keyboard: 'numeric' as const, caps: 'none' as const },
-            ].map(f => (
-              <View key={f.label}>
-                <Text style={ss.inputLabel}>{f.label}</Text>
-                <TextInput
-                  style={ss.input}
-                  value={f.value}
-                  onChangeText={f.set}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={MUTED}
-                  keyboardType={f.keyboard}
-                  autoCapitalize={f.caps}
-                />
-              </View>
-            ))}
-
-            <DatePickerField
-              label="FECHA DE NACIMIENTO"
-              value={fechaNacimiento}
-              onChange={setFechaNacimiento}
-              mode="date"
-              maximumDate={new Date()}
-              onClear={() => setFechaNacimiento('')}
-            />
-
-            <Text style={ss.inputLabelMt}>CATEGORÍA</Text>
-            {categoriasActivas.length === 0 ? (
-              <Text style={ss.catVacio}>
-                Sin categorías — verificar seed en Supabase.
-              </Text>
-            ) : (
-              <View style={ss.categoriasGrid}>
-                {categoriasActivas.map(c => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[ss.catBtn, catId === c.id ? ss.catBtnActivo : ss.catBtnInactivo]}
-                    onPress={() => setCatId(c.id)}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={[ss.catBtnText, catId === c.id ? ss.catBtnTextActivo : ss.catBtnTextInactivo]}>
-                      {c.nombre}
-                    </Text>
-                    <Text style={[ss.catMonto, catId === c.id ? ss.catMontoActivo : ss.catMontoInactivo]}>
-                      ${c.monto_mensual}/mes
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[ss.crearBtn, creando && ss.crearBtnOff]}
-              onPress={handleCrear}
-              disabled={creando}
-              activeOpacity={0.8}
-            >
-              {creando
-                ? <ActivityIndicator color={colors.oro} />
-                : <Text style={ss.crearBtnText}>CREAR SOCIO Y ENVIAR INVITACIÓN</Text>
-              }
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}
-
 // ─── Modal Pago Manual ────────────────────────────────────────────────────────
 
 function periodoActual(): string {
@@ -790,20 +664,14 @@ export default function SociosScreen() {
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
   const {
-    socios, categorias, servicios, serviciosSocio, loading, creando,
+    socios, categorias, servicios, serviciosSocio, loading,
     filtro, setFiltro,
-    crearSocio, desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
+    desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     registrarPagoManual, associateCard, removeCard, chargeCard,
     fetchServiciosSocio, toggleServicio,
   } = useSociosSecretaria()
 
-  const [modalNuevo, setModalNuevo] = useState(false)
   const [detalle, setDetalle]       = useState<SocioItem | null>(null)
-
-  const handleCrear = async (email: string, nombre: string, dni: string, categoria_id: string, fecha_nacimiento?: string) => {
-    const ok = await crearSocio({ email, nombre, dni, categoria_id, fecha_nacimiento })
-    if (ok) setModalNuevo(false)
-  }
 
   const handleDeactivate = useCallback(async (id: string) => {
     Alert.alert('Desactivar socio', '¿Estás seguro? Se baneará el acceso.', [
@@ -914,17 +782,6 @@ export default function SociosScreen() {
         />
       )}
 
-      <TouchableOpacity style={ss.fab} onPress={() => setModalNuevo(true)} activeOpacity={0.85}>
-        <Feather name="plus" size={22} color={colors.tinta} />
-      </TouchableOpacity>
-
-      <ModalNuevoSocio
-        visible={modalNuevo}
-        categorias={categorias}
-        creando={creando}
-        onClose={() => setModalNuevo(false)}
-        onCreate={handleCrear}
-      />
     </View>
   )
 }
@@ -969,15 +826,6 @@ const ss = StyleSheet.create({
   socioCat:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, marginTop: 2, color: MUTED },
   estadoBadge: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   estadoBadgeText: { fontFamily: fonts.label, fontSize: 13, color: colors.blanco, fontWeight: 'bold' },
-
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: colors.oro,
-    alignItems: 'center', justifyContent: 'center',
-    elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-  },
 
   // Modal overlay
   kavOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },

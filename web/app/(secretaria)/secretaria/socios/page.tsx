@@ -536,75 +536,6 @@ function ModalCobrarTarjeta({
   )
 }
 
-// ─── Modal nuevo socio ────────────────────────────────────────────────────────
-
-function ModalNuevoSocio({
-  categorias,
-  onClose,
-  onSuccess,
-}: {
-  categorias: CategoriaSocio[]
-  onClose: () => void
-  onSuccess: () => void
-}) {
-  const [nombre,          setNombre]          = useState('')
-  const [email,           setEmail]           = useState('')
-  const [dni,             setDni]             = useState('')
-  const [catId,           setCatId]           = useState('')
-  const [fechaNacimiento, setFechaNacimiento] = useState('')
-  const [creando,         setCreando]         = useState(false)
-  const [error,           setError]           = useState('')
-
-  const handleCrear = async () => {
-    if (!nombre.trim()) { setError('Nombre obligatorio.'); return }
-    if (!email.trim())  { setError('Email obligatorio.'); return }
-    if (!dni.trim())    { setError('DNI obligatorio.'); return }
-    if (!catId)         { setError('Seleccioná una categoría.'); return }
-    setCreando(true); setError('')
-    const json = await callEdgeFunction('admin-socios', {
-      action: 'create', email: email.trim().toLowerCase(), nombre: nombre.trim(), dni: dni.trim(), categoria_id: catId,
-      ...(fechaNacimiento ? { fecha_nacimiento: fechaNacimiento } : {}),
-    })
-    setCreando(false)
-    if (json.error) { setError(json.error); return }
-    onSuccess()
-  }
-
-  const categoriasActivas = categorias.filter(c => c.activa)
-
-  return (
-    <Modal titulo="NUEVO SOCIO" onClose={onClose}>
-      <div className="flex flex-col gap-4">
-        <FormField label="NOMBRE COMPLETO" value={nombre} onChange={setNombre} placeholder="Juan Pérez" />
-        <FormField label="EMAIL" value={email} onChange={setEmail} placeholder="juan@ejemplo.com" type="email" />
-        <FormField label="DNI" value={dni} onChange={setDni} placeholder="12345678" />
-        <FormField label="FECHA DE NACIMIENTO" value={fechaNacimiento} onChange={setFechaNacimiento} type="date" />
-        <div>
-          <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">CATEGORÍA</label>
-          <div className="flex flex-wrap gap-2">
-            {categoriasActivas.map(c => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCatId(c.id)}
-                className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
-                  catId === c.id
-                    ? 'bg-oro border-oro text-papel'
-                    : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-                }`}
-              >
-                {c.nombre} · ${c.monto_mensual.toLocaleString('es-AR')}/mes
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      {error && <p className="font-lora text-rojo text-sm mt-3">{error}</p>}
-      <ModalActions onConfirm={handleCrear} onCancel={onClose} loading={creando} label="CREAR Y ENVIAR INVITACIÓN" />
-    </Modal>
-  )
-}
-
 // ─── Componentes compartidos ──────────────────────────────────────────────────
 
 function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
@@ -722,7 +653,6 @@ export default function SociosPage() {
   const [filtro,       setFiltro]       = useState<FiltroEstado>('todos')
   const [busqueda,     setBusqueda]     = useState('')
   const [detalle,      setDetalle]      = useState<SocioItem | null>(null)
-  const [modalNuevo,   setModalNuevo]   = useState(false)
   const [sortColumn,    setSortColumn]    = useState<SortColumn>('numero_socio')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
@@ -827,15 +757,9 @@ export default function SociosPage() {
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Socios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
-            {socios.length} socios registrados
+            {socios.length} socios registrados · las altas entran con el import del padrón de NUVIX
           </p>
         </div>
-        <button
-          onClick={() => setModalNuevo(true)}
-          className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors"
-        >
-          + NUEVO SOCIO
-        </button>
       </div>
 
       {/* Solicitudes de baja pedidas desde la app (sólo si hay pendientes) */}
@@ -912,14 +836,6 @@ export default function SociosPage() {
             ))}
           </tbody>
         </table>
-      )}
-
-      {modalNuevo && (
-        <ModalNuevoSocio
-          categorias={categorias}
-          onClose={() => setModalNuevo(false)}
-          onSuccess={() => { setModalNuevo(false); void fetchAll() }}
-        />
       )}
     </div>
   )

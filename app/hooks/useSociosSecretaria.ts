@@ -46,14 +46,6 @@ export interface CardFormData {
   cardholder_name:  string
 }
 
-interface NuevoSocioPayload {
-  email:            string
-  nombre:           string
-  dni:              string
-  categoria_id:     string
-  fecha_nacimiento?: string
-}
-
 type FiltroEstado = 'todos' | 'activo' | 'moroso' | 'pendiente' | 'inactivo'
 
 export function useSociosSecretaria() {
@@ -63,7 +55,6 @@ export function useSociosSecretaria() {
   const [serviciosSocio, setServiciosSocio] = useState<string[]>([]) // servicio_id[]
   const [loading, setLoading]           = useState(true)
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
-  const [creando, setCreando]           = useState(false)
 
   const fetchServicios = useCallback(async () => {
     const { data } = await db
@@ -161,20 +152,6 @@ export function useSociosSecretaria() {
   const sociosFiltrados = socios.filter(s =>
     filtro === 'todos' ? true : s.estado === filtro
   )
-
-  const crearSocio = useCallback(async (payload: NuevoSocioPayload): Promise<boolean> => {
-    setCreando(true)
-    const res = await supabase.functions.invoke('admin-socios', {
-      body: { action: 'create', ...payload },
-    })
-    setCreando(false)
-    if (res.error || res.data?.error) {
-      Alert.alert('Error', res.data?.error ?? res.error?.message ?? 'Error al crear socio')
-      return false
-    }
-    await fetchSocios()
-    return true
-  }, [fetchSocios])
 
   const desactivarSocio = useCallback(async (socioId: string): Promise<boolean> => {
     const res = await supabase.functions.invoke('admin-socios', {
@@ -288,10 +265,8 @@ export function useSociosSecretaria() {
     servicios,
     serviciosSocio,
     loading,
-    creando,
     filtro,
     setFiltro,
-    crearSocio,
     desactivarSocio,
     reactivarSocio,
     validarFoto,
