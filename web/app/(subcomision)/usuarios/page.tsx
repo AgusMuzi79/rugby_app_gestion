@@ -81,7 +81,7 @@ function DivisionesPillSelector({
 }
 
 interface ProfileRow {
-  id: string; nombre: string; rol: string
+  id: string; nombre: string; rol: string; roles?: string[] | null
   divisiones: string[]; activo?: boolean; deporte?: string | null
   email?: string; loadingEmail?: boolean
   expanded?: boolean; editingRol?: boolean; editingDiv?: boolean
@@ -120,7 +120,7 @@ export default function UsuariosPage() {
   const rolesDisponibles = isAdmin ? ROLES_ADMIN : ROLES_SUBCO
 
   const fetchData = useCallback(async (admin: boolean) => {
-    let query = supabase.from('profiles').select('id, nombre, rol, divisiones, deporte')
+    let query = supabase.from('profiles').select('id, nombre, rol, roles, divisiones, deporte')
       .neq('rol', 'socio').neq('rol', 'admin').neq('rol', 'cliente_gimnasio').order('nombre')
     if (!admin) {
       query = query.neq('rol', 'secretaria').neq('rol', 'porteria').neq('rol', 'canchero').neq('rol', 'buffet')
@@ -189,6 +189,15 @@ export default function UsuariosPage() {
   const eliminar = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return
     const json = await callEdgeFunction('admin-usuarios', { action: 'delete', userId: id })
+    if (json.error) { alert(json.error); return }
+    setProfiles(ps => ps.filter(p => p.id !== id))
+  }
+
+  // Cuenta de socio con rol de staff: se le saca el rol y vuelve a su vista de
+  // socio. La cuenta no se elimina (arrastraría su socio, cuotas y pagos).
+  const quitarRol = async (id: string, nombre: string) => {
+    if (!confirm(`¿Quitarle el rol de staff a ${nombre}? Su cuenta de socio sigue igual.`)) return
+    const json = await callEdgeFunction('admin-usuarios', { action: 'remove-role', userId: id })
     if (json.error) { alert(json.error); return }
     setProfiles(ps => ps.filter(p => p.id !== id))
   }
@@ -349,7 +358,11 @@ export default function UsuariosPage() {
                   <div className="col-span-2 flex gap-3 pt-2 border-t border-gris-claro">
                     <button onClick={() => desactivar(p.id)} className="font-lora text-xs tracking-widest text-rojo border border-rojo px-4 py-2 hover:bg-rojo hover:text-papel transition-colors">DESACTIVAR</button>
                     <button onClick={() => reactivar(p.id)} className="font-lora text-xs tracking-widest text-tinta/50 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">REACTIVAR</button>
-                    <button onClick={() => eliminar(p.id, p.nombre)} className="font-lora text-xs tracking-widest text-rojo border border-rojo px-4 py-2 hover:bg-rojo hover:text-papel transition-colors">ELIMINAR</button>
+                    {(p.roles ?? []).includes('socio') ? (
+                      <button onClick={() => quitarRol(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">QUITAR ROL DE STAFF</button>
+                    ) : isAdmin && (
+                      <button onClick={() => eliminar(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-rojo border border-rojo px-4 py-2 hover:bg-rojo hover:text-papel transition-colors">ELIMINAR</button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -150,6 +150,18 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   const inicial = u.nombre.charAt(0).toUpperCase()
   const { rol: rolPropio } = useAuthStore()
   const esAdmin = rolPropio === 'admin'
+  const esSocio = (u.roles ?? []).includes('socio')
+
+  function confirmarQuitarRol() {
+    Alert.alert(
+      '¿Quitar el rol de staff?',
+      `${u.nombre} vuelve a su vista de socio. Su cuenta de socio sigue igual.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Quitar rol', style: 'destructive', onPress: hook.quitarRolStaff },
+      ],
+    )
+  }
 
   function confirmarEliminar() {
     Alert.alert(
@@ -297,10 +309,19 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
           </TouchableOpacity>
         )}
 
-        {/* Eliminar — doble confirmación */}
+        {/* Socio con rol de staff → quitar el rol (la cuenta no se borra).
+            Cuenta sólo de staff → eliminar, sólo admin, doble confirmación. */}
         {hook.eliminando ? (
           <ActivityIndicator color={ROJO} style={s.activityMt8} />
-        ) : (
+        ) : esSocio ? (
+          <TouchableOpacity
+            style={s.botonEliminar}
+            onPress={confirmarQuitarRol}
+            activeOpacity={0.8}
+          >
+            <Text style={s.botonEliminarTexto}>QUITAR ROL DE STAFF</Text>
+          </TouchableOpacity>
+        ) : esAdmin ? (
           <TouchableOpacity
             style={s.botonEliminar}
             onPress={confirmarEliminar}
@@ -308,7 +329,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
           >
             <Text style={s.botonEliminarTexto}>ELIMINAR USUARIO</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   )

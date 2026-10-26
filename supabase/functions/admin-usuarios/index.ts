@@ -1,8 +1,15 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
+import {
+  type AccionSobreUsuario,
+  type Destino,
+  type RolCreable,
+  ROLES_POR_CALLER,
+  autorizarAccion,
+  rolesTrasQuitarStaff,
+} from '../_shared/permisos-usuarios.ts'
 
-type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 type Deporte = 'rugby' | 'hockey' | 'tenis'
 const DEPORTES_VALIDOS: Deporte[] = ['rugby', 'hockey', 'tenis']
 
@@ -12,11 +19,6 @@ const DEPORTES_VALIDOS: Deporte[] = ['rugby', 'hockey', 'tenis']
 function resolverDeporte(rol: string | undefined, callerRol: string, deporte: unknown): Deporte | null {
   if (rol !== 'subcomision' || callerRol !== 'admin') return null
   return DEPORTES_VALIDOS.includes(deporte as Deporte) ? (deporte as Deporte) : null
-}
-
-const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
-  subcomision: ['coordinador', 'entrenador', 'manager', 'subcomision'],
-  admin:       ['coordinador', 'entrenador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision'],
 }
 
 Deno.serve(async (req: Request) => {
@@ -54,13 +56,42 @@ Deno.serve(async (req: Request) => {
 
   if (action === 'create') return handleCreate(body, callerProfile.rol)
   if (action === 'assign-role') return handleAssignRole(body, callerProfile.rol)
-  if (action === 'deactivate') return handleDesactivar(body)
-  if (action === 'reactivate') return handleReactivar(body)
-  if (action === 'delete') return handleEliminar(body)
-  if (action === 'getUser') return handleGetUser(body)
+  const ACCIONES_SOBRE_USUARIO: AccionSobreUsuario[] = ['deactivate', 'reactivate', 'delete', 'getUser', 'remove-role']
+  if (!ACCIONES_SOBRE_USUARIO.includes(action as AccionSobreUsuario)) {
+    return jsonError(400, `Acción desconocida: ${action}`)
+  }
 
-  return jsonError(400, `Acción desconocida: ${action}`)
+  // Acciones sobre una cuenta existente: el rol del caller no alcanza, también
+  // se mira la cuenta destino (ver _shared/permisos-usuarios.ts).
+  const userId = body.userId as string | undefined
+  if (!userId) return jsonError(400, 'userId es requerido')
+  const destino = await cargarDestino(userId)
+  if (destino instanceof Response) return destino
+  const rechazo = autorizarAccion({ id: caller.id, rol: callerProfile.rol }, destino, action as AccionSobreUsuario)
+  if (rechazo) return jsonError(rechazo.status, rechazo.mensaje)
+
+  if (action === 'deactivate') return handleDesactivar(userId)
+  if (action === 'reactivate') return handleReactivar(userId)
+  if (action === 'delete') return handleEliminar(userId)
+  if (action === 'remove-role') return handleQuitarRol(destino, callerProfile.rol)
+  return handleGetUser(userId)
 })
+
+async function cargarDestino(userId: string): Promise<Destino | Response> {
+  const [profileRes, socioRes] = await Promise.all([
+    supabaseAdmin.from('profiles').select('rol, roles').eq('id', userId).maybeSingle(),
+    supabaseAdmin.from('socios').select('id', { count: 'exact', head: true }).eq('profile_id', userId),
+  ])
+  if (profileRes.error) return jsonError(500, 'Error leyendo la cuenta: ' + profileRes.error.message)
+  if (socioRes.error) return jsonError(500, 'Error leyendo la cuenta: ' + socioRes.error.message)
+  if (!profileRes.data) return jsonError(404, 'Usuario no encontrado')
+  return {
+    id: userId,
+    rol: profileRes.data.rol as string | null,
+    roles: profileRes.data.roles as string[] | null,
+    tieneSocio: (socioRes.count ?? 0) > 0,
+  }
+}
 
 // ─── Crear usuario ────────────────────────────────────────────────────────────
 
@@ -225,9 +256,7 @@ async function enviarEmailBienvenida(nombre: string, email: string): Promise<voi
 
 // ─── Desactivar usuario ───────────────────────────────────────────────────────
 
-async function handleDesactivar(body: Record<string, unknown>): Promise<Response> {
-  const userId = body.userId as string | undefined
-  if (!userId) return jsonError(400, 'userId es requerido')
+async function handleDesactivar(userId: string): Promise<Response> {
 
   const [banRes, profileRes] = await Promise.all([
     // ban_duration '876000h' ≈ 100 años — efectivamente permanente
@@ -243,9 +272,7 @@ async function handleDesactivar(body: Record<string, unknown>): Promise<Response
 
 // ─── Eliminar usuario ─────────────────────────────────────────────────────────
 
-async function handleEliminar(body: Record<string, unknown>): Promise<Response> {
-  const userId = body.userId as string | undefined
-  if (!userId) return jsonError(400, 'userId es requerido')
+async function handleEliminar(userId: string): Promise<Response> {
 
   const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(userId)
   if (deleteErr) return jsonError(500, 'Error al eliminar: ' + deleteErr.message)
@@ -253,11 +280,27 @@ async function handleEliminar(body: Record<string, unknown>): Promise<Response> 
   return jsonOk({ ok: true })
 }
 
+// ─── Quitar rol de staff ──────────────────────────────────────────────────────
+// Para cuentas de socio con un rol de staff: se le sacan los roles que el caller
+// gestiona y vuelve a su vista de socio. La cuenta no se borra (cascada a
+// socios → cuotas/pagos).
+
+async function handleQuitarRol(destino: Destino, callerRol: string): Promise<Response> {
+  const roles = [...new Set([...(destino.roles ?? []), ...(destino.rol ? [destino.rol] : [])])]
+  const resultado = rolesTrasQuitarStaff(callerRol, roles)
+  if (!resultado) return jsonError(409, 'La cuenta no tiene otro rol: desactivala en lugar de quitarle el rol.')
+
+  const { error } = await supabaseAdmin
+    .from('profiles')
+    .update({ roles: resultado.roles, rol: resultado.rol })
+    .eq('id', destino.id)
+  if (error) return jsonError(500, 'Error al quitar el rol: ' + error.message)
+  return jsonOk({ ok: true, roles: resultado.roles, rol: resultado.rol })
+}
+
 // ─── Obtener datos de usuario ─────────────────────────────────────────────────
 
-async function handleGetUser(body: Record<string, unknown>): Promise<Response> {
-  const userId = body.userId as string | undefined
-  if (!userId) return jsonError(400, 'userId es requerido')
+async function handleGetUser(userId: string): Promise<Response> {
 
   const { data: { user }, error } = await supabaseAdmin.auth.admin.getUserById(userId)
   if (error || !user) return jsonError(500, error?.message ?? 'Usuario no encontrado')
@@ -267,9 +310,7 @@ async function handleGetUser(body: Record<string, unknown>): Promise<Response> {
 
 // ─── Reactivar usuario ────────────────────────────────────────────────────────
 
-async function handleReactivar(body: Record<string, unknown>): Promise<Response> {
-  const userId = body.userId as string | undefined
-  if (!userId) return jsonError(400, 'userId es requerido')
+async function handleReactivar(userId: string): Promise<Response> {
 
   const [unbanRes, profileRes] = await Promise.all([
     supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' }),

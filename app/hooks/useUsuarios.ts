@@ -9,6 +9,7 @@ export interface Usuario {
   id:         string
   nombre:     string
   rol:        string
+  roles:      string[] | null
   activo:     boolean
   divisiones: string[] | null
   deporte:    string | null
@@ -116,7 +117,7 @@ export function useUsuarios() {
   async function fetchUsuarios() {
     const { data } = await supabase
       .from('profiles')
-      .select('id, nombre, rol, activo, divisiones, deporte')
+      .select('id, nombre, rol, roles, activo, divisiones, deporte')
       .neq('rol', 'admin')
       .neq('rol', 'socio')
       .neq('rol', 'cliente_gimnasio')
@@ -401,6 +402,30 @@ export function useUsuarios() {
     volverALista()
   }
 
+  // ─── Quitar rol de staff ──────────────────────────────────────────────────
+  // Cuenta de socio con rol de staff: vuelve a su vista de socio. Nunca se
+  // elimina (borrar la cuenta arrastra su socio, cuotas y pagos).
+
+  async function quitarRolStaff() {
+    if (!usuarioSeleccionado) return
+    setEliminando(true)
+    setErrorEstado(null)
+
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+      body: { action: 'remove-role', userId: usuarioSeleccionado.id },
+    })
+
+    if (error || data?.error) {
+      setErrorEstado(data?.error ?? error?.message ?? 'Error al quitar el rol.')
+      setEliminando(false)
+      return
+    }
+
+    setUsuarios(prev => prev.filter(u => u.id !== usuarioSeleccionado.id))
+    setEliminando(false)
+    volverALista()
+  }
+
   // ─── Cambiar estado ───────────────────────────────────────────────────────
 
   async function cambiarEstado(accion: 'deactivate' | 'reactivate') {
@@ -442,6 +467,7 @@ export function useUsuarios() {
     cambiarEstado,
     eliminando,
     eliminarUsuario,
+    quitarRolStaff,
     emailUsuario,
     cargandoEmail,
     divisionesEditDetalle,
