@@ -36,8 +36,6 @@ interface SocioItem {
   nombre: string
   categoria: string
   categoria_id: string
-  mp_card_last_four: string | null
-  mp_card_brand: string | null
 }
 
 type FiltroEstado = 'todos' | 'activo' | 'moroso' | 'pendiente' | 'inactivo'
@@ -56,11 +54,6 @@ const ESTADO_COLOR: Record<string, string> = {
   moroso: 'text-oro border-oro',
   pendiente: 'text-[#E67E22] border-[#E67E22]',
   inactivo: 'text-tinta/30 border-gris-claro',
-}
-
-function periodoActual() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 async function callEdgeFunction(name: string, body: Record<string, unknown>) {
@@ -96,8 +89,6 @@ function DetalleSocio({
   onClose: () => void
   onRefresh: () => void
 }) {
-  const [modalTarjeta,  setModalTarjeta]  = useState(false)
-  const [modalCobrar,   setModalCobrar]   = useState(false)
   const [actualizando,  setActualizando]  = useState(false)
   const [msg,           setMsg]           = useState('')
   const [fotoUrl,       setFotoUrl]       = useState<string | null>(null)
@@ -149,16 +140,6 @@ function DetalleSocio({
       await supabase.from('socio_servicios').delete()
         .eq('socio_id', socio.id).eq('servicio_id', servicioId)
     }
-    onRefresh()
-  }
-
-  const handleQuitarTarjeta = async () => {
-    if (!confirm('¿Quitar la tarjeta guardada de este socio?')) return
-    setActualizando(true)
-    const json = await callEdgeFunction('socios-pagos', { action: 'remove-card', socio_id: socio.id })
-    setActualizando(false)
-    if (json.error) { setStatus(`Error: ${json.error}`); return }
-    setStatus('Tarjeta quitada.')
     onRefresh()
   }
 
@@ -240,20 +221,6 @@ function DetalleSocio({
             </div>
           </div>
 
-          {/* Débito automático */}
-          <div>
-            <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">DÉBITO AUTOMÁTICO</p>
-            {socio.mp_card_last_four ? (
-              <div className="border border-gris-claro p-4 flex items-center gap-4 bg-card">
-                <span className="font-lora text-sm text-tinta/50">●●●● ●●●● ●●●● {socio.mp_card_last_four}</span>
-                {socio.mp_card_brand && (
-                  <span className="font-lora text-xs tracking-widest text-oro/70">{socio.mp_card_brand.toUpperCase()}</span>
-                )}
-              </div>
-            ) : (
-              <p className="font-lora text-sm text-tinta/40 italic">Sin tarjeta asociada</p>
-            )}
-          </div>
         </div>
 
         {/* Acciones */}
@@ -277,33 +244,6 @@ function DetalleSocio({
             </button>
           )}
 
-          {socio.estado !== 'inactivo' && (
-            socio.mp_card_last_four ? (
-              <>
-                <button
-                  onClick={() => setModalCobrar(true)}
-                  className="font-lora text-xs tracking-widest py-3 border border-gris-claro text-tinta hover:border-tinta transition-colors"
-                >
-                  COBRAR CON TARJETA
-                </button>
-                <button
-                  onClick={handleQuitarTarjeta}
-                  disabled={actualizando}
-                  className="font-lora text-xs tracking-widest py-3 border border-rojo text-rojo hover:bg-rojo/5 transition-colors disabled:opacity-50"
-                >
-                  QUITAR TARJETA
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setModalTarjeta(true)}
-                className="font-lora text-xs tracking-widest py-3 border border-gris-claro text-tinta hover:border-tinta transition-colors"
-              >
-                ASOCIAR TARJETA
-              </button>
-            )
-          )}
-
           {socio.estado !== 'inactivo' ? (
             <button
               onClick={handleDesactivar}
@@ -324,205 +264,17 @@ function DetalleSocio({
         </div>
       </div>
 
-      {/* Modal asociar tarjeta */}
-      {modalTarjeta && (
-        <ModalAsociarTarjeta
-          socioId={socio.id}
-          socioNombre={socio.nombre}
-          onClose={() => setModalTarjeta(false)}
-          onSuccess={(msg) => { setStatus(msg); setModalTarjeta(false); onRefresh() }}
-        />
-      )}
-
-      {/* Modal cobrar tarjeta */}
-      {modalCobrar && (
-        <ModalCobrarTarjeta
-          socioId={socio.id}
-          socioNombre={socio.nombre}
-          onClose={() => setModalCobrar(false)}
-          onSuccess={(msg) => { setStatus(msg); setModalCobrar(false); onRefresh() }}
-        />
-      )}
-    </div>
-  )
-}
-
-// ─── Modal asociar tarjeta ────────────────────────────────────────────────────
-
-function ModalAsociarTarjeta({
-  socioId, socioNombre, onClose, onSuccess,
-}: {
-  socioId: string
-  socioNombre: string
-  onClose: () => void
-  onSuccess: (msg: string) => void
-}) {
-  const [cardNumber,     setCardNumber]     = useState('')
-  const [expMonth,       setExpMonth]       = useState('')
-  const [expYear,        setExpYear]        = useState('')
-  const [cvv,            setCvv]            = useState('')
-  const [cardholderName, setCardholderName] = useState('')
-  const [enviando,       setEnviando]       = useState(false)
-  const [error,          setError]          = useState('')
-
-  const formatCard = (v: string) => {
-    const d = v.replace(/\D/g, '').slice(0, 16)
-    return d.replace(/(\d{4})(?=\d)/g, '$1 ')
-  }
-
-  const handleConfirm = async () => {
-    const digits = cardNumber.replace(/\s/g, '')
-    if (digits.length < 13) { setError('Número de tarjeta inválido.'); return }
-    const month = parseInt(expMonth)
-    if (!month || month < 1 || month > 12) { setError('Mes inválido (1-12).'); return }
-    const yearRaw = parseInt(expYear)
-    const fullYear = yearRaw < 100 ? 2000 + yearRaw : yearRaw
-    if (!fullYear || fullYear < new Date().getFullYear()) { setError('Año inválido.'); return }
-    if (!cvv) { setError('CVV requerido.'); return }
-    if (!cardholderName.trim()) { setError('Nombre del titular requerido.'); return }
-    setEnviando(true); setError('')
-    const json = await callEdgeFunction('socios-pagos', {
-      action: 'associate-card',
-      socio_id: socioId,
-      cardData: {
-        card_number: digits, expiration_month: month, expiration_year: fullYear,
-        security_code: cvv, cardholder_name: cardholderName.trim(),
-      },
-    })
-    setEnviando(false)
-    if (json.error) { setError(json.error); return }
-    onSuccess('Tarjeta asociada ✓')
-  }
-
-  return (
-    <Modal titulo="ASOCIAR TARJETA" onClose={onClose}>
-      <p className="font-lora text-sm text-tinta/50 italic mb-5">{socioNombre}</p>
-      <div className="flex flex-col gap-4">
-        <FormField
-          label="NÚMERO DE TARJETA"
-          value={cardNumber}
-          onChange={v => setCardNumber(formatCard(v))}
-          placeholder="1234 5678 9012 3456"
-        />
-        <div className="grid grid-cols-3 gap-3">
-          <FormField label="MES (MM)" value={expMonth} onChange={v => setExpMonth(v.replace(/\D/g, '').slice(0, 2))} placeholder="06" />
-          <FormField label="AÑO (AAAA)" value={expYear} onChange={v => setExpYear(v.replace(/\D/g, '').slice(0, 4))} placeholder="2028" />
-          <FormField label="CVV" value={cvv} onChange={v => setCvv(v.replace(/\D/g, '').slice(0, 4))} placeholder="123" type="password" />
-        </div>
-        <FormField
-          label="NOMBRE EN LA TARJETA"
-          value={cardholderName}
-          onChange={setCardholderName}
-          placeholder="JUAN PÉREZ"
-        />
-      </div>
-      {error && <p className="font-lora text-rojo text-sm mt-3">{error}</p>}
-      <ModalActions onConfirm={handleConfirm} onCancel={onClose} loading={enviando} label="GUARDAR TARJETA" />
-    </Modal>
-  )
-}
-
-// ─── Modal cobrar tarjeta ─────────────────────────────────────────────────────
-
-function ModalCobrarTarjeta({
-  socioId, socioNombre, onClose, onSuccess,
-}: {
-  socioId: string
-  socioNombre: string
-  onClose: () => void
-  onSuccess: (msg: string) => void
-}) {
-  const [periodo,  setPeriodo]  = useState(periodoActual)
-  const [enviando, setEnviando] = useState(false)
-  const [error,    setError]    = useState('')
-
-  const handleConfirm = async () => {
-    if (!/^\d{4}-\d{2}$/.test(periodo.trim())) { setError('Período inválido. Usá YYYY-MM.'); return }
-    setEnviando(true); setError('')
-    const json = await callEdgeFunction('socios-pagos', {
-      action: 'charge-card', socio_id: socioId, periodo: periodo.trim(),
-    })
-    setEnviando(false)
-    if (json.error) { setError(json.error); return }
-    onSuccess(`Cobro ${periodo.trim()} procesado ✓`)
-  }
-
-  return (
-    <Modal titulo="COBRAR CON TARJETA" onClose={onClose}>
-      <p className="font-lora text-sm text-tinta/50 italic mb-5">{socioNombre}</p>
-      <FormField label="PERÍODO" value={periodo} onChange={setPeriodo} placeholder="2026-06" />
-      {error && <p className="font-lora text-rojo text-sm mt-3">{error}</p>}
-      <ModalActions onConfirm={handleConfirm} onCancel={onClose} loading={enviando} label="CONFIRMAR COBRO" />
-    </Modal>
-  )
-}
-
-// ─── Componentes compartidos ──────────────────────────────────────────────────
-
-function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 bg-dark/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-card w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <p className="font-lora text-xs tracking-widest text-tinta/60">{titulo}</p>
-          <button onClick={onClose} className="text-tinta/40 hover:text-tinta text-xl leading-none">×</button>
-        </div>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function FormField({
-  label, value, onChange, placeholder, type = 'text',
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string
-}) {
-  return (
-    <div>
-      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
-      />
-    </div>
-  )
-}
-
-function ModalActions({
-  onConfirm, onCancel, loading, label,
-}: {
-  onConfirm: () => void; onCancel: () => void; loading: boolean; label: string
-}) {
-  return (
-    <div className="flex gap-3 mt-6">
-      <button
-        onClick={onConfirm}
-        disabled={loading}
-        className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50 flex-1"
-      >
-        {loading ? 'PROCESANDO…' : label}
-      </button>
-      <button
-        onClick={onCancel}
-        className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors"
-      >
-        CANCELAR
-      </button>
     </div>
   )
 }
 
 // ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
 
-type SortColumn = 'numero_socio' | 'nombre' | 'categoria' | 'dni' | 'estado' | 'tarjeta'
+type SortColumn = 'numero_socio' | 'nombre' | 'categoria' | 'dni' | 'estado'
 type SortDirection = 'asc' | 'desc'
 
 const SORT_LABEL: Record<SortColumn, string> = {
-  numero_socio: 'Nº', nombre: 'NOMBRE', categoria: 'CATEGORÍA', dni: 'DNI', estado: 'ESTADO', tarjeta: 'TARJETA',
+  numero_socio: 'Nº', nombre: 'NOMBRE', categoria: 'CATEGORÍA', dni: 'DNI', estado: 'ESTADO',
 }
 
 function compareSocios(a: SocioItem, b: SocioItem, column: SortColumn): number {
@@ -531,9 +283,6 @@ function compareSocios(a: SocioItem, b: SocioItem, column: SortColumn): number {
     const nb = Number(b.numero_socio)
     if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
     return a.numero_socio.localeCompare(b.numero_socio, 'es')
-  }
-  if (column === 'tarjeta') {
-    return (a.mp_card_last_four ?? '').localeCompare(b.mp_card_last_four ?? '', 'es')
   }
   return String(a[column]).localeCompare(String(b[column]), 'es')
 }
@@ -593,7 +342,7 @@ export default function SociosPage() {
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, mp_card_last_four, mp_card_brand, categoria_id, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
             .order('numero_socio')
             .range(from, to)
         ),
@@ -609,8 +358,6 @@ export default function SociosPage() {
         foto_path:        s.foto_path as string | null,
         foto_validada:    s.foto_validada as boolean,
         created_at:       s.created_at as string,
-        mp_card_last_four: s.mp_card_last_four as string | null,
-        mp_card_brand:    s.mp_card_brand as string | null,
         categoria_id:     s.categoria_id as string,
         nombre:           (s.profiles as { nombre: string } | null)?.nombre ?? '—',
         categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
@@ -729,7 +476,6 @@ export default function SociosPage() {
               <SortableTh column="categoria"    align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <SortableTh column="dni"          align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <SortableTh column="estado"       align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="tarjeta"      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
@@ -746,11 +492,6 @@ export default function SociosPage() {
                 <td className="text-center py-4 pr-4">
                   <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${ESTADO_COLOR[s.estado] ?? 'border-gris-claro text-tinta/40'}`}>
                     {(ESTADO_LABEL[s.estado] ?? s.estado).toUpperCase()}
-                  </span>
-                </td>
-                <td className="text-center py-4">
-                  <span className="font-lora text-xs text-tinta/40">
-                    {s.mp_card_last_four ? `●●●● ${s.mp_card_last_four}` : '—'}
                   </span>
                 </td>
               </tr>

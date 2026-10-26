@@ -67,6 +67,13 @@ Deno.serve(async (req: Request) => {
   if (bodyAction === 'manual') {
     return jsonError(410, 'El registro manual de pagos ya no existe: los pagos se cargan en NUVIX.')
   }
+  // El flujo de tarjeta desde el panel (número completo + CVV pasando por una
+  // función propia: alcance PCI SAQ D) se abandonó: el staff ya no puede usarlo.
+  const ACCIONES_TARJETA = ['associate-card', 'remove-card', 'charge-card']
+  const ROLES_STAFF = ['secretaria', 'admin', 'subcomision']
+  if (ACCIONES_TARJETA.includes(bodyAction ?? '') && ROLES_STAFF.includes(callerRol)) {
+    return jsonError(410, 'El cobro con tarjeta desde el panel ya no existe.')
+  }
   if (bodyAction === 'associate-card')        return handleAssociateCard(body, callerRol, caller.id)
   if (bodyAction === 'remove-card')           return handleRemoveCard(body, callerRol, caller.id)
   if (bodyAction === 'charge-card')           return handleChargeCard(body, callerRol, caller.id)

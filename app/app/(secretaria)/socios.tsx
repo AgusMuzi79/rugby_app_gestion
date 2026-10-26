@@ -1,15 +1,13 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Modal, TextInput, Alert, ScrollView, Image,
-  KeyboardAvoidingView,
+  TouchableOpacity, Alert, ScrollView, Image,
 } from 'react-native'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
-import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional, type CardFormData } from '@/hooks/useSociosSecretaria'
-import { DatePickerField } from '@/components/ui/DatePickerField'
+import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional } from '@/hooks/useSociosSecretaria'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -32,239 +30,6 @@ const ESTADO_LABEL: Record<string, string> = {
 const FILTROS = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo'] as const
 type Filtro = typeof FILTROS[number]
 
-// ─── Período actual ────────────────────────────────────────────────────────
-
-function periodoActual(): string {
-  const hoy = new Date()
-  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
-}
-
-// ─── Modal Asociar Tarjeta ────────────────────────────────────────────────────
-
-function ModalAsociarTarjeta({
-  visible,
-  socioNombre,
-  onClose,
-  onConfirm,
-}: {
-  visible:      boolean
-  socioNombre:  string
-  onClose:      () => void
-  onConfirm:    (data: CardFormData) => Promise<void>
-}) {
-  const [cardNumber,     setCardNumber]     = useState('')
-  const [expMonth,       setExpMonth]       = useState('')
-  const [expYear,        setExpYear]        = useState('')
-  const [cvv,            setCvv]            = useState('')
-  const [cardholderName, setCardholderName] = useState('')
-  const [enviando,       setEnviando]       = useState(false)
-
-  const handleCardNumberChange = (text: string) => {
-    const digits = text.replace(/\D/g, '').slice(0, 16)
-    setCardNumber(digits.replace(/(\d{4})(?=\d)/g, '$1 '))
-  }
-
-  const handleConfirm = async () => {
-    const digits = cardNumber.replace(/\s/g, '')
-    if (digits.length < 13) { Alert.alert('Error', 'Número de tarjeta inválido'); return }
-    const month = parseInt(expMonth)
-    if (!month || month < 1 || month > 12) { Alert.alert('Error', 'Mes de vencimiento inválido (1-12)'); return }
-    const yearRaw = parseInt(expYear)
-    const fullYear = yearRaw < 100 ? 2000 + yearRaw : yearRaw
-    if (!fullYear || fullYear < new Date().getFullYear()) { Alert.alert('Error', 'Año de vencimiento inválido'); return }
-    if (!cvv) { Alert.alert('Error', 'CVV requerido'); return }
-    if (!cardholderName.trim()) { Alert.alert('Error', 'Nombre del titular requerido'); return }
-    setEnviando(true)
-    await onConfirm({
-      card_number:      digits,
-      expiration_month: month,
-      expiration_year:  fullYear,
-      security_code:    cvv,
-      cardholder_name:  cardholderName.trim(),
-    })
-    setEnviando(false)
-  }
-
-  const handleClose = () => {
-    setCardNumber(''); setExpMonth(''); setExpYear(''); setCvv(''); setCardholderName('')
-    onClose()
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior="padding" style={ss.kavOverlay}>
-        <TouchableOpacity style={ss.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={ss.modal}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={ss.modalContent}
-          >
-            <View style={ss.modalHeader}>
-              <Text style={ss.modalTitle}>ASOCIAR TARJETA</Text>
-              <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-                <Feather name="x" size={20} color={TEXTO} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={ss.pagoSocioNombre}>{socioNombre}</Text>
-
-            <Text style={ss.inputLabelMt}>NÚMERO DE TARJETA</Text>
-            <TextInput
-              style={ss.input}
-              value={cardNumber}
-              onChangeText={handleCardNumberChange}
-              placeholder="1234 5678 9012 3456"
-              placeholderTextColor={MUTED}
-              keyboardType="numeric"
-              maxLength={19}
-            />
-
-            <View style={ss.tarjetaRow}>
-              <View style={ss.tarjetaCol}>
-                <Text style={ss.inputLabelMt}>MES (MM)</Text>
-                <TextInput
-                  style={ss.input}
-                  value={expMonth}
-                  onChangeText={t => setExpMonth(t.replace(/\D/g, '').slice(0, 2))}
-                  placeholder="06"
-                  placeholderTextColor={MUTED}
-                  keyboardType="numeric"
-                  maxLength={2}
-                />
-              </View>
-              <View style={ss.tarjetaCol}>
-                <Text style={ss.inputLabelMt}>AÑO (AAAA)</Text>
-                <TextInput
-                  style={ss.input}
-                  value={expYear}
-                  onChangeText={t => setExpYear(t.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="2028"
-                  placeholderTextColor={MUTED}
-                  keyboardType="numeric"
-                  maxLength={4}
-                />
-              </View>
-              <View style={ss.tarjetaCol}>
-                <Text style={ss.inputLabelMt}>CVV</Text>
-                <TextInput
-                  style={ss.input}
-                  value={cvv}
-                  onChangeText={t => setCvv(t.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="123"
-                  placeholderTextColor={MUTED}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                />
-              </View>
-            </View>
-
-            <Text style={ss.inputLabelMt}>NOMBRE EN LA TARJETA</Text>
-            <TextInput
-              style={ss.input}
-              value={cardholderName}
-              onChangeText={setCardholderName}
-              placeholder="JUAN PÉREZ"
-              placeholderTextColor={MUTED}
-              autoCapitalize="characters"
-            />
-
-            <TouchableOpacity
-              style={[ss.crearBtn, enviando && ss.crearBtnOff]}
-              onPress={handleConfirm}
-              disabled={enviando}
-              activeOpacity={0.8}
-            >
-              {enviando
-                ? <ActivityIndicator color={colors.oro} />
-                : <Text style={ss.crearBtnText}>GUARDAR TARJETA</Text>
-              }
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}
-
-// ─── Modal Cobrar Tarjeta ─────────────────────────────────────────────────────
-
-function ModalCobrarTarjeta({
-  visible,
-  socioNombre,
-  onClose,
-  onConfirm,
-}: {
-  visible:     boolean
-  socioNombre: string
-  onClose:     () => void
-  onConfirm:   (periodo: string) => Promise<void>
-}) {
-  const [periodo,  setPeriodo]  = useState(periodoActual)
-  const [enviando, setEnviando] = useState(false)
-
-  const handleConfirm = async () => {
-    if (!/^\d{4}-\d{2}$/.test(periodo.trim())) {
-      Alert.alert('Período inválido', 'Usá el formato YYYY-MM, ej: 2026-06')
-      return
-    }
-    setEnviando(true)
-    await onConfirm(periodo.trim())
-    setEnviando(false)
-  }
-
-  const handleClose = () => { setPeriodo(periodoActual()); onClose() }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior="padding" style={ss.kavOverlay}>
-        <TouchableOpacity style={ss.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={ss.modal}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={ss.modalContent}
-          >
-            <View style={ss.modalHeader}>
-              <Text style={ss.modalTitle}>COBRAR CON TARJETA</Text>
-              <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-                <Feather name="x" size={20} color={TEXTO} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={ss.pagoSocioNombre}>{socioNombre}</Text>
-
-            <Text style={ss.inputLabelMt}>PERÍODO</Text>
-            <TextInput
-              style={ss.input}
-              value={periodo}
-              onChangeText={setPeriodo}
-              placeholder="2026-06"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-              maxLength={7}
-            />
-
-            <TouchableOpacity
-              style={[ss.crearBtn, enviando && ss.crearBtnOff]}
-              onPress={handleConfirm}
-              disabled={enviando}
-              activeOpacity={0.8}
-            >
-              {enviando
-                ? <ActivityIndicator color={colors.oro} />
-                : <Text style={ss.crearBtnText}>CONFIRMAR COBRO</Text>
-              }
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
-}
-
 // ─── Detalle Socio ────────────────────────────────────────────────────────────
 
 function DetalleSocio({
@@ -277,9 +42,6 @@ function DetalleSocio({
   onReactivate,
   onValidarFoto,
   onToggleServicio,
-  onAssociateCard,
-  onRemoveCard,
-  onChargeCard,
   onClose,
 }: {
   socio:            SocioItem
@@ -291,14 +53,9 @@ function DetalleSocio({
   onReactivate:      (id: string) => void
   onValidarFoto:     (id: string) => void
   onToggleServicio:  (servicioId: string, agregar: boolean) => void
-  onAssociateCard:   (data: CardFormData) => Promise<boolean>
-  onRemoveCard:      () => Promise<boolean>
-  onChargeCard:      (periodo: string) => Promise<boolean>
   onClose:           () => void
 }) {
   const [fotoUrl,              setFotoUrl]              = useState<string | null>(null)
-  const [modalAsociarTarjeta,  setModalAsociarTarjeta]  = useState(false)
-  const [modalCobrarTarjeta,   setModalCobrarTarjeta]   = useState(false)
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
   const montoServicios = servicios
@@ -383,28 +140,6 @@ function DetalleSocio({
           </View>
         </View>
 
-        {/* ── Débito automático ───────────────────────────────── */}
-        <View style={ss.tarjetaSection}>
-          <Text style={ss.tarjetaTitulo}>DÉBITO AUTOMÁTICO</Text>
-          {socio.mp_card_last_four ? (
-            <View style={ss.tarjetaCard}>
-              <Feather name="credit-card" size={16} color={colors.oro} />
-              <View style={ss.tarjetaCardInfo}>
-                <Text style={ss.tarjetaNumero}>
-                  •••• •••• •••• {socio.mp_card_last_four}
-                </Text>
-                {socio.mp_card_brand ? (
-                  <Text style={ss.tarjetaBrand}>
-                    {socio.mp_card_brand.toUpperCase()}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          ) : (
-            <Text style={ss.tarjetaVacia}>Sin tarjeta asociada</Text>
-          )}
-        </View>
-
         <View style={ss.acciones}>
           {!socio.foto_validada && socio.foto_path && (
             <TouchableOpacity
@@ -415,42 +150,6 @@ function DetalleSocio({
               <Text style={[ss.accionBtnText, ss.accionBtnTextOro]}>VALIDAR FOTO</Text>
             </TouchableOpacity>
           )}
-          {socio.estado !== 'inactivo' && (
-            socio.mp_card_last_four ? (
-              <>
-                <TouchableOpacity
-                  style={[ss.accionBtn, ss.accionBtnVerde]}
-                  onPress={() => setModalCobrarTarjeta(true)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[ss.accionBtnText, ss.accionBtnTextVerde]}>COBRAR CON TARJETA</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[ss.accionBtn, ss.accionBtnRojo]}
-                  onPress={() => Alert.alert(
-                    'Quitar tarjeta',
-                    '¿Quitar la tarjeta guardada de este socio?',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Quitar', style: 'destructive', onPress: () => { void onRemoveCard() } },
-                    ]
-                  )}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[ss.accionBtnText, ss.accionBtnTextRojo]}>QUITAR TARJETA</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <TouchableOpacity
-                style={[ss.accionBtn, ss.accionBtnOro]}
-                onPress={() => setModalAsociarTarjeta(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={[ss.accionBtnText, ss.accionBtnTextOro]}>ASOCIAR TARJETA</Text>
-              </TouchableOpacity>
-            )
-          )}
-
           {socio.estado !== 'inactivo' ? (
             <TouchableOpacity
               style={[ss.accionBtn, ss.accionBtnRojo]}
@@ -471,28 +170,6 @@ function DetalleSocio({
         </View>
       </ScrollView>
 
-      <ModalAsociarTarjeta
-        visible={modalAsociarTarjeta}
-        socioNombre={socio.nombre}
-        onClose={() => setModalAsociarTarjeta(false)}
-        onConfirm={async (data) => {
-          const ok = await onAssociateCard(data)
-          if (ok) {
-            setModalAsociarTarjeta(false)
-            Alert.alert('Tarjeta guardada ✓', 'La tarjeta fue asociada correctamente.')
-          }
-        }}
-      />
-
-      <ModalCobrarTarjeta
-        visible={modalCobrarTarjeta}
-        socioNombre={socio.nombre}
-        onClose={() => setModalCobrarTarjeta(false)}
-        onConfirm={async (periodo) => {
-          const ok = await onChargeCard(periodo)
-          if (ok) setModalCobrarTarjeta(false)
-        }}
-      />
     </View>
   )
 }
@@ -524,7 +201,6 @@ export default function SociosScreen() {
     socios, categorias, servicios, serviciosSocio, loading,
     filtro, setFiltro,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
-    associateCard, removeCard, chargeCard,
     fetchServiciosSocio, toggleServicio,
   } = useSociosSecretaria()
 
@@ -579,9 +255,6 @@ export default function SociosScreen() {
           onReactivate={handleReactivate}
           onValidarFoto={handleValidarFoto}
           onToggleServicio={handleToggleServicio}
-          onAssociateCard={(data) => associateCard(actualizado.id, data)}
-          onRemoveCard={() => removeCard(actualizado.id)}
-          onChargeCard={(periodo) => chargeCard(actualizado.id, periodo)}
           onClose={() => setDetalle(null)}
         />
       </View>
@@ -744,10 +417,6 @@ const ss = StyleSheet.create({
   formaPagoBtnTextActivo:   { color: colors.oro },
   formaPagoBtnTextInactivo: { color: TEXTO },
 
-  // Tarjeta row (3-col expiry/cvv)
-  tarjetaRow: { flexDirection: 'row', gap: 12 },
-  tarjetaCol: { flex: 1 },
-
   // Detalle
   detalle:            { flex: 1 },
   detalleBar:         { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DIVIDER },
@@ -790,21 +459,6 @@ const ss = StyleSheet.create({
   },
   totalLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED },
   totalMonto: { fontFamily: fonts.titulo, fontSize: 21, color: TEXTO },
-
-  // Tarjeta section
-  tarjetaSection: { gap: 8, marginTop: 4 },
-  tarjetaTitulo: {
-    fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: MUTED,
-  },
-  tarjetaCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    borderWidth: 1, borderRadius: 4, padding: 14,
-    backgroundColor: colors.tinta, borderColor: DIVIDER,
-  },
-  tarjetaCardInfo: { flex: 1 },
-  tarjetaNumero:   { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
-  tarjetaBrand:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, marginTop: 2, color: MUTED },
-  tarjetaVacia:    { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: MUTED },
 
   acciones: { gap: 10, marginTop: 8 },
   accionBtn: {
