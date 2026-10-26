@@ -31,13 +31,20 @@ import { parsePadronSocios, categoriaNombreDb, type SocioPadron, type Sexo } fro
 import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 import { generateSecret } from '../_shared/totp.ts'
 import { nombrePadronACambiar } from '../_shared/nombre-padron.ts'
+import {
+  CONFIRMACION_BAJAS,
+  type MotivoBaja,
+  bajaMasivaConfirmada,
+  esBajaMasiva,
+  etiquetaMotivoBaja,
+  nombreBaja,
+  umbralBajaMasiva,
+} from '../_shared/bajas-import.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export, mismo patrón
 // que importar-deuda y scripts/import-socios-masivo.mjs.
 import XLSX from 'npm:xlsx@0.18.5'
 
 const ROLES_PERMITIDOS = ['secretaria', 'admin']
-
-type MotivoBaja = 'ausencia' | 'cesante'
 
 interface SocioDb {
   id:              string
@@ -204,8 +211,18 @@ Deno.serve(async (req: Request) => {
 
   const diff = calcularDiff(filas, sociosDb, categoriaIdPorNombre)
 
+  // Red de seguridad: un archivo equivocado o recortado daría de baja (ban +
+  // mail) a cientos de socios. Sobre el umbral hay que tipear BAJAS.
+  const activos = [...sociosDb.values()].filter(s => s.estado === 'activo' || s.estado === 'pendiente').length
+  const bajaMasiva = esBajaMasiva(diff.bajas.length, activos)
+
   if (modo === 'preview') {
-    return jsonOk(resumenDiff(diff))
+    return jsonOk({ ...resumenDiff(diff), baja_masiva: bajaMasiva, umbral_bajas: umbralBajaMasiva(activos) })
+  }
+
+  const confirmacionBajas = formData.get('confirmar_bajas')
+  if (!bajaMasivaConfirmada(bajaMasiva, typeof confirmacionBajas === 'string' ? confirmacionBajas : null)) {
+    return jsonError(409, `El archivo daría de baja a ${diff.bajas.length} socios (más de ${umbralBajaMasiva(activos)}). Revisá que sea el padrón completo; para aplicarlo igual escribí ${CONFIRMACION_BAJAS}.`)
   }
 
   // ─── Aplicar ─────────────────────────────────────────────────────────────
@@ -252,7 +269,7 @@ Deno.serve(async (req: Request) => {
     errores:       erroresTotales.length,
     detalle: {
       altas:        resultado.altasOk.map(a => ({ numero_socio: a.numeroSocio, nombre: a.nombre })),
-      bajas:        resultado.bajasOk.map(b => ({ numero_socio: b.numeroSocio, nombre: b.nombre, motivo: b.motivo })),
+      bajas:        resultado.bajasOk.map(b => ({ numero_socio: b.numeroSocio, nombre: b.nombre, motivo: b.motivo, motivo_texto: etiquetaMotivoBaja(b.motivo) })),
       reingresos:   resultado.reingresosOk.map(r => ({ numero_socio: r.numeroSocio, nombre: r.nombre })),
       actualizados: resultado.actualizadosOk.map(u => ({ numero_socio: u.numeroSocio, nombre: u.nombre })),
       errores:      erroresTotales.map(e => ({ numero_socio: e.numeroSocio, nombre: e.nombre, motivo: e.motivo })),
@@ -358,7 +375,7 @@ function calcularDiff(
 
     diff.bajas.push({
       numeroSocio,
-      nombre:    filaOriginal?.nombre ?? '',
+      nombre:    nombreBaja(filaOriginal?.nombre, socio.nombrePadron),
       socioId:   socio.id,
       profileId: socio.profileId,
       motivo,
@@ -378,7 +395,7 @@ function resumenDiff(diff: Diff) {
     errores:      diff.errores.length,
     detalle: {
       altas:        diff.altas.map(a => ({ numero_socio: a.numeroSocio, nombre: a.nombre })),
-      bajas:        diff.bajas.map(b => ({ numero_socio: b.numeroSocio, nombre: b.nombre, motivo: b.motivo })),
+      bajas:        diff.bajas.map(b => ({ numero_socio: b.numeroSocio, nombre: b.nombre, motivo: b.motivo, motivo_texto: etiquetaMotivoBaja(b.motivo) })),
       reingresos:   diff.reingresos.map(r => ({ numero_socio: r.numeroSocio, nombre: r.nombre })),
       actualizados: diff.actualizados.map(u => ({ numero_socio: u.numeroSocio, nombre: u.nombre })),
       errores:      diff.errores.map(e => ({ numero_socio: e.numeroSocio, nombre: e.nombre, motivo: e.motivo })),

@@ -14,6 +14,7 @@ interface DetalleItem {
 
 interface DetalleBaja extends DetalleItem {
   motivo: 'ausencia' | 'cesante'
+  motivo_texto?: string
 }
 
 interface DetalleError extends DetalleItem {
@@ -37,7 +38,12 @@ interface DiffResultado {
   aplicado?: boolean
   importacion_id?: string | null
   errores_aplicacion?: number
+  // Preview: más bajas que el umbral → hay que tipear BAJAS para aplicar.
+  baja_masiva?: boolean
+  umbral_bajas?: number
 }
+
+const CONFIRMACION_BAJAS = 'BAJAS'
 
 interface ImportacionSocios {
   id: string
@@ -51,11 +57,16 @@ interface ImportacionSocios {
   importado_por_nombre: string | null
 }
 
-async function callImportarSocios(archivo: File, modo: 'preview' | 'confirmar'): Promise<DiffResultado & { error?: string }> {
+async function callImportarSocios(
+  archivo: File,
+  modo: 'preview' | 'confirmar',
+  confirmarBajas?: string,
+): Promise<DiffResultado & { error?: string }> {
   const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
+  if (confirmarBajas) formData.append('confirmar_bajas', confirmarBajas)
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-socios`,
     {
@@ -90,7 +101,7 @@ function ListaDetalle({ titulo, items, colorClase }: { titulo: string; items: De
                   <td className="font-lora text-sm text-tinta py-1.5 px-3">{it.nombre || '—'}</td>
                   {'motivo' in it && (
                     <td className="font-lora text-xs text-tinta/50 py-1.5 px-3 text-right">
-                      {(it as DetalleBaja | DetalleError).motivo}
+                      {(it as DetalleBaja).motivo_texto ?? (it as DetalleBaja | DetalleError).motivo}
                     </td>
                   )}
                 </tr>
@@ -112,8 +123,10 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
   const [preview, setPreview] = useState<DiffResultado | null>(null)
   const [aplicadoResultado, setAplicadoResultado] = useState<DiffResultado | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmacionBajas, setConfirmacionBajas] = useState('')
 
-  const resetResultados = () => { setPreview(null); setAplicadoResultado(null); setError(null) }
+  const resetResultados = () => { setPreview(null); setAplicadoResultado(null); setError(null); setConfirmacionBajas('') }
+  const faltaConfirmarBajas = !!preview?.baja_masiva && confirmacionBajas.trim() !== CONFIRMACION_BAJAS
 
   const handleCalcular = async () => {
     if (!archivo) return
@@ -129,7 +142,7 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
     if (!archivo) return
     setAplicando(true)
     setError(null)
-    const json = await callImportarSocios(archivo, 'confirmar')
+    const json = await callImportarSocios(archivo, 'confirmar', preview?.baja_masiva ? confirmacionBajas.trim() : undefined)
     setAplicando(false)
     if (json.error) { setError(json.error); return }
     setAplicadoResultado(json)
@@ -196,11 +209,33 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
           <ListaDetalle titulo="ACTUALIZADOS" items={resultadoAMostrar.detalle.actualizados} colorClase="text-tinta/60" />
           <ListaDetalle titulo="ERRORES — SIN APLICAR" items={resultadoAMostrar.detalle.errores} colorClase="text-rojo" />
 
+          {preview?.baja_masiva && !aplicadoResultado && (
+            <div role="alert" className="mt-5 p-4 border border-rojo">
+              <p className="font-lora text-xs tracking-widest text-tinta mb-2">
+                ATENCIÓN: {preview.bajas} BAJAS (MÁS DE {preview.umbral_bajas})
+              </p>
+              <p className="font-lora text-sm text-tinta/70 mb-3">
+                Puede ser un archivo equivocado o recortado. Cada baja bloquea el login de esa persona y le manda un mail.
+                Revisá la lista de bajas; si es correcta, escribí <strong>{CONFIRMACION_BAJAS}</strong> para habilitar el botón.
+              </p>
+              <label htmlFor="confirmacion-bajas" className="sr-only">Escribí {CONFIRMACION_BAJAS} para confirmar</label>
+              <input
+                id="confirmacion-bajas"
+                type="text"
+                value={confirmacionBajas}
+                onChange={e => setConfirmacionBajas(e.target.value)}
+                placeholder={CONFIRMACION_BAJAS}
+                autoComplete="off"
+                className="font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro"
+              />
+            </div>
+          )}
+
           {preview && !aplicadoResultado && (
             <div className="mt-5 pt-4 border-t border-gris-claro flex items-center gap-4">
               <button
                 onClick={handleConfirmar}
-                disabled={aplicando}
+                disabled={aplicando || faltaConfirmarBajas}
                 className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
               >
                 {aplicando ? 'APLICANDO…' : `CONFIRMAR Y APLICAR (${preview.altas} altas, ${preview.bajas} bajas, ${preview.reingresos} reingresos, ${preview.actualizados} cambios)`}
