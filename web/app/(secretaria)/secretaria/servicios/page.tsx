@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { motivoNoEliminar, nombreBloqueado } from '@/lib/serviciosCatalogo'
 
 interface Servicio {
   id: string
@@ -21,6 +22,7 @@ export default function ServiciosPage() {
   const [monto, setMonto]         = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError]         = useState('')
+  const [aviso, setAviso]         = useState('')
 
   const fetchServicios = async () => {
     const { data } = await supabase
@@ -32,6 +34,9 @@ export default function ServiciosPage() {
   }
 
   useEffect(() => { fetchServicios() }, [])
+
+  const nombreEditadoBloqueado =
+    !!editingId && nombreBloqueado(servicios.find(s => s.id === editingId)?.nombre ?? '')
 
   const resetForm = () => {
     setNombre(''); setDescripcion(''); setMonto('')
@@ -74,9 +79,25 @@ export default function ServiciosPage() {
   }
 
   const handleEliminar = async (id: string, nombre: string) => {
+    setAviso('')
+    // Contar los vínculos antes: borrar un servicio que tienen socios se los
+    // sacaría a todos (la FK es RESTRICT desde 20261028000000; esto lo explica).
+    const { count, error: countErr } = await supabase
+      .from('socio_servicios')
+      .select('id', { count: 'exact', head: true })
+      .eq('servicio_id', id)
+    if (countErr) { setAviso(`No se pudo verificar quién tiene "${nombre}": ${countErr.message}`); return }
+    const motivo = motivoNoEliminar(nombre, count ?? 0)
+    if (motivo) { setAviso(motivo); return }
     if (!confirm(`¿Eliminar el servicio "${nombre}"? Esta acción no se puede deshacer.`)) return
     const { error: err } = await supabase.from('servicios_opcionales').delete().eq('id', id)
-    if (!err) setServicios(ss => ss.filter(s => s.id !== id))
+    if (err) {
+      setAviso(err.code === '23503'
+        ? `No se puede eliminar "${nombre}": lo tienen socios. Desactivalo en su lugar.`
+        : `No se pudo eliminar "${nombre}": ${err.message}`)
+      return
+    }
+    setServicios(ss => ss.filter(s => s.id !== id))
   }
 
   return (
@@ -98,6 +119,10 @@ export default function ServiciosPage() {
         )}
       </div>
 
+      {aviso && (
+        <p role="alert" className="font-lora text-sm text-tinta border border-rojo p-4 mb-6">{aviso}</p>
+      )}
+
       {showForm && (
         <div className="border border-gris-claro p-6 mb-8 bg-card">
           <p className="font-lora text-xs tracking-widest text-tinta/50 mb-5">
@@ -110,9 +135,15 @@ export default function ServiciosPage() {
                 type="text"
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                disabled={nombreEditadoBloqueado}
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors disabled:opacity-60"
                 placeholder="Gimnasio"
               />
+              {nombreEditadoBloqueado && (
+                <p className="font-lora text-xs text-tinta/60 mt-1">
+                  El nombre no se puede cambiar: lo usan el importador de servicios y el lector.
+                </p>
+              )}
             </div>
             <div>
               <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DESCRIPCIÓN</label>
