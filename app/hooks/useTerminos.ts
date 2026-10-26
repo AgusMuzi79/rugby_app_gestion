@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { aceptacionRegistrada, estadoTerminos } from '@/lib/terminos'
 
 interface TerminosState {
   loading: boolean
@@ -32,19 +33,21 @@ export function useTerminos() {
     }
     setState(s => ({ ...s, loading: true, error: null }))
 
-    const { data: activa } = await supabase
+    const { data: activa, error: errorActiva } = await supabase
       .from('terminos_versiones')
       .select('id, version, titulo, pdf_path')
       .eq('activo', true)
       .maybeSingle()
 
-    if (!activa) {
+    // Un error de lectura deja el gate cerrado (lib/terminos.ts).
+    if (errorActiva || !activa) {
+      const e = estadoTerminos({ activa: null, errorActiva, aceptacion: null, errorAceptacion: null })
       setVersionId(null)
-      setState(s => ({ ...s, loading: false, pendiente: false, version: null, titulo: null, pdfUrl: null }))
+      setState(s => ({ ...s, loading: false, pendiente: e.pendiente, error: e.error, version: null, titulo: null, pdfUrl: null }))
       return
     }
 
-    const { data: aceptacion } = await supabase
+    const { data: aceptacion, error: errorAceptacion } = await supabase
       .from('terminos_aceptaciones')
       .select('id')
       .eq('version_id', activa.id)
@@ -52,16 +55,17 @@ export function useTerminos() {
       .maybeSingle()
 
     const { data: pub } = supabase.storage.from('legales').getPublicUrl(activa.pdf_path)
+    const e = estadoTerminos({ activa, errorActiva: null, aceptacion, errorAceptacion })
 
     setVersionId(activa.id)
     setState({
       loading: false,
-      pendiente: !aceptacion,
+      pendiente: e.pendiente,
       version: activa.version,
       titulo: activa.titulo,
       pdfUrl: pub.publicUrl,
       aceptando: false,
-      error: null,
+      error: e.error,
     })
   }, [session])
 
@@ -73,7 +77,7 @@ export function useTerminos() {
     const { error } = await supabase
       .from('terminos_aceptaciones')
       .insert({ profile_id: session.user.id, version_id: versionId })
-    if (error) {
+    if (!aceptacionRegistrada(error)) {
       setState(s => ({ ...s, aceptando: false, error: 'No se pudo registrar la aceptación. Probá de nuevo.' }))
       return false
     }
