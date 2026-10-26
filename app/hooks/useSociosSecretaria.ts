@@ -200,22 +200,6 @@ export function useSociosSecretaria() {
     return data?.signedUrl ?? null
   }, [])
 
-  const registrarPagoManual = useCallback(async (
-    socioId:   string,
-    periodo:   string,
-    monto:     number,
-    formaPago: 'efectivo' | 'transferencia',
-  ): Promise<boolean> => {
-    const res = await supabase.functions.invoke('socios-pagos', {
-      body: { action: 'manual', socio_id: socioId, periodo, monto, forma_pago: formaPago },
-    })
-    if (res.error || res.data?.error) {
-      Alert.alert('Error', res.data?.error ?? res.error?.message ?? 'Error al registrar pago')
-      return false
-    }
-    return true
-  }, [])
-
   const associateCard = useCallback(async (socioId: string, data: CardFormData): Promise<boolean> => {
     const res = await supabase.functions.invoke('socios-pagos', {
       body: { action: 'associate-card', socio_id: socioId, ...data },
@@ -272,7 +256,6 @@ export function useSociosSecretaria() {
     validarFoto,
     crearCategoria,
     fotoSignedUrl,
-    registrarPagoManual,
     associateCard,
     removeCard,
     chargeCard,

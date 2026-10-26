@@ -32,128 +32,11 @@ const ESTADO_LABEL: Record<string, string> = {
 const FILTROS = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo'] as const
 type Filtro = typeof FILTROS[number]
 
-// ─── Modal Pago Manual ────────────────────────────────────────────────────────
+// ─── Período actual ────────────────────────────────────────────────────────
 
 function periodoActual(): string {
   const hoy = new Date()
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
-}
-
-function ModalPagoManual({
-  visible,
-  montoDefault,
-  socioNombre,
-  onClose,
-  onConfirm,
-}: {
-  visible:      boolean
-  montoDefault: number
-  socioNombre:  string
-  onClose:      () => void
-  onConfirm:    (periodo: string, monto: number, formaPago: 'efectivo' | 'transferencia') => Promise<void>
-}) {
-  const [periodo,   setPeriodo]   = useState(periodoActual)
-  const [monto,     setMonto]     = useState(String(montoDefault))
-  const [formaPago, setFormaPago] = useState<'efectivo' | 'transferencia'>('efectivo')
-  const [enviando,  setEnviando]  = useState(false)
-
-  useEffect(() => { setMonto(String(montoDefault)) }, [montoDefault, visible])
-
-  const handleConfirm = async () => {
-    if (!/^\d{4}-\d{2}$/.test(periodo.trim())) {
-      Alert.alert('Período inválido', 'Usá el formato YYYY-MM, ej: 2026-06')
-      return
-    }
-    const montoNum = parseFloat(monto.replace(',', '.'))
-    if (isNaN(montoNum) || montoNum <= 0) {
-      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.')
-      return
-    }
-    setEnviando(true)
-    await onConfirm(periodo.trim(), montoNum, formaPago)
-    setEnviando(false)
-  }
-
-  const handleClose = () => {
-    setPeriodo(periodoActual())
-    setMonto(String(montoDefault))
-    setFormaPago('efectivo')
-    onClose()
-  }
-
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior="padding" style={ss.kavOverlay}>
-        <TouchableOpacity style={ss.backdrop} activeOpacity={1} onPress={handleClose} />
-        <View style={ss.modal}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={ss.modalContent}
-          >
-            <View style={ss.modalHeader}>
-              <Text style={ss.modalTitle}>REGISTRAR PAGO</Text>
-              <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-                <Feather name="x" size={20} color={TEXTO} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={ss.pagoSocioNombre}>{socioNombre}</Text>
-
-            <Text style={ss.inputLabelMt}>PERÍODO</Text>
-            <TextInput
-              style={ss.input}
-              value={periodo}
-              onChangeText={setPeriodo}
-              placeholder="2026-06"
-              placeholderTextColor={MUTED}
-              keyboardType="numbers-and-punctuation"
-              autoCapitalize="none"
-              maxLength={7}
-            />
-
-            <Text style={ss.inputLabelMt}>MONTO ($)</Text>
-            <TextInput
-              style={ss.input}
-              value={monto}
-              onChangeText={setMonto}
-              placeholder="5000"
-              placeholderTextColor={MUTED}
-              keyboardType="numeric"
-            />
-
-            <Text style={ss.inputLabelMt}>FORMA DE PAGO</Text>
-            <View style={ss.formaPagoRow}>
-              {(['efectivo', 'transferencia'] as const).map(f => (
-                <TouchableOpacity
-                  key={f}
-                  style={[ss.formaPagoBtn, formaPago === f ? ss.formaPagoBtnActivo : ss.formaPagoBtnInactivo]}
-                  onPress={() => setFormaPago(f)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[ss.formaPagoBtnText, formaPago === f ? ss.formaPagoBtnTextActivo : ss.formaPagoBtnTextInactivo]}>
-                    {f === 'efectivo' ? 'EFECTIVO' : 'TRANSFERENCIA'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <TouchableOpacity
-              style={[ss.crearBtn, enviando && ss.crearBtnOff]}
-              onPress={handleConfirm}
-              disabled={enviando}
-              activeOpacity={0.8}
-            >
-              {enviando
-                ? <ActivityIndicator color={colors.oro} />
-                : <Text style={ss.crearBtnText}>CONFIRMAR PAGO</Text>
-              }
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  )
 }
 
 // ─── Modal Asociar Tarjeta ────────────────────────────────────────────────────
@@ -394,7 +277,6 @@ function DetalleSocio({
   onReactivate,
   onValidarFoto,
   onToggleServicio,
-  onRegistrarPago,
   onAssociateCard,
   onRemoveCard,
   onChargeCard,
@@ -409,14 +291,12 @@ function DetalleSocio({
   onReactivate:      (id: string) => void
   onValidarFoto:     (id: string) => void
   onToggleServicio:  (servicioId: string, agregar: boolean) => void
-  onRegistrarPago:   (periodo: string, monto: number, formaPago: 'efectivo' | 'transferencia') => Promise<boolean>
   onAssociateCard:   (data: CardFormData) => Promise<boolean>
   onRemoveCard:      () => Promise<boolean>
   onChargeCard:      (periodo: string) => Promise<boolean>
   onClose:           () => void
 }) {
   const [fotoUrl,              setFotoUrl]              = useState<string | null>(null)
-  const [modalPago,            setModalPago]            = useState(false)
   const [modalAsociarTarjeta,  setModalAsociarTarjeta]  = useState(false)
   const [modalCobrarTarjeta,   setModalCobrarTarjeta]   = useState(false)
   const categoria = categorias.find(c => c.id === socio.categoria_id)
@@ -526,15 +406,6 @@ function DetalleSocio({
         </View>
 
         <View style={ss.acciones}>
-          {socio.estado !== 'inactivo' && (
-            <TouchableOpacity
-              style={[ss.accionBtn, ss.accionBtnVerde]}
-              onPress={() => setModalPago(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={[ss.accionBtnText, ss.accionBtnTextVerde]}>REGISTRAR PAGO</Text>
-            </TouchableOpacity>
-          )}
           {!socio.foto_validada && socio.foto_path && (
             <TouchableOpacity
               style={[ss.accionBtn, ss.accionBtnOro]}
@@ -600,20 +471,6 @@ function DetalleSocio({
         </View>
       </ScrollView>
 
-      <ModalPagoManual
-        visible={modalPago}
-        montoDefault={montoTotal}
-        socioNombre={socio.nombre}
-        onClose={() => setModalPago(false)}
-        onConfirm={async (periodo, monto, formaPago) => {
-          const ok = await onRegistrarPago(periodo, monto, formaPago)
-          if (ok) {
-            setModalPago(false)
-            Alert.alert('Pago registrado ✓', `Cuota ${periodo} marcada como pagada.`)
-          }
-        }}
-      />
-
       <ModalAsociarTarjeta
         visible={modalAsociarTarjeta}
         socioNombre={socio.nombre}
@@ -667,7 +524,7 @@ export default function SociosScreen() {
     socios, categorias, servicios, serviciosSocio, loading,
     filtro, setFiltro,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
-    registrarPagoManual, associateCard, removeCard, chargeCard,
+    associateCard, removeCard, chargeCard,
     fetchServiciosSocio, toggleServicio,
   } = useSociosSecretaria()
 
@@ -722,9 +579,6 @@ export default function SociosScreen() {
           onReactivate={handleReactivate}
           onValidarFoto={handleValidarFoto}
           onToggleServicio={handleToggleServicio}
-          onRegistrarPago={(periodo, monto, formaPago) =>
-            registrarPagoManual(actualizado.id, periodo, monto, formaPago)
-          }
           onAssociateCard={(data) => associateCard(actualizado.id, data)}
           onRemoveCard={() => removeCard(actualizado.id)}
           onChargeCard={(periodo) => chargeCard(actualizado.id, periodo)}

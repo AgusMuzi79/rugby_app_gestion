@@ -96,7 +96,6 @@ function DetalleSocio({
   onClose: () => void
   onRefresh: () => void
 }) {
-  const [modalPago,     setModalPago]     = useState(false)
   const [modalTarjeta,  setModalTarjeta]  = useState(false)
   const [modalCobrar,   setModalCobrar]   = useState(false)
   const [actualizando,  setActualizando]  = useState(false)
@@ -268,15 +267,6 @@ function DetalleSocio({
           )}
           <p className="font-lora text-xs tracking-widest text-tinta/50 mb-1">ACCIONES</p>
 
-          {socio.estado !== 'inactivo' && (
-            <button
-              onClick={() => setModalPago(true)}
-              className="font-lora text-xs tracking-widest py-3 border border-gris-claro text-tinta hover:border-tinta transition-colors"
-            >
-              REGISTRAR PAGO
-            </button>
-          )}
-
           {!socio.foto_validada && socio.foto_path && (
             <button
               onClick={handleValidarFoto}
@@ -334,17 +324,6 @@ function DetalleSocio({
         </div>
       </div>
 
-      {/* Modal pago manual */}
-      {modalPago && (
-        <ModalPagoManual
-          socioId={socio.id}
-          socioNombre={socio.nombre}
-          montoDefault={montoTotal}
-          onClose={() => setModalPago(false)}
-          onSuccess={(msg) => { setStatus(msg); setModalPago(false); onRefresh() }}
-        />
-      )}
-
       {/* Modal asociar tarjeta */}
       {modalTarjeta && (
         <ModalAsociarTarjeta
@@ -365,64 +344,6 @@ function DetalleSocio({
         />
       )}
     </div>
-  )
-}
-
-// ─── Modal pago manual ────────────────────────────────────────────────────────
-
-function ModalPagoManual({
-  socioId, socioNombre, montoDefault, onClose, onSuccess,
-}: {
-  socioId: string
-  socioNombre: string
-  montoDefault: number
-  onClose: () => void
-  onSuccess: (msg: string) => void
-}) {
-  const [periodo,   setPeriodo]   = useState(periodoActual)
-  const [monto,     setMonto]     = useState(String(montoDefault))
-  const [formaPago, setFormaPago] = useState<'efectivo' | 'transferencia'>('efectivo')
-  const [enviando,  setEnviando]  = useState(false)
-  const [error,     setError]     = useState('')
-
-  const handleConfirm = async () => {
-    if (!/^\d{4}-\d{2}$/.test(periodo.trim())) { setError('Período inválido. Usá YYYY-MM.'); return }
-    const montoNum = parseFloat(monto.replace(',', '.'))
-    if (isNaN(montoNum) || montoNum <= 0) { setError('Monto inválido.'); return }
-    setEnviando(true); setError('')
-    const json = await callEdgeFunction('socios-pagos', {
-      action: 'manual', socio_id: socioId, periodo: periodo.trim(), monto: montoNum, forma_pago: formaPago,
-    })
-    setEnviando(false)
-    if (json.error) { setError(json.error); return }
-    onSuccess(`Pago ${periodo.trim()} registrado ✓`)
-  }
-
-  return (
-    <Modal titulo="REGISTRAR PAGO" onClose={onClose}>
-      <p className="font-lora text-sm text-tinta/50 italic mb-5">{socioNombre}</p>
-      <FormField label="PERÍODO" value={periodo} onChange={setPeriodo} placeholder="2026-06" />
-      <FormField label="MONTO ($)" value={monto} onChange={setMonto} placeholder="5000" type="number" />
-      <div className="mt-4">
-        <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">FORMA DE PAGO</label>
-        <div className="flex gap-2">
-          {(['efectivo', 'transferencia'] as const).map(f => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => setFormaPago(f)}
-              className={`font-lora text-xs tracking-widest px-4 py-2 border flex-1 transition-colors ${
-                formaPago === f ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-              }`}
-            >
-              {f === 'efectivo' ? 'EFECTIVO' : 'TRANSFERENCIA'}
-            </button>
-          ))}
-        </div>
-      </div>
-      {error && <p className="font-lora text-rojo text-sm mt-3">{error}</p>}
-      <ModalActions onConfirm={handleConfirm} onCancel={onClose} loading={enviando} label="CONFIRMAR PAGO" />
-    </Modal>
   )
 }
 
