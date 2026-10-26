@@ -1,33 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
+import { resultadoErrorRed, type ScanResult } from '@/lib/veredictoScan'
 
-// Turno del socio en la franja vigente (sólo lo manda socios-qr a la cuenta Lector y sólo
-// si hay franjas cargadas; null/ausente = no mostrar nada). Calculado en la base.
-export interface TurnoActual {
-  modo:       'informativo' | 'bloqueante' | string
-  estado:     'sin_franja' | 'cerrada' | 'con_reserva' | 'sin_reserva' | string
-  franja:     { id: string; hora_desde: string; hora_hasta: string; profesor: string | null } | null
-  reserva_id: string | null
-  ocupados:   number | null
-  capacidad:  number | null
-  bloquear:   boolean
-  mensaje:    string
-}
-
-export interface ScanResult {
-  valido:        boolean
-  motivo?:       string
-  nombre?:       string
-  numero_socio?: string
-  estado?:       string
-  semaforo?:     string | null
-  categoria?:    string
-  foto_path?:    string | null
-  foto_validada?: boolean
-  foto_url?:     string | null   // signed URL, resolved after validate
-  turno?:        TurnoActual | null
-}
+export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
 
 // Respuesta de la acción `registrar-invitado` de socios-qr. `ok: false` trae
 // el motivo (DNI inválido, el DNI es de un socio, etc.); `veces` cuenta los
@@ -44,11 +20,55 @@ export interface InvitadoResult {
 // Desde cuántas visitas en 30 días se sugiere derivar al invitado a Secretaría.
 export const UMBRAL_INVITADO_REPETIDO = 3
 
+// Sin respuesta en este tiempo, el escáner deja de esperar y lo dice (antes el
+// spinner quedaba colgado hasta que el sistema operativo se rendía).
+const TIMEOUT_MS = 6000
+
 export function useScanner() {
   const [permission, requestPermission] = useCameraPermissions()
   const [result, setResult]             = useState<ScanResult | null>(null)
   const [scanning, setScanning]         = useState(true)
   const [validando, setValidando]       = useState(false)
+  // Validación en curso: se aborta con CANCELAR o por timeout.
+  const enCurso = useRef<AbortController | null>(null)
+
+  // Llama a socios-qr y arma el resultado. Un error de red / timeout / 401 no
+  // es un "QR inválido": vuelve como `errorRed` con un mensaje en castellano.
+  const validar = useCallback(async (body: Record<string, unknown>) => {
+    const ctrl = new AbortController()
+    enCurso.current = ctrl
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+    setValidando(true)
+    setScanning(false)
+
+    let sr: ScanResult
+    try {
+      const res = await supabase.functions.invoke('socios-qr', { body, signal: ctrl.signal })
+      if (res.error) {
+        const status = (res.error as { context?: { status?: number } }).context?.status
+        sr = resultadoErrorRed(typeof status === 'number' ? status : undefined)
+      } else {
+        sr = res.data as ScanResult
+        // Si hay foto_path, obtener signed URL para mostrársela a portería
+        if (sr.valido && sr.foto_path) {
+          const { data: signed } = await supabase.storage
+            .from('socios-fotos')
+            .createSignedUrl(sr.foto_path, 60)
+          sr = { ...sr, foto_url: signed?.signedUrl ?? null }
+        }
+      }
+    } catch {
+      sr = resultadoErrorRed(undefined)
+    } finally {
+      clearTimeout(timer)
+    }
+
+    // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
+    if (enCurso.current !== ctrl) return
+    enCurso.current = null
+    setResult(sr)
+    setValidando(false)
+  }, [])
 
   const handleQR = useCallback(async (rawData: string) => {
     if (!scanning || validando) return
@@ -62,58 +82,14 @@ export function useScanner() {
     }
 
     const [numero_socio, code] = parts
-    setValidando(true)
-    setScanning(false)
-
-    const res = await supabase.functions.invoke('socios-qr', {
-      body: { action: 'validate', numero_socio, code },
-    })
-
-    let sr: ScanResult
-    if (res.error) {
-      sr = { valido: false, motivo: res.error.message }
-    } else {
-      sr = res.data as ScanResult
-      // Si hay foto_path, obtener signed URL para mostrársela a portería
-      if (sr.valido && sr.foto_path) {
-        const { data: signed } = await supabase.storage
-          .from('socios-fotos')
-          .createSignedUrl(sr.foto_path, 60)
-        sr = { ...sr, foto_url: signed?.signedUrl ?? null }
-      }
-    }
-
-    setResult(sr)
-    setValidando(false)
-  }, [scanning, validando])
+    await validar({ action: 'validate', numero_socio, code })
+  }, [scanning, validando, validar])
 
   // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.
   const handleDNI = useCallback(async (dni: string) => {
     if (validando) return
-
-    setValidando(true)
-    setScanning(false)
-
-    const res = await supabase.functions.invoke('socios-qr', {
-      body: { action: 'validate-dni', dni },
-    })
-
-    let sr: ScanResult
-    if (res.error) {
-      sr = { valido: false, motivo: res.error.message }
-    } else {
-      sr = res.data as ScanResult
-      if (sr.valido && sr.foto_path) {
-        const { data: signed } = await supabase.storage
-          .from('socios-fotos')
-          .createSignedUrl(sr.foto_path, 60)
-        sr = { ...sr, foto_url: signed?.signedUrl ?? null }
-      }
-    }
-
-    setResult(sr)
-    setValidando(false)
-  }, [validando])
+    await validar({ action: 'validate-dni', dni })
+  }, [validando, validar])
 
   // Invitado (no-socio): DNI obligatorio, nombre opcional. No toca `result` —
   // la pantalla muestra su propia confirmación.
@@ -123,6 +99,15 @@ export function useScanner() {
     })
     if (res.error) return { ok: false, motivo: res.error.message }
     return res.data as InvitadoResult
+  }, [])
+
+  // CANCELAR mientras se valida: vuelve a la cámara sin esperar al server.
+  const cancelar = useCallback(() => {
+    enCurso.current?.abort()
+    enCurso.current = null
+    setValidando(false)
+    setResult(null)
+    setScanning(true)
   }, [])
 
   const reset = useCallback(() => {
@@ -139,6 +124,7 @@ export function useScanner() {
     handleQR,
     handleDNI,
     registrarInvitado,
+    cancelar,
     reset,
   }
 }
