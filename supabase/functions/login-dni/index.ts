@@ -22,9 +22,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
+import { normalizarIdentificador, variantesPassword } from '../_shared/login-identificador.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -37,19 +37,21 @@ Deno.serve(async (req: Request) => {
     return jsonError(400, 'Body inválido')
   }
 
-  const identificador = (body.dni as string | undefined)?.trim()
+  // DNI con puntos o espacios ("30.123.456") se busca sin ellos: profiles.dni
+  // guarda sólo dígitos.
+  const identificador = normalizarIdentificador((body.dni as string | undefined) ?? '')
   const password = body.password as string | undefined
   if (!identificador || !password) return jsonError(400, 'Faltan datos')
 
   let email: string
 
-  if (EMAIL_RE.test(identificador)) {
-    email = identificador.toLowerCase()
+  if (identificador.tipo === 'email') {
+    email = identificador.email
   } else {
     const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('id')
-      .eq('dni', identificador)
+      .eq('dni', identificador.dni)
       .maybeSingle()
 
     if (!profile) return jsonError(401, GENERIC_ERROR)
@@ -66,11 +68,16 @@ Deno.serve(async (req: Request) => {
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  const { data: authData, error: authErr } = await supabaseAnon.auth.signInWithPassword({ email, password })
-  if (authErr || !authData.session) return jsonError(401, GENERIC_ERROR)
-
-  return jsonOk({
-    access_token: authData.session.access_token,
-    refresh_token: authData.session.refresh_token,
-  })
+  // La contraseña inicial es el DNI: si la tipearon con puntos, se prueba
+  // también sin ellos (variantesPassword).
+  for (const intento of variantesPassword(password)) {
+    const { data: authData, error: authErr } = await supabaseAnon.auth.signInWithPassword({ email, password: intento })
+    if (!authErr && authData.session) {
+      return jsonOk({
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+      })
+    }
+  }
+  return jsonError(401, GENERIC_ERROR)
 })

@@ -9,6 +9,7 @@ import {
   autorizarAccion,
   rolesTrasQuitarStaff,
 } from '../_shared/permisos-usuarios.ts'
+import { normalizarDni } from '../_shared/login-identificador.ts'
 
 type Deporte = 'rugby' | 'hockey' | 'tenis'
 const DEPORTES_VALIDOS: Deporte[] = ['rugby', 'hockey', 'tenis']
@@ -98,7 +99,8 @@ async function cargarDestino(userId: string): Promise<Destino | Response> {
 async function handleCreate(body: Record<string, unknown>, callerRol: string): Promise<Response> {
   const nombre     = (body.nombre as string | undefined)?.trim()
   const email      = (body.email  as string | undefined)?.trim().toLowerCase()
-  const dni        = (body.dni    as string | undefined)?.trim()
+  // Sólo dígitos: es la contraseña inicial y lo que login-dni busca en profiles.dni.
+  const dni        = normalizarDni(body.dni as string | undefined)
   const rol        = body.rol as RolCreable | undefined
   const divisiones = body.divisiones as string[] | undefined
   const deporte    = resolverDeporte(rol, callerRol, body.deporte)
