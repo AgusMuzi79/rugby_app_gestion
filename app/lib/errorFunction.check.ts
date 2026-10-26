@@ -44,6 +44,7 @@ async function main() {
   await caso('login: cada falla dice algo distinto', () => {
     assert.match(mensajeLogin({ status: 401 }), /DNI o mail, o la contraseña, no son correctos/)
     assert.match(mensajeLogin({ status: 429 }), /Demasiados intentos/)
+    assert.equal(mensajeLogin({ status: 403 }), 'Tu cuenta está dada de baja. Consultá en Secretaría.')
     assert.match(mensajeLogin({ status: 500 }), /servidor/)
     assert.match(mensajeLogin({ sinRed: true }), /No hay conexión/)
     assert.match(mensajeLogin({ status: 400 }), /Completá/)

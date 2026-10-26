@@ -80,6 +80,8 @@ export function mensajeLogin(r: { status?: number; sinRed?: boolean }): string {
   if (r.sinRed) return SIN_CONEXION
   if (r.status === 400) return 'Completá tu DNI (o mail) y tu contraseña.'
   if (r.status === 401) return 'El DNI o mail, o la contraseña, no son correctos. Si es tu primera vez, tu contraseña es tu DNI sin puntos.'
+  // Socio sacado del padrón: el import banea la cuenta (login-dni → 403).
+  if (r.status === 403) return 'Tu cuenta está dada de baja. Consultá en Secretaría.'
   if (r.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
   return 'El servidor no respondió. Probá de nuevo en un rato.'
 }

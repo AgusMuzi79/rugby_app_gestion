@@ -23,6 +23,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { normalizarIdentificador, variantesPassword } from '../_shared/login-identificador.ts'
+import { respuestaErrorLogin } from '../_shared/login-errores.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
 
@@ -80,9 +81,10 @@ Deno.serve(async (req: Request) => {
         refresh_token: authData.session.refresh_token,
       })
     }
-    // Todos los logins salen de la IP de esta función: si GoTrue la limita,
-    // decirlo (la app muestra "Demasiados intentos") en vez de culpar a la clave.
-    if (authErr?.status === 429) return jsonError(429, 'Demasiados intentos')
+    // Cuenta dada de baja (baneada por el import) o GoTrue limitando la IP de
+    // esta función: decirlo, en vez de culpar a la contraseña.
+    const especial = respuestaErrorLogin(authErr)
+    if (especial) return jsonError(especial.status, especial.mensaje)
   }
   return jsonError(401, GENERIC_ERROR)
 })
