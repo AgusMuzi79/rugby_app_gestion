@@ -5,6 +5,8 @@ import * as LocalAuthentication from 'expo-local-authentication'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Rol } from '@/constants/roles'
+import { mensajeLogin, statusErrorFunction } from '@/lib/errorFunction'
+import { esErrorDeRed } from '@/lib/offlineSync'
 
 export const EMAIL_KEY    = 'biometria_email'
 export const PASSWORD_KEY = 'biometria_password'
@@ -14,7 +16,7 @@ export function useLogin() {
   const [error, setError]                           = useState<string | null>(null)
   const [biometriaDisponible, setBiometriaDisponible] = useState(false)
   const [credencialesGuardadas, setCredencialesGuardadas] = useState(false)
-  const { setSession, setRol, setRoles } = useAuthStore()
+  const { setSession, setRol, setRoles, setAvisoAuth } = useAuthStore()
 
   useEffect(() => {
     void verificarBiometria()
@@ -31,8 +33,13 @@ export function useLogin() {
   }
 
   async function login(dni: string, password: string): Promise<void> {
-    setLoading(true)
     setError(null)
+    setAvisoAuth(null)
+    if (!dni.trim() || !password) {
+      setError(mensajeLogin({ status: 400 }))
+      return
+    }
+    setLoading(true)
 
     try {
       // login-dni resuelve DNI -> email real (sintético o propio) del lado
@@ -42,8 +49,15 @@ export function useLogin() {
         body: { dni, password },
       })
 
-      if (loginError || !loginData?.access_token || !loginData?.refresh_token) {
-        setError('Credenciales incorrectas. Verificá tu DNI o mail y tu contraseña.')
+      // Cada falla dice lo suyo: credenciales, demasiados intentos, servidor
+      // o sin red (antes todo era "Credenciales incorrectas").
+      if (loginError) {
+        const sinRed = (loginError as { name?: string }).name === 'FunctionsFetchError'
+        setError(mensajeLogin({ sinRed, status: statusErrorFunction(loginError) }))
+        return
+      }
+      if (!loginData?.access_token || !loginData?.refresh_token) {
+        setError(mensajeLogin({ status: 500 }))
         return
       }
 
@@ -53,15 +67,23 @@ export function useLogin() {
       })
 
       if (sessionError || !data.session || !data.user) {
-        setError('Credenciales incorrectas. Verificá tu DNI o mail y tu contraseña.')
+        setError(esErrorDeRed(sessionError) ? mensajeLogin({ sinRed: true }) : mensajeLogin({ status: 500 }))
         return
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('rol, roles')
         .eq('id', data.user.id)
         .single()
+
+      // Sin perfil no hay rol ni pantalla a dónde ir: cerrar la sesión y
+      // decirlo, en vez de quedarse en el login sin explicación.
+      if (profileError || !profile) {
+        await supabase.auth.signOut()
+        setError('No pudimos cargar tu perfil. Revisá la conexión y volvé a intentar.')
+        return
+      }
 
       // Ofrecer biometría solo si está disponible y no hay credenciales guardadas aún.
       // Se guarda el email real ya resuelto (no el DNI) — loginConBiometria sigue

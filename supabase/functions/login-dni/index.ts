@@ -48,12 +48,14 @@ Deno.serve(async (req: Request) => {
   if (identificador.tipo === 'email') {
     email = identificador.email
   } else {
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileErr } = await supabaseAdmin
       .from('profiles')
       .select('id')
       .eq('dni', identificador.dni)
       .maybeSingle()
 
+    // Una falla de la base no es "credenciales incorrectas".
+    if (profileErr) return jsonError(500, 'No se pudo verificar el usuario')
     if (!profile) return jsonError(401, GENERIC_ERROR)
 
     const { data: userData, error: userErr } = await supabaseAdmin.auth.admin.getUserById(profile.id)
@@ -78,6 +80,9 @@ Deno.serve(async (req: Request) => {
         refresh_token: authData.session.refresh_token,
       })
     }
+    // Todos los logins salen de la IP de esta función: si GoTrue la limita,
+    // decirlo (la app muestra "Demasiados intentos") en vez de culpar a la clave.
+    if (authErr?.status === 429) return jsonError(429, 'Demasiados intentos')
   }
   return jsonError(401, GENERIC_ERROR)
 })

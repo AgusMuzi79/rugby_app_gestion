@@ -14,6 +14,7 @@ import {
 import { Link, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useLogin } from '@/hooks/useLogin'
+import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -34,6 +35,8 @@ export default function LoginScreen() {
   } = useLogin()
 
   const { mensaje } = useLocalSearchParams<{ mensaje?: string }>()
+  const avisoAuth = useAuthStore(st => st.avisoAuth)
+  const errorVisible = error ?? avisoAuth
 
   return (
     <KeyboardAvoidingView
@@ -123,9 +126,9 @@ export default function LoginScreen() {
           </View>
 
           {/* Error banner */}
-          {error !== null && (
+          {errorVisible !== null && (
             <View style={s.errorBanner}>
-              <Text style={s.errorText}>{error}</Text>
+              <Text style={s.errorText}>{errorVisible}</Text>
             </View>
           )}
 

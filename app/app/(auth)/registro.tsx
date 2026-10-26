@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
+import { mensajeErrorAuth } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -66,7 +67,7 @@ export default function RegistroScreen() {
     setError(null)
 
     const { error: passErr } = await supabase.auth.updateUser({ password: pass })
-    if (passErr) { setError(passErr.message); setLoading(false); return }
+    if (passErr) { setError(mensajeErrorAuth(passErr, 'No se pudo guardar la contraseña. Probá de nuevo.')); setLoading(false); return }
 
     if (nombreTrim !== nombreOriginal && session?.user) {
       await supabase

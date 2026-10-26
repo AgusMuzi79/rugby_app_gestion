@@ -15,7 +15,9 @@ import {
   BarlowSemiCondensed_700Bold,
 } from '@expo-google-fonts/barlow-semi-condensed'
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono'
+import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
+import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { ThemeProvider } from '@/contexts/ThemeContext'
@@ -61,8 +63,39 @@ export default function RootLayout() {
   const router = useRouter()
   const {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
-    setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario,
+    setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
   } = useAuthStore()
+  // Perfil (rol) de la sesión. Si no carga, la persona quedaba en el login sin
+  // ninguna explicación. Sin red: se avisa y se reintenta solo al volver la
+  // conexión (no se cierra la sesión: el carnet tiene que poder abrirse sin
+  // señal). Cualquier otro error: se cierra la sesión y se explica.
+  async function cargarPerfil(userId: string): Promise<{ rol: string | null; roles: string[] | null } | null> {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('rol, roles')
+      .eq('id', userId)
+      .single()
+    if (profile && !error) {
+      setAvisoAuth(null)
+      return profile
+    }
+    if (esErrorDeRed(error)) {
+      setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Se reintenta solo cuando vuelva la conexión.')
+      const quitar = NetInfo.addEventListener(async estado => {
+        if (!estado.isConnected || estado.isInternetReachable === false) return
+        quitar()
+        const p = await cargarPerfil(userId)
+        if (!p) return
+        setRol((p.rol as Rol) ?? null)
+        setRoles((p.roles as Rol[]) ?? [p.rol as Rol].filter(Boolean))
+      })
+      return null
+    }
+    await supabase.auth.signOut()
+    setAvisoAuth('No pudimos cargar tu perfil. Volvé a iniciar sesión; si sigue pasando, avisá en Secretaría.')
+    return null
+  }
+
   const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
   const { restringido, loading: restringidoLoading } = useAccesoRestringido()
   const { pendiente: mailSinteticoPendiente, loading: mailSinteticoLoading } = useMailSintetico()
@@ -144,13 +177,10 @@ export default function RootLayout() {
         // el callback ya terminó y el lock se liberó.
         // https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning-PGzXw0
         setTimeout(async () => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('rol, roles')
-            .eq('id', newSession.user.id)
-            .single()
-          setRol((profile?.rol as Rol) ?? null)
-          setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
+          const profile = await cargarPerfil(newSession.user.id)
+          if (!profile) return
+          setRol((profile.rol as Rol) ?? null)
+          setRoles((profile.roles as Rol[]) ?? [profile.rol as Rol].filter(Boolean))
           // Cubre login fresco, login biométrico Y sesión restaurada al abrir
           // la app — antes sólo se llamaba desde useLogin.ts, así que una
           // sesión ya activa cuando se instala una build nueva nunca

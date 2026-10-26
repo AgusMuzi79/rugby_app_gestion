@@ -96,7 +96,14 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
       </View>
 
       <ScrollView ref={scrollRef} style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        {hook.usuarios.length === 0 ? (
+        {hook.errorLista ? (
+          <View accessibilityRole="alert">
+            <Text style={s.vacio}>{hook.errorLista}</Text>
+            <TouchableOpacity onPress={() => { void hook.reintentarLista() }} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+              <Text style={[s.vacio, { color: colors.oro }]}>REINTENTAR</Text>
+            </TouchableOpacity>
+          </View>
+        ) : hook.usuarios.length === 0 ? (
           <Text style={s.vacio}>Sin usuarios registrados.</Text>
         ) : (
           hook.usuarios.map(u => (
