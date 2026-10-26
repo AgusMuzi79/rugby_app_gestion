@@ -8,20 +8,17 @@
 //   webhook               — Webhook de Mercado Pago al confirmar pago (sin JWT — MP lo llama directamente)
 //   manual                — 410: se sacó el "Registrar pago" de Secretaría (NUVIX es la fuente)
 //   declarar-comprobante  — Socio declara su comprobante de transferencia (flujo alias manual)
-//   aprobar-comprobante   — Secretaría aprueba un comprobante en revisión (cuota → pagado)
-//   rechazar-comprobante  — Secretaría rechaza un comprobante en revisión (cuota → pendiente, email con motivo)
+//   (aprobar-comprobante / rechazar-comprobante se borraron el 2026-10-26 con la
+//    pantalla /secretaria/comprobantes: los comprobantes llegan por WhatsApp)
 //
 // Deploy: supabase functions deploy socios-pagos --no-verify-jwt
 //   (necesario para que el webhook de MP funcione sin JWT)
 //
 // Secrets requeridos:
 //   MERCADOPAGO_ACCESS_TOKEN
-//   RESEND_API_KEY   — sin esto, los emails de comprobante se omiten (fire and forget, ver _shared/email.ts)
-//   CLUB_EMAIL_FROM  — ej: "UNCAS Rugby Club <pagos@dominio-del-club.com>", el dominio debe estar verificado en Resend
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { enviarEmail, emailTemplate } from '../_shared/email.ts'
 
 const MP_API = 'https://api.mercadopago.com'
 
@@ -74,8 +71,6 @@ Deno.serve(async (req: Request) => {
   if (bodyAction === 'remove-card')           return handleRemoveCard(body, callerRol, caller.id)
   if (bodyAction === 'charge-card')           return handleChargeCard(body, callerRol, caller.id)
   if (bodyAction === 'declarar-comprobante')  return handleDeclararComprobante(body, callerRol, caller.id)
-  if (bodyAction === 'aprobar-comprobante')   return handleAprobarComprobante(body, callerRol, caller.id)
-  if (bodyAction === 'rechazar-comprobante')  return handleRechazarComprobante(body, callerRol, caller.id)
 
   return jsonError(400, `Acción desconocida: ${bodyAction}`)
 })
@@ -277,233 +272,6 @@ async function handleDeclararComprobante(
 
   if (cuotaErr || !nuevaCuota) return jsonError(500, 'Error al crear la cuota: ' + cuotaErr?.message)
   return jsonOk({ ok: true, cuota_id: nuevaCuota.id })
-}
-
-// ─── Aprobar comprobante en revisión (Secretaría) ─────────────────────────────
-
-async function handleAprobarComprobante(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (!['secretaria', 'admin', 'subcomision'].includes(callerRol)) {
-    return jsonError(403, 'Solo Secretaría puede aprobar comprobantes')
-  }
-
-  const cuota_id = body.cuota_id as string | undefined
-  if (!cuota_id) return jsonError(400, 'cuota_id es requerido')
-
-  const { data: cuota, error: cuotaErr } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, socio_id, periodo, monto, estado, comprobante_path')
-    .eq('id', cuota_id)
-    .single()
-
-  if (cuotaErr || !cuota) return jsonError(404, 'Cuota no encontrada')
-  if (cuota.estado !== 'en_revision') {
-    return jsonError(409, `La cuota no está en revisión (estado actual: ${cuota.estado})`)
-  }
-
-  const [cuotaRes, pagoRes] = await Promise.all([
-    supabaseAdmin.from('cuotas').update({ estado: 'pagado' }).eq('id', cuota.id),
-    supabaseAdmin.from('pagos_socios').insert({
-      socio_id:          cuota.socio_id,
-      cuota_id:          cuota.id,
-      monto:             cuota.monto,
-      forma_pago:        'transferencia',
-      estado:            'aprobado',
-      registrado_por:    callerId,
-      comprobante_path:  cuota.comprobante_path,
-    }).select('id').single(),
-  ])
-
-  if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
-
-  const pagoId = (pagoRes.data as { id: string } | null)?.id
-  if (pagoId) {
-    EdgeRuntime.waitUntil(notificarPushAprobacionComprobante(cuota.socio_id, cuota.periodo))
-  }
-
-  return jsonOk({ ok: true, cuota_id: cuota.id, pago_id: pagoId })
-}
-
-async function notificarPushAprobacionComprobante(
-  socioId: string,
-  periodo: string
-): Promise<void> {
-  const { data: socio } = await supabaseAdmin
-    .from('socios')
-    .select('profile_id')
-    .eq('id', socioId)
-    .single()
-  if (!socio?.profile_id) return
-
-  const { data: tokens } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .eq('usuario_id', socio.profile_id)
-
-  const expoPushTokens = (tokens ?? [])
-    .map(t => t.token)
-    .filter(t => t.startsWith('ExponentPushToken'))
-  if (!expoPushTokens.length) return
-
-  const [anio, mes] = periodo.split('-')
-  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-  await fetch('https://exp.host/--/api/v2/push/send', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expoPushTokens.map(token => ({
-      to:       token,
-      title:    'Comprobante aprobado',
-      body:     `Tu pago de ${periodoLabel} fue confirmado. Te enviamos el comprobante oficial por email.`,
-      sound:    'default',
-      priority: 'high',
-      data:     { type: 'comprobante_aprobado', periodo },
-    }))),
-  })
-}
-
-// ─── Rechazar comprobante en revisión (Secretaría) ────────────────────────────
-
-async function handleRechazarComprobante(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (!['secretaria', 'admin', 'subcomision'].includes(callerRol)) {
-    return jsonError(403, 'Solo Secretaría puede rechazar comprobantes')
-  }
-
-  const cuota_id = body.cuota_id as string | undefined
-  const motivo   = (body.motivo as string | undefined)?.trim()
-  if (!cuota_id) return jsonError(400, 'cuota_id es requerido')
-  if (!motivo)   return jsonError(400, 'motivo es requerido')
-
-  const { data: cuota, error: cuotaErr } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, socio_id, periodo, monto, estado, comprobante_path')
-    .eq('id', cuota_id)
-    .single()
-
-  if (cuotaErr || !cuota) return jsonError(404, 'Cuota no encontrada')
-  if (cuota.estado !== 'en_revision') {
-    return jsonError(409, `La cuota no está en revisión (estado actual: ${cuota.estado})`)
-  }
-
-  const [cuotaRes, pagoRes] = await Promise.all([
-    // vuelve a pendiente y se limpia comprobante_path para que el socio pueda volver a
-    // subir uno — el guard_cuotas_update sólo restringe al propio socio (auth.uid()
-    // presente); esta escritura corre con service_role, así que no aplica acá
-    supabaseAdmin.from('cuotas').update({ estado: 'pendiente', comprobante_path: null }).eq('id', cuota.id),
-    // pagos_socios.estado sí admite 'rechazado' (a diferencia de cuotas.estado) —
-    // queda como registro histórico del comprobante rechazado, con el path original
-    supabaseAdmin.from('pagos_socios').insert({
-      socio_id:          cuota.socio_id,
-      cuota_id:          cuota.id,
-      monto:             cuota.monto,
-      forma_pago:        'transferencia',
-      estado:            'rechazado',
-      registrado_por:    callerId,
-      comprobante_path:  cuota.comprobante_path,
-    }).select('id').single(),
-  ])
-
-  if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
-  if (pagoRes.error)  return jsonError(500, 'Error al registrar el rechazo: ' + pagoRes.error.message)
-
-  EdgeRuntime.waitUntil(Promise.allSettled([
-    enviarEmailRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
-    notificarPushRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
-  ]))
-
-  return jsonOk({ ok: true, cuota_id: cuota.id })
-}
-
-async function notificarPushRechazoComprobante(
-  socioId: string,
-  periodo: string,
-  motivo:  string
-): Promise<void> {
-  const { data: socio } = await supabaseAdmin
-    .from('socios')
-    .select('profile_id')
-    .eq('id', socioId)
-    .single()
-  if (!socio?.profile_id) return
-
-  const { data: tokens } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .eq('usuario_id', socio.profile_id)
-
-  const expoPushTokens = (tokens ?? [])
-    .map(t => t.token)
-    .filter(t => t.startsWith('ExponentPushToken'))
-  if (!expoPushTokens.length) return
-
-  const [anio, mes] = periodo.split('-')
-  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-  await fetch('https://exp.host/--/api/v2/push/send', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expoPushTokens.map(token => ({
-      to:       token,
-      title:    'Comprobante rechazado',
-      body:     `Tu comprobante de ${periodoLabel} no pudo aprobarse. Motivo: ${motivo}`,
-      sound:    'default',
-      priority: 'high',
-      data:     { type: 'comprobante_rechazado', periodo },
-    }))),
-  })
-}
-
-async function enviarEmailRechazoComprobante(
-  socioId: string,
-  periodo: string,
-  motivo:  string
-): Promise<void> {
-  try {
-    const { data: socio } = await supabaseAdmin
-      .from('socios')
-      .select('profile_id')
-      .eq('id', socioId)
-      .single()
-    if (!socio) return
-
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(socio.profile_id)
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('nombre')
-      .eq('id', socio.profile_id)
-      .single()
-
-    const email  = user?.email ?? ''
-    const nombre = profile?.nombre ?? 'Socio'
-    if (!email) return
-
-    const [anio, mes] = periodo.split('-')
-    const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-    const html = emailTemplate(`
-      <p style="font-size:15px">Hola ${nombre},</p>
-      <p style="font-size:15px;line-height:1.6">Secretaría revisó el comprobante que subiste para la cuota de <strong>${periodoLabel}</strong> y no pudo aprobarlo.</p>
-      <p style="font-size:15px;line-height:1.6"><strong>Motivo:</strong> ${motivo}</p>
-      <p style="font-size:15px;line-height:1.6">Podés volver a subir el comprobante desde la app cuando lo tengas corregido.</p>
-    `)
-
-    await enviarEmail({ to: email, subject: `Tu comprobante de ${periodoLabel} necesita revisión`, html })
-  } catch (err) {
-    console.error('Error enviando email de rechazo:', err)
-  }
 }
 
 // ─── Webhook de Mercado Pago ──────────────────────────────────────────────────
