@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import type { DivisionCoordinador, JugadorDivision } from '@/hooks/useJugadoresDivision'
 import { colors, fonts } from '@/constants/theme'
 

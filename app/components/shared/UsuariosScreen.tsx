@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useUsuarios, rolLabel, DEPORTE_SUBCO_OPCIONES } from '@/hooks/useUsuarios'
@@ -81,6 +82,7 @@ export function UsuariosScreen() {
 // ─── Vista lista ──────────────────────────────────────────────────────────────
 
 function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const insets = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const { rol }   = useAuthStore()
@@ -89,7 +91,7 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
         <Text style={s.headerTitle}>Usuarios</Text>
         <Text style={s.headerSub}>{activos.length} activos · {inactivos.length} inactivos</Text>
@@ -152,6 +154,7 @@ function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => vo
 // ─── Vista detalle ────────────────────────────────────────────────────────────
 
 function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const insets = useSafeAreaInsets()
   const u     = hook.usuarioSeleccionado!
   const color  = ROL_COLOR[u.rol] ?? MUTED
   const inicial = u.nombre.charAt(0).toUpperCase()
@@ -195,7 +198,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={hook.volverALista} style={s.backBtn}>
           <Text style={s.backTexto}>‹ Usuarios</Text>
         </TouchableOpacity>
@@ -697,7 +700,7 @@ const s = StyleSheet.create({
   activityMt16: { marginTop: 16 },
 
   // Header
-  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.fondo },
+  header:      { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.fondo },
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },

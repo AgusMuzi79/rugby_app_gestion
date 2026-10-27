@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   Modal,
   TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useLesiones, LesionItem, JugadorOpcion, JugadorHistorial, DivisionOpcion } from '@/hooks/useLesiones'
 import { useProtocolos, type Protocolo } from '@/hooks/useProtocolos'
@@ -146,7 +146,7 @@ function HistorialView({
   onVolver: () => void
 }) {
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.historialHeader}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />
@@ -481,7 +481,7 @@ function LesionesScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -490,7 +490,7 @@ function LesionesScreen() {
 
   if (!divisionId) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -508,7 +508,7 @@ function LesionesScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       {/* Header */}
       <View style={s.header}>
         <Text style={s.labelHeader}>ENTRENADOR · {divisionNombre.toUpperCase()}</Text>

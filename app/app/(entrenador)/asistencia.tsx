@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
@@ -159,7 +159,7 @@ export default function AsistenciaScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -168,14 +168,14 @@ export default function AsistenciaScreen() {
 
   if (!divisionId) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['top']}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   useInformes,
   type JugadorAsistencia,
@@ -254,6 +255,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function InformesScreen() {
+  const insets = useSafeAreaInsets()
   const {
     loading, refrescando, refetch, divisiones, divisionFiltro, setDivisionFiltro,
     asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
@@ -270,7 +272,7 @@ export default function InformesScreen() {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <Text style={s.headerTitle}>Informes</Text>
       </View>
@@ -325,7 +327,7 @@ const s = StyleSheet.create({
   centrado:      { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 12 },
   cargandoTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 15 },
 
-  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: TEXTO },
+  header:      { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: TEXTO },
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oroSobreClaro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.sobreOro },
 

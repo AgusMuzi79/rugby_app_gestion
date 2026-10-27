@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   TextInput,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   usePartido,
   RolEnMesa,
@@ -650,7 +650,7 @@ export default function PartidoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -658,7 +658,7 @@ export default function PartidoScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -668,7 +668,7 @@ export default function PartidoScreen() {
   const jugadoresPresentes = jugadores.filter(j => j.presente)
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['top']}>
       <View style={s.header}>
         <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
         <Text style={s.titulo}>{pasoTitulo[paso]}</Text>

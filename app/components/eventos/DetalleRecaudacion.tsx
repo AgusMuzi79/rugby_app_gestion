@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { fonts } from '@/constants/theme'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
@@ -52,7 +52,7 @@ export function DetalleRecaudacion({
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.topBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />

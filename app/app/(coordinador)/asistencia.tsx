@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAsistenciaCoordinador, JugadorAsistencia } from '@/hooks/useAsistenciaCoordinador'
 import { colors, fonts } from '@/constants/theme'
 
@@ -113,7 +113,7 @@ export default function AsistenciaCoordinadorScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={styles.centrado} edges={['top']}>
         <Text style={styles.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -123,7 +123,7 @@ export default function AsistenciaCoordinadorScreen() {
   const conAlerta = jugadores.filter(j => j.ausenciasConsecutivas).length
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <Text style={styles.titulo}>Asistencia</Text>

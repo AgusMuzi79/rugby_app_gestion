@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useProtocolos, type Protocolo, type FormProtocolo } from '@/hooks/useProtocolos'
 import { colors, fonts } from '@/constants/theme'
@@ -235,6 +235,7 @@ export default function ProtocolosRoute() {
 }
 
 function ProtocolosScreen() {
+  const insets = useSafeAreaInsets()
   const {
     loading,
     protocolos,
@@ -260,7 +261,7 @@ function ProtocolosScreen() {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <View style={s.headerFila}>
           <Text style={s.headerTitulo}>Protocolos</Text>
@@ -333,7 +334,7 @@ const s = StyleSheet.create({
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   scroll:   { flex: 1 },
 
-  header:          { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.tinta },
+  header:          { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.tinta },
   headerLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oroSobreClaro, marginBottom: 4 },
   headerFila:      { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   headerTitulo:    { fontFamily: fonts.titulo, fontSize: 28, color: colors.sobreOro },

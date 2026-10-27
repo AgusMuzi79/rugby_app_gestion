@@ -7,11 +7,11 @@ import {
   ActivityIndicator,
   StyleSheet,
   Modal,
-  SafeAreaView,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { fonts } from '@/constants/theme'
 import type { CobroJugador, FormaDePago } from '@/lib/cobrosPorDivision'

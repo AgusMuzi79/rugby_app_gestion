@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   useJugadoresDivision,
   type DivisionCoordinador,
@@ -138,7 +138,7 @@ export default function JugadoresCoordinadorScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -146,7 +146,7 @@ export default function JugadoresCoordinadorScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -158,7 +158,7 @@ export default function JugadoresCoordinadorScreen() {
     : ''
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>COORDINADOR</Text>
         <Text style={s.titulo}>Jugadores</Text>

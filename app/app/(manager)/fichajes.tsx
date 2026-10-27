@@ -5,12 +5,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   Modal,
   TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import {
   useFichajes,
@@ -173,7 +173,7 @@ export default function FichajesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
@@ -181,7 +181,7 @@ export default function FichajesScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -189,7 +189,7 @@ export default function FichajesScreen() {
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>MANAGER · {divisionNombre.toUpperCase()}</Text>
         <View style={s.tituloRow}>

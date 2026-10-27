@@ -10,11 +10,11 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { usePromosBuffet, type Promo } from '@/hooks/usePromosBuffet'
 import { colors, fonts } from '@/constants/theme'
@@ -178,14 +178,14 @@ export default function PromosScreen() {
   // relecturas al volver a la pestaña van por el RefreshControl.
   if (loading && promos.length === 0) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>BUFFET</Text>
         <View style={s.headerRow}>

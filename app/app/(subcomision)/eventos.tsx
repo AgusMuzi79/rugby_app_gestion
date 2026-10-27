@@ -11,9 +11,9 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  SafeAreaView,
   RefreshControl,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import {
   useEventos,
@@ -198,7 +198,7 @@ function EventoDetalleContent({
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.detalleTopBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />
@@ -605,7 +605,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>
           {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}

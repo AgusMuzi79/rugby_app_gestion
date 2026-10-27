@@ -5,11 +5,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useEgresos, type EventoEgresos } from '@/hooks/useEgresos'
 import { colors, fonts } from '@/constants/theme'
@@ -57,14 +57,14 @@ export default function EgresosScreen() {
 
   if (loading && eventos.length === 0) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>MANAGER · VIAJES Y TERCER TIEMPOS</Text>
         <Text style={s.titulo}>Egresos</Text>

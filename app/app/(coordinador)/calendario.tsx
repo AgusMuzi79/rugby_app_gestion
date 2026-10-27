@@ -9,10 +9,10 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   useCalendario, EventoCalendario, TipoEvento, ModalidadPartido,
   MAX_DIVISIONES_PARTIDO, partidoMultiDivisionValido, recortarParaPartido,
@@ -418,7 +418,7 @@ export default function CalendarioScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={styles.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -426,7 +426,7 @@ export default function CalendarioScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={styles.centrado} edges={['top']}>
         <Text style={styles.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -434,7 +434,7 @@ export default function CalendarioScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <View style={styles.headerRow}>
