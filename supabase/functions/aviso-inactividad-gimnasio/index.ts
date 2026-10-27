@@ -186,6 +186,10 @@ async function fetchUltimoIngreso(ids: string[]): Promise<Map<string, number> | 
         .from('accesos')
         .select('socio_id, creado_en')
         .eq('punto', 'gimnasio')
+        // Un escaneo rechazado no es una visita (porteria T11; las filas viejas
+        // con sin_servicio eran siempre rechazos).
+        .eq('denegado', false)
+        .eq('sin_servicio', false)
         .in('socio_id', chunk)
         .order('creado_en', { ascending: false })
         .range(from, from + PAGE_SIZE - 1)
