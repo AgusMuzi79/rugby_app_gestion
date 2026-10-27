@@ -4,6 +4,8 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { supabase, selectAllRows } from '@/lib/supabase'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
 import VerMas from '@/components/secretaria/VerMas'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { PAGINA_LISTA, paginar, ordenarCon } from '@/lib/listaPaginada'
 import { filtrarDeudas, mensajeVacioDeudas, nombresSocio, SEMAFORO_LABEL, type Semaforo } from '@/lib/busquedaSocios'
 
@@ -92,6 +94,7 @@ export default function DeudasPage() {
   const [socios, setSocios] = useState<SocioSemaforo[]>([])
   const [fechaCorte, setFechaCorte] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<FiltroSemaforo>('rojo')
   const [filtroServicio, setFiltroServicio] = useState<string>(FILTRO_SERVICIO_TODOS)
   const [busqueda, setBusqueda] = useState('')
@@ -109,7 +112,7 @@ export default function DeudasPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [sociosData, serviciosOpcionalesData, socioServiciosData, { data: ultimaImportacion }] = await Promise.all([
+      const [sociosData, serviciosOpcionalesData, socioServiciosData, { data: ultimaImportacion, error: errorUltima }] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
@@ -134,6 +137,8 @@ export default function DeudasPage() {
           .limit(1)
           .maybeSingle(),
       ])
+      const err = primerError(serviciosOpcionalesData.error, errorUltima)
+      if (err) throw err
 
       const nombrePorServicioId = new Map<string, string>(
         (serviciosOpcionalesData.data ?? []).map((s) => [s.id as string, s.nombre as string])
@@ -171,6 +176,9 @@ export default function DeudasPage() {
 
       setSocios(normalizedSocios)
       setFechaCorte((ultimaImportacion as { fecha_corte: string } | null)?.fecha_corte ?? null)
+      setErrorCarga(null)
+    } catch (e) {
+      setErrorCarga(mensajeErrorCarga('las deudas', e))
     } finally {
       setLoading(false)
     }
@@ -308,7 +316,7 @@ export default function DeudasPage() {
         </div>
         <button
           onClick={handleExportar}
-          disabled={sociosFiltrados.length === 0}
+          disabled={sociosFiltrados.length === 0 || !!errorCarga}
           className="font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
         >
           EXPORTAR CSV ({sociosFiltrados.length})
@@ -317,6 +325,8 @@ export default function DeudasPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={() => { setLoading(true); void fetchAll() }} />
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">
@@ -367,7 +377,7 @@ export default function DeudasPage() {
           </tbody>
         </table>
       )}
-      {!loading && (
+      {!loading && !errorCarga && (
         <VerMas
           mostrando={visibles.length}
           total={sociosFiltrados.length}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import PanelSidebar, { type NavItem } from '@/components/PanelSidebar'
+import { decidirSesion, type DecisionSesion } from '@/lib/sesionPanel'
 
 export type PanelId = 'subcomision' | 'buffet' | 'secretaria' | 'porteria'
 
@@ -75,30 +76,74 @@ export default function PanelShell({ panel, children }: { panel: PanelId; childr
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [errorSesion, setErrorSesion] = useState(false)
+  const [intento, setIntento] = useState(0)
 
   useEffect(() => {
+    let cancelado = false
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.replace('/login'); return }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('nombre, rol')
-        .eq('id', user.id)
-        .single()
-
-      if (!data || !PANELES[panel].roles.includes(data.rol)) {
-        await supabase.auth.signOut()
-        router.replace('/login')
-        return
+      let decision: DecisionSesion
+      let perfil: UserProfile | null = null
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (!user) {
+          decision = decidirSesion({ user: null, userError, rolesPermitidos: PANELES[panel].roles })
+        } else {
+          const { data, error: perfilError } = await supabase
+            .from('profiles')
+            .select('nombre, rol')
+            .eq('id', user.id)
+            .single()
+          perfil = data
+          decision = decidirSesion({ user, perfil: data, perfilError, rolesPermitidos: PANELES[panel].roles })
+        }
+      } catch (e) {
+        decision = decidirSesion({ user: null, excepcion: e, rolesPermitidos: PANELES[panel].roles })
       }
+      if (cancelado) return
 
-      setProfile(data)
-      setLoading(false)
+      switch (decision.tipo) {
+        case 'login':
+          router.replace('/login')
+          return
+        case 'cerrar':
+          // Sólo con el permiso confirmado como inválido (sin perfil o rol no permitido).
+          await supabase.auth.signOut()
+          router.replace('/login')
+          return
+        case 'error':
+          // Corte de red / Supabase caído: no se cierra la sesión.
+          setErrorSesion(true)
+          setLoading(false)
+          return
+        case 'ok':
+          setProfile(perfil)
+          setErrorSesion(false)
+          setLoading(false)
+      }
     }
 
     checkAuth()
-  }, [router, panel])
+    return () => { cancelado = true }
+  }, [router, panel, intento])
+
+  if (errorSesion) {
+    return (
+      <div className="min-h-screen bg-papel flex items-center justify-center p-4">
+        <div role="alert" className="border border-rojo p-6 text-center max-w-sm">
+          <p className="font-lora text-sm text-rojo-texto mb-1">No se pudo verificar tu sesión.</p>
+          <p className="font-lora text-xs text-texto-2 mb-4">Revisá la conexión a internet y probá de nuevo.</p>
+          <button
+            type="button"
+            onClick={() => { setErrorSesion(false); setLoading(true); setIntento(i => i + 1) }}
+            className="font-lora text-xs tracking-widest px-4 py-2 border border-gris-claro text-tinta hover:border-oro transition-colors"
+          >
+            REINTENTAR
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (

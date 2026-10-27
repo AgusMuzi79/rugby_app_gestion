@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
 
 interface Categoria {
   id: string
@@ -21,16 +23,25 @@ export default function CategoriasPage() {
   const [monto, setMonto]           = useState('')
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [aviso, setAviso]           = useState('')
 
   const fetchCategorias = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error: err } = await (supabase as any)
       .from('categorias_socio')
       .select('id, nombre, descripcion, monto_mensual, activa')
       .order('nombre')
-    setCategorias(data ?? [])
+    if (err) {
+      setErrorCarga(mensajeErrorCarga('las categorías', err))
+    } else {
+      setErrorCarga(null)
+      setCategorias(data ?? [])
+    }
     setLoading(false)
   }
+
+  const reintentar = () => { setLoading(true); void fetchCategorias() }
 
   useEffect(() => { fetchCategorias() }, [])
 
@@ -75,7 +86,9 @@ export default function CategoriasPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: err } = await (supabase as any)
       .from('categorias_socio').update({ activa }).eq('id', id)
-    if (!err) setCategorias(cs => cs.map(c => c.id === id ? { ...c, activa } : c))
+    if (err) { setAviso(`No se pudo ${activa ? 'activar' : 'desactivar'} la categoría: ${err.message}`); return }
+    setAviso('')
+    setCategorias(cs => cs.map(c => c.id === id ? { ...c, activa } : c))
   }
 
   return (
@@ -96,6 +109,10 @@ export default function CategoriasPage() {
           </button>
         )}
       </div>
+
+      {aviso && (
+        <p role="alert" className="font-lora text-sm text-tinta border border-rojo p-4 mb-6">{aviso}</p>
+      )}
 
       {showForm && (
         <div className="border border-gris-claro p-6 mb-8 bg-card">
@@ -158,6 +175,8 @@ export default function CategoriasPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
       ) : categorias.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">SIN CATEGORÍAS REGISTRADAS</p>

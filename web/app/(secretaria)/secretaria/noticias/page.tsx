@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
 
 interface Noticia {
   id: string
@@ -39,6 +41,8 @@ export default function NoticiasPage() {
   const [loading, setLoading]   = useState(true)
   const [filtro, setFiltro]     = useState<Filtro>('todas')
   const [showModal, setShowModal] = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [aviso, setAviso]       = useState('')
 
   // form
   const [titulo, setTitulo]     = useState('')
@@ -49,10 +53,15 @@ export default function NoticiasPage() {
 
   const fetchNoticias = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('noticias')
       .select('id, titulo, cuerpo, publicada, etiquetas, audiencia, created_at, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
+    if (error) {
+      setErrorCarga(mensajeErrorCarga('las noticias', error))
+      setLoading(false)
+      return
+    }
 
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => ({
       id:         n.id as string,
@@ -64,9 +73,12 @@ export default function NoticiasPage() {
       created_at: n.created_at as string,
       autor:      (n.profiles as { nombre: string } | null)?.nombre ?? '—',
     }))
+    setErrorCarga(null)
     setNoticias(normalized)
     setLoading(false)
   }
+
+  const reintentar = () => { setLoading(true); void fetchNoticias() }
 
   useEffect(() => { fetchNoticias() }, [])
 
@@ -75,23 +87,27 @@ export default function NoticiasPage() {
     : noticias.filter(n => n.etiquetas.includes(filtro))
 
   const handleTogglePublicar = async (id: string, publicada: boolean) => {
+    setAviso('')
     const { error } = await supabase.from('noticias').update({ publicada }).eq('id', id)
-    if (error) return
+    if (error) { setAviso(`No se pudo ${publicada ? 'publicar' : 'despublicar'} la noticia: ${error.message}`); return }
     setNoticias(ns => ns.map(n => n.id === id ? { ...n, publicada } : n))
     if (publicada) {
       const noticia = noticias.find(n => n.id === id)
       if (noticia) {
-        supabase.functions.invoke('notifications', {
+        const { error: pushErr } = await supabase.functions.invoke('notifications', {
           body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: id, audiencia: noticia.audiencia } },
-        }).catch(() => {})
+        }).catch((e: unknown) => ({ error: e }))
+        if (pushErr) setAviso('La noticia quedó publicada, pero no se pudo mandar el aviso push a los socios.')
       }
     }
   }
 
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar esta noticia?')) return
+    setAviso('')
     const { error } = await supabase.from('noticias').delete().eq('id', id)
-    if (!error) setNoticias(ns => ns.filter(n => n.id !== id))
+    if (error) { setAviso(`No se pudo eliminar la noticia: ${error.message}`); return }
+    setNoticias(ns => ns.filter(n => n.id !== id))
   }
 
   const handleCrear = async () => {
@@ -129,7 +145,7 @@ export default function NoticiasPage() {
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Noticias</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
-            {noticias.filter(n => n.publicada).length} publicadas · {noticias.length} en total
+            {loading || errorCarga ? 'Noticias para los socios' : <>{noticias.filter(n => n.publicada).length} publicadas · {noticias.length} en total</>}
           </p>
         </div>
         <button
@@ -139,6 +155,10 @@ export default function NoticiasPage() {
           + NUEVA NOTICIA
         </button>
       </div>
+
+      {aviso && (
+        <p role="alert" className="font-lora text-sm text-tinta border border-rojo p-4 mb-6">{aviso}</p>
+      )}
 
       {/* Filtros */}
       <div className="flex gap-1 mb-6 border-b border-gris-claro">
@@ -159,6 +179,8 @@ export default function NoticiasPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
       ) : noticiasVisibles.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">SIN NOTICIAS</p>

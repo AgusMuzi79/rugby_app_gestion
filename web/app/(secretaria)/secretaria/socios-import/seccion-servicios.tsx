@@ -15,6 +15,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -448,11 +450,17 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
 
 // ─── Sección: historial ──────────────────────────────────────────────────────
 
-function HistorialServicios({ historial }: { historial: ImportacionServicios[] }) {
+function HistorialServicios({ historial, error, onReintentar }: {
+  historial: ImportacionServicios[]
+  error: string | null
+  onReintentar: () => void
+}) {
   return (
     <div>
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES DE SERVICIOS</p>
-      {historial.length === 0 ? (
+      {error ? (
+        <ErrorCarga mensaje={error} onReintentar={onReintentar} />
+      ) : historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
@@ -497,14 +505,17 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
 export default function SeccionServicios() {
   const [historial, setHistorial] = useState<ImportacionServicios[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
 
   const fetchHistorial = useCallback(async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('importaciones_servicios')
         .select('id, archivo_nombre, agregados, actualizados, eliminados, omitidos, sin_cambio, errores, created_at, profiles!importaciones_servicios_importado_por_fkey(nombre)')
         .order('created_at', { ascending: false })
+      if (error) { setErrorHistorial(mensajeErrorCarga('el historial de importaciones de servicios', error)); return }
 
+      setErrorHistorial(null)
       setHistorial((data ?? []).map((h: Record<string, unknown>) => ({
         id: h.id as string,
         archivo_nombre: h.archivo_nombre as string | null,
@@ -517,6 +528,8 @@ export default function SeccionServicios() {
         created_at: h.created_at as string,
         importado_por_nombre: (h.profiles as { nombre: string } | null)?.nombre ?? null,
       })))
+    } catch (e) {
+      setErrorHistorial(mensajeErrorCarga('el historial de importaciones de servicios', e))
     } finally {
       setLoading(false)
     }
@@ -536,7 +549,11 @@ export default function SeccionServicios() {
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : (
-        <HistorialServicios historial={historial} />
+        <HistorialServicios
+          historial={historial}
+          error={errorHistorial}
+          onReintentar={() => { setLoading(true); void fetchHistorial() }}
+        />
       )}
     </section>
   )

@@ -6,6 +6,8 @@ import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
 import VerMas from '@/components/secretaria/VerMas'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { coincideBusqueda, nombresSocio, resumenDeudaNuvix, type Semaforo } from '@/lib/busquedaSocios'
 import { PAGINA_LISTA, paginar, ordenarCon, reemplazarPorId } from '@/lib/listaPaginada'
 
@@ -75,6 +77,8 @@ function DetalleSocio({
   servicios,
   serviciosSocio,
   fechaCorteDeuda,
+  errorServicios,
+  errorRefresco,
   onClose,
   onRefresh,
 }: {
@@ -83,19 +87,28 @@ function DetalleSocio({
   servicios: ServicioOpcional[]
   serviciosSocio: VinculoServicio[]
   fechaCorteDeuda: string | null
+  /** No se pudieron leer los servicios del socio: no se muestran chips ni total (serían falsos). */
+  errorServicios: string | null
+  /** No se pudo releer el socio después de una acción: lo que se ve puede estar desactualizado. */
+  errorRefresco: string | null
   onClose: () => void
   onRefresh: () => void
 }) {
   const [actualizando,  setActualizando]  = useState(false)
   const [msg,           setMsg]           = useState('')
   const [fotoUrl,       setFotoUrl]       = useState<string | null>(null)
+  const [fotoError,     setFotoError]     = useState(false)
 
   useEffect(() => {
+    setFotoError(false)
     if (!socio.foto_path) { setFotoUrl(null); return }
     supabase.storage
       .from('socios-fotos')
       .createSignedUrl(socio.foto_path, 300)
-      .then(({ data }) => { if (data) setFotoUrl(data.signedUrl) })
+      .then(({ data, error }) => {
+        if (error || !data) { setFotoUrl(null); setFotoError(true); return }
+        setFotoUrl(data.signedUrl)
+      })
   }, [socio.foto_path])
 
   const categoria = categorias.find(c => c.id === socio.categoria_id)
@@ -133,12 +146,13 @@ function DetalleSocio({
   }
 
   const handleToggleServicio = async (servicioId: string, agregar: boolean) => {
-    if (agregar) {
-      await supabase.from('socio_servicios').insert({ socio_id: socio.id, servicio_id: servicioId })
-    } else {
-      await supabase.from('socio_servicios').delete()
-        .eq('socio_id', socio.id).eq('servicio_id', servicioId)
-    }
+    const { error } = agregar
+      ? await supabase.from('socio_servicios').insert({ socio_id: socio.id, servicio_id: servicioId })
+      : await supabase.from('socio_servicios').delete()
+          .eq('socio_id', socio.id).eq('servicio_id', servicioId)
+    const nombre = servicios.find(s => s.id === servicioId)?.nombre ?? 'el servicio'
+    if (error) setStatus(`Error: no se pudo ${agregar ? 'agregar' : 'quitar'} ${nombre}: ${error.message}`)
+    else setStatus(`${nombre} ${agregar ? 'agregado' : 'quitado'}.`)
     onRefresh()
   }
 
@@ -171,6 +185,10 @@ function DetalleSocio({
         )}
       </div>
 
+      {errorRefresco && (
+        <ErrorCarga mensaje={errorRefresco} onReintentar={onRefresh} className="mb-4" />
+      )}
+
       <div className="grid grid-cols-3 gap-8">
         {/* Info principal */}
         <div className="col-span-2 flex flex-col gap-6">
@@ -202,6 +220,9 @@ function DetalleSocio({
           {/* Servicios opcionales */}
           <div>
             <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">SERVICIOS OPCIONALES</p>
+            {errorServicios ? (
+              <ErrorCarga mensaje={errorServicios} onReintentar={onRefresh} />
+            ) : (<>
             <div className="flex flex-wrap gap-2 mb-3">
               {servicios.map(srv => {
                 const vinculo = vinculoPorServicioId.get(srv.id)
@@ -230,6 +251,7 @@ function DetalleSocio({
                 ${montoTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
               </span>
             </div>
+            </>)}
           </div>
 
         </div>
@@ -240,7 +262,9 @@ function DetalleSocio({
             <img src={fotoUrl} alt="Foto socio" className="w-full aspect-square object-cover mb-1" />
           ) : (
             <div className="w-full aspect-square bg-card border border-gris-claro flex items-center justify-center mb-1">
-              <span className="font-lora text-xs tracking-widest text-texto-2">SIN FOTO</span>
+              <span className="font-lora text-xs tracking-widest text-texto-2 text-center px-2">
+                {fotoError ? 'NO SE PUDO CARGAR LA FOTO' : 'SIN FOTO'}
+              </span>
             </div>
           )}
           <p className="font-lora text-xs tracking-widest text-tinta/50 mb-1">ACCIONES</p>
@@ -329,7 +353,10 @@ export default function SociosPage() {
   const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const [fechaCorteDeuda, setFechaCorteDeuda] = useState<string | null>(null)
   const [loading,      setLoading]      = useState(true)
-  const [filtro,       setFiltro]       = useState<FiltroEstado>('todos')
+  const [errorCarga,   setErrorCarga]   = useState<string | null>(null)
+  const [errorServicios, setErrorServicios] = useState<string | null>(null)
+  const [errorRefresco,  setErrorRefresco]  = useState<string | null>(null)
+  const [filtro,      setFiltro]       = useState<FiltroEstado>('todos')
   const [busqueda,     setBusqueda]     = useState('')
   const [detalle,      setDetalle]      = useState<SocioItem | null>(null)
   const [sortColumn,    setSortColumn]    = useState<SortColumn>('numero_socio')
@@ -346,7 +373,7 @@ export default function SociosPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [sociosData, { data: catsData }, { data: srvsData }, { data: ultimaDeuda }] = await Promise.all([
+      const [sociosData, cats, srvs, ultimaDeuda] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
@@ -360,11 +387,16 @@ export default function SociosPage() {
         // El semáforo de cada socio lo dejó la última importación aplicada (no la de fecha de corte más nueva).
         supabase.from('importaciones_deuda').select('fecha_corte').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ])
+      const err = primerError(cats.error, srvs.error, ultimaDeuda.error)
+      if (err) throw err
 
       setSocios((sociosData ?? []).map(normalizarSocio))
-      setCategorias(catsData ?? [])
-      setServicios(srvsData ?? [])
-      setFechaCorteDeuda((ultimaDeuda as { fecha_corte: string } | null)?.fecha_corte ?? null)
+      setCategorias(cats.data ?? [])
+      setServicios(srvs.data ?? [])
+      setFechaCorteDeuda((ultimaDeuda.data as { fecha_corte: string } | null)?.fecha_corte ?? null)
+      setErrorCarga(null)
+    } catch (e) {
+      setErrorCarga(mensajeErrorCarga('los socios', e))
     } finally {
       setLoading(false)
     }
@@ -373,21 +405,32 @@ export default function SociosPage() {
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const fetchServiciosSocio = useCallback(async (socioId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('socio_servicios')
       .select('servicio_id, importe')
       .eq('socio_id', socioId)
+    if (error) { setErrorServicios(mensajeErrorCarga('los servicios del socio', error)); return }
+    setErrorServicios(null)
     setServiciosSocio((data ?? []) as VinculoServicio[])
   }, [])
 
   const handleAbrirDetalle = (socio: SocioItem) => {
     setDetalle(socio)
+    setServiciosSocio([])
+    setErrorServicios(null)
+    setErrorRefresco(null)
     void fetchServiciosSocio(socio.id)
   }
 
   // Después de una acción en el detalle se vuelve a leer sólo ese socio (no todo el padrón).
   const fetchSocio = useCallback(async (socioId: string) => {
-    const { data } = await supabase.from('socios').select(SELECT_SOCIO).eq('id', socioId).maybeSingle()
+    const { data, error } = await supabase.from('socios').select(SELECT_SOCIO).eq('id', socioId).maybeSingle()
+    if (error) {
+      // No se saca al socio de la lista: el error no dice que ya no exista.
+      setErrorRefresco(mensajeErrorCarga('los datos actualizados del socio', error))
+      return
+    }
+    setErrorRefresco(null)
     const nuevo = data ? normalizarSocio(data as unknown as Record<string, unknown>) : null
     setSocios(lista => reemplazarPorId(lista, socioId, nuevo))
   }, [])
@@ -430,6 +473,8 @@ export default function SociosPage() {
         servicios={servicios}
         serviciosSocio={serviciosSocio}
         fechaCorteDeuda={fechaCorteDeuda}
+        errorServicios={errorServicios}
+        errorRefresco={errorRefresco}
         onClose={() => setDetalle(null)}
         onRefresh={handleRefreshDetalle}
       />
@@ -443,7 +488,7 @@ export default function SociosPage() {
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Socios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
-            {socios.length} socios registrados · las altas entran con el import del padrón de NUVIX
+            {loading || errorCarga ? 'Padrón de socios' : `${socios.length} socios registrados`} · las altas entran con el import del padrón de NUVIX
           </p>
         </div>
       </div>
@@ -479,6 +524,8 @@ export default function SociosPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={() => { setLoading(true); void fetchAll() }} />
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">
@@ -526,7 +573,7 @@ export default function SociosPage() {
           </tbody>
         </table>
       )}
-      {!loading && (
+      {!loading && !errorCarga && (
         <VerMas
           mostrando={visibles.length}
           total={sociosFiltrados.length}

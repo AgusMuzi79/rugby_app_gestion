@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { motivoNoEliminar, nombreBloqueado } from '@/lib/serviciosCatalogo'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
 
 interface Servicio {
   id: string
@@ -23,15 +25,23 @@ export default function ServiciosPage() {
   const [guardando, setGuardando] = useState(false)
   const [error, setError]         = useState('')
   const [aviso, setAviso]         = useState('')
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   const fetchServicios = async () => {
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('servicios_opcionales')
       .select('id, nombre, descripcion, monto_mensual, activo')
       .order('nombre')
-    setServicios(data ?? [])
+    if (err) {
+      setErrorCarga(mensajeErrorCarga('el catálogo de servicios', err))
+    } else {
+      setErrorCarga(null)
+      setServicios(data ?? [])
+    }
     setLoading(false)
   }
+
+  const reintentar = () => { setLoading(true); void fetchServicios() }
 
   useEffect(() => { fetchServicios() }, [])
 
@@ -75,7 +85,9 @@ export default function ServiciosPage() {
   const handleToggleActivo = async (id: string, activo: boolean) => {
     const { error: err } = await supabase
       .from('servicios_opcionales').update({ activo }).eq('id', id)
-    if (!err) setServicios(ss => ss.map(s => s.id === id ? { ...s, activo } : s))
+    if (err) { setAviso(`No se pudo ${activo ? 'activar' : 'desactivar'} el servicio: ${err.message}`); return }
+    setAviso('')
+    setServicios(ss => ss.map(s => s.id === id ? { ...s, activo } : s))
   }
 
   const handleEliminar = async (id: string, nombre: string) => {
@@ -187,6 +199,8 @@ export default function ServiciosPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
       ) : servicios.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">SIN SERVICIOS REGISTRADOS</p>
