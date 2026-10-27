@@ -34,6 +34,28 @@ function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
   return divisionNombre
 }
 
+// Atajos rápidos. Mesa y resultado se cargan los dos desde la pantalla Partido.
+// Los de lesiones se ocultan con FEATURES.lesiones (no se borran).
+type Atajo = {
+  label:      string
+  ruta:       '/(entrenador)/partido' | '/(entrenador)/lesiones'
+  destacado?: boolean
+  lesiones?:  boolean
+}
+const ATAJOS: Atajo[] = [
+  { label: '+ LESIÓN',     ruta: '/(entrenador)/lesiones', destacado: true, lesiones: true },
+  { label: 'MESA PARTIDO', ruta: '/(entrenador)/partido' },
+  { label: 'RESULTADO',    ruta: '/(entrenador)/partido' },
+  { label: 'PROTOCOLOS',   ruta: '/(entrenador)/lesiones', lesiones: true },
+]
+
+// De a dos por fila.
+function filasDeAtajos(atajos: Atajo[]): Atajo[][] {
+  const filas: Atajo[][] = []
+  for (let i = 0; i < atajos.length; i += 2) filas.push(atajos.slice(i, i + 2))
+  return filas
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function SectionHeader({ title }: { title: string }) {
@@ -167,62 +189,22 @@ export default function DiarioEntrenadorScreen() {
           {/* ── ATAJOS RÁPIDOS ── */}
           <View style={s.section}>
             <SectionHeader title="ATAJOS RÁPIDOS" />
-            {!FEATURES.lesiones ? (
-              // Lesiones / protocolos ocultos (FEATURES.lesiones): sólo los atajos de partido.
-              <View style={s.grid}>
-                <View style={s.gridRow}>
-                  <TouchableOpacity
-                    style={s.atajoCard}
-                    onPress={() => router.navigate('/(entrenador)/partido')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={s.atajoText}>MESA PARTIDO</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={s.atajoCard}
-                    onPress={() => router.navigate('/(entrenador)/partido')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={s.atajoText}>RESULTADO</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
             <View style={s.grid}>
-              <View style={s.gridRow}>
-                <TouchableOpacity
-                  style={[s.atajoCard, s.atajoCardGold]}
-                  onPress={() => router.navigate('/(entrenador)/lesiones')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.atajoText, s.atajoTextDark]}>+ LESIÓN</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/partido')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>MESA PARTIDO</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={s.gridRow}>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/partido')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>RESULTADO</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/lesiones')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>PROTOCOLOS</Text>
-                </TouchableOpacity>
-              </View>
+              {filasDeAtajos(ATAJOS.filter(a => FEATURES.lesiones || !a.lesiones)).map((fila, i) => (
+                <View key={i} style={s.gridRow}>
+                  {fila.map(a => (
+                    <TouchableOpacity
+                      key={a.label}
+                      style={[s.atajoCard, a.destacado && s.atajoCardGold]}
+                      onPress={() => router.navigate(a.ruta)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.atajoText, a.destacado && s.atajoTextDark]}>{a.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
             </View>
-            )}
           </View>
         </>
       )}
