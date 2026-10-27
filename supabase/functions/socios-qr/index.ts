@@ -51,6 +51,7 @@ import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
 import { motivoRechazoPorEstado } from '../_shared/estado-acceso.ts'
+import { normalizarDni } from '../_shared/login-identificador.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -473,7 +474,8 @@ async function handleValidateDni(
   const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
-  const dni = (body.dni as string | undefined)?.trim()
+  // socios.dni guarda sólo dígitos: "30.123.456" o con espacios no encontraba a nadie.
+  const dni = normalizarDni(body.dni as string | undefined)
   if (!dni) return jsonError(400, 'dni es requerido')
 
   const { data: socio, error: socioErr } = await supabaseAdmin
@@ -553,7 +555,7 @@ async function handleRegistrarInvitado(
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return jsonOk({ ok: false, motivo: 'Sólo las cuentas de acceso pueden registrar invitados' })
 
-  const dni = (body.dni as string | undefined)?.trim() ?? ''
+  const dni = normalizarDni(body.dni as string | undefined)
   if (!/^\d{6,9}$/.test(dni)) return jsonOk({ ok: false, motivo: 'El DNI debe tener entre 6 y 9 dígitos' })
 
   const nombreRaw = (body.nombre as string | undefined)?.trim() ?? ''
