@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
+import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -266,7 +267,6 @@ function DetalleSocio({
 // ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
 
 type SortColumn = 'numero_socio' | 'nombre' | 'categoria' | 'dni' | 'estado'
-type SortDirection = 'asc' | 'desc'
 
 const SORT_LABEL: Record<SortColumn, string> = {
   numero_socio: 'Nº', nombre: 'NOMBRE', categoria: 'CATEGORÍA', dni: 'DNI', estado: 'ESTADO',
@@ -280,31 +280,6 @@ function compareSocios(a: SocioItem, b: SocioItem, column: SortColumn): number {
     return a.numero_socio.localeCompare(b.numero_socio, 'es')
   }
   return String(a[column]).localeCompare(String(b[column]), 'es')
-}
-
-function SortableTh({
-  column, align, sortColumn, sortDirection, onSort, extraClass,
-}: {
-  column: SortColumn
-  align: 'left' | 'center'
-  sortColumn: SortColumn
-  sortDirection: SortDirection
-  onSort: (c: SortColumn) => void
-  extraClass?: string
-}) {
-  const activo = sortColumn === column
-  return (
-    <th
-      onClick={() => onSort(column)}
-      className={`font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 select-none cursor-pointer hover:text-tinta transition-colors ${
-        align === 'center' ? 'text-center' : 'text-left'
-      } ${extraClass ?? ''}`}
-    >
-      <span className={activo ? 'text-oro' : ''}>
-        {SORT_LABEL[column]}{activo ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-      </span>
-    </th>
-  )
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
@@ -466,11 +441,11 @@ export default function SociosPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
-              <SortableTh column="numero_socio" align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="nombre"       align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="categoria"    align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="dni"          align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="estado"       align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="numero_socio" label={SORT_LABEL.numero_socio} align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="nombre" label={SORT_LABEL.nombre}       align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="categoria" label={SORT_LABEL.categoria}    align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="dni" label={SORT_LABEL.dni}          align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="estado" label={SORT_LABEL.estado}       align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
             </tr>
           </thead>
           <tbody>
@@ -481,7 +456,16 @@ export default function SociosPage() {
                 className="border-b border-gris-claro hover:bg-gris-claro/30 transition-colors cursor-pointer"
               >
                 <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{s.numero_socio}</td>
-                <td className="font-lora text-sm text-tinta py-4 pr-4">{s.nombre}</td>
+                <td className="font-lora text-sm text-tinta py-4 pr-4">
+                  {/* Botón real para llegar al detalle con teclado; la fila sigue clickeable con mouse. */}
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleAbrirDetalle(s) }}
+                    className="text-left hover:text-oro transition-colors"
+                  >
+                    {s.nombre}
+                  </button>
+                </td>
                 <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{s.categoria}</td>
                 <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{s.dni}</td>
                 <td className="text-center py-4 pr-4">

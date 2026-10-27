@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
+import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,6 @@ function formatFecha(iso: string | null | undefined): string {
 // ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
 
 type SortColumn = 'numero_socio' | 'nombre' | 'semaforo' | 'deuda_vencida' | 'meses_impagos' | 'mora_max_dias'
-type SortDirection = 'asc' | 'desc'
 
 const SORT_LABEL: Record<SortColumn, string> = {
   numero_socio: 'Nº', nombre: 'NOMBRE', semaforo: 'SEMÁFORO',
@@ -83,30 +83,6 @@ function compareSocios(a: SocioSemaforo, b: SocioSemaforo, column: SortColumn): 
     case 'mora_max_dias':
       return a.mora_max_dias - b.mora_max_dias
   }
-}
-
-function SortableTh({
-  column, align, sortColumn, sortDirection, onSort, extraClass,
-}: {
-  column: SortColumn
-  align: 'left' | 'center' | 'right'
-  sortColumn: SortColumn
-  sortDirection: SortDirection
-  onSort: (c: SortColumn) => void
-  extraClass?: string
-}) {
-  const activo = sortColumn === column
-  const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
-  return (
-    <th
-      onClick={() => onSort(column)}
-      className={`font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 select-none cursor-pointer hover:text-tinta transition-colors ${alignClass} ${extraClass ?? ''}`}
-    >
-      <span className={activo ? 'text-oro' : ''}>
-        {SORT_LABEL[column]}{activo ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-      </span>
-    </th>
-  )
 }
 
 // ─── Página principal ────────────────────────────────────────────────────────
@@ -335,12 +311,12 @@ export default function DeudasPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
-              <SortableTh column="numero_socio"  align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="nombre"        align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="semaforo"      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="deuda_vencida" align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="meses_impagos" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="mora_max_dias" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="numero_socio" label={SORT_LABEL.numero_socio}  align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="nombre" label={SORT_LABEL.nombre}        align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="semaforo" label={SORT_LABEL.semaforo}      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="deuda_vencida" label={SORT_LABEL.deuda_vencida} align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="meses_impagos" label={SORT_LABEL.meses_impagos} align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="mora_max_dias" label={SORT_LABEL.mora_max_dias} align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <th className="font-lora text-xs tracking-widest text-tinta/50 py-3 pl-4 text-left">SERVICIOS</th>
             </tr>
           </thead>
