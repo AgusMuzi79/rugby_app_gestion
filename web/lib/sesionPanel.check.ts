@@ -68,6 +68,13 @@ caso('error del servidor al leer el perfil muestra error', () => {
   assert.equal(d.tipo, 'error')
 })
 
+caso('JWT vencido o inválido al leer el perfil (PGRST30x) va al login: reintentar no lo arregla', () => {
+  for (const code of ['PGRST301', 'PGRST302', 'PGRST303']) {
+    const d = decidirSesion({ user, perfil: null, perfilError: { code, message: 'JWT expired' }, rolesPermitidos: roles })
+    assert.deepEqual(d, { tipo: 'login' }, code)
+  }
+})
+
 caso('si la lectura tiró una excepción, muestra error', () => {
   const d = decidirSesion({ user: null, excepcion: new TypeError('Failed to fetch'), rolesPermitidos: roles })
   assert.equal(d.tipo, 'error')

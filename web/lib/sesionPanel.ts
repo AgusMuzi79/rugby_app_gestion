@@ -34,7 +34,11 @@ export function decidirSesion({ user, userError, perfil, perfilError, excepcion,
 
   if (perfilError) {
     // PGRST116 = .single() no encontró la fila: la persona no tiene perfil visible.
-    return perfilError.code === 'PGRST116' ? { tipo: 'cerrar' } : { tipo: 'error' }
+    if (perfilError.code === 'PGRST116') return { tipo: 'cerrar' }
+    // PGRST30x = el JWT venció o es inválido: reintentar no lo arregla, al login
+    // (sin cerrar nada, igual que un 4xx de Auth).
+    if (perfilError.code?.startsWith('PGRST30')) return { tipo: 'login' }
+    return { tipo: 'error' }
   }
   if (!perfil || !rolesPermitidos.includes(perfil.rol)) return { tipo: 'cerrar' }
   return { tipo: 'ok' }
