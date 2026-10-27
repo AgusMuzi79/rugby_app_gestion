@@ -139,8 +139,16 @@ export function useScanner() {
 
     const { numero_socio, code } = qr
     rawEnCurso.current = rawData
-    await validar({ action: 'validate', numero_socio, code }, rawData, { tipo: 'qr', qr: rawData })
-    rawEnCurso.current = null
+    try {
+      await validar({ action: 'validate', numero_socio, code }, rawData, { tipo: 'qr', qr: rawData })
+    } catch {
+      // Un error inesperado no deja la cámara trabada: con un resultado en
+      // pantalla, la vuelta automática (reset) libera el candado.
+      setResult({ valido: false, motivo: 'No se pudo validar. Probá de nuevo.' })
+      setScanning(false)
+    } finally {
+      rawEnCurso.current = null
+    }
   }, [scanning, validando, validar])
 
   // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.

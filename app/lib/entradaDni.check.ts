@@ -2,7 +2,8 @@
 //   npx --yes tsx app/lib/entradaDni.check.ts
 
 import assert from 'node:assert/strict'
-import { accionDni, normalizarDni, volverAlFormularioDni } from './entradaDni'
+import * as entradaDni from './entradaDni'
+import { normalizarDni, volverAlFormularioDni } from './entradaDni'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -21,18 +22,12 @@ caso('nunca pasa de 9 dígitos (lo máximo que acepta el server)', () => {
   assert.equal(normalizarDni('1234567890123'), '123456789')
 })
 
-caso('8 dígitos → se envía solo (el teclado numérico de iOS no tiene Enter)', () => {
-  assert.equal(accionDni('12345678'), 'enviar')
+caso('un DNI de 9 dígitos se puede tipear entero (no se corta en 8)', () => {
+  assert.equal(normalizarDni('123456789'), '123456789')
 })
 
-caso('7 dígitos → espera una pausa: puede ser un DNI de 8 a medio tipear', () => {
-  assert.equal(accionDni('1234567'), 'esperar')
-})
-
-caso('menos de 7 o 9 dígitos → nada automático, queda el botón', () => {
-  assert.equal(accionDni(''), 'nada')
-  assert.equal(accionDni('123456'), 'nada')
-  assert.equal(accionDni('123456789'), 'nada')
+caso('no hay envío automático por largo: un DNI a medio tipear puede ser de otro socio', () => {
+  assert.equal('accionDni' in entradaDni, false)
 })
 
 caso('sólo un error de red vuelve al formulario con el DNI cargado', () => {

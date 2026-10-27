@@ -7,7 +7,7 @@ import { useNetInfo } from '@react-native-community/netinfo'
 import { Feather } from '@expo/vector-icons'
 import { useScanner, UMBRAL_INVITADO_REPETIDO, type InvitadoResult } from '@/hooks/useScanner'
 import { anuncioVeredicto, estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
-import { accionDni, normalizarDni, volverAlFormularioDni, PAUSA_DNI_7_MS } from '@/lib/entradaDni'
+import { normalizarDni, volverAlFormularioDni } from '@/lib/entradaDni'
 import { codigoManualAQR, normalizarCodigo, normalizarNumeroSocio } from '@/lib/qrCarnet'
 import { useAuthStore } from '@/stores/authStore'
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
@@ -74,8 +74,6 @@ export default function ScannerScreen() {
   // Fallback sin QR — el socio no llevaba el celular encima.
   const [modoDni, setModoDni] = useState(false)
   const [dniInput, setDniInput] = useState('')
-  // Envío automático de un DNI de 7 dígitos tras la pausa (ver lib/entradaDni).
-  const timerDni = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nombreInvitadoRef = useRef<TextInput>(null)
 
   // Ingresar código: Nº de socio + el código manual del carnet (cambia cada
@@ -133,9 +131,6 @@ export default function ScannerScreen() {
     return () => clearTimeout(t)
   }, [result, reset])
 
-  // Al desmontar no queda un envío de DNI pendiente.
-  useEffect(() => () => { if (timerDni.current) clearTimeout(timerDni.current) }, [])
-
   // Tras la confirmación, vuelve sola a la cámara (mismo criterio que el resultado de un escaneo).
   useEffect(() => {
     if (!invitadoResultado?.ok) return
@@ -143,12 +138,10 @@ export default function ScannerScreen() {
     return () => clearTimeout(t)
   }, [invitadoResultado])
 
-  // DNI del invitado: sólo dígitos; completo (8) pasa al nombre, que tiene
-  // tecla Enter (el teclado numérico de iOS no).
+  // DNI del invitado: sólo dígitos. Sin saltos automáticos: el largo no dice
+  // cuándo terminó (hay DNI de 7, 8 y 9 dígitos); se envía con el botón.
   const cambiarInvitadoDni = (texto: string) => {
-    const dni = normalizarDni(texto)
-    setInvitadoDni(dni)
-    if (accionDni(dni) === 'enviar') nombreInvitadoRef.current?.focus()
+    setInvitadoDni(normalizarDni(texto))
   }
 
   const enviarInvitado = async () => {
@@ -163,30 +156,21 @@ export default function ScannerScreen() {
     }
   }
 
-  const cancelarEnvioDni = () => {
-    if (timerDni.current) clearTimeout(timerDni.current)
-    timerDni.current = null
-  }
-
   // El input no se limpia acá: si la consulta falla por la red se vuelve al
   // formulario con el DNI cargado (ver despuesDelResultado).
   const consultarDni = (dni: string = dniInput) => {
-    cancelarEnvioDni()
     if (!dni) return
     handleDNI(dni)
   }
 
+  // Sin envío automático: un DNI a medio tipear (7 de 8 dígitos, u 8 de 9)
+  // puede ser el de otro socio. Se consulta con CONSULTAR, que reemplaza la
+  // tecla Enter que el teclado numérico de iOS no tiene.
   const cambiarDni = (texto: string) => {
-    const dni = normalizarDni(texto)
-    setDniInput(dni)
-    cancelarEnvioDni()
-    const accion = accionDni(dni)
-    if (accion === 'enviar') consultarDni(dni)
-    else if (accion === 'esperar') timerDni.current = setTimeout(() => consultarDni(dni), PAUSA_DNI_7_MS)
+    setDniInput(normalizarDni(texto))
   }
 
   const salirDeDni = () => {
-    cancelarEnvioDni()
     setModoDni(false)
     setDniInput('')
   }
