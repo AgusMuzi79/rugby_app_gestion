@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl }
 import { useRef, useState, useCallback } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { useCarnet } from '@/hooks/useCarnet'
 import { QRCarnet, CuentaRegresivaQR } from '@/components/socio/CarnetQR'
@@ -57,7 +58,7 @@ export default function CarnetClienteGimnasioScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, error, data, refresh } = useCarnet()
+  const { loading, error, data, refresh, avisoSinConexion } = useCarnet()
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = useCallback(async () => {
@@ -103,6 +104,14 @@ export default function CarnetClienteGimnasioScreen() {
         </View>
       ) : data ? (
         <View style={s.section}>
+          {/* Sin conexión: el QR sigue rotando; los datos son de la última lectura. */}
+          {avisoSinConexion && (
+            <View style={[s.banner, s.bannerSinConexion]} accessibilityRole="alert">
+              <Feather name="wifi-off" size={14} color={colors.texto} />
+              <Text style={s.bannerText}>{avisoSinConexion}</Text>
+            </View>
+          )}
+
           <View style={s.secRow}>
             <Text style={s.secTitle}>CARNET DIGITAL</Text>
             <View style={s.secLine} />
@@ -199,6 +208,13 @@ const s = StyleSheet.create({
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
     textAlign: 'center', color: colors.texto,
   },
+
+  banner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 4, marginBottom: 18,
+  },
+  bannerSinConexion: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde },
+  bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   errorContainer: { padding: 40, alignItems: 'center' },
   errorText:      { fontFamily: fonts.cuerpo, fontSize: 16, textAlign: 'center', color: colors.rojoTexto },
