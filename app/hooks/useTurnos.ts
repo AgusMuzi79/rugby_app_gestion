@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 
 // Turnero del gimnasio (Edge Function `gimnasio-turnos`). Día de semana ISO: 1 = lunes … 7 = domingo.
@@ -46,13 +47,14 @@ export interface ResultadoAccion {
 const ERROR_GENERICO = 'No se pudo completar la operación. Probá de nuevo en un rato.'
 
 // Las fallas de validación llegan como 200 { ok:false, motivo }; los errores reales como
-// non-2xx, cuyo body `functions.invoke` no expone: ahí se muestra un mensaje genérico.
+// non-2xx: su motivo se lee del body con mensajeErrorFunction (sin red: 'No hay conexión').
 async function invocar<T extends { ok: boolean; motivo?: string }>(
   body: Record<string, unknown>,
 ): Promise<T | { ok: false; motivo: string }> {
   try {
     const { data, error } = await supabase.functions.invoke('gimnasio-turnos', { body })
-    if (error || !data) return { ok: false, motivo: ERROR_GENERICO }
+    if (error) return { ok: false, motivo: await mensajeErrorFunction(error, ERROR_GENERICO) }
+    if (!data) return { ok: false, motivo: ERROR_GENERICO }
     return data as T
   } catch {
     return { ok: false, motivo: ERROR_GENERICO }

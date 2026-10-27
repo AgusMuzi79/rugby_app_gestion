@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction } from '@/lib/edgeFunction'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -90,23 +91,6 @@ interface ProfileRow {
 
 type ModoModal = 'asignar' | 'crear'
 
-async function callEdgeFunction(name: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify(body),
-    }
-  )
-  const text = await res.text()
-  try { return JSON.parse(text) } catch { return { error: text } }
-}
-
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function UsuariosPage() {
@@ -147,7 +131,7 @@ export default function UsuariosPage() {
   const getEmail = async (id: string) => {
     setProfiles(ps => ps.map(p => p.id === id ? { ...p, loadingEmail: true } : p))
     try {
-      const json = await callEdgeFunction('admin-usuarios', { action: 'getUser', userId: id })
+      const json = await callEdgeFunction<{ email?: string }>('admin-usuarios', { action: 'getUser', userId: id })
       setProfiles(ps => ps.map(p => p.id === id ? { ...p, email: json.email ?? '—', loadingEmail: false } : p))
     } catch {
       setProfiles(ps => ps.map(p => p.id === id ? { ...p, email: '—', loadingEmail: false } : p))

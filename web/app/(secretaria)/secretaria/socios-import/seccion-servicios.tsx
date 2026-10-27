@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -117,29 +118,19 @@ async function callImportarServicios<T>(
   modo: 'preview' | 'confirmar',
   bajasAprobadas: string[] = [],
 ): Promise<T & { error?: string }> {
-  const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
   if (modo === 'confirmar') formData.append('bajas_aprobadas', JSON.stringify(bajasAprobadas))
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-servicios`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-      body: formData,
-    }
-  )
-  // Un error del gateway (sesión vencida, timeout, archivo muy grande) puede
-  // venir sin `error` o sin JSON: se normaliza a `{ error }` para no guardar en
-  // el estado una respuesta que no es una vista previa ni un resultado.
-  let body: Record<string, unknown> | null = null
-  try { body = await res.json() } catch { body = null }
-  const mensaje = body && (body.error ?? body.msg ?? body.message)
-  if (!res.ok || !body || typeof body.detalle !== 'object' || body.detalle === null) {
-    return { error: typeof mensaje === 'string' && mensaje ? mensaje : `Error ${res.status} al llamar a importar-servicios` } as T & { error?: string }
+  // Cliente compartido: un error del gateway (sesión vencida, timeout, archivo
+  // muy grande, sin JSON) vuelve como `{ error }` legible.
+  const body = await callEdgeFunction<Record<string, unknown>>('importar-servicios', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
+  if (body.error) return { error: body.error } as T & { error?: string }
+  // Tampoco se guarda en el estado algo que no es una vista previa ni un resultado.
+  if (typeof body.detalle !== 'object' || body.detalle === null) {
+    return { error: 'El servidor respondió algo inesperado al importar servicios.' } as T & { error?: string }
   }
-  return body as T & { error?: string }
+  return body as unknown as T & { error?: string }
 }
 
 function formatFecha(iso: string | null | undefined): string {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -63,21 +64,6 @@ function formatFecha(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`
 }
 
-async function callImportarDeuda(archivo: File): Promise<Record<string, unknown>> {
-  const { data: { session } } = await supabase.auth.getSession()
-  const formData = new FormData()
-  formData.append('archivo', archivo)
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-deuda`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-      body: formData,
-    }
-  )
-  return res.json()
-}
-
 // ─── Sección: subir archivo ─────────────────────────────────────────────────
 
 function SeccionImportar({
@@ -95,7 +81,11 @@ function SeccionImportar({
     setImportando(true)
     setError(null)
     setResultado(null)
-    const json = await callImportarDeuda(archivo)
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+    // El cliente compartido nunca tira y corta a los 2 min: la pantalla no
+    // queda en "IMPORTANDO…" si el gateway responde HTML o no responde.
+    const json = await callEdgeFunction('importar-deuda', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
     setImportando(false)
     if (json.error) {
       setError(String(json.error))

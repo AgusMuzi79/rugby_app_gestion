@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction } from '@/lib/edgeFunction'
 import {
   type Acceso,
   type FiltrosAccesos,
@@ -60,23 +61,6 @@ const ATAJOS: { label: string; desde: () => string }[] = [
   { label: 'ÚLTIMOS 30 DÍAS', desde: () => haceDiasISO(29) },
 ]
 
-async function callEdgeFunction(name: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify(body),
-    }
-  )
-  const text = await res.text()
-  try { return JSON.parse(text) } catch { return { error: text } }
-}
-
 const inputClass = 'font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-oro transition-colors'
 const labelClass = 'font-lora text-xs tracking-widest text-tinta/50'
 
@@ -102,7 +86,7 @@ export default function AccesosPage() {
     const esVigente = secuencia.current.nuevo()
     setLoading(true)
     setError('')
-    const json = await callEdgeFunction('socios-qr', { action: 'listar-accesos', desde: d, hasta: h })
+    const json = await callEdgeFunction<{ accesos?: Acceso[] }>('socios-qr', { action: 'listar-accesos', desde: d, hasta: h })
     if (!esVigente()) return
     if (json.error) {
       setError(typeof json.error === 'string' ? json.error : 'No se pudo cargar el historial.')

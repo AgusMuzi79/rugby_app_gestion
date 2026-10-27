@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
 import SeccionServicios from './seccion-servicios'
 
@@ -62,20 +63,12 @@ async function callImportarSocios(
   modo: 'preview' | 'confirmar',
   confirmarBajas?: string,
 ): Promise<DiffResultado & { error?: string; status: number }> {
-  const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
   if (confirmarBajas) formData.append('confirmar_bajas', confirmarBajas)
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-socios`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-      body: formData,
-    }
-  )
-  return { ...(await res.json()), status: res.status }
+  // Cliente compartido: nunca tira (HTML del gateway, sin red) y corta a los 2 min.
+  return callEdgeFunction<DiffResultado>('importar-socios', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
 }
 
 function formatFecha(iso: string | null | undefined): string {

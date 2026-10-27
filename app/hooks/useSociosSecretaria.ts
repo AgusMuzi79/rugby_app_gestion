@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 
@@ -144,7 +145,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'deactivate', socio_id: socioId },
     })
-    if (res.error) { Alert.alert('Error', res.error.message); return false }
+    if (res.error) { Alert.alert('Error', await mensajeErrorFunction(res.error, 'No se pudo desactivar al socio.')); return false }
     setSocios(prev => prev.map(s => s.id === socioId ? { ...s, estado: 'inactivo' } : s))
     return true
   }, [])
@@ -153,7 +154,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'reactivate', socio_id: socioId },
     })
-    if (res.error) { Alert.alert('Error', res.error.message); return false }
+    if (res.error) { Alert.alert('Error', await mensajeErrorFunction(res.error, 'No se pudo reactivar al socio.')); return false }
     const nuevoEstado = res.data?.estado ?? 'pendiente'
     setSocios(prev => prev.map(s => s.id === socioId ? { ...s, estado: nuevoEstado } : s))
     return true
@@ -163,7 +164,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'validate-photo', socio_id: socioId },
     })
-    if (res.error) return { validada: false, mensaje: res.error.message }
+    if (res.error) return { validada: false, mensaje: await mensajeErrorFunction(res.error, 'No se pudo validar la foto.') }
     if (res.data?.validada) {
       const nuevoEstado = res.data.estado
       setSocios(prev => prev.map(s =>

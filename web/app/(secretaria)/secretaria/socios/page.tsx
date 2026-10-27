@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
+import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -54,22 +55,6 @@ const ESTADO_COLOR: Record<string, string> = {
   moroso: 'text-oro border-oro',
   pendiente: 'text-[#E67E22] border-[#E67E22]',
   inactivo: 'text-tinta/30 border-gris-claro',
-}
-
-async function callEdgeFunction(name: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify(body),
-    }
-  )
-  return res.json()
 }
 
 // ─── Detalle socio ────────────────────────────────────────────────────────────
@@ -126,7 +111,7 @@ function DetalleSocio({
 
   const handleValidarFoto = async () => {
     setActualizando(true)
-    const json = await callEdgeFunction('admin-socios', { action: 'validate-photo', socio_id: socio.id })
+    const json = await callEdgeFunction<{ validada?: boolean; mensaje?: string }>('admin-socios', { action: 'validate-photo', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus(json.validada ? 'Foto validada ✓' : (json.mensaje ?? 'No se pudo validar la foto.'))
