@@ -47,7 +47,7 @@ function resumenDivision(div: Division, todas: Division[]): string {
   return siguiente ? `${base} → ${siguiente.nombre}` : base
 }
 
-const inputClass = 'font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors'
+const inputClass = 'font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors'
 const selectClass = `${inputClass} appearance-none`
 const labelClass = 'font-lora text-xs tracking-widest text-tinta/60'
 
@@ -177,7 +177,7 @@ export default function DivisionesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="font-lora text-tinta/40 tracking-widest text-sm">CARGANDO…</p>
+        <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
       </div>
     )
   }
@@ -209,14 +209,14 @@ export default function DivisionesPage() {
   return (
     <div>
       <div className="mb-8">
-        <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">SUBCOMISIÓN · DIVISIONES</p>
+        <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · DIVISIONES</p>
         <h1 className="font-playfair italic text-4xl font-black text-tinta">Divisiones</h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 flex flex-col gap-6">
           <div>
-            <p className="font-lora text-xs tracking-widest text-tinta/40 mb-3">ACTIVAS ({activas.length})</p>
+            <p className="font-lora text-xs tracking-widest text-texto-2 mb-3">ACTIVAS ({activas.length})</p>
             <div className="flex flex-col gap-1">
               {activas.map(div => (
                 <div
@@ -225,7 +225,7 @@ export default function DivisionesPage() {
                 >
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-lora text-sm text-tinta">{div.nombre}</span>
-                    <span className="font-lora text-xs text-tinta/40 tracking-widest">{DEPORTE_LABEL[div.deporte] ?? div.deporte}</span>
+                    <span className="font-lora text-xs text-texto-2 tracking-widest">{DEPORTE_LABEL[div.deporte] ?? div.deporte}</span>
                     <span className="font-lora text-xs text-tinta/60">{resumenDivision(div, divisiones)}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -237,7 +237,7 @@ export default function DivisionesPage() {
                     </button>
                     <button
                       onClick={() => toggleActivo(div)}
-                      className="font-lora text-xs tracking-widest text-rojo border border-rojo px-3 py-1 hover:bg-rojo hover:text-papel transition-colors"
+                      className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-3 py-1 hover:bg-rojo hover:text-white transition-colors"
                     >
                       DESACTIVAR
                     </button>
@@ -245,14 +245,14 @@ export default function DivisionesPage() {
                 </div>
               ))}
               {activas.length === 0 && (
-                <p className="font-lora text-tinta/40 text-sm py-4">Sin divisiones activas.</p>
+                <p className="font-lora text-texto-2 text-sm py-4">Sin divisiones activas.</p>
               )}
             </div>
           </div>
 
           {inactivas.length > 0 && (
             <div>
-              <p className="font-lora text-xs tracking-widest text-tinta/40 mb-3">INACTIVAS ({inactivas.length})</p>
+              <p className="font-lora text-xs tracking-widest text-texto-2 mb-3">INACTIVAS ({inactivas.length})</p>
               <div className="flex flex-col gap-1">
                 {inactivas.map(div => (
                   <div key={div.id} className="bg-card border border-gris-claro/50 flex items-center justify-between px-5 py-4 opacity-60">
@@ -282,7 +282,7 @@ export default function DivisionesPage() {
         </div>
 
         <div className="bg-card border border-gris-claro p-6 self-start">
-          <p className="font-lora text-xs tracking-widest text-tinta/40 mb-4">
+          <p className="font-lora text-xs tracking-widest text-texto-2 mb-4">
             {editandoId ? 'EDITAR DIVISIÓN' : 'NUEVA DIVISIÓN'}
           </p>
           <form onSubmit={guardarDivision} className="flex flex-col gap-4">
@@ -353,7 +353,7 @@ export default function DivisionesPage() {
                   />
                 </div>
               </div>
-              <p className="font-lora text-xs text-tinta/40 mt-1">
+              <p className="font-lora text-xs text-texto-2 mt-1">
                 Edad que cumple el jugador en el año de la temporada. Ej.: Sub 10 = 9 a 10 (nacidos 2016/17 en 2026).
                 Dejar vacío en divisiones sin corte por edad (adultos).
               </p>
@@ -402,7 +402,7 @@ export default function DivisionesPage() {
                   <option key={d.id} value={d.id}>{d.activa ? d.nombre : `${d.nombre} (inactiva)`}</option>
                 ))}
               </select>
-              <p className="font-lora text-xs text-tinta/40 mt-1">
+              <p className="font-lora text-xs text-texto-2 mt-1">
                 Adónde pasan los jugadores que superan la edad máxima cuando ninguna otra división les corresponde por edad (ej.: Sub 19 → Primera). El pase es automático el 1 de enero.
               </p>
             </div>
@@ -417,12 +417,12 @@ export default function DivisionesPage() {
                 />
                 RECIBE ADULTOS
               </label>
-              <p className="font-lora text-xs text-tinta/40">
+              <p className="font-lora text-xs text-texto-2">
                 Los socios adultos que contratan el servicio de este deporte (y de esta rama) se asignan solos a esta división. Marcar una sola por deporte y rama (ej.: Mayores, Primera Damas).
               </p>
             </div>
 
-            {error && <p className="font-lora text-rojo text-xs">{error}</p>}
+            {error && <p className="font-lora text-rojo-texto text-xs">{error}</p>}
 
             <button
               type="button"

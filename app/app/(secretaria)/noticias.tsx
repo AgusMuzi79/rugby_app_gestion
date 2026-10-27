@@ -59,7 +59,7 @@ function NoticiaRow({
           onPress={() => onToggle(noticia.id, !noticia.publicada)}
           activeOpacity={0.75}
         >
-          <Feather name={noticia.publicada ? 'eye-off' : 'eye'} size={14} color={noticia.publicada ? '#8E8574' : colors.oro} />
+          <Feather name={noticia.publicada ? 'eye-off' : 'eye'} size={14} color={noticia.publicada ? MUTED : colors.oro} />
         </TouchableOpacity>
         <TouchableOpacity
           style={s.actionBtn}
@@ -121,7 +121,7 @@ function ModalNuevaNoticia({
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>NUEVA NOTICIA</Text>
             <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-              <Feather name="x" size={20} color="#F3EFE4" />
+              <Feather name="x" size={20} color={TEXTO} />
             </TouchableOpacity>
           </View>
 
@@ -179,7 +179,7 @@ function ModalNuevaNoticia({
             activeOpacity={0.8}
           >
             {guardando ? (
-              <ActivityIndicator color={colors.oro} />
+              <ActivityIndicator color={colors.sobreOro} />
             ) : (
               <Text style={s.crearBtnText}>GUARDAR BORRADOR</Text>
             )}
@@ -196,7 +196,7 @@ export default function NoticiasSecretariaScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { noticias, loading, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
+  const { noticias, loading, refrescando, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
   const [modalVisible, setModalVisible] = useState(false)
 
   const handleCrear = async (titulo: string, cuerpo: string, etiquetas: string[]) => {
@@ -240,7 +240,7 @@ export default function NoticiasSecretariaScreen() {
             />
           )}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 
@@ -250,7 +250,7 @@ export default function NoticiasSecretariaScreen() {
         onPress={() => setModalVisible(true)}
         activeOpacity={0.85}
       >
-        <Feather name="plus" size={22} color={colors.tinta} />
+        <Feather name="plus" size={22} color={colors.sobreOro} />
       </TouchableOpacity>
 
       <ModalNuevaNoticia
@@ -265,11 +265,11 @@ export default function NoticiasSecretariaScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 
 const s = StyleSheet.create({
   root:              { flex: 1, backgroundColor: FONDO },
@@ -282,7 +282,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -305,7 +305,7 @@ const s = StyleSheet.create({
   },
   rowLeft:  { flex: 1, gap: 6 },
   badge:    { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2 },
-  badgePublicada: { backgroundColor: '#1A7A1A' },
+  badgePublicada: { backgroundColor: colors.exito },
   badgeBorrador:  { backgroundColor: '#555555' },
   badgeText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
@@ -349,10 +349,10 @@ const s = StyleSheet.create({
 
   deporteRow:             { flexDirection: 'row', gap: 8, marginTop: 8 },
   deporteChip:            { borderWidth: 1, borderRadius: 3, paddingHorizontal: 14, paddingVertical: 7 },
-  deporteChipActivo:      { backgroundColor: colors.tinta, borderColor: colors.tinta },
+  deporteChipActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },
   deporteChipInactivo:    { backgroundColor: 'transparent', borderColor: DIVIDER },
   deporteChipText:        { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2 },
-  deporteChipTextActivo:  { color: colors.oro },
+  deporteChipTextActivo:  { color: colors.sobreOro },
   deporteChipTextInactivo:{ color: MUTED },
 
   inputLabel: {
@@ -380,13 +380,13 @@ const s = StyleSheet.create({
     fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', marginTop: 8, color: MUTED,
   },
   crearBtn: {
-    backgroundColor: colors.tinta, paddingVertical: 16,
+    backgroundColor: colors.oro, paddingVertical: 16,
     alignItems: 'center', borderRadius: 4, marginTop: 12,
   },
   crearBtnDisabled: { opacity: 0.5 },
   crearBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.sobreOro,
   },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },

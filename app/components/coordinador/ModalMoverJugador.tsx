@@ -7,18 +7,18 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import type { DivisionCoordinador, JugadorDivision } from '@/hooks/useJugadoresDivision'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens (mismos que el resto de pantallas de coordinador) ────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 const ROJO    = colors.rojoUrgente
 
 export function etiquetaDivision(d: DivisionCoordinador): string {
@@ -138,7 +138,7 @@ export function ModalMoverJugador({ jugador, origen, destinos, moviendo, error, 
               accessibilityLabel={`Confirmar mover a ${jugador.nombre_completo} a ${etiquetaDivision(destino)}`}
             >
               {moviendo
-                ? <ActivityIndicator color={colors.oro} size="small" />
+                ? <ActivityIndicator color={colors.sobreOro} size="small" />
                 : <Text style={s.botonConfirmarTexto}>CONFIRMAR CAMBIO</Text>
               }
             </TouchableOpacity>
@@ -178,7 +178,7 @@ const s = StyleSheet.create({
   errorTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
 
   footer:              { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER },
-  botonConfirmar:      { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
+  botonConfirmar:      { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:            { opacity: 0.6 },
-  botonConfirmarTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
+  botonConfirmarTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
 })

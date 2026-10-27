@@ -102,7 +102,7 @@ export default function ServiciosPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Servicios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
@@ -136,7 +136,7 @@ export default function ServiciosPage() {
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
                 disabled={nombreEditadoBloqueado}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors disabled:opacity-60"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors disabled:opacity-60"
                 placeholder="Gimnasio"
               />
               {nombreEditadoBloqueado && (
@@ -151,7 +151,7 @@ export default function ServiciosPage() {
                 type="text"
                 value={descripcion}
                 onChange={e => setDescripcion(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                 placeholder="Opcional"
               />
             </div>
@@ -161,12 +161,12 @@ export default function ServiciosPage() {
                 type="text"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                 placeholder="2000"
               />
             </div>
           </div>
-          {error && <p className="font-lora text-rojo text-sm mb-4">{error}</p>}
+          {error && <p className="font-lora text-rojo-texto text-sm mb-4">{error}</p>}
           <div className="flex gap-3">
             <button
               onClick={handleGuardar}
@@ -186,10 +186,10 @@ export default function ServiciosPage() {
       )}
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : servicios.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN SERVICIOS REGISTRADOS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN SERVICIOS REGISTRADOS</p>
         </div>
       ) : (
         <table className="w-full border-collapse">
@@ -216,7 +216,7 @@ export default function ServiciosPage() {
                     className={`font-lora text-xs tracking-widest px-3 py-1 border transition-colors ${
                       s.activo
                         ? 'border-oro text-oro hover:bg-oro/10'
-                        : 'border-gris-claro text-tinta/40 hover:border-gris'
+                        : 'border-gris-claro text-texto-2 hover:border-gris'
                     }`}
                   >
                     {s.activo ? 'ACTIVO' : 'INACTIVO'}
@@ -226,13 +226,13 @@ export default function ServiciosPage() {
                   <div className="flex gap-4">
                     <button
                       onClick={() => handleEdit(s)}
-                      className="font-lora text-xs tracking-widest text-tinta/40 hover:text-tinta transition-colors"
+                      className="font-lora text-xs tracking-widest text-texto-2 hover:text-tinta transition-colors"
                     >
                       EDITAR
                     </button>
                     <button
                       onClick={() => handleEliminar(s.id, s.nombre)}
-                      className="font-lora text-xs tracking-widest text-rojo/40 hover:text-rojo transition-colors"
+                      className="font-lora text-xs tracking-widest text-rojo-texto hover:text-rojo-texto transition-colors"
                     >
                       ELIMINAR
                     </button>

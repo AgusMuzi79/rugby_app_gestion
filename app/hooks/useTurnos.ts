@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 // Turnero del gimnasio (Edge Function `gimnasio-turnos`). Día de semana ISO: 1 = lunes … 7 = domingo.
 
@@ -46,13 +48,14 @@ export interface ResultadoAccion {
 const ERROR_GENERICO = 'No se pudo completar la operación. Probá de nuevo en un rato.'
 
 // Las fallas de validación llegan como 200 { ok:false, motivo }; los errores reales como
-// non-2xx, cuyo body `functions.invoke` no expone: ahí se muestra un mensaje genérico.
+// non-2xx: su motivo se lee del body con mensajeErrorFunction (sin red: 'No hay conexión').
 async function invocar<T extends { ok: boolean; motivo?: string }>(
   body: Record<string, unknown>,
 ): Promise<T | { ok: false; motivo: string }> {
   try {
     const { data, error } = await supabase.functions.invoke('gimnasio-turnos', { body })
-    if (error || !data) return { ok: false, motivo: ERROR_GENERICO }
+    if (error) return { ok: false, motivo: await mensajeErrorFunction(error, ERROR_GENERICO) }
+    if (!data) return { ok: false, motivo: ERROR_GENERICO }
     return data as T
   } catch {
     return { ok: false, motivo: ERROR_GENERICO }
@@ -62,11 +65,11 @@ async function invocar<T extends { ok: boolean; motivo?: string }>(
 export function useTurnos() {
   const [disp,    setDisp]    = useState<Disponibilidad | null>(null)
   const [fijos,   setFijos]   = useState<TurnoFijo[]>([])
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [error,   setError]   = useState<string | null>(null)
 
   const fetch = useCallback(async () => {
-    setLoading(true)
+    empezar()
     const [listado, mis] = await Promise.all([
       invocar<{ ok: boolean; motivo?: string } & Partial<Disponibilidad>>({ action: 'listar' }),
       invocar<{ ok: boolean; motivo?: string; fijos?: TurnoFijo[] }>({ action: 'mis-reservas' }),
@@ -82,8 +85,8 @@ export function useTurnos() {
       setFijos(mis.ok ? ((mis as { fijos?: TurnoFijo[] }).fijos ?? []) : [])
       setError(null)
     }
-    setLoading(false)
-  }, [])
+    terminar()
+  }, [empezar, terminar])
 
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
@@ -108,6 +111,7 @@ export function useTurnos() {
     dias: disp?.dias ?? [],
     fijos,
     loading,
+    refrescando,
     error,
     refetch: fetch,
     reservar,

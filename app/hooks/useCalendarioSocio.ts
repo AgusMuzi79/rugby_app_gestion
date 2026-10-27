@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { nombreMisDivisiones, parsearAgenda, ventanaAgenda, type DivisionAgenda } from '@/lib/agenda'
+import { fechaLocal } from '@/lib/fecha'
 
 export type FiltrodeDeporte = 'todos' | 'rugby' | 'hockey' | 'tenis'
 
@@ -82,13 +83,13 @@ export function useCalendarioSocio(socioId?: string) {
       setJugadorDivisionIds([...misDivisionIds])
       setJugadorDivisionNombre(nombreMisDivisiones(misDivisiones))
 
-      const hoy    = new Date().toISOString().split('T')[0]
+      const hoy    = fechaLocal()
       const en60   = new Date()
       en60.setDate(en60.getDate() + 60)
-      const hasta  = en60.toISOString().split('T')[0]
+      const hasta  = fechaLocal(en60)
       const hace30 = new Date()
       hace30.setDate(hace30.getDate() - 30)
-      const desde  = hace30.toISOString().split('T')[0]
+      const desde  = fechaLocal(hace30)
 
       // ── Próximos partidos ──────────────────────────────────────────────────
       // supabase-js no tira: el error viene en la respuesta. Se relanza para

@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
@@ -43,7 +45,7 @@ export function useSociosSecretaria() {
   const [categorias, setCategorias]     = useState<CategoriaSocio[]>([])
   const [servicios, setServicios]       = useState<ServicioOpcional[]>([])
   const [serviciosSocio, setServiciosSocio] = useState<string[]>([]) // servicio_id[]
-  const [loading, setLoading]           = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
 
   const fetchServicios = useCallback(async () => {
@@ -89,7 +91,7 @@ export function useSociosSecretaria() {
   }, [])
 
   const fetchSocios = useCallback(async () => {
-    setLoading(true)
+    empezar()
     try {
       const data = await selectAllRows<Record<string, unknown>>((from, to) =>
         db
@@ -119,9 +121,9 @@ export function useSociosSecretaria() {
 
       setSocios(normalized)
     } finally {
-      setLoading(false)
+      terminar()
     }
-  }, [])
+  }, [empezar, terminar])
 
   useEffect(() => {
     fetchCategorias()
@@ -144,7 +146,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'deactivate', socio_id: socioId },
     })
-    if (res.error) { Alert.alert('Error', res.error.message); return false }
+    if (res.error) { Alert.alert('Error', await mensajeErrorFunction(res.error, 'No se pudo desactivar al socio.')); return false }
     setSocios(prev => prev.map(s => s.id === socioId ? { ...s, estado: 'inactivo' } : s))
     return true
   }, [])
@@ -153,7 +155,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'reactivate', socio_id: socioId },
     })
-    if (res.error) { Alert.alert('Error', res.error.message); return false }
+    if (res.error) { Alert.alert('Error', await mensajeErrorFunction(res.error, 'No se pudo reactivar al socio.')); return false }
     const nuevoEstado = res.data?.estado ?? 'pendiente'
     setSocios(prev => prev.map(s => s.id === socioId ? { ...s, estado: nuevoEstado } : s))
     return true
@@ -163,7 +165,7 @@ export function useSociosSecretaria() {
     const res = await supabase.functions.invoke('admin-socios', {
       body: { action: 'validate-photo', socio_id: socioId },
     })
-    if (res.error) return { validada: false, mensaje: res.error.message }
+    if (res.error) return { validada: false, mensaje: await mensajeErrorFunction(res.error, 'No se pudo validar la foto.') }
     if (res.data?.validada) {
       const nuevoEstado = res.data.estado
       setSocios(prev => prev.map(s =>
@@ -194,6 +196,7 @@ export function useSociosSecretaria() {
     servicios,
     serviciosSocio,
     loading,
+    refrescando,
     filtro,
     setFiltro,
     desactivarSocio,

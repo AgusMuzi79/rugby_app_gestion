@@ -6,6 +6,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { encolar } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { fechaLocal, fechaLocalMasDias } from '@/lib/fecha'
+import { useEstadoCarga } from './useEstadoCarga'
 
 export type RolEnMesa = 'titular' | 'suplente'
 export type Paso = 'equipo' | 'asistencia' | 'mesa' | 'resultado'
@@ -64,7 +66,7 @@ function generarNombresEquipos(
 export function usePartido() {
   const { session } = useAuthStore()
 
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [divisionId, setDivisionId] = useState<string | null>(null)
   const [divisionNombre, setDivisionNombre] = useState('')
   const [divisionCategoria, setDivisionCategoria] = useState('')
@@ -179,7 +181,7 @@ export function usePartido() {
 
   async function fetchDatos() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -188,11 +190,11 @@ export function usePartido() {
       .single()
 
     const divId = (profile?.divisiones as string[] | null)?.[0] ?? null
-    if (!divId) { setSinDivision(true); setLoading(false); return }
+    if (!divId) { setSinDivision(true); terminar(); return }
     setDivisionId(divId)
 
-    const hoy = new Date().toISOString().split('T')[0]
-    const en14dias = new Date(Date.now() + 14 * 86_400_000).toISOString().split('T')[0]
+    const hoy = fechaLocal()
+    const en14dias = fechaLocalMasDias(14)
 
     const [divRes, jgsRes, partidosRes] = await Promise.all([
       supabase.from('divisiones').select('nombre, categoria').eq('id', divId).single(),
@@ -237,7 +239,7 @@ export function usePartido() {
       if (lista.length === 1) setEquipoSeleccionado(lista[0])
     }
 
-    setLoading(false)
+    terminar()
   }
 
   // ─── Selección de equipo y partido ─────────────────────────────────────────
@@ -527,6 +529,7 @@ export function usePartido() {
 
   return {
     loading,
+    refrescando,
     divisionNombre,
     sinDivision,
     esInfantil,

@@ -65,7 +65,7 @@ export default function AccesoRestringidoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#15110A',
+    backgroundColor: colors.fondo,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
@@ -83,14 +83,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 28,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 16,
     lineHeight: 34,
   },
   divider: {
     width: 40,
     height: 1,
-    backgroundColor: '#2C2418',
+    backgroundColor: colors.borde,
     marginBottom: 24,
   },
   subtitle: {
@@ -98,12 +98,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
     fontSize: 15,
-    color: '#7C7267',
+    color: colors.textoSecundario,
     lineHeight: 20,
     marginBottom: 36,
   },
   button: {
-    backgroundColor: colors.tinta,
+    backgroundColor: colors.oro,
     paddingVertical: 16,
     paddingHorizontal: 32,
     alignItems: 'center',
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 14,
     letterSpacing: 2.5,
-    color: colors.oro,
+    color: colors.sobreOro,
   },
   linkWrap: {
     marginTop: 24,

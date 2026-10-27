@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import Modal from '@/components/Modal'
 
 interface Noticia {
   id: string
@@ -124,7 +125,7 @@ export default function NoticiasPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Noticias</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
@@ -148,7 +149,7 @@ export default function NoticiasPage() {
             className={`font-lora text-xs tracking-widest px-4 py-2 border-b-2 transition-colors -mb-px ${
               filtro === f.value
                 ? 'border-oro text-tinta'
-                : 'border-transparent text-tinta/40 hover:text-tinta'
+                : 'border-transparent text-texto-2 hover:text-tinta'
             }`}
           >
             {f.label}
@@ -157,10 +158,10 @@ export default function NoticiasPage() {
       </div>
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : noticiasVisibles.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN NOTICIAS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN NOTICIAS</p>
         </div>
       ) : (
         <div className="flex flex-col gap-0">
@@ -174,13 +175,13 @@ export default function NoticiasPage() {
                     {n.publicada ? 'PUBLICADA' : 'BORRADOR'}
                   </span>
                   {n.etiquetas.length > 0 && (
-                    <span className="font-lora text-xs tracking-widest text-tinta/40 border border-gris-claro px-2 py-0.5">
+                    <span className="font-lora text-xs tracking-widest text-texto-2 border border-gris-claro px-2 py-0.5">
                       {n.etiquetas[0].toUpperCase()}
                     </span>
                   )}
                 </div>
                 <p className="font-lora text-sm text-tinta leading-snug mb-1 truncate">{n.titulo}</p>
-                <p className="font-lora text-xs text-tinta/40">
+                <p className="font-lora text-xs text-texto-2">
                   {n.autor} · {tiempoRelativo(n.created_at)}
                 </p>
               </div>
@@ -193,7 +194,7 @@ export default function NoticiasPage() {
                 </button>
                 <button
                   onClick={() => handleEliminar(n.id)}
-                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo/60 hover:border-rojo hover:text-rojo transition-colors"
+                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors"
                 >
                   ELIMINAR
                 </button>
@@ -205,78 +206,71 @@ export default function NoticiasPage() {
 
       {/* Modal nueva noticia */}
       {showModal && (
-        <div className="fixed inset-0 bg-dark/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-card w-full max-w-xl p-8">
-            <div className="flex justify-between items-center mb-6">
-              <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVA NOTICIA</p>
-              <button onClick={closeModal} className="text-tinta/40 hover:text-tinta text-xl leading-none">×</button>
+        <Modal titulo="NUEVA NOTICIA" onClose={closeModal}>
+          <div className="flex flex-col gap-5">
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
+              <input
+                type="text"
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
+                placeholder="Título de la noticia"
+              />
             </div>
 
-            <div className="flex flex-col gap-5">
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
-                <input
-                  type="text"
-                  value={titulo}
-                  onChange={e => setTitulo(e.target.value)}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
-                  placeholder="Título de la noticia"
-                />
-              </div>
-
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">CONTENIDO</label>
-                <textarea
-                  value={cuerpo}
-                  onChange={e => setCuerpo(e.target.value)}
-                  rows={5}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border border-gris-claro p-3 outline-none focus:border-oro transition-colors resize-none"
-                  placeholder="Escribí el contenido aquí…"
-                />
-              </div>
-
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DEPORTE (OPCIONAL)</label>
-                <div className="flex gap-2">
-                  {DEPORTES.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setDeporte(prev => prev === d ? null : d)}
-                      className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
-                        deporte === d
-                          ? 'bg-oro border-oro text-papel'
-                          : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-                      }`}
-                    >
-                      {d.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">CONTENIDO</label>
+              <textarea
+                value={cuerpo}
+                onChange={e => setCuerpo(e.target.value)}
+                rows={5}
+                className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
+                placeholder="Escribí el contenido aquí…"
+              />
             </div>
 
-            {formError && <p className="font-lora text-rojo text-sm mt-4">{formError}</p>}
-
-            <p className="font-lora text-xs text-tinta/40 italic mt-4">Se guardará como borrador. Podés publicarla luego.</p>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleCrear}
-                disabled={guardando}
-                className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
-              >
-                {guardando ? 'GUARDANDO…' : 'GUARDAR BORRADOR'}
-              </button>
-              <button
-                onClick={closeModal}
-                className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors"
-              >
-                CANCELAR
-              </button>
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DEPORTE (OPCIONAL)</label>
+              <div className="flex gap-2">
+                {DEPORTES.map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDeporte(prev => prev === d ? null : d)}
+                    className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
+                      deporte === d
+                        ? 'bg-oro border-oro text-papel'
+                        : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
+                    }`}
+                  >
+                    {d.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+
+          {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
+
+          <p className="font-lora text-xs text-texto-2 italic mt-4">Se guardará como borrador. Podés publicarla luego.</p>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={handleCrear}
+              disabled={guardando}
+              className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
+            >
+              {guardando ? 'GUARDANDO…' : 'GUARDAR BORRADOR'}
+            </button>
+            <button
+              onClick={closeModal}
+              className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors"
+            >
+              CANCELAR
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )

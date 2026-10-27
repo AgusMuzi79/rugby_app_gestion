@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { seccionOVacia, conteoOVacio } from '@/lib/sistemaAdmin'
 
 type Tablas = Database['public']['Tables']
@@ -48,10 +49,10 @@ const VACIO: SistemaAdmin = {
 // push_tokens (push_tokens_select_admin).
 export function useSistemaAdmin() {
   const [sistema, setSistema] = useState<SistemaAdmin>(VACIO)
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
 
   const fetchSistema = useCallback(async () => {
-    setLoading(true)
+    empezar()
     try {
       const [socios, deuda, servicios, recordatorios, tokens] = await Promise.all([
         supabase
@@ -96,12 +97,12 @@ export function useSistemaAdmin() {
         pushTokens:             null,
       })
     } finally {
-      setLoading(false)
+      terminar()
     }
-  }, [])
+  }, [empezar, terminar])
 
   useEffect(() => { fetchSistema() }, [fetchSistema])
   useRefreshOnFocus(fetchSistema)
 
-  return { sistema, loading, refetch: fetchSistema }
+  return { sistema, loading, refrescando, refetch: fetchSistema }
 }

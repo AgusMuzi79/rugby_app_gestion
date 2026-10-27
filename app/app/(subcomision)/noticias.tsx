@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useNoticiasSubcomision, type NoticiaSubco } from '@/hooks/useNoticiasSubcomision'
 import { fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 import { useTheme } from '@/contexts/ThemeContext'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
 export default function NoticiasSubcomisionScreen() {
   const { colors: tc } = useTheme()
   const insets = useSafeAreaInsets()
-  const { noticias, deporte, loading, error, publicando, publicar, eliminar, refetch } = useNoticiasSubcomision()
+  const { noticias, deporte, loading, refrescando, error, publicando, publicar, eliminar, refetch } = useNoticiasSubcomision()
   const [modalVisible, setModalVisible] = useState(false)
 
   const confirmarEliminar = (noticia: NoticiaSubco) => {
@@ -191,7 +192,10 @@ export default function NoticiasSubcomisionScreen() {
   return (
     <View style={[s.flex, { backgroundColor: tc.fondo, paddingTop: insets.top }]}>
       <View style={s.header}>
-        <Text style={[s.labelHeader, { color: tc.oro }]}>SUBCOMISIÓN</Text>
+        <View style={s.labelFila}>
+          <Text style={[s.labelHeader, { color: tc.oro }]}>SUBCOMISIÓN</Text>
+          <AvatarPerfil />
+        </View>
         <View style={s.headerRow}>
           <Text style={[s.titulo, { color: tc.texto }]}>Noticias</Text>
           <TouchableOpacity
@@ -223,7 +227,7 @@ export default function NoticiasSubcomisionScreen() {
             </View>
           }
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 
@@ -247,6 +251,7 @@ const s = StyleSheet.create({
 
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
   labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, marginBottom: 4 },
+  labelFila:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32 },
   botonNuevo:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },

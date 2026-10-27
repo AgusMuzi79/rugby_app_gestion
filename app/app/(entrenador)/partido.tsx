@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   TextInput,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import {
   usePartido,
   RolEnMesa,
@@ -17,14 +17,15 @@ import {
   Equipo,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO     = '#15110A'
-const CARD      = '#1C1710'
-const TEXTO     = '#F3EFE4'
-const MUTED     = '#8E8574'
-const DIVIDER   = '#2C2418'
+const FONDO     = colors.fondo
+const CARD      = colors.card
+const TEXTO     = colors.texto
+const MUTED     = colors.muted
+const DIVIDER   = colors.borde
 const VERDE     = '#4A7C59'
 const ROJO      = colors.rojoUrgente
 
@@ -299,7 +300,7 @@ function PasoEquipo({
           activeOpacity={0.85}
         >
           {cargandoTransicion
-            ? <ActivityIndicator color={colors.oro} size="small" />
+            ? <ActivityIndicator color={colors.sobreOro} size="small" />
             : <Text style={s.botonPrimarioTexto}>CONTINUAR A ASISTENCIA</Text>}
         </TouchableOpacity>
       </View>
@@ -374,7 +375,7 @@ function PasoAsistencia({
           activeOpacity={0.85}
         >
           {guardandoAsistencia
-            ? <ActivityIndicator color={colors.oro} size="small" />
+            ? <ActivityIndicator color={colors.sobreOro} size="small" />
             : <Text style={s.botonPrimarioTexto}>
                 {esInfantil ? 'GUARDAR ASISTENCIA' : 'GUARDAR Y CONTINUAR A MESA'}
               </Text>}
@@ -507,7 +508,7 @@ function PasoMesa({
           activeOpacity={0.85}
         >
           {guardandoMesa
-            ? <ActivityIndicator color={colors.oro} size="small" />
+            ? <ActivityIndicator color={colors.sobreOro} size="small" />
             : <Text style={s.botonPrimarioTexto}>GUARDAR MESA</Text>}
         </TouchableOpacity>
 
@@ -614,7 +615,7 @@ function PasoResultado({
           activeOpacity={0.85}
         >
           {guardandoResultado
-            ? <ActivityIndicator color={colors.oro} size="small" />
+            ? <ActivityIndicator color={colors.sobreOro} size="small" />
             : <Text style={s.botonPrimarioTexto}>
                 {resultadoGuardado ? 'ACTUALIZAR RESULTADO' : 'GUARDAR RESULTADO'}
               </Text>}
@@ -650,7 +651,7 @@ export default function PartidoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
@@ -658,7 +659,7 @@ export default function PartidoScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -668,11 +669,14 @@ export default function PartidoScreen() {
   const jugadoresPresentes = jugadores.filter(j => j.presente)
 
   return (
-    <SafeAreaView style={s.root}>
-      <View style={s.header}>
-        <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
-        <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
-        <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
+    <SafeAreaView style={s.root} edges={['top']}>
+      <View style={[s.header, s.headerFila]}>
+        <View style={s.headerTextos}>
+          <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
+          <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
+          <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
+        </View>
+        <AvatarPerfil />
       </View>
       <View style={s.divider} />
 
@@ -749,6 +753,8 @@ const s = StyleSheet.create({
 
   // Header
   header:    { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+  headerFila:   { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerTextos: { flex: 1 },
   seccion:   { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro, marginBottom: 6 },
   titulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, lineHeight: 32 },
   headerMeta:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, marginTop: 4 },
@@ -792,7 +798,7 @@ const s = StyleSheet.create({
   equipoBadgeOblig:     { backgroundColor: TEXTO },
   equipoBadgeOpc:       { borderWidth: 1, borderColor: colors.oro, backgroundColor: 'transparent' },
   equipoBadgeTexto:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
-  equipoBadgeTextoOblig:{ color: FONDO },
+  equipoBadgeTextoOblig:{ color: colors.sobreOro },
   equipoBadgeTextoOpc:  { color: colors.oroHondo },
 
   // Fila asistencia
@@ -808,8 +814,8 @@ const s = StyleSheet.create({
   badgePres:          { backgroundColor: VERDE, borderColor: VERDE },
   badgeAus:           { backgroundColor: ROJO, borderColor: ROJO },
   badgeTexto:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
-  badgeTextoPres:     { color: '#fff' },
-  badgeTextoAus:      { color: '#fff' },
+  badgeTextoPres:     { color: colors.blanco },
+  badgeTextoAus:      { color: colors.blanco },
   badgeTextoInactivo: { color: MUTED },
 
   // Contadores (asistencia)
@@ -818,8 +824,8 @@ const s = StyleSheet.create({
   contadorBoxVerde: { borderColor: VERDE },
   contadorBoxRojo:  { borderColor: ROJO },
   contadorNum:      { fontFamily: fonts.titulo, fontSize: 28, lineHeight: 34 },
-  contadorNumVerde: { color: VERDE },
-  contadorNumRojo:  { color: ROJO },
+  contadorNumVerde: { color: colors.confirmacion },
+  contadorNumRojo:  { color: colors.rojoTexto },
   contadorLabel:    { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Conteo mesa
@@ -827,7 +833,7 @@ const s = StyleSheet.create({
   conteoBox:    { flex: 1, borderWidth: 1.5, borderColor: colors.oro, borderRadius: 2, paddingVertical: 12, alignItems: 'center' },
   conteoNum:    { fontFamily: fonts.titulo, fontSize: 25, lineHeight: 30 },
   conteoNumOro: { color: colors.oro },
-  conteoNumRojo:{ color: ROJO },
+  conteoNumRojo:{ color: colors.rojoTexto },
   conteoLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 2 },
 
   // Fila mesa — asignada (dark)
@@ -836,8 +842,8 @@ const s = StyleSheet.create({
     backgroundColor: TEXTO, borderRadius: 2,
     paddingHorizontal: 14, paddingVertical: 14,
   },
-  mesaNombreDark: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.oro },
-  mesaQuitarTexto:{ fontFamily: fonts.label, fontSize: 16, color: colors.oroHondo },
+  mesaNombreDark: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.oroSobreClaro },
+  mesaQuitarTexto:{ fontFamily: fonts.label, fontSize: 16, color: colors.oroSobreClaro },
 
   // Fila mesa — disponible
   mesaCardLight: {
@@ -853,10 +859,10 @@ const s = StyleSheet.create({
   mesaRolBtnTxtOff:{ color: MUTED },
 
   // Botones
-  botonPrimario:      { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center' },
-  botonPrimarioMt:    { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 2, alignItems: 'center', marginTop: 8 },
-  botonPrimarioTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro },
-  botonGuardarMesa:   { backgroundColor: TEXTO, paddingVertical: 18, borderRadius: 2, alignItems: 'center' },
+  botonPrimario:      { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 2, alignItems: 'center' },
+  botonPrimarioMt:    { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 2, alignItems: 'center', marginTop: 8 },
+  botonPrimarioTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.sobreOro },
+  botonGuardarMesa:   { backgroundColor: colors.oro, paddingVertical: 18, borderRadius: 2, alignItems: 'center' },
   botonSecundario:    { borderWidth: 1, borderColor: colors.oro, paddingVertical: 14, borderRadius: 2, alignItems: 'center', marginTop: 8 },
   botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
   botonOff:           { opacity: 0.4 },
@@ -867,7 +873,7 @@ const s = StyleSheet.create({
   // Banners
   bannerError:      { borderLeftWidth: 3, borderLeftColor: ROJO, backgroundColor: '#2A1010', borderRadius: 2, padding: 12, marginBottom: 8 },
   bannerErrorTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: '#FFAAAA' },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: VERDE, marginBottom: 8 },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: colors.confirmacion, marginBottom: 8 },
 
   // Resultado
   resultadoRow:   { flexDirection: 'row', alignItems: 'center', gap: 12 },

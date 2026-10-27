@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { fonts } from '@/constants/theme'
 import type { BalanceEvento } from '@/lib/balanceEvento'
-import { CARD, DIVIDER, MUTED, ROJO, TEXTO, VERDE, formatMonto } from './estilo'
+import { CARD, DIVIDER, MUTED, ROJO_TEXTO, TEXTO, VERDE_TEXTO, formatMonto } from './estilo'
 
 // Tarjeta Cobrado / Egresos / Neto de un evento financiero.
 export function ResumenBalance({ balance }: { balance: BalanceEvento }) {
@@ -35,6 +35,6 @@ const s = StyleSheet.create({
   label:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED },
   val:      { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '700' },
   valTexto: { color: TEXTO },
-  valVerde: { color: VERDE },
-  valRojo:  { color: ROJO },
+  valVerde: { color: VERDE_TEXTO },
+  valRojo:  { color: ROJO_TEXTO },
 })

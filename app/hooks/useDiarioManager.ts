@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -46,7 +47,7 @@ const DEFAULT: DiarioManagerData = {
 
 export function useDiarioManager() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioManagerData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -54,7 +55,7 @@ export function useDiarioManager() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -65,7 +66,7 @@ export function useDiarioManager() {
 
       if (!divId) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
-        setLoading(false)
+        terminar()
         return
       }
 
@@ -140,8 +141,8 @@ export function useDiarioManager() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

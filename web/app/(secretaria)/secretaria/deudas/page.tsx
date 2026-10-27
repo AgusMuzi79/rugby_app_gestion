@@ -33,8 +33,8 @@ const SEMAFORO_LABEL: Record<Semaforo, string> = {
 const SEMAFORO_COLOR: Record<Semaforo, string> = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
   amarillo: 'text-[#E67E22] border-[#E67E22]',
-  rojo: 'text-rojo border-rojo',
-  exento: 'text-tinta/30 border-gris-claro',
+  rojo: 'text-rojo-texto border-rojo',
+  exento: 'text-texto-2 border-gris-claro',
 }
 
 // Prioridad de urgencia — a quién llamar primero.
@@ -269,7 +269,7 @@ export default function DeudasPage() {
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre o Nº socio…"
-          className="flex-1 font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-oro transition-colors"
+          className="flex-1 font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-oro transition-colors"
         />
         <div className="flex gap-1">
           {FILTROS.map(f => (
@@ -324,10 +324,10 @@ export default function DeudasPage() {
       </div>
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">
+          <p className="font-lora text-texto-2 text-sm tracking-widest">
             {busqueda ? 'SIN RESULTADOS' : 'NO HAY SOCIOS EN ESTA VISTA'}
           </p>
         </div>
@@ -351,7 +351,7 @@ export default function DeudasPage() {
                 <td className="font-lora text-sm text-tinta py-4 pr-4">{s.nombre}</td>
                 <td className="text-center py-4 pr-4">
                   <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${
-                    s.semaforo ? SEMAFORO_COLOR[s.semaforo] : 'border-gris-claro text-tinta/40'
+                    s.semaforo ? SEMAFORO_COLOR[s.semaforo] : 'border-gris-claro text-texto-2'
                   }`}>
                     {s.semaforo ? SEMAFORO_LABEL[s.semaforo].toUpperCase() : '—'}
                   </span>
@@ -362,7 +362,7 @@ export default function DeudasPage() {
                 <td className="py-4 pl-4">
                   <div className="flex flex-wrap gap-1 max-w-[220px]">
                     {s.servicios.length === 0
-                      ? <span className="font-lora text-xs text-tinta/30">—</span>
+                      ? <span className="font-lora text-xs text-texto-2">—</span>
                       : s.servicios.map((nombre, i) => (
                           <span key={i} className="font-lora text-[11px] tracking-wide px-2 py-0.5 border border-gris-claro text-tinta/60 whitespace-nowrap">
                             {nombre}

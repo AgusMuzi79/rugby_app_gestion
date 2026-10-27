@@ -5,10 +5,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useEgresos, type EventoEgresos } from '@/hooks/useEgresos'
 import { colors, fonts } from '@/constants/theme'
@@ -49,21 +50,21 @@ function EventoChip({
 
 export default function EgresosScreen() {
   const {
-    loading, errorCarga, recargar,
+    loading, refrescando, errorCarga, recargar,
     eventos, eventoSeleccionado, seleccionarEvento, detalle,
   } = useEgresos()
   const router = useRouter()
 
   if (loading && eventos.length === 0) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={ORO} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.labelHeader}>MANAGER · VIAJES Y TERCER TIEMPOS</Text>
         <Text style={s.titulo}>Egresos</Text>
@@ -71,7 +72,11 @@ export default function EgresosScreen() {
       <View style={s.separador} />
 
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={s.lista} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={s.lista}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={recargar} tintColor={ORO} />}
+        >
           {errorCarga && (
             <TouchableOpacity style={s.bannerError} onPress={recargar} activeOpacity={0.8}>
               <Text style={s.bannerErrorTexto}>{errorCarga} Tocá para reintentar.</Text>
@@ -160,9 +165,9 @@ const s = StyleSheet.create({
   chip:             { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: CARD, maxWidth: 220 },
   chipActivo:       { backgroundColor: TEXTO, borderColor: TEXTO },
   chipNombre:       { fontFamily: fonts.cuerpo, fontSize: 15, fontWeight: '700', color: TEXTO },
-  chipNombreActivo: { color: FONDO },
+  chipNombreActivo: { color: colors.sobreOro },
   chipMeta:         { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED, marginTop: 2 },
-  chipMetaActivo:   { color: colors.oroHondo },
+  chipMetaActivo:   { color: colors.oroSobreClaro },
 
   // Evento elegido
   eventoResumen: { gap: 4 },

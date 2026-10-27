@@ -27,9 +27,9 @@ function fechaEdicion(): string {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  activo:    '#2ECC71',
+  activo:    colors.estadoActivo,
   moroso:    colors.rojoUrgente,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  colors.rojoUrgente,
 }
 const ESTADO_LABEL: Record<string, string> = {
@@ -45,6 +45,12 @@ const ESTADO_LABEL: Record<string, string> = {
 function estadoVisual(data: { estado: string; semaforo: string | null }): string {
   if (data.estado === 'activo' && data.semaforo === 'rojo') return 'moroso'
   return data.estado
+}
+
+// Texto del badge de estado (mismo criterio que el carnet de socio): oscuro
+// sobre verde / naranja (el blanco no llega a 4.5:1), blanco sobre rojo (4.82).
+function estadoTextoColor(estado: string): string {
+  return estado === 'activo' || estado === 'pendiente' ? colors.sobreOro : colors.blanco
 }
 
 export default function CarnetClienteGimnasioScreen() {
@@ -113,7 +119,7 @@ export default function CarnetClienteGimnasioScreen() {
             <CuentaRegresivaQR />
 
             <View style={[s.estadoBadge, { backgroundColor: ESTADO_COLOR[estadoVisual(data)] ?? colors.grisClaro }]}>
-              <Text style={s.estadoText}>
+              <Text style={[s.estadoText, { color: estadoTextoColor(estadoVisual(data)) }]}>
                 {ESTADO_LABEL[estadoVisual(data)] ?? estadoVisual(data).toUpperCase()}
               </Text>
             </View>
@@ -138,7 +144,7 @@ export default function CarnetClienteGimnasioScreen() {
 }
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 60 },
   activityIndicator: { marginTop: 60 },
 
@@ -148,7 +154,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -156,22 +162,22 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: '#F3EFE4', marginBottom: 14 },
-  divider:         { height: 1, backgroundColor: '#2C2418' },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: colors.texto, marginBottom: 14 },
+  divider:         { height: 1, backgroundColor: colors.borde },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionCodigo:{ paddingTop: 22, marginTop: 18 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine:  { flex: 1, height: 1, backgroundColor: colors.borde },
 
   carnetCard: {
     borderWidth: 1, borderRadius: 6, padding: 24,
     alignItems: 'center', gap: 12,
-    backgroundColor: '#1C1710', borderColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde,
   },
-  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: '#8E8574' },
-  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: '#F3EFE4' },
+  numLabel:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: colors.muted },
+  numValue:  { fontFamily: fonts.titulo, fontSize: 42, lineHeight: 48, color: colors.texto },
 
   qrWrapper: {
     padding: 16, backgroundColor: colors.blanco,
@@ -186,12 +192,12 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: '#8E8574' },
+  categoriaText: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, marginTop: 2, color: colors.muted },
 
-  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: '#8E8574' },
+  codigoHint:  { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginBottom: 10, color: colors.muted },
   codigoValue: {
     fontFamily: fonts.titulo, fontSize: 38, letterSpacing: 4,
-    textAlign: 'center', color: '#F3EFE4',
+    textAlign: 'center', color: colors.texto,
   },
 
   errorContainer: { padding: 40, alignItems: 'center' },

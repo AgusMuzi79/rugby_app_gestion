@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { fechaLocal } from '@/lib/fecha'
 
 export type TipoDocumento = 'dni' | 'ficha_medica' | 'otro'
 export type PasoFichajes  = 'lista' | 'detalle'
@@ -41,7 +42,7 @@ function decode(base64: string): Uint8Array {
 }
 
 function fechaHoy(): string {
-  return new Date().toISOString().split('T')[0]
+  return fechaLocal()
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

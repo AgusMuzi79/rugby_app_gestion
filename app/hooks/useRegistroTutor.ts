@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { SIN_CONEXION, cuerpoErrorFunction } from '@/lib/errorFunction'
 
 // Self-service sign-up of a minor's adult (mother, father, guardian) who is not
 // a club member. Talks to the Edge Function `registro-tutor`, which runs
@@ -47,7 +48,13 @@ type Resultado = { ok: true } | { ok: false; mensaje: string }
 async function invocar(body: Record<string, unknown>): Promise<Resultado> {
   try {
     const { data, error } = await supabase.functions.invoke('registro-tutor', { body })
-    if (error || !data) return { ok: false, mensaje: MENSAJE_GENERICO }
+    if (error) {
+      // El motivo de un non-2xx viene en el body; sin red, 'No hay conexión'.
+      if ((error as { name?: string }).name === 'FunctionsFetchError') return { ok: false, mensaje: SIN_CONEXION }
+      const cuerpo = await cuerpoErrorFunction(error)
+      return { ok: false, mensaje: mensajeDeMotivo(cuerpo?.motivo) }
+    }
+    if (!data) return { ok: false, mensaje: MENSAJE_GENERICO }
     if (data.ok === true) return { ok: true }
     return { ok: false, mensaje: mensajeDeMotivo(data.motivo) }
   } catch {

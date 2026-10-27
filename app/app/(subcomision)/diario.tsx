@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -50,7 +50,7 @@ function StatCard({
   label: string; value: string; sub?: string
   variacion?: number | null; urgente?: boolean; accentOro?: boolean
 }) {
-  const varColor = (variacion ?? 0) >= 0 ? '#2ECC71' : colors.rojoUrgente
+  const varColor = (variacion ?? 0) >= 0 ? colors.estadoActivo : colors.rojoTexto
   const varText  = variacion === null || variacion === undefined
     ? null
     : `${variacion >= 0 ? '+' : ''}${variacion}% vs sem. ant.`
@@ -77,8 +77,8 @@ const BADGE_STYLE: Record<string, object> = {
 }
 const BADGE_TEXT_COLOR: Record<string, string> = {
   urgente: colors.blanco,
-  alerta:  colors.blanco,
-  info:    colors.tinta,
+  alerta:  colors.sobreOro,
+  info:    colors.texto,
 }
 const BADGE_LABEL: Record<string, string> = {
   urgente: 'URGENTE',
@@ -113,7 +113,7 @@ export default function DiarioSubcomisionScreen() {
   useScrollToTop(scrollRef)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, data } = useDiarioSubcomision()
+  const { loading, refrescando, data, refetch } = useDiarioSubcomision()
 
   const primerNombre = data.nombre.split(' ')[0] || '—'
 
@@ -123,6 +123,7 @@ export default function DiarioSubcomisionScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 
@@ -225,7 +226,7 @@ export default function DiarioSubcomisionScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 48 },
   activityIndicator: { marginTop: 40 },
 
@@ -235,7 +236,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -243,7 +244,7 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 34, color: colors.tinta, marginBottom: 14 },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 34, color: colors.texto, marginBottom: 14 },
   saludoDivider:   { height: 1, backgroundColor: colors.grisClaro },
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
@@ -255,20 +256,20 @@ const s = StyleSheet.create({
   grid:    { gap: 10 },
   gridRow: { flexDirection: 'row', gap: 10 },
   statCard: {
-    flex: 1, backgroundColor: '#1C1710', borderWidth: 1, borderColor: colors.grisClaro,
+    flex: 1, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.grisClaro,
     borderRadius: 4, padding: 14, minHeight: 110,
     borderLeftWidth: 3, borderLeftColor: colors.grisClaro,
   },
   statCardOro: { borderLeftColor: colors.oro },
   statLabel: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta, marginBottom: 6,
+    textTransform: 'uppercase', color: colors.texto, marginBottom: 6,
   },
   statValue: {
-    fontFamily: fonts.titulo, fontSize: 28, color: colors.tinta, lineHeight: 32, marginBottom: 4,
+    fontFamily: fonts.titulo, fontSize: 28, color: colors.texto, lineHeight: 32, marginBottom: 4,
   },
   statSub: {
-    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#7C7267', lineHeight: 14,
+    fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted, lineHeight: 14,
   },
   statVar: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, marginTop: 4,
@@ -279,7 +280,7 @@ const s = StyleSheet.create({
   },
   urgenteText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
 
   // Crónica
@@ -296,7 +297,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase',
   },
   cronicaBody:   { flex: 1 },
-  cronicaTitulo: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta, marginBottom: 2 },
+  cronicaTitulo: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.texto, marginBottom: 2 },
   cronicaMensaje:{ fontFamily: fonts.label, fontSize: 12, color: '#9B9183', letterSpacing: 0.5, marginBottom: 3 },
   cronicaTiempo: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
   cronicaArrow:  { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
@@ -304,12 +305,12 @@ const s = StyleSheet.create({
   // Atajos
   atajosCol: { gap: 10 },
   atajoBtn: {
-    borderWidth: 1, borderColor: colors.tinta,
+    borderWidth: 1, borderColor: colors.texto,
     paddingVertical: 16, alignItems: 'center', borderRadius: 4,
   },
   atajoBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta,
+    textTransform: 'uppercase', color: colors.texto,
   },
 
   emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },

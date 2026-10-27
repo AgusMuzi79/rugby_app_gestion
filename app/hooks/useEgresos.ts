@@ -9,6 +9,7 @@ import {
   type EgresoForm,
 } from '@/lib/balanceEvento'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   TIPOS_MANAGER,
@@ -191,7 +192,7 @@ export type EgresosEventoState = ReturnType<typeof useEgresosEvento>
 export function useEgresos() {
   const { session } = useAuthStore()
 
-  const [loading, setLoading]       = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [eventos, setEventos]       = useState<EventoEgresos[]>([])
   const [eventoId, setEventoId]     = useState<string | null>(null)
@@ -201,16 +202,16 @@ export function useEgresos() {
 
   useEffect(() => {
     if (session) fetchEventos()
-    else setLoading(false)
+    else terminar()
   }, [session])
   useRefreshOnFocus(() => { fetchEventos(true) })
 
   async function fetchEventos(refrescarDetalle = false) {
     if (!session) {
-      setLoading(false)
+      terminar()
       return
     }
-    setLoading(true)
+    empezar()
     setErrorCarga(null)
 
     const { data, error } = await supabase
@@ -221,7 +222,7 @@ export function useEgresos() {
 
     if (error) {
       setErrorCarga(ERROR_CARGA_EVENTOS)
-      setLoading(false)
+      terminar()
       return
     }
 
@@ -240,7 +241,7 @@ export function useEgresos() {
     items.sort((a, b) => Number(b.estado === 'activo') - Number(a.estado === 'activo'))
 
     setEventos(items)
-    setLoading(false)
+    terminar()
 
     // Mantiene el evento elegido si sigue visible; si no, el primero.
     const siguiente = items.find(e => e.id === eventoId)?.id ?? items[0]?.id ?? null
@@ -255,6 +256,7 @@ export function useEgresos() {
 
   return {
     loading,
+    refrescando,
     errorCarga: errorCarga ?? detalle.errorCarga,
     recargar:   () => fetchEventos(true),
     eventos,

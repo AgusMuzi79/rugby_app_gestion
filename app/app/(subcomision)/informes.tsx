@@ -5,7 +5,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  RefreshControl,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   useInformes,
   type JugadorAsistencia,
@@ -18,13 +20,13 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 const ROJO    = colors.rojoUrgente
-const VERDE   = '#22C55E'
+const VERDE   = colors.confirmacion
 const AMBER   = '#F59E0B'
 const AZUL    = '#3B82F6'
 
@@ -131,7 +133,7 @@ function SeccionResultados({ datos }: { datos: ResultadoInforme[] }) {
           <View key={r.id} style={s.card}>
             <View style={s.fila}>
               <View style={[s.resBadge, resStyle(r.resultado)]}>
-                <Text style={s.resBadgeTexto}>{r.resultado}</Text>
+                <Text style={[s.resBadgeTexto, r.resultado === 'L' && s.resBadgeTextoL]}>{r.resultado}</Text>
               </View>
               <Text style={s.marcador}>{r.puntosPropios}–{r.puntosRival}</Text>
               <Text style={s.cardNombreResult} numberOfLines={1}>
@@ -253,8 +255,9 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function InformesScreen() {
+  const insets = useSafeAreaInsets()
   const {
-    loading, divisiones, divisionFiltro, setDivisionFiltro,
+    loading, refrescando, refetch, divisiones, divisionFiltro, setDivisionFiltro,
     asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
   } = useInformes()
 
@@ -269,7 +272,7 @@ export default function InformesScreen() {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <Text style={s.headerLabel}>SUBCOMISIÓN</Text>
         <Text style={s.headerTitle}>Informes</Text>
       </View>
@@ -306,6 +309,7 @@ export default function InformesScreen() {
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
         <SeccionAsistencia datos={asistencias} />
         <SeccionResultados datos={resultados} />
@@ -323,16 +327,16 @@ const s = StyleSheet.create({
   centrado:      { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: FONDO, gap: 12 },
   cargandoTexto: { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 15 },
 
-  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: TEXTO },
-  headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
-  headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: FONDO },
+  header:      { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: TEXTO },
+  headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oroSobreClaro, marginBottom: 4 },
+  headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.sobreOro },
 
   selectorWrap:    { backgroundColor: TEXTO, paddingBottom: 12 },
   selectorContent: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
   pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
-  pillTexto:       { fontFamily: fonts.label, color: MUTED, fontSize: 14, fontWeight: '500' },
-  pillTextoActiva: { color: FONDO },
+  pillTexto:       { fontFamily: fonts.label, color: colors.textoSecundario, fontSize: 14, fontWeight: '500' },
+  pillTextoActiva: { color: colors.sobreOro },
 
   scroll:        { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 48, gap: 24 },
@@ -359,22 +363,23 @@ const s = StyleSheet.create({
   cardDiv:    { fontFamily: fonts.label, fontSize: 13, color: colors.oro, letterSpacing: 0.5 },
 
   badgeRojo:  { backgroundColor: ROJO, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  badgeTexto: { fontFamily: fonts.label, color: '#FFF', fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  badgeTexto: { fontFamily: fonts.label, color: colors.blanco, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
 
   porcNum:    { fontFamily: fonts.cuerpo, fontSize: 19, fontWeight: '700', minWidth: 44, textAlign: 'right' },
   porcAlto:   { color: VERDE },
   porcMedio:  { color: AMBER },
-  porcBajo:   { color: ROJO },
+  porcBajo:   { color: colors.rojoTexto },
   porcNeutro: { color: MUTED },
 
   wldRow: { flexDirection: 'row', gap: 10 },
   wld:    { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
   wldW:   { color: VERDE },
-  wldL:   { color: ROJO },
+  wldL:   { color: colors.rojoTexto },
   wldD:   { color: colors.oro },
 
   resBadge:      { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
-  resBadgeTexto: { fontFamily: fonts.label, fontSize: 13, fontWeight: '700', color: '#FFF' },
+  resBadgeTexto: { fontFamily: fonts.label, fontSize: 13, fontWeight: '700', color: colors.sobreOro },
+  resBadgeTextoL: { color: colors.blanco },
   resW:          { backgroundColor: VERDE },
   resL:          { backgroundColor: ROJO },
   resD:          { backgroundColor: colors.oro },

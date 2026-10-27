@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
   type EventoDivisionesRow,
 } from './useEventos'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface EventoSemana {
   id:             string
@@ -43,9 +45,9 @@ export interface DiarioCoordinadorData {
   sinDivisiones: boolean
 }
 
-function hoy()       { return new Date().toISOString().split('T')[0] }
-function en7Dias()   { const d = new Date(); d.setDate(d.getDate() + 7);  return d.toISOString().split('T')[0] }
-function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()       { return fechaLocal() }
+function en7Dias()   { const d = new Date(); d.setDate(d.getDate() + 7);  return fechaLocal(d) }
+function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 const DEFAULT: DiarioCoordinadorData = {
   nombre: '', divisiones: [], eventosSemana: [],
@@ -54,7 +56,7 @@ const DEFAULT: DiarioCoordinadorData = {
 
 export function useDiarioCoordinador() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioCoordinadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -62,7 +64,7 @@ export function useDiarioCoordinador() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -71,7 +73,7 @@ export function useDiarioCoordinador() {
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       if (divIds.length === 0) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivisiones: true })
-        setLoading(false)
+        terminar()
         return
       }
 
@@ -186,8 +188,8 @@ export function useDiarioCoordinador() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

@@ -80,7 +80,7 @@ export default function SistemaAdminScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
-  const { sistema, loading, refetch } = useSistemaAdmin()
+  const { sistema, loading, refrescando, refetch } = useSistemaAdmin()
 
   return (
     <View style={s.root}>
@@ -95,7 +95,7 @@ export default function SistemaAdminScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={s.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.oro} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
         {loading && sistema.pushTokens === null ? (
           <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
@@ -176,13 +176,13 @@ export default function SistemaAdminScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
-const ROJO    = '#CC4127'
-const VERDE   = '#22C55E'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
+const ROJO    = colors.rojoTexto // sólo texto (rojoUrgente daba 3.90:1)
+const VERDE   = colors.confirmacion
 
 const s = StyleSheet.create({
   root:              { flex: 1, backgroundColor: FONDO },
@@ -195,7 +195,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,

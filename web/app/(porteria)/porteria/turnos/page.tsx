@@ -98,10 +98,10 @@ const ORIGEN_LABEL: Record<string, string> = {
   socio: 'Socio', fijo: 'Turno fijo',
 }
 
-const INPUT = 'font-lora text-sm text-tinta bg-card border border-gris-claro px-3 py-2 outline-none focus:border-oro transition-colors'
+const INPUT = 'font-lora text-sm text-tinta bg-card border border-borde-control px-3 py-2 outline-none focus:border-oro transition-colors'
 const LABEL = 'font-lora text-xs tracking-widest text-tinta/50'
 const BTN = 'font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap'
-const BTN_PELIGRO = 'font-lora text-xs tracking-widest px-3 py-1 border border-rojo text-rojo hover:bg-rojo/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap'
+const BTN_PELIGRO = 'font-lora text-xs tracking-widest px-3 py-1 border border-rojo text-rojo-texto hover:bg-rojo/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap'
 const TH = 'font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 text-left'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -139,13 +139,13 @@ function AvisoBox({ aviso }: { aviso: Aviso }) {
   if (!aviso) return null
   return (
     <div className={`border p-3 mb-4 ${aviso.tipo === 'ok' ? 'border-[#2ECC71]' : 'border-rojo'}`}>
-      <p className={`font-lora text-sm ${aviso.tipo === 'ok' ? 'text-[#2ECC71]' : 'text-rojo'}`}>{aviso.texto}</p>
+      <p className={`font-lora text-sm ${aviso.tipo === 'ok' ? 'text-[#2ECC71]' : 'text-rojo-texto'}`}>{aviso.texto}</p>
     </div>
   )
 }
 
 function Cargando() {
-  return <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+  return <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
 }
 
 function useFranjas() {
@@ -203,11 +203,11 @@ function OcupacionSeccion() {
 
       {loading ? <Cargando /> : error ? (
         <div className="border border-rojo p-8 text-center">
-          <p className="font-lora text-rojo text-sm tracking-widest">{error}</p>
+          <p className="font-lora text-rojo-texto text-sm tracking-widest">{error}</p>
         </div>
       ) : franjas.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN FRANJAS ESTE DÍA</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN FRANJAS ESTE DÍA</p>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
@@ -218,8 +218,8 @@ function OcupacionSeccion() {
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-playfair text-lg text-tinta">
                     {f.hora_desde} – {f.hora_hasta}
-                    {f.cerrado && <span className="ml-3 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo">CERRADO</span>}
-                    {f.inactiva && <span className="ml-3 font-lora text-xs tracking-widest px-2 py-0.5 border text-tinta/40 border-gris-claro">FRANJA INACTIVA</span>}
+                    {f.cerrado && <span className="ml-3 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo">CERRADO</span>}
+                    {f.inactiva && <span className="ml-3 font-lora text-xs tracking-widest px-2 py-0.5 border text-texto-2 border-gris-claro">FRANJA INACTIVA</span>}
                   </p>
                   <p className="font-lora text-sm text-tinta/60">{f.ocupados} / {f.capacidad} lugares</p>
                 </div>
@@ -234,7 +234,7 @@ function OcupacionSeccion() {
                 </div>
 
                 {f.reservas.length === 0 ? (
-                  <p className="font-lora text-tinta/40 text-xs tracking-widest">SIN RESERVAS</p>
+                  <p className="font-lora text-texto-2 text-xs tracking-widest">SIN RESERVAS</p>
                 ) : (
                   <table className="w-full border-collapse">
                     <thead>
@@ -390,11 +390,11 @@ function FranjasSeccion() {
 
       {loading ? <Cargando /> : error ? (
         <div className="border border-rojo p-8 text-center">
-          <p className="font-lora text-rojo text-sm tracking-widest">{error}</p>
+          <p className="font-lora text-rojo-texto text-sm tracking-widest">{error}</p>
         </div>
       ) : franjas.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO HAY FRANJAS CARGADAS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO HAY FRANJAS CARGADAS</p>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -404,7 +404,7 @@ function FranjasSeccion() {
               <div key={dia} className="border border-gris-claro p-4">
                 <p className="font-playfair text-lg text-tinta mb-2">{DIAS[dia]}</p>
                 {delDia.length === 0 ? (
-                  <p className="font-lora text-tinta/40 text-xs tracking-widest">SIN FRANJAS</p>
+                  <p className="font-lora text-texto-2 text-xs tracking-widest">SIN FRANJAS</p>
                 ) : delDia.map(f => (
                   <div key={f.id} className={`flex items-center gap-4 py-2 border-t border-gris-claro ${f.activa ? '' : 'opacity-50'}`}>
                     <span className="font-lora text-sm text-tinta w-32">{f.hora_desde} – {f.hora_hasta}</span>
@@ -679,7 +679,7 @@ function ImportarSeccion() {
               <input type="radio" name="modo-import" className="mt-1" checked={modo === m.id} disabled={trabajando} onChange={() => cambiarModo(m.id)} />
               <span>
                 {m.label}
-                <span className="block font-lora text-xs text-tinta/40">{m.ayuda}</span>
+                <span className="block font-lora text-xs text-texto-2">{m.ayuda}</span>
               </span>
             </label>
           ))}
@@ -694,18 +694,18 @@ function ImportarSeccion() {
 
       {erroresLectura.length > 0 && (
         <div className="border border-rojo p-4 mb-6">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-2">REVISÁ EL ARCHIVO ({erroresLectura.length})</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-2">REVISÁ EL ARCHIVO ({erroresLectura.length})</p>
           <ul className="flex flex-col gap-1">
-            {erroresLectura.map((e, i) => <li key={i} className="font-lora text-sm text-rojo">{e}</li>)}
+            {erroresLectura.map((e, i) => <li key={i} className="font-lora text-sm text-rojo-texto">{e}</li>)}
           </ul>
         </div>
       )}
 
       {erroresServidor.length > 0 && (
         <div className="border border-rojo p-4 mb-6">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-2">NO SE PUEDE IMPORTAR ({erroresServidor.length})</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-2">NO SE PUEDE IMPORTAR ({erroresServidor.length})</p>
           <ul className="flex flex-col gap-1">
-            {erroresServidor.map((e, i) => <li key={i} className="font-lora text-sm text-rojo">{e}</li>)}
+            {erroresServidor.map((e, i) => <li key={i} className="font-lora text-sm text-rojo-texto">{e}</li>)}
           </ul>
         </div>
       )}
@@ -717,7 +717,7 @@ function ImportarSeccion() {
             Crear {previa.resumen.crear} · Actualizar {previa.resumen.actualizar} · Sin cambios {previa.resumen.sin_cambios} · Desactivar {previa.resumen.desactivar}
           </p>
           {previa.resumen.desactivar > 0 && (
-            <p className="font-lora text-sm text-rojo mb-1">
+            <p className="font-lora text-sm text-rojo-texto mb-1">
               Reservas futuras en franjas que se desactivan: {previa.resumen.reservas_futuras_afectadas} · Turnos fijos activos: {previa.resumen.turnos_fijos_afectados}
             </p>
           )}
@@ -784,8 +784,8 @@ function ImportarSeccion() {
                       <td className={celda}>{f.hora_desde} – {f.hora_hasta}</td>
                       <td className={celda}>{f.cupo}</td>
                       <td className={celdaSuave}>{f.profesor ?? '—'}</td>
-                      <td className={`${celda} ${f.reservas_futuras > 0 ? 'text-rojo' : ''}`}>{f.reservas_futuras}</td>
-                      <td className={`${celda} ${(f.turnos_fijos ?? 0) > 0 ? 'text-rojo' : ''}`}>{f.turnos_fijos ?? 0}</td>
+                      <td className={`${celda} ${f.reservas_futuras > 0 ? 'text-rojo-texto' : ''}`}>{f.reservas_futuras}</td>
+                      <td className={`${celda} ${(f.turnos_fijos ?? 0) > 0 ? 'text-rojo-texto' : ''}`}>{f.turnos_fijos ?? 0}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -807,7 +807,7 @@ function ImportarSeccion() {
       <p className="font-lora text-xs tracking-widest text-oro mb-3">FRANJAS ACTUALES</p>
       {cargandoFranjas ? <Cargando /> : franjas.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO HAY FRANJAS CARGADAS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO HAY FRANJAS CARGADAS</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -990,7 +990,7 @@ function ExcepcionesSeccion() {
 
       {loading ? <Cargando /> : lista.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN EXCEPCIONES EN ESTE RANGO</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN EXCEPCIONES EN ESTE RANGO</p>
         </div>
       ) : (
         <table className="w-full border-collapse">
@@ -1101,7 +1101,7 @@ function ConfigSeccion() {
             <option value="informativo">Informativo (solo avisa)</option>
             <option value="bloqueante">Bloqueante (exige reserva)</option>
           </select>
-          <p className="font-lora text-xs text-tinta/40 max-w-xl">
+          <p className="font-lora text-xs text-texto-2 max-w-xl">
             Informativo: el Lector avisa si no hay reserva pero deja pasar. Bloqueante: el Lector no deja pasar a quien no reservó.
           </p>
           <p className="font-lora text-xs text-oro max-w-xl">
@@ -1115,7 +1115,7 @@ function ConfigSeccion() {
             <option value="mes">Todo el mes en curso</option>
             <option value="dias">Próximos N días</option>
           </select>
-          <p className="font-lora text-xs text-tinta/40">
+          <p className="font-lora text-xs text-texto-2">
             {cfg.ventana_reserva === 'mes'
               ? 'Los socios reservan cualquier día desde hoy hasta fin de mes. El mes siguiente se abre el día 1.'
               : 'Los socios reservan desde hoy hasta la cantidad de días que indiques abajo.'}
@@ -1132,7 +1132,7 @@ function ConfigSeccion() {
                 onChange={e => setValores({ ...valores, [x.campo]: e.target.value })}
                 className={INPUT} required
               />
-              <p className="font-lora text-xs text-tinta/40">{x.ayuda}</p>
+              <p className="font-lora text-xs text-texto-2">{x.ayuda}</p>
             </div>
           ))}
         </div>
@@ -1146,7 +1146,7 @@ function ConfigSeccion() {
             />
             Procesar faltas automáticamente
           </label>
-          <p className="font-lora text-xs text-tinta/40">
+          <p className="font-lora text-xs text-texto-2">
             Marca asistió o faltó según los ingresos al gimnasio, avisa por push tras las faltas seguidas y libera el horario fijo.
             Al activarlo sólo se evalúan los turnos desde ese momento: lo anterior no cuenta.
           </p>
@@ -1156,7 +1156,7 @@ function ConfigSeccion() {
               {cfg.faltas_activas ? '' : ' (hoy está apagado; al volver a activarlo se reinicia)'}
             </p>
           )}
-          <p className="font-lora text-xs text-rojo">
+          <p className="font-lora text-xs text-rojo-texto">
             Activalo recién cuando todos escaneen al entrar al gimnasio: si alguien entra sin escanear, se le cuenta como falta.
           </p>
         </div>

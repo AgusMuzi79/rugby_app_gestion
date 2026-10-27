@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
@@ -112,7 +113,7 @@ export function useScanner() {
     const res = await supabase.functions.invoke('socios-qr', {
       body: { action: 'registrar-invitado', dni, nombre: nombre.trim() || undefined },
     })
-    if (res.error) return { ok: false, motivo: res.error.message }
+    if (res.error) return { ok: false, motivo: await mensajeErrorFunction(res.error, 'No se pudo registrar al invitado. Probá de nuevo.') }
     return res.data as InvitadoResult
   }, [])
 

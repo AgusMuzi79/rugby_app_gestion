@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 import { FEATURES } from '@/constants/features'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface ProximoEvento {
   id:    string
@@ -31,9 +33,9 @@ export interface DiarioEntrenadorData {
   sinDivision:    boolean
 }
 
-function hoy()      { return new Date().toISOString().split('T')[0] }
-function hace3Dias()  { const d = new Date(); d.setDate(d.getDate() - 3);  return d.toISOString().split('T')[0] }
-function hace30Dias() { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()      { return fechaLocal() }
+function hace3Dias()  { const d = new Date(); d.setDate(d.getDate() - 3);  return fechaLocal(d) }
+function hace30Dias() { const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 const DEFAULT: DiarioEntrenadorData = {
   nombre: '', divisionNombre: '', divisionId: null, totalJugadores: 0,
@@ -42,7 +44,7 @@ const DEFAULT: DiarioEntrenadorData = {
 
 export function useDiarioEntrenador() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioEntrenadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -50,7 +52,7 @@ export function useDiarioEntrenador() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -61,7 +63,7 @@ export function useDiarioEntrenador() {
 
       if (!divId) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
-        setLoading(false)
+        terminar()
         return
       }
 
@@ -160,8 +162,8 @@ export function useDiarioEntrenador() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

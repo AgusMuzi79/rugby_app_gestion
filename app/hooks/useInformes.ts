@@ -8,6 +8,8 @@ import {
   type EventoDivisionesRow,
 } from './useEventos'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorAsistencia {
   jugadorId:            string
@@ -71,7 +73,7 @@ export interface DivisionOpcionInformes {
 export function useInformes() {
   const { session } = useAuthStore()
 
-  const [loading, setLoading]           = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [divisiones, setDivisiones]     = useState<DivisionOpcionInformes[]>([])
   const [divisionFiltro, setDivisionFiltro] = useState<string | null>(null)
 
@@ -87,7 +89,7 @@ export function useInformes() {
   useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
-    setLoading(true)
+    empezar()
     await Promise.all([
       fetchDivisiones(),
       fetchAsistencias(),
@@ -95,7 +97,7 @@ export function useInformes() {
       fetchFichajes(),
       fetchFinanciero(),
     ])
-    setLoading(false)
+    terminar()
   }
 
   async function fetchDivisiones() {
@@ -110,7 +112,7 @@ export function useInformes() {
   async function fetchAsistencias() {
     const hace60    = new Date()
     hace60.setDate(hace60.getDate() - 60)
-    const hace60Str = hace60.toISOString().split('T')[0]
+    const hace60Str = fechaLocal(hace60)
 
     const [eventosRes, jugadoresRes, divsRes] = await Promise.all([
       supabase
@@ -351,6 +353,8 @@ export function useInformes() {
 
   return {
     loading,
+    refrescando,
+    refetch: fetchTodo,
     divisiones,
     divisionFiltro,
     setDivisionFiltro,

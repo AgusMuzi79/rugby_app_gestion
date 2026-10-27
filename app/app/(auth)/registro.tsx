@@ -185,10 +185,10 @@ export default function RegistroScreen() {
 }
 
 const styles = StyleSheet.create({
-  kav:           { flex: 1, backgroundColor: '#15110A' },
+  kav:           { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { flexGrow: 1 },
   loadingWrap: {
-    flex: 1, backgroundColor: '#15110A',
+    flex: 1, backgroundColor: colors.fondo,
     justifyContent: 'center', alignItems: 'center',
   },
   container: {
@@ -209,13 +209,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 48,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 16,
     lineHeight: 54,
   },
   divider: {
     height: 1,
-    backgroundColor: '#2C2418',
+    backgroundColor: colors.borde,
     marginBottom: 24,
   },
   subtitle: {
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
     fontSize: 15,
-    color: '#7C7267',
+    color: colors.textoSecundario,
     lineHeight: 20,
     marginBottom: 36,
   },
@@ -237,13 +237,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 13,
     letterSpacing: 2,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 8,
   },
   input: {
     fontFamily: fonts.cuerpo,
     fontSize: 18,
-    color: colors.tinta,
+    color: colors.texto,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.cuerpo,
     fontSize: 18,
-    color: colors.tinta,
+    color: colors.texto,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     paddingLeft: 8,
   },
   button: {
-    backgroundColor: colors.tinta,
+    backgroundColor: colors.oro,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
@@ -280,12 +280,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 14,
     letterSpacing: 2.5,
-    color: colors.oro,
+    color: colors.sobreOro,
   },
   errorBanner: {
-    backgroundColor: '#1C1710',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.oro,
+    borderColor: colors.rojoTexto,
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: fonts.cuerpo,
     fontSize: 15,
-    color: colors.tinta,
+    color: colors.texto,
     textAlign: 'center',
   },
   footer: {

@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { fonts } from '@/constants/theme'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import type { Egreso, EgresosEventoState } from '@/hooks/useEgresos'
-import { CARD, DIVIDER, MUTED, ORO, ROJO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
+import { CARD, DIVIDER, MUTED, ORO, ROJO, SOBRE_ORO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
 
 // Formulario + lista de egresos de un evento (Manager y Subcomisión).
 // Recibe el estado de useEgresosEvento; con el evento cerrado oculta el
@@ -115,7 +115,7 @@ export function EgresosPanel({ estado }: { estado: EgresosEventoState }) {
             activeOpacity={0.85}
           >
             {guardando
-              ? <ActivityIndicator color={ORO} size="small" />
+              ? <ActivityIndicator color={SOBRE_ORO} size="small" />
               : <Text style={s.botonPrincipalTexto}>AGREGAR EGRESO</Text>
             }
           </TouchableOpacity>
@@ -191,7 +191,7 @@ const s = StyleSheet.create({
   bannerInfoTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO },
 
   // Botón
-  botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:      { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: SOBRE_ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

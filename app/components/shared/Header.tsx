@@ -9,7 +9,11 @@ import { usePerfilAvatar } from '@/lib/perfilAvatarStore'
 
 // Botón de "Mi perfil" arriba a la derecha (auditoría UX, T7): reemplaza la
 // pestaña Perfil en los roles donde todas las pantallas muestran este Header.
-function AvatarPerfil() {
+// Exportado para las pantallas con encabezado propio (X9: subcomisión y
+// entrenador sin pestaña Perfil). UsuariosScreen lo comparten subcomisión y
+// admin: admin conserva su pestaña Perfil y además ve el avatar (dos accesos
+// al mismo lugar, sin efecto en permisos).
+export function AvatarPerfil() {
   const { colors: tc } = useTheme()
   const router   = useRouter()
   const segments = useSegments()

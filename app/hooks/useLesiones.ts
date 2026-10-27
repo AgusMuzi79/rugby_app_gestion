@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { encolar } from '@/lib/offlineQueue'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorOpcion {
   id: string
@@ -30,7 +31,7 @@ export interface DivisionOpcion {
 }
 
 function fechaHoy(): string {
-  return new Date().toISOString().split('T')[0]
+  return fechaLocal()
 }
 
 export function useLesiones() {

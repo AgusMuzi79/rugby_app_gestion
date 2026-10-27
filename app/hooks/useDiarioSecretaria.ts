@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 interface EstadosSocios {
   activos:   number
@@ -32,11 +33,11 @@ const INITIAL: DashboardSecretaria = {
 }
 
 export function useDiarioSecretaria() {
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DashboardSecretaria>(INITIAL)
 
   const fetch = useCallback(async () => {
-    setLoading(true)
+    empezar()
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
@@ -85,11 +86,11 @@ export function useDiarioSecretaria() {
     })
 
     setData({ estados, pagosRecientes, totalSocios: totalRes.count ?? 0 })
-    setLoading(false)
-  }, [])
+    terminar()
+  }, [empezar, terminar])
 
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
-  return { loading, data, refetch: fetch }
+  return { loading, refrescando, data, refetch: fetch }
 }

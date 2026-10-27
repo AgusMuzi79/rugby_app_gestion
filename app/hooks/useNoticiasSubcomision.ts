@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { buildNoticiaSubcomision } from '@/lib/noticiaSubcomision'
 import { resultadoBorrado } from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 export interface NoticiaSubco {
   id:          string
@@ -37,12 +38,12 @@ export function useNoticiasSubcomision() {
   const { session } = useAuthStore()
   const [noticias, setNoticias]     = useState<NoticiaSubco[]>([])
   const [deporte, setDeporte]       = useState<string | null>(null)
-  const [loading, setLoading]       = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [error, setError]           = useState<string | null>(null)
   const [publicando, setPublicando] = useState(false)
 
   const fetchNoticias = useCallback(async () => {
-    setLoading(true)
+    empezar()
     setError(null)
     const { data, error: err } = await supabase
       .from('noticias')
@@ -52,7 +53,7 @@ export function useNoticiasSubcomision() {
 
     if (err) {
       setError(err.message)
-      setLoading(false)
+      terminar()
       return
     }
 
@@ -62,8 +63,8 @@ export function useNoticiasSubcomision() {
         ? supabase.storage.from(BUCKET).getPublicUrl(n.imagen_path).data.publicUrl
         : null,
     })))
-    setLoading(false)
-  }, [])
+    terminar()
+  }, [empezar, terminar])
 
   const fetchDeporte = useCallback(async () => {
     if (!session?.user.id) return
@@ -164,5 +165,5 @@ export function useNoticiasSubcomision() {
     setNoticias(prev => prev.filter(n => n.id !== noticia.id))
   }, [fetchNoticias])
 
-  return { noticias, deporte, loading, error, publicando, publicar, eliminar, refetch: fetchNoticias }
+  return { noticias, deporte, loading, refrescando, error, publicando, publicar, eliminar, refetch: fetchNoticias }
 }

@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorAsistencia {
   id: string
@@ -18,6 +20,7 @@ export interface UseAsistenciaCoordinadorReturn {
   divisionSeleccionada: string | null
   divisionNombre: string
   loading: boolean
+  refrescando: boolean
   sinDivisiones: boolean
   seleccionarDivision: (id: string) => void
   recargar: () => void
@@ -28,24 +31,40 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
   const [jugadores, setJugadores] = useState<JugadorAsistencia[]>([])
   const [divisiones, setDivisiones] = useState<{ id: string; nombre: string }[]>([])
   const [divisionSeleccionada, setDivisionSeleccionada] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { loading: primeraCarga, refrescando: releyendo, empezar, terminar } = useEstadoCarga()
+  // División de la lista que está en pantalla: al cambiar de división la lista
+  // es otra, así que se muestra el spinner; al volver a la pestaña, no.
+  const [divisionCargada, setDivisionCargada] = useState<string | null>(null)
   const [sinDivisiones, setSinDivisiones] = useState(false)
 
   const divisionNombre = divisiones.find(d => d.id === divisionSeleccionada)?.nombre ?? ''
+  const cambiandoDivision = divisionCargada !== null && divisionCargada !== divisionSeleccionada
+  const loading     = primeraCarga || cambiandoDivision
+  const refrescando = releyendo && !cambiandoDivision
 
   useEffect(() => {
     if (session) fetchDivisiones()
   }, [session])
-  useRefreshOnFocus(fetchDivisiones)
+  // Relectura silenciosa: divisiones (mantiene la elegida) y la lista en pantalla.
+  useRefreshOnFocus(() => {
+    fetchDivisiones()
+    if (divisionSeleccionada) fetchJugadores(divisionSeleccionada)
+  })
+
+  // Sólo la última lectura escribe: si una lectura vieja (otra división, o la
+  // relectura al volver a la pestaña) termina después de la nueva, dejaba
+  // divisionCargada en la división equivocada y el spinner no se iba más.
+  const ultimaLectura = useRef(0)
 
   const fetchJugadores = useCallback(async (divisionId: string) => {
-    setLoading(true)
+    const lectura = ++ultimaLectura.current
+    empezar()
 
-    const hoy = new Date().toISOString().split('T')[0]
+    const hoy = fechaLocal()
 
     const hace30 = new Date()
     hace30.setDate(hace30.getDate() - 30)
-    const hace30Str = hace30.toISOString().split('T')[0]
+    const hace30Str = fechaLocal(hace30)
 
     const hace60 = new Date()
     hace60.setDate(hace60.getDate() - 60)
@@ -115,9 +134,11 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
       }
     })
 
+    if (lectura !== ultimaLectura.current) return
     setJugadores(jugadoresConStats)
-    setLoading(false)
-  }, [])
+    setDivisionCargada(divisionId)
+    terminar()
+  }, [empezar, terminar])
 
   async function fetchDivisiones() {
     if (!session) return
@@ -132,7 +153,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
 
     if (divIds.length === 0) {
       setSinDivisiones(true)
-      setLoading(false)
+      terminar()
       return
     }
 
@@ -146,9 +167,10 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     setDivisiones(divs)
 
     if (divs.length > 0) {
-      setDivisionSeleccionada(divs[0].id)
+      // Mantener la elegida si sigue siendo válida (el foco no la resetea)
+      setDivisionSeleccionada(prev => (prev && divs.some(d => d.id === prev) ? prev : divs[0].id))
     } else {
-      setLoading(false)
+      terminar()
     }
   }
 
@@ -166,6 +188,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     divisionSeleccionada,
     divisionNombre,
     loading,
+    refrescando,
     sinDivisiones,
     seleccionarDivision,
     recargar: () => { if (divisionSeleccionada) fetchJugadores(divisionSeleccionada) },

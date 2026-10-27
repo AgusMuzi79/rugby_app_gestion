@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { FEATURES } from '@/constants/features'
+import { fechaLocal } from '@/lib/fecha'
 
 export type CronicaTipo = 'urgente' | 'alerta' | 'info'
 
@@ -27,10 +29,10 @@ export interface DiarioSubcomisionData {
   cronica:            CronicaItem[]
 }
 
-function hoy()       { return new Date().toISOString().split('T')[0] }
-function hace7Dias() { const d = new Date(); d.setDate(d.getDate() - 7);  return d.toISOString().split('T')[0] }
-function hace14Dias(){ const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().split('T')[0] }
-function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()       { return fechaLocal() }
+function hace7Dias() { const d = new Date(); d.setDate(d.getDate() - 7);  return fechaLocal(d) }
+function hace14Dias(){ const d = new Date(); d.setDate(d.getDate() - 14); return fechaLocal(d) }
+function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 function notifTipo(tipo: string): CronicaTipo {
   if (tipo === 'lesion')                return 'urgente'
@@ -53,7 +55,7 @@ const DEFAULT: DiarioSubcomisionData = {
 
 export function useDiarioSubcomision() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioSubcomisionData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -61,7 +63,7 @@ export function useDiarioSubcomision() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const [profileRes, eventos7DRes, eventosPrev7DRes, fichadosRes, lesionesRes, financieroRes, notifRes] =
@@ -159,8 +161,8 @@ export function useDiarioSubcomision() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

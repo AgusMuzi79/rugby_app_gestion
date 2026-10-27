@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -115,7 +116,7 @@ function formVacio(modo: ModoEventos, preseleccion: string[]): NuevoEventoForm {
 export function useEventos(modo: ModoEventos = 'subcomision') {
   const { session } = useAuthStore()
 
-  const [loading, setLoading]           = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   // Sólo modo manager: todas las divisiones asignadas (profiles.divisiones)
   const [misDivisiones, setMisDivisiones] = useState<DivisionRef[]>([])
   const [sinDivision, setSinDivision]   = useState(false)
@@ -141,16 +142,18 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
 
   useEffect(() => {
     if (session) fetchTodo()
-    else setLoading(false)
+    else terminar()
   }, [session])
-  useRefreshOnFocus(fetchTodo)
+  // Con un detalle abierto no se relee la lista al volver a la pestaña: el
+  // detalle (y lo que se esté tipeando adentro) queda montado tal cual.
+  useRefreshOnFocus(() => { if (paso !== 'detalle') fetchTodo() })
 
   async function fetchTodo() {
     if (!session) {
-      setLoading(false)
+      terminar()
       return
     }
-    setLoading(true)
+    empezar()
     setErrorCarga(null)
     try {
       if (modo === 'manager') {
@@ -162,7 +165,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     } catch {
       setErrorCarga(ERROR_CARGA_EVENTOS)
     } finally {
-      setLoading(false)
+      terminar()
     }
   }
 
@@ -445,6 +448,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
 
   return {
     loading,
+    refrescando,
     recargar:        fetchTodo,
     misDivisiones,
     divisionesLabel: etiquetaDivisiones(misDivisiones) ?? '',

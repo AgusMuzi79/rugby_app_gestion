@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -117,29 +118,19 @@ async function callImportarServicios<T>(
   modo: 'preview' | 'confirmar',
   bajasAprobadas: string[] = [],
 ): Promise<T & { error?: string }> {
-  const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
   if (modo === 'confirmar') formData.append('bajas_aprobadas', JSON.stringify(bajasAprobadas))
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-servicios`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-      body: formData,
-    }
-  )
-  // Un error del gateway (sesión vencida, timeout, archivo muy grande) puede
-  // venir sin `error` o sin JSON: se normaliza a `{ error }` para no guardar en
-  // el estado una respuesta que no es una vista previa ni un resultado.
-  let body: Record<string, unknown> | null = null
-  try { body = await res.json() } catch { body = null }
-  const mensaje = body && (body.error ?? body.msg ?? body.message)
-  if (!res.ok || !body || typeof body.detalle !== 'object' || body.detalle === null) {
-    return { error: typeof mensaje === 'string' && mensaje ? mensaje : `Error ${res.status} al llamar a importar-servicios` } as T & { error?: string }
+  // Cliente compartido: un error del gateway (sesión vencida, timeout, archivo
+  // muy grande, sin JSON) vuelve como `{ error }` legible.
+  const body = await callEdgeFunction<Record<string, unknown>>('importar-servicios', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
+  if (body.error) return { error: body.error } as T & { error?: string }
+  // Tampoco se guarda en el estado algo que no es una vista previa ni un resultado.
+  if (typeof body.detalle !== 'object' || body.detalle === null) {
+    return { error: 'El servidor respondió algo inesperado al importar servicios.' } as T & { error?: string }
   }
-  return body as T & { error?: string }
+  return body as unknown as T & { error?: string }
 }
 
 function formatFecha(iso: string | null | undefined): string {
@@ -267,7 +258,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
 
       {error && (
         <div className="mt-4 p-4 border border-rojo bg-rojo/5">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-1">NO SE PUDO CALCULAR/APLICAR</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">NO SE PUDO CALCULAR/APLICAR</p>
           <p className="font-lora text-sm text-tinta/70 whitespace-pre-wrap">{error}</p>
         </div>
       )}
@@ -283,11 +274,11 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             <p className="font-lora text-sm text-tinta/50"><span className="text-tinta/50 block text-xs">Sin cambio</span>{resultado.sin_cambio}</p>
           </div>
           {resultado.errores > 0 && (
-            <p className="font-lora text-xs text-rojo mt-1">
+            <p className="font-lora text-xs text-rojo-texto mt-1">
               {resultado.errores} fila{resultado.errores === 1 ? '' : 's'} con error — no se aplicaron
             </p>
           )}
-          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" items={resultado.detalle.errores} fila={e => (
+          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo-texto" items={resultado.detalle.errores} fila={e => (
             <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
               <td className={tdNumero}>{e.numero_socio}</td>
               <td className={tdNombre}>{e.nombre || '—'}</td>
@@ -308,7 +299,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             <p className="font-lora text-sm text-tinta/50"><span className="text-tinta/50 block text-xs">Sin cambio</span>{preview.sin_cambio}</p>
           </div>
           {(preview.conflictos > 0 || preview.sin_match > 0 || preview.conceptos_desconocidos > 0 || preview.errores > 0) && (
-            <p className="font-lora text-xs text-rojo mt-1">
+            <p className="font-lora text-xs text-rojo-texto mt-1">
               Avisos: {preview.conflictos} conflicto{preview.conflictos === 1 ? '' : 's'}, {preview.sin_match} sin socio en la base,{' '}
               {preview.conceptos_desconocidos} concepto{preview.conceptos_desconocidos === 1 ? '' : 's'} desconocido{preview.conceptos_desconocidos === 1 ? '' : 's'},{' '}
               {preview.errores} error{preview.errores === 1 ? '' : 'es'} — no se aplican (ver detalle abajo)
@@ -335,7 +326,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
 
           {(preview.servicios_ausentes.length > 0 || preview.servicios_baja_masiva.length > 0) && (
             <div className="mt-3 p-4 border-2 border-rojo bg-rojo/10">
-              <p className="font-lora text-xs tracking-widest text-rojo mb-1">ATENCIÓN — POSIBLE EXPORT PARCIAL</p>
+              <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">ATENCIÓN — POSIBLE EXPORT PARCIAL</p>
               {preview.servicios_ausentes.length > 0 && (
                 <p className="font-lora text-sm text-tinta">
                   El archivo no trae ninguna fila de: {preview.servicios_ausentes.join(', ')}. Si es un export parcial,
@@ -366,7 +357,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
 
           {preview.detalle.eliminados.length > 0 && (
             <div className="mt-3">
-              <p className="font-lora text-xs tracking-widest mb-1 text-rojo">
+              <p className="font-lora text-xs tracking-widest mb-1 text-rojo-texto">
                 ELIMINADOS ({bajasAAplicar} de {preview.detalle.eliminados.length})
               </p>
               <p className="font-lora text-xs text-tinta/50 mb-2">
@@ -390,8 +381,8 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                           <td className={tdNombre}>{e.nombre || '—'}</td>
                           <td className={tdDato}>
                             {e.servicio}{e.manual ? ' (cargado a mano)' : ` — ${e.variante}`}
-                            {e.servicio_ausente && <span className="text-rojo"> · servicio ausente del archivo</span>}
-                            {e.baja_masiva && <span className="text-rojo"> · baja masiva (más del 30%)</span>}
+                            {e.servicio_ausente && <span className="text-rojo-texto"> · servicio ausente del archivo</span>}
+                            {e.baja_masiva && <span className="text-rojo-texto"> · baja masiva (más del 30%)</span>}
                           </td>
                           <td className={tdDerecha}>{formatImporte(e.importe)}</td>
                         </tr>
@@ -419,14 +410,14 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
             </tr>
           )} />
 
-          <Lista titulo="CONCEPTOS DESCONOCIDOS — NO SE IMPORTAN" colorClase="text-rojo" items={preview.detalle.conceptos_desconocidos} fila={c => (
+          <Lista titulo="CONCEPTOS DESCONOCIDOS — NO SE IMPORTAN" colorClase="text-rojo-texto" items={preview.detalle.conceptos_desconocidos} fila={c => (
             <tr key={c.concepto} className="border-b border-gris-claro last:border-0">
               <td className={tdNombre}>{c.concepto}</td>
               <td className={tdDerecha}>{c.casos} socio{c.casos === 1 ? '' : 's'}</td>
             </tr>
           )} />
 
-          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo" items={preview.detalle.errores} fila={e => (
+          <Lista titulo="ERRORES — SIN APLICAR" colorClase="text-rojo-texto" items={preview.detalle.errores} fila={e => (
             <tr key={`${e.numero_socio}|${e.servicio}`} className="border-b border-gris-claro last:border-0">
               <td className={tdNumero}>{e.numero_socio}</td>
               <td className={tdNombre}>{e.nombre || '—'}</td>
@@ -445,7 +436,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
                 ? 'APLICANDO…'
                 : `CONFIRMAR Y APLICAR (${preview.agregados} agregados, ${preview.actualizados} cambios, ${bajasAAplicar} eliminados)`}
             </button>
-            <p className="font-lora text-xs text-tinta/40 italic">
+            <p className="font-lora text-xs text-texto-2 italic">
               Quitar Gimnasio a un socio hace que el lector del gimnasio lo rechace — revisá los eliminados antes de confirmar.
             </p>
           </div>
@@ -463,7 +454,7 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES DE SERVICIOS</p>
       {historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
       ) : (
         <ListaColapsable items={historial} render={visibles => (
@@ -490,7 +481,7 @@ function HistorialServicios({ historial }: { historial: ImportacionServicios[] }
                 <td className="font-lora text-sm text-tinta text-right py-3 pr-4">{imp.eliminados}</td>
                 <td className="font-lora text-sm text-tinta/60 text-right py-3 pr-4">{imp.omitidos}</td>
                 <td className="font-lora text-sm text-tinta/60 text-right py-3 pr-4">{imp.sin_cambio}</td>
-                <td className="font-lora text-sm text-right py-3 text-rojo">{imp.errores || '—'}</td>
+                <td className="font-lora text-sm text-right py-3 text-rojo-texto">{imp.errores || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -543,7 +534,7 @@ export default function SeccionServicios() {
       </div>
       <SeccionImportarServicios onAplicado={fetchHistorial} />
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : (
         <HistorialServicios historial={historial} />
       )}

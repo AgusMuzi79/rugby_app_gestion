@@ -1,5 +1,5 @@
 import {
-  ScrollView, View, Text, StyleSheet, ActivityIndicator,
+  ScrollView, View, Text, StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -61,7 +61,7 @@ export default function DiarioSecretariaScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, data } = useDiarioSecretaria()
+  const { loading, refrescando, data, refetch } = useDiarioSecretaria()
 
   return (
     <ScrollView
@@ -69,6 +69,7 @@ export default function DiarioSecretariaScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 
@@ -108,7 +109,7 @@ export default function DiarioSecretariaScreen() {
                 label="PENDIENTES"
                 value={String(data.estados.pendientes)}
                 sub="sin foto validada"
-                accent={data.estados.pendientes > 0 ? '#E67E22' : undefined}
+                accent={data.estados.pendientes > 0 ? colors.estadoPendiente : undefined}
               />
               <StatCard
                 label="INACTIVOS"
@@ -157,7 +158,7 @@ export default function DiarioSecretariaScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#15110A' },
+  root:        { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 60 },
   activityIndicator: { marginTop: 60 },
 
@@ -167,7 +168,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -175,37 +176,37 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 34, color: '#F3EFE4', marginBottom: 14 },
-  divider:         { height: 1, backgroundColor: '#2C2418' },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 34, color: colors.texto, marginBottom: 14 },
+  divider:         { height: 1, backgroundColor: colors.borde },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
   sectionUltimosPagos: { paddingHorizontal: 20, paddingTop: 22, marginTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
-  secLine:  { flex: 1, height: 1, backgroundColor: '#2C2418' },
+  secLine:  { flex: 1, height: 1, backgroundColor: colors.borde },
 
   gridRow:   { flexDirection: 'row', gap: 10 },
   gridRowMt: { flexDirection: 'row', gap: 10, marginTop: 10 },
   statCard: {
     flex: 1, borderWidth: 1, borderRadius: 4, padding: 14, minHeight: 90,
     borderLeftWidth: 3,
-    backgroundColor: '#1C1710', borderColor: '#2C2418', borderLeftColor: '#2C2418',
+    backgroundColor: colors.card, borderColor: colors.borde, borderLeftColor: colors.borde,
   },
-  statCardDefaultAccent: { borderLeftColor: '#2C2418' },
-  statLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: '#8E8574' },
-  statValue: { fontFamily: fonts.titulo, fontSize: 32, lineHeight: 36, color: '#F3EFE4' },
-  statSub:   { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: '#7C7267', marginTop: 2 },
+  statCardDefaultAccent: { borderLeftColor: colors.borde },
+  statLabel: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6, color: colors.muted },
+  statValue: { fontFamily: fonts.titulo, fontSize: 32, lineHeight: 36, color: colors.texto },
+  statSub:   { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted, marginTop: 2 },
 
   pagoRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#2C2418',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borde,
   },
   pagoLeft:   { flex: 1 },
-  pagoNombre: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#F3EFE4', marginBottom: 2 },
-  pagoPeriodo:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: '#8E8574' },
+  pagoNombre: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto, marginBottom: 2 },
+  pagoPeriodo:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: colors.muted },
   pagoRight:  { alignItems: 'flex-end', gap: 2 },
-  pagoMonto:  { fontFamily: fonts.titulo, fontSize: 19, color: '#F3EFE4' },
-  pagoForma:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: '#8E8574' },
+  pagoMonto:  { fontFamily: fonts.titulo, fontSize: 19, color: colors.texto },
+  pagoForma:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted },
 
-  emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#8E8574' },
+  emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted },
 })

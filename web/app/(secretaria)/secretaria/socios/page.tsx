@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
+import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -53,23 +54,7 @@ const ESTADO_COLOR: Record<string, string> = {
   activo: 'text-[#2ECC71] border-[#2ECC71]',
   moroso: 'text-oro border-oro',
   pendiente: 'text-[#E67E22] border-[#E67E22]',
-  inactivo: 'text-tinta/30 border-gris-claro',
-}
-
-async function callEdgeFunction(name: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession()
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token ?? ''}`,
-      },
-      body: JSON.stringify(body),
-    }
-  )
-  return res.json()
+  inactivo: 'text-texto-2 border-gris-claro',
 }
 
 // ─── Detalle socio ────────────────────────────────────────────────────────────
@@ -103,7 +88,9 @@ function DetalleSocio({
 
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
-  const setStatus = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3500) }
+  // Sin auto-ocultado: el mensaje queda hasta la próxima acción (auditoría UX, X8).
+  const setStatus = (m: string) => setMsg(m)
+  const msgEsError = msg.startsWith('Error:')
 
   const handleDesactivar = async () => {
     if (!confirm('¿Desactivar este socio? Se bloqueará su acceso.')) return
@@ -126,7 +113,7 @@ function DetalleSocio({
 
   const handleValidarFoto = async () => {
     setActualizando(true)
-    const json = await callEdgeFunction('admin-socios', { action: 'validate-photo', socio_id: socio.id })
+    const json = await callEdgeFunction<{ validada?: boolean; mensaje?: string }>('admin-socios', { action: 'validate-photo', socio_id: socio.id })
     setActualizando(false)
     if (json.error) { setStatus(`Error: ${json.error}`); return }
     setStatus(json.validada ? 'Foto validada ✓' : (json.mensaje ?? 'No se pudo validar la foto.'))
@@ -160,9 +147,17 @@ function DetalleSocio({
         ← VOLVER A SOCIOS
       </button>
 
-      {msg && (
-        <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-tinta">{msg}</div>
-      )}
+      {/* Regiones vivas siempre montadas para que el lector de pantalla anuncie el cambio. */}
+      <div role="status">
+        {msg && !msgEsError && (
+          <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-tinta">{msg}</div>
+        )}
+      </div>
+      <div role="alert">
+        {msgEsError && (
+          <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-rojo-texto">{msg}</div>
+        )}
+      </div>
 
       <div className="grid grid-cols-3 gap-8">
         {/* Info principal */}
@@ -229,7 +224,7 @@ function DetalleSocio({
             <img src={fotoUrl} alt="Foto socio" className="w-full aspect-square object-cover mb-1" />
           ) : (
             <div className="w-full aspect-square bg-card border border-gris-claro flex items-center justify-center mb-1">
-              <span className="font-lora text-xs tracking-widest text-tinta/30">SIN FOTO</span>
+              <span className="font-lora text-xs tracking-widest text-texto-2">SIN FOTO</span>
             </div>
           )}
           <p className="font-lora text-xs tracking-widest text-tinta/50 mb-1">ACCIONES</p>
@@ -248,7 +243,7 @@ function DetalleSocio({
             <button
               onClick={handleDesactivar}
               disabled={actualizando}
-              className="font-lora text-xs tracking-widest py-3 border border-rojo text-rojo hover:bg-rojo/5 transition-colors disabled:opacity-50"
+              className="font-lora text-xs tracking-widest py-3 border border-rojo text-rojo-texto hover:bg-rojo/5 transition-colors disabled:opacity-50"
             >
               DESACTIVAR SOCIO
             </button>
@@ -421,7 +416,7 @@ export default function SociosPage() {
   // ── Vista lista ────────────────────────────────────────────────────────────
   return (
     <div>
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Socios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
@@ -440,7 +435,7 @@ export default function SociosPage() {
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre, DNI o Nº socio…"
-          className="flex-1 font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-oro transition-colors"
+          className="flex-1 font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-oro transition-colors"
         />
         <div className="flex gap-1">
           {FILTROS.map(f => (
@@ -460,10 +455,10 @@ export default function SociosPage() {
       </div>
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">
+          <p className="font-lora text-texto-2 text-sm tracking-widest">
             {busqueda ? 'SIN RESULTADOS' : 'NO HAY SOCIOS EN ESTA VISTA'}
           </p>
         </div>
@@ -490,7 +485,7 @@ export default function SociosPage() {
                 <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{s.categoria}</td>
                 <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{s.dni}</td>
                 <td className="text-center py-4 pr-4">
-                  <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${ESTADO_COLOR[s.estado] ?? 'border-gris-claro text-tinta/40'}`}>
+                  <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${ESTADO_COLOR[s.estado] ?? 'border-gris-claro text-texto-2'}`}>
                     {(ESTADO_LABEL[s.estado] ?? s.estado).toUpperCase()}
                   </span>
                 </td>

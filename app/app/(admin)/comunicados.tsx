@@ -191,7 +191,7 @@ function ModalNuevoComunicado({
             activeOpacity={0.8}
           >
             {publicando
-              ? <ActivityIndicator color={colors.oro} />
+              ? <ActivityIndicator color={colors.sobreOro} />
               : <Text style={s.publicarBtnText}>PUBLICAR</Text>}
           </TouchableOpacity>
         </ScrollView>
@@ -206,7 +206,7 @@ export default function ComunicadosAdminScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { comunicados, loading, errorCarga, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
+  const { comunicados, loading, refrescando, errorCarga, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
   const [modalVisible, setModalVisible] = useState(false)
 
   return (
@@ -244,12 +244,12 @@ export default function ComunicadosAdminScreen() {
           contentContainerStyle={s.listContent}
           renderItem={({ item }) => <FilaComunicado comunicado={item} onEliminar={eliminar} />}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 
       <TouchableOpacity style={s.fab} onPress={() => setModalVisible(true)} activeOpacity={0.85}>
-        <Feather name="plus" size={22} color={FONDO} />
+        <Feather name="plus" size={22} color={colors.sobreOro} />
       </TouchableOpacity>
 
       <ModalNuevoComunicado
@@ -264,11 +264,11 @@ export default function ComunicadosAdminScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 
 const s = StyleSheet.create({
   root:              { flex: 1, backgroundColor: FONDO },
@@ -281,7 +281,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -347,7 +347,7 @@ const s = StyleSheet.create({
   chipActivo:       { backgroundColor: colors.tinta, borderColor: colors.tinta },
   chipInactivo:     { backgroundColor: 'transparent', borderColor: DIVIDER },
   chipText:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2 },
-  chipTextActivo:   { color: FONDO },
+  chipTextActivo:   { color: colors.sobreOro },
   chipTextInactivo: { color: MUTED },
   nota: {
     fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', marginTop: 8, color: MUTED,
@@ -378,7 +378,7 @@ const s = StyleSheet.create({
   publicarBtnDisabled: { opacity: 0.5 },
   publicarBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: FONDO,
+    textTransform: 'uppercase', color: colors.sobreOro,
   },
 
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },

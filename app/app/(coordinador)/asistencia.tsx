@@ -6,27 +6,27 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAsistenciaCoordinador, JugadorAsistencia } from '@/hooks/useAsistenciaCoordinador'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 const ROJO    = colors.rojoUrgente
-const VERDE   = '#22C55E'
+const VERDE   = colors.confirmacion
 const NARANJA = '#F97316'
 
 function colorPorcentaje(p: number | null): string {
   if (p === null) return MUTED
   if (p >= 75) return VERDE
   if (p >= 50) return NARANJA
-  return ROJO
+  return colors.rojoTexto // texto: rojoUrgente da 3.69:1
 }
 
 // ─── FilaJugador ─────────────────────────────────────────────────────────────
@@ -105,6 +105,7 @@ export default function AsistenciaCoordinadorScreen() {
     divisionSeleccionada,
     divisionNombre,
     loading,
+    refrescando,
     sinDivisiones,
     seleccionarDivision,
     recargar,
@@ -112,7 +113,7 @@ export default function AsistenciaCoordinadorScreen() {
 
   if (sinDivisiones) {
     return (
-      <SafeAreaView style={styles.centrado}>
+      <SafeAreaView style={styles.centrado} edges={['top']}>
         <Text style={styles.mutedTexto}>Sin divisiones asignadas.</Text>
         <Text style={styles.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -122,7 +123,7 @@ export default function AsistenciaCoordinadorScreen() {
   const conAlerta = jugadores.filter(j => j.ausenciasConsecutivas).length
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <Text style={styles.titulo}>Asistencia</Text>
@@ -184,7 +185,7 @@ export default function AsistenciaCoordinadorScreen() {
               </View>
             }
             onRefresh={recargar}
-            refreshing={loading}
+            refreshing={refrescando}
           />
         </>
       )}
@@ -205,9 +206,9 @@ const styles = StyleSheet.create({
   selectorScroll:  { marginBottom: 12 },
   selectorContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row', alignItems: 'center' },
   pill:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  pillActiva:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
-  pillTextoActivo: { color: colors.oro },
+  pillTextoActivo: { color: colors.sobreOro },
 
   divider:    { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   dividerMt:  { marginTop: 12 },
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
   nombreJugador:       { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, flexShrink: 1 },
   detalle:             { fontFamily: fonts.label, fontSize: 13, color: MUTED, marginTop: 2 },
   alerta:              { backgroundColor: ROJO, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 },
-  alertaTexto:         { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: 0.5 },
+  alertaTexto:         { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: colors.blanco, letterSpacing: 0.5 },
   porcentajeContainer: { minWidth: 48, alignItems: 'flex-end' },
   porcentaje:          { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700', letterSpacing: 0.5 },
 

@@ -12,6 +12,9 @@ export const colors = {
   sobreOro:      '#15110A', // texto sobre oro, oroHondo y badges de color
   oroSobreClaro: '#7A4F00', // acento dorado sobre fondo crema (tinta)
   rojoTexto:     '#E5634A', // texto de error / aviso sobre fondo oscuro
+  // Texto secundario (fechas, descripciones, autor) sobre fondo crema (tinta),
+  // 7.39:1 (auditoría UX, X4). Reemplaza #9A8870 / #C9B98A / #7A6D50.
+  mutedSobreClaro: '#5C4A2E',
   // Semánticos de superficie, texto y estado (auditoría UX, T17). Este archivo
   // es la única fuente de valores: ThemeContext deriva su paleta de acá. Un
   // rediseño cambia valores, no nombres. Algunos coinciden hoy con tokens de

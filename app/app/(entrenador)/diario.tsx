@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -11,11 +11,12 @@ import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
 import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
+import { fechaLocal } from '@/lib/fecha'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function esHoy(fecha: string): boolean {
-  return fecha === new Date().toISOString().split('T')[0]
+  return fecha === fechaLocal()
 }
 
 function formatBadgeEvento(ev: ProximoEvento): string {
@@ -94,18 +95,20 @@ function CardEvento({
   )
 }
 
-const TAREA_COLORS: Record<TareaPendiente['tipo'], string> = {
-  RESULTADO: colors.oroHondo,
-  MESA:      colors.tinta,
-  LESIÓN:    colors.rojoUrgente,
+// Fondo del badge y su texto: blanco sólo sobre rojo (4.82:1); sobre oroHondo
+// y crema el blanco no llega (2.97 / 1.15), va sobreOro.
+const TAREA_COLORS: Record<TareaPendiente['tipo'], { bg: string; texto: string }> = {
+  RESULTADO: { bg: colors.oroHondo,    texto: colors.sobreOro },
+  MESA:      { bg: colors.tinta,       texto: colors.sobreOro },
+  LESIÓN:    { bg: colors.rojoUrgente, texto: colors.blanco },
 }
 
 function FilaTarea({ tarea, onPress }: { tarea: TareaPendiente; onPress: () => void }) {
-  const badgeColor = TAREA_COLORS[tarea.tipo]
+  const badge = TAREA_COLORS[tarea.tipo]
   return (
     <TouchableOpacity style={s.tareaRow} onPress={onPress} activeOpacity={0.75}>
-      <View style={[s.tareaBadge, { backgroundColor: badgeColor }]}>
-        <Text style={s.tareaBadgeText}>{tarea.tipo}</Text>
+      <View style={[s.tareaBadge, { backgroundColor: badge.bg }]}>
+        <Text style={[s.tareaBadgeText, { color: badge.texto }]}>{tarea.tipo}</Text>
       </View>
       <Text style={s.tareaDesc} numberOfLines={1}>{tarea.desc}</Text>
       <Text style={s.tareaArrow}>→</Text>
@@ -120,7 +123,7 @@ export default function DiarioEntrenadorScreen() {
   useScrollToTop(scrollRef)
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, data } = useDiarioEntrenador()
+  const { loading, refrescando, data, refetch } = useDiarioEntrenador()
 
   if (data.sinDivision && !loading) {
     return (
@@ -137,6 +140,7 @@ export default function DiarioEntrenadorScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 
@@ -215,12 +219,12 @@ export default function DiarioEntrenadorScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 48 },
   activityIndicator: { marginTop: 40 },
 
   sinDivWrap: {
-    flex: 1, backgroundColor: '#15110A',
+    flex: 1, backgroundColor: colors.fondo,
     justifyContent: 'center', alignItems: 'center',
   },
 
@@ -230,7 +234,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionMeta: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
@@ -239,7 +243,7 @@ const s = StyleSheet.create({
   },
 
   saludoContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: colors.tinta, marginBottom: 14 },
+  saludoTexto:     { fontFamily: fonts.titulo, fontSize: 32, color: colors.texto, marginBottom: 14 },
   saludoDivider:   { height: 1, backgroundColor: colors.grisClaro },
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
@@ -253,10 +257,10 @@ const s = StyleSheet.create({
   },
   eventoBadge: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro, marginBottom: 14,
+    textTransform: 'uppercase', color: colors.oroSobreClaro, marginBottom: 14,
   },
   eventoNombre: {
-    fontFamily: fonts.titulo, fontSize: 30, color: colors.oro,
+    fontFamily: fonts.titulo, fontSize: 30, color: colors.oroSobreClaro,
     lineHeight: 34, marginBottom: 10,
   },
   eventoLugar: {
@@ -273,7 +277,7 @@ const s = StyleSheet.create({
   },
   asistenciaBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5,
-    textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
+    textTransform: 'uppercase', color: colors.sobreOro, fontWeight: '700',
   },
 
   // Tareas
@@ -289,22 +293,22 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.blanco,
   },
-  tareaDesc:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 14, color: colors.tinta },
+  tareaDesc:  { flex: 1, fontFamily: fonts.cuerpo, fontSize: 14, color: colors.texto },
   tareaArrow: { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
 
   // Atajos
   grid:    { gap: 10 },
   gridRow: { flexDirection: 'row', gap: 10 },
   atajoCard: {
-    flex: 1, borderWidth: 1, borderColor: colors.tinta,
+    flex: 1, borderWidth: 1, borderColor: colors.texto,
     paddingVertical: 26, alignItems: 'center', borderRadius: 4,
-    backgroundColor: '#15110A',
+    backgroundColor: colors.fondo,
   },
   atajoCardGold: { backgroundColor: colors.oro, borderColor: colors.oro },
-  atajoText:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: colors.tinta },
-  atajoTextDark: { color: colors.tinta },
+  atajoText:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', color: colors.texto },
+  atajoTextDark: { color: colors.sobreOro },
 
   emptyText:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
-  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, marginBottom: 8 },
+  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.texto, marginBottom: 8 },
   sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

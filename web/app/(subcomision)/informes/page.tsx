@@ -157,7 +157,7 @@ export default function InformesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="font-lora text-tinta/40 tracking-widest text-sm">CARGANDO…</p>
+        <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
       </div>
     )
   }
@@ -165,12 +165,12 @@ export default function InformesPage() {
   return (
     <div>
       <div className="mb-8">
-        <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">SUBCOMISIÓN · INFORMES</p>
+        <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · INFORMES</p>
         <h1 className="font-playfair italic text-4xl font-black text-tinta mb-6">Informes</h1>
         <select
           value={divFiltro}
           onChange={e => setDivFiltro(e.target.value)}
-          className="font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-tinta transition-colors"
+          className="font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-tinta transition-colors"
         >
           <option value="all">Todas las divisiones</option>
           {divisiones.map(d => (
@@ -188,7 +188,7 @@ export default function InformesPage() {
             className={`font-lora text-xs tracking-widest pb-3 transition-colors ${
               tab === t.key
                 ? 'text-tinta border-b-2 border-oro -mb-px'
-                : 'text-tinta/40 hover:text-tinta'
+                : 'text-texto-2 hover:text-tinta'
             }`}
           >
             {t.label}
@@ -200,16 +200,16 @@ export default function InformesPage() {
       {tab === 'asistencia' && (
         <div>
           {asistenciaRows.length === 0 ? (
-            <p className="font-lora text-tinta/40 text-sm text-center py-12">Sin datos de asistencia.</p>
+            <p className="font-lora text-texto-2 text-sm text-center py-12">Sin datos de asistencia.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gris-claro">
-                    <th className="font-lora text-xs tracking-widest text-tinta/40 pb-3 pr-6">JUGADOR</th>
-                    <th className="font-lora text-xs tracking-widest text-tinta/40 pb-3 pr-6 text-right">PRESENCIAS</th>
-                    <th className="font-lora text-xs tracking-widest text-tinta/40 pb-3 pr-6 text-right">TOTAL</th>
-                    <th className="font-lora text-xs tracking-widest text-tinta/40 pb-3 text-right">%</th>
+                    <th className="font-lora text-xs tracking-widest text-texto-2 pb-3 pr-6">JUGADOR</th>
+                    <th className="font-lora text-xs tracking-widest text-texto-2 pb-3 pr-6 text-right">PRESENCIAS</th>
+                    <th className="font-lora text-xs tracking-widest text-texto-2 pb-3 pr-6 text-right">TOTAL</th>
+                    <th className="font-lora text-xs tracking-widest text-texto-2 pb-3 text-right">%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -219,7 +219,7 @@ export default function InformesPage() {
                         <div className="flex items-center gap-3">
                           <span className="font-lora text-sm text-tinta">{jugador.nombre_completo}</span>
                           {cuatroConsec && (
-                            <span className="font-lora text-xs bg-rojo text-papel px-2 py-0.5 tracking-widest">4 AUS.</span>
+                            <span className="font-lora text-xs bg-rojo text-white px-2 py-0.5 tracking-widest">4 AUS.</span>
                           )}
                         </div>
                       </td>
@@ -227,11 +227,11 @@ export default function InformesPage() {
                       <td className="py-3 pr-6 text-right font-lora text-sm text-tinta/60">{total}</td>
                       <td className="py-3 text-right">
                         {pct !== null ? (
-                          <span className={`font-playfair text-lg font-black ${pct < 50 ? 'text-rojo' : 'text-tinta'}`}>
+                          <span className={`font-playfair text-lg font-black ${pct < 50 ? 'text-rojo-texto' : 'text-tinta'}`}>
                             {pct}%
                           </span>
                         ) : (
-                          <span className="font-lora text-sm text-tinta/30">—</span>
+                          <span className="font-lora text-sm text-texto-2">—</span>
                         )}
                       </td>
                     </tr>
@@ -247,21 +247,21 @@ export default function InformesPage() {
       {tab === 'resultados' && (
         <div>
           {resultadoRows.length === 0 ? (
-            <p className="font-lora text-tinta/40 text-sm text-center py-12">Sin resultados registrados.</p>
+            <p className="font-lora text-texto-2 text-sm text-center py-12">Sin resultados registrados.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {resultadoRows.map((r, i) => (
                 <div key={i} className="bg-card border border-gris-claro px-6 py-4 flex items-center justify-between">
                   <div>
                     <p className="font-playfair text-lg font-bold text-tinta">vs {r.eventos?.rival ?? '—'}</p>
-                    <p className="font-lora text-xs text-tinta/40 mt-0.5">{r.divNombre} · {r.eventos?.fecha ? new Date(r.eventos.fecha).toLocaleDateString('es-AR') : '—'}</p>
+                    <p className="font-lora text-xs text-texto-2 mt-0.5">{r.divNombre} · {r.eventos?.fecha ? new Date(r.eventos.fecha).toLocaleDateString('es-AR') : '—'}</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-playfair text-3xl font-black text-tinta">
                       {r.puntos_propios} – {r.puntos_rival}
                     </span>
                     <span className={`font-lora text-xs tracking-widest px-3 py-1 ${
-                      r.gano ? 'bg-oro text-papel' : r.empato ? 'bg-gris-claro text-tinta' : 'border border-rojo text-rojo'
+                      r.gano ? 'bg-oro text-papel' : r.empato ? 'bg-gris-claro text-tinta' : 'border border-rojo text-rojo-texto'
                     }`}>
                       {r.gano ? 'V' : r.empato ? 'E' : 'D'}
                     </span>
@@ -277,7 +277,7 @@ export default function InformesPage() {
       {tab === 'fichajes' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-1">
-            <p className="font-lora text-xs tracking-widest text-tinta/40 mb-3">POR DIVISIÓN</p>
+            <p className="font-lora text-xs tracking-widest text-texto-2 mb-3">POR DIVISIÓN</p>
             <div className="flex flex-col gap-1">
               {divisiones
                 .filter(d => divFiltro === 'all' || d.id === divFiltro)
@@ -290,9 +290,9 @@ export default function InformesPage() {
             </div>
           </div>
           <div className="lg:col-span-2">
-            <p className="font-lora text-xs tracking-widest text-tinta/40 mb-3">ÚLTIMOS 20 FICHAJES</p>
+            <p className="font-lora text-xs tracking-widest text-texto-2 mb-3">ÚLTIMOS 20 FICHAJES</p>
             {fichajesRows.recientes.length === 0 ? (
-              <p className="font-lora text-tinta/40 text-sm py-4">Sin fichajes.</p>
+              <p className="font-lora text-texto-2 text-sm py-4">Sin fichajes.</p>
             ) : (
               <div className="flex flex-col gap-1">
                 {fichajesRows.recientes.map((f, i) => {
@@ -300,13 +300,13 @@ export default function InformesPage() {
                   return (
                     <div key={f.id} className="bg-card border border-gris-claro px-5 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <span className="font-lora text-xs text-tinta/30 w-6">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="font-lora text-xs text-texto-2 w-6">{String(i + 1).padStart(2, '0')}</span>
                         <div>
                           <p className="font-lora text-sm text-tinta">{f.jugadores?.nombre_completo ?? '—'}</p>
-                          <p className="font-lora text-xs text-tinta/40">{div?.nombre ?? '—'}</p>
+                          <p className="font-lora text-xs text-texto-2">{div?.nombre ?? '—'}</p>
                         </div>
                       </div>
-                      <span className="font-lora text-xs text-tinta/40">
+                      <span className="font-lora text-xs text-texto-2">
                         {f.fecha_fichaje ? new Date(f.fecha_fichaje).toLocaleDateString('es-AR') : '—'}
                       </span>
                     </div>
@@ -322,24 +322,24 @@ export default function InformesPage() {
       {tab === 'financiero' && (
         <div className="flex flex-col gap-6">
           {financieroRows.length === 0 ? (
-            <p className="font-lora text-tinta/40 text-sm text-center py-12">Sin eventos financieros activos.</p>
+            <p className="font-lora text-texto-2 text-sm text-center py-12">Sin eventos financieros activos.</p>
           ) : (
             financieroRows.map(ev => (
               <div key={ev.id} className="bg-card border border-gris-claro">
                 <div className="px-6 py-4 border-b border-gris-claro flex items-center justify-between">
                   <div>
                     <p className="font-playfair text-lg font-bold text-tinta">{ev.nombre}</p>
-                    <p className="font-lora text-xs text-tinta/40 mt-0.5">{ev.divNombre} · {ev.tipo}</p>
+                    <p className="font-lora text-xs text-texto-2 mt-0.5">{ev.divNombre} · {ev.tipo}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-playfair text-2xl font-black text-tinta">${ev.montoCobrado.toLocaleString('es-AR')}</p>
-                    <p className="font-lora text-xs text-tinta/40">{ev.pagados}/{ev.total} pagados</p>
+                    <p className="font-lora text-xs text-texto-2">{ev.pagados}/{ev.total} pagados</p>
                   </div>
                 </div>
                 <div className="px-6 py-4 grid grid-cols-3 gap-4">
                   {['efectivo', 'transferencia', 'otro'].map(forma => (
                     <div key={forma}>
-                      <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">{forma.toUpperCase()}</p>
+                      <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">{forma.toUpperCase()}</p>
                       <p className="font-playfair text-2xl font-black text-tinta">{ev.formas[forma] ?? 0}</p>
                     </div>
                   ))}

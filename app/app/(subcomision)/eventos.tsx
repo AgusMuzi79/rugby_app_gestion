@@ -11,8 +11,9 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
-  SafeAreaView,
+  RefreshControl,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import {
   useEventos,
@@ -25,21 +26,22 @@ import {
   type DivisionRef,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
-const FONDO     = '#15110A'
-const CARD      = '#1C1710'
-const TEXTO     = '#F3EFE4'
-const MUTED     = '#8E8574'
-const DIVIDER   = '#2C2418'
+const FONDO     = colors.fondo
+const CARD      = colors.card
+const TEXTO     = colors.texto
+const MUTED     = colors.muted
+const DIVIDER   = colors.borde
 const ORO       = colors.oro
 const ORO_HONDO = colors.oroHondo
 const ROJO      = colors.rojoUrgente
-const VERDE     = '#4A7C59'
-const AZUL      = '#3B7FC4'
+const VERDE     = colors.estadoActivo // sólo texto y bordes: #4A7C59 daba 3.66:1 sobre card
+const AZUL      = '#5B9BE0' // #3B7FC4 daba 4.26:1 sobre card
 
 const TIPO_LABEL: Record<TipoEvento, string> = {
   recaudacion:   'RECAUDACIÓN',
@@ -197,7 +199,7 @@ function EventoDetalleContent({
   }
 
   return (
-    <SafeAreaView style={s.container}>
+    <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.detalleTopBar}>
         <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color={ORO} />
@@ -511,7 +513,7 @@ function ModalNuevoEvento({
               activeOpacity={0.85}
             >
               {guardando
-                ? <ActivityIndicator color={ORO} size="small" />
+                ? <ActivityIndicator color={colors.sobreOro} size="small" />
                 : <Text style={s.botonPrincipalTexto}>CREAR EVENTO</Text>
               }
             </TouchableOpacity>
@@ -529,7 +531,7 @@ function ModalNuevoEvento({
 // (viajes / tercer tiempos de sus divisiones, ver app/(manager)/eventos.tsx).
 export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
-    loading, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
+    loading, refrescando, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
     eventosActivos, eventosHistorial,
     paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
     abrirDetalle, volverALista,
@@ -563,14 +565,6 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
     )
   }
 
-  if (loading) {
-    return (
-      <View style={s.centrado}>
-        <ActivityIndicator size="large" color={ORO} />
-      </View>
-    )
-  }
-
   // Subcomisión: sus recaudaciones con Cobros | Egresos por división.
   if (paso === 'detalle' && eventoDetalle && !esManager) {
     return (
@@ -595,6 +589,15 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
     )
   }
 
+  // Después de los detalles: una relectura nunca reemplaza un detalle abierto.
+  if (loading) {
+    return (
+      <View style={s.centrado}>
+        <ActivityIndicator size="large" color={ORO} />
+      </View>
+    )
+  }
+
   async function handleGuardar() {
     const ok = await crearEvento()
     if (ok) cerrarModal()
@@ -603,12 +606,15 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial
 
   return (
-    <SafeAreaView style={s.container}>
-      <View style={s.header}>
-        <Text style={s.labelHeader}>
-          {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
-        </Text>
-        <Text style={s.titulo}>Eventos</Text>
+    <SafeAreaView style={s.container} edges={['top']}>
+      <View style={[s.header, s.headerFila]}>
+        <View style={s.headerTextos}>
+          <Text style={s.labelHeader}>
+            {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
+          </Text>
+          <Text style={s.titulo}>Eventos</Text>
+        </View>
+        <AvatarPerfil />
       </View>
       <View style={s.separador} />
 
@@ -624,6 +630,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
         style={s.scrollFlex}
         contentContainerStyle={s.lista}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={recargar} tintColor={ORO} />}
       >
         {listaActual.length === 0 ? (
           <Text style={s.emptyTexto}>
@@ -681,6 +688,8 @@ const s = StyleSheet.create({
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  headerFila:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerTextos: { flex: 1 },
   labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
@@ -728,7 +737,7 @@ const s = StyleSheet.create({
   // FAB
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  fabTexto:{ fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Detalle
   detalleTopBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
@@ -749,7 +758,7 @@ const s = StyleSheet.create({
   resumenLabel:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED },
   resumenVal:    { fontFamily: fonts.cuerpo, fontSize: 19, fontWeight: '700' },
   resumenValVerde:  { color: VERDE },
-  resumenValRojo:   { color: ROJO },
+  resumenValRojo:   { color: colors.rojoTexto },
   resumenValMuted:  { color: MUTED },
   resumenValCobrado:{ fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '700', color: TEXTO },
 
@@ -773,9 +782,9 @@ const s = StyleSheet.create({
   estadoTextoAbierto:    { color: ORO_HONDO },
 
   // Botón cerrar evento
-  botonCerrar:      { marginTop: 32, backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonCerrar:      { marginTop: 32, borderWidth: 1.5, borderColor: ROJO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonCerrarOff:   { opacity: 0.6 },
-  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonCerrarTexto: { fontFamily: fonts.label, color: colors.rojoTexto, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Modal
   kavFlex:        { flex: 1 },
@@ -804,19 +813,19 @@ const s = StyleSheet.create({
 
   tipoRow:            { flexDirection: 'row', gap: 8 },
   tipoBtn:            { flex: 1, paddingVertical: 13, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center', justifyContent: 'center', minHeight: 56 },
-  tipoBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  tipoBtnActivo:      { backgroundColor: ORO, borderColor: ORO },
   tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1, textAlign: 'center', lineHeight: 14 },
-  tipoBtnTextoActivo: { color: ORO },
+  tipoBtnTextoActivo: { color: colors.sobreOro },
 
   divPill:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  divPillActiva:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  divPillActiva:      { backgroundColor: ORO, borderColor: ORO },
   divPillTexto:       { fontFamily: fonts.label, fontSize: 14, color: MUTED },
-  divPillTextoActivo: { color: ORO },
+  divPillTextoActivo: { color: colors.sobreOro },
 
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
 
-  botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:      { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

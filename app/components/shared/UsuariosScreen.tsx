@@ -11,15 +11,17 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useUsuarios, rolLabel, DEPORTE_SUBCO_OPCIONES } from '@/hooks/useUsuarios'
 import type { Usuario, RolCreable, DivisionOpcion } from '@/hooks/useUsuarios'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 import { ROL_LABELS } from '@/constants/roles'
 
-const MUTED = '#8E8574'
+const MUTED = colors.muted
 const ROJO  = '#EF4444'
 const VERDE = '#22C55E'
 
@@ -81,6 +83,7 @@ export function UsuariosScreen() {
 // ─── Vista lista ──────────────────────────────────────────────────────────────
 
 function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const insets = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const { rol }   = useAuthStore()
@@ -89,8 +92,11 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
-        <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
+        <View style={s.labelFila}>
+          <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
+          <AvatarPerfil />
+        </View>
         <Text style={s.headerTitle}>Usuarios</Text>
         <Text style={s.headerSub}>{activos.length} activos · {inactivos.length} inactivos</Text>
       </View>
@@ -135,7 +141,7 @@ function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => vo
         <Text style={[s.cardNombre, !usuario.activo && s.textoInactivo]}>{usuario.nombre}</Text>
         <View style={s.rolFila}>
           <View style={[s.rolBadge, { backgroundColor: color + '22', borderColor: color }]}>
-            <Text style={[s.rolTexto, { color }]}>{rolLabel(usuario.rol)}</Text>
+            <Text style={s.rolTexto}>{rolLabel(usuario.rol)}</Text>
           </View>
           {!usuario.activo && (
             <View style={s.inactivoBadge}>
@@ -152,6 +158,7 @@ function UsuarioFila({ usuario, onPress }: { usuario: Usuario; onPress: () => vo
 // ─── Vista detalle ────────────────────────────────────────────────────────────
 
 function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
+  const insets = useSafeAreaInsets()
   const u     = hook.usuarioSeleccionado!
   const color  = ROL_COLOR[u.rol] ?? MUTED
   const inicial = u.nombre.charAt(0).toUpperCase()
@@ -195,7 +202,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
   return (
     <View style={s.root}>
-      <View style={s.header}>
+      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={hook.volverALista} style={s.backBtn}>
           <Text style={s.backTexto}>‹ Usuarios</Text>
         </TouchableOpacity>
@@ -217,11 +224,11 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
           ) : null}
           {/* rolBadge with dynamic color */}
           <View style={[s.rolBadge, s.rolBadgeCenter, { backgroundColor: color + '22', borderColor: color }]}>
-            <Text style={[s.rolTexto, { color }]}>{rolLabel(u.rol)}</Text>
+            <Text style={s.rolTexto}>{rolLabel(u.rol)}</Text>
           </View>
           {/* estadoBadge with dynamic color — VERDE + '22' or ROJO + '22' */}
           <View style={[s.estadoBadge, { backgroundColor: u.activo ? VERDE + '22' : ROJO + '22' }]}>
-            <Text style={[s.estadoTexto, { color: u.activo ? VERDE : ROJO }]}>
+            <Text style={[s.estadoTexto, { color: u.activo ? VERDE : colors.rojoTexto }]}>
               {u.activo ? 'ACTIVO' : 'INACTIVO'}
             </Text>
           </View>
@@ -428,7 +435,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                     activeOpacity={0.8}
                   >
                     {hook.buscandoSocio
-                      ? <ActivityIndicator color={colors.tinta} size="small" />
+                      ? <ActivityIndicator color={colors.sobreOro} size="small" />
                       : <Text style={s.buscarBtnTexto}>Buscar</Text>
                     }
                   </TouchableOpacity>
@@ -522,7 +529,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                       activeOpacity={0.8}
                     >
                       {hook.asignando
-                        ? <ActivityIndicator color={colors.tinta} />
+                        ? <ActivityIndicator color={colors.sobreOro} />
                         : <Text style={s.botonPrimarioTexto}>Asignar rol de staff</Text>
                       }
                     </TouchableOpacity>
@@ -632,7 +639,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   activeOpacity={0.8}
                 >
                   {hook.creando ? (
-                    <ActivityIndicator color={colors.tinta} />
+                    <ActivityIndicator color={colors.sobreOro} />
                   ) : (
                     <Text style={s.botonPrimarioTexto}>Crear usuario</Text>
                   )}
@@ -689,18 +696,19 @@ function DivisionesMultiselect({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: '#15110A' },
-  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#15110A' },
+  root:    { flex: 1, backgroundColor: colors.fondo },
+  centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.fondo },
 
   activityMt8:  { marginTop: 8 },
   activityMt12: { marginTop: 12 },
   activityMt16: { marginTop: 16 },
 
   // Header
-  header:      { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.tinta },
+  header:      { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.fondo },
+  labelFila:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
-  headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.blanco },
-  headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 4 },
+  headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
+  headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },
   backBtn:     { marginBottom: 4 },
   backTexto:   { fontFamily: fonts.label, color: colors.oro, fontSize: 16 },
 
@@ -710,61 +718,61 @@ const s = StyleSheet.create({
   vacio:         { fontFamily: fonts.cuerpo, color: MUTED, fontStyle: 'italic', fontSize: 15, padding: 8 },
 
   // Lista — card de usuario
-  card:         { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1C1710', borderRadius: 10, padding: 14, gap: 12, borderWidth: 1, borderColor: '#2C2418' },
+  card:         { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: 10, padding: 14, gap: 12, borderWidth: 1, borderColor: colors.borde },
   cardInactivo: { opacity: 0.55 },
   avatar:       { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   avatarLetra:  { fontFamily: fonts.titulo, fontSize: 19, fontWeight: '700' },
   filaInfo:     { flex: 1 },
-  cardNombre:   { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '600', color: colors.tinta, marginBottom: 4 },
+  cardNombre:   { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '600', color: colors.texto, marginBottom: 4 },
   textoInactivo: { color: MUTED },
   rolFila:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rolBadge:     { borderWidth: 1.5, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2 },
   rolBadgeCenter: { alignSelf: 'center', marginTop: 6 },
-  rolTexto:     { fontFamily: fonts.label, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  rolTexto:     { fontFamily: fonts.label, fontSize: 13, fontWeight: '700', letterSpacing: 0.5, color: colors.texto },
   inactivoBadge: { backgroundColor: ROJO + '22', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  inactivoTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 13, fontWeight: '700' },
+  inactivoTexto: { fontFamily: fonts.label, color: colors.rojoTexto, fontSize: 13, fontWeight: '700' },
   chevron:       { fontFamily: fonts.titulo, color: MUTED, fontSize: 23 },
 
   // Detalle
-  detalleCard:        { backgroundColor: '#1C1710', borderRadius: 12, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#2C2418' },
+  detalleCard:        { backgroundColor: colors.card, borderRadius: 12, padding: 24, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.borde },
   avatarGrande:       { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
   avatarLetraGrande:  { fontFamily: fonts.titulo, fontSize: 28, fontWeight: '700' },
-  detalleNombre:      { fontFamily: fonts.cuerpo, fontSize: 21, fontWeight: '700', color: colors.tinta },
+  detalleNombre:      { fontFamily: fonts.cuerpo, fontSize: 21, fontWeight: '700', color: colors.texto },
   detalleEmail:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, marginTop: 2 },
   estadoBadge:        { borderRadius: 6, paddingHorizontal: 12, paddingVertical: 4, marginTop: 8 },
   estadoTexto:        { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', letterSpacing: 1 },
-  seccionDetalle:     { marginTop: 8, backgroundColor: '#1C1710', borderRadius: 10, padding: 16, gap: 10, borderWidth: 1, borderColor: '#2C2418' },
+  seccionDetalle:     { marginTop: 8, backgroundColor: colors.card, borderRadius: 10, padding: 16, gap: 10, borderWidth: 1, borderColor: colors.borde },
   seccionLabel:       { fontFamily: fonts.label, fontSize: 13, fontWeight: '700', letterSpacing: 2, color: MUTED, textTransform: 'uppercase', marginBottom: 4 },
   botonGuardar:       { backgroundColor: colors.oro, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 4 },
-  botonGuardarTexto:  { fontFamily: fonts.label, color: colors.tinta, fontWeight: '700', fontSize: 15, letterSpacing: 1 },
+  botonGuardarTexto:  { fontFamily: fonts.label, color: colors.sobreOro, fontWeight: '700', fontSize: 15, letterSpacing: 1 },
 
   // Feedback banners
   bannerOk:    { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12 },
   bannerOkMt:  { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12, marginTop: 8 },
   bannerError: { backgroundColor: ROJO   + '22', borderRadius: 8, padding: 12 },
-  bannerTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  bannerTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
 
   // Botones de acción
-  botonPeligro:      { backgroundColor: ROJO,  borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
+  botonPeligro:      { backgroundColor: colors.rojoUrgente,  borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
   botonPeligroTexto: { fontFamily: fonts.cuerpo, color: colors.blanco, fontWeight: '700', fontSize: 17, letterSpacing: 0.5 },
   botonOk:           { backgroundColor: VERDE, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
-  botonOkTexto:      { fontFamily: fonts.cuerpo, color: colors.blanco, fontWeight: '700', fontSize: 17, letterSpacing: 0.5 },
+  botonOkTexto:      { fontFamily: fonts.cuerpo, color: colors.sobreOro, fontWeight: '700', fontSize: 17, letterSpacing: 0.5 },
   botonEliminar:     { borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 16, borderWidth: 1.5, borderColor: ROJO },
   botonEliminarTexto: { fontFamily: fonts.label, color: ROJO, fontWeight: '700', fontSize: 16, letterSpacing: 1 },
 
   // FAB
   fab:      { position: 'absolute', bottom: 24, right: 20, backgroundColor: colors.oro, borderRadius: 30, paddingHorizontal: 20, paddingVertical: 14 },
-  fabTexto: { fontFamily: fonts.label, color: colors.tinta, fontWeight: '700', fontSize: 16 },
+  fabTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontWeight: '700', fontSize: 16 },
 
   // Modal
-  modalRoot:   { flex: 1, backgroundColor: '#15110A' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 24, backgroundColor: colors.tinta },
-  modalTitulo: { fontFamily: fonts.titulo, fontSize: 19, fontWeight: '700', color: colors.blanco },
+  modalRoot:   { flex: 1, backgroundColor: colors.fondo },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 24, backgroundColor: colors.fondo },
+  modalTitulo: { fontFamily: fonts.titulo, fontSize: 19, fontWeight: '700', color: colors.texto },
   modalCerrar: { fontFamily: fonts.titulo, fontSize: 21, color: colors.oro, fontWeight: '600' },
   modalBody:   { padding: 20, gap: 12, paddingBottom: 48 },
 
   // Modo toggle
-  modoToggle:       { flexDirection: 'row', backgroundColor: '#1C1710', borderBottomWidth: 1, borderBottomColor: '#2C2418' },
+  modoToggle:       { flexDirection: 'row', backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.borde },
   modoBtn:          { flex: 1, paddingVertical: 12, alignItems: 'center' },
   modoBtnActivo:    { borderBottomWidth: 2, borderBottomColor: colors.oro },
   modoBtnTexto:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED },
@@ -774,34 +782,34 @@ const s = StyleSheet.create({
   buscarRow:    { flexDirection: 'row', gap: 8 },
   buscarInput:  { flex: 1 },
   buscarBtn:    { backgroundColor: colors.oro, borderRadius: 8, paddingHorizontal: 14, justifyContent: 'center', alignItems: 'center', minWidth: 72 },
-  buscarBtnTexto: { fontFamily: fonts.label, fontSize: 14, color: colors.tinta, fontWeight: '700' },
-  resultadosList:  { borderRadius: 8, borderWidth: 1, borderColor: '#2C2418', overflow: 'hidden' },
-  resultadoItem:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, backgroundColor: '#1C1710', borderBottomWidth: 1, borderBottomColor: '#2C2418' },
-  resultadoNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta },
+  buscarBtnTexto: { fontFamily: fonts.label, fontSize: 14, color: colors.sobreOro, fontWeight: '700' },
+  resultadosList:  { borderRadius: 8, borderWidth: 1, borderColor: colors.borde, overflow: 'hidden' },
+  resultadoItem:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.borde },
+  resultadoNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto },
   resultadoChevron:{ fontFamily: fonts.titulo, color: MUTED, fontSize: 21 },
 
   // Inputs
-  inputLabel: { fontFamily: fonts.label, fontSize: 14, fontWeight: '600', color: colors.tinta, letterSpacing: 0.5, textTransform: 'uppercase' },
-  input:      { backgroundColor: '#1C1710', borderRadius: 8, borderWidth: 1, borderColor: '#2C2418', padding: 12, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.tinta },
+  inputLabel: { fontFamily: fonts.label, fontSize: 14, fontWeight: '600', color: colors.texto, letterSpacing: 0.5, textTransform: 'uppercase' },
+  input:      { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.borde, padding: 12, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.texto },
 
   // Selector de rol
   rolSelector: { flexDirection: 'row', gap: 8 },
-  rolBtn:      { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418', alignItems: 'center' },
+  rolBtn:      { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
   rolBtnActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   rolBtnTexto:  { fontFamily: fonts.label, fontSize: 14, fontWeight: '600', color: MUTED },
-  rolBtnTextoActivo: { color: colors.tinta },
+  rolBtnTextoActivo: { color: colors.sobreOro },
 
   // Divisiones multiselect
   deporteGrupos:  { gap: 12 },
   deporteHeader:  { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', letterSpacing: 1.5, color: MUTED, textTransform: 'uppercase', marginBottom: 6 },
   divisionesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  divPill:        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: '#1C1710', borderWidth: 1.5, borderColor: '#2C2418', maxWidth: '48%' },
+  divPill:        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, maxWidth: '48%' },
   divPillActiva:  { backgroundColor: colors.oro + '33', borderColor: colors.oro },
   divPillTexto:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, fontWeight: '500' },
-  divPillTextoActivo: { color: colors.tinta, fontWeight: '600' },
+  divPillTextoActivo: { color: colors.texto, fontWeight: '600' },
 
   // Botón primario
   botonPrimario:      { backgroundColor: colors.oro, borderRadius: 10, padding: 14, alignItems: 'center', marginTop: 8 },
   botonDesactivado:   { opacity: 0.6 },
-  botonPrimarioTexto: { fontFamily: fonts.label, color: colors.tinta, fontWeight: '700', fontSize: 17, letterSpacing: 0.5 },
+  botonPrimarioTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontWeight: '700', fontSize: 17, letterSpacing: 0.5 },
 })

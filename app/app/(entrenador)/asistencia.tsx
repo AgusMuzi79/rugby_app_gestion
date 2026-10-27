@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ export default function AsistenciaScreen() {
 
   if (sinDivision) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
       </SafeAreaView>
@@ -168,14 +169,14 @@ export default function AsistenciaScreen() {
 
   if (!divisionId) {
     return (
-      <SafeAreaView style={s.centrado}>
+      <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={colors.oro} size="large" />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <SafeAreaView style={s.root} edges={['top']}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={s.header}>
@@ -195,6 +196,7 @@ export default function AsistenciaScreen() {
               : <Text style={s.guardarTexto}>GUARDAR</Text>
             }
           </TouchableOpacity>
+          <AvatarPerfil />
         </View>
         <Text style={s.headerMeta}>
           {divisionNombre.toUpperCase()} · {fechaFormateada(fecha).toUpperCase()} · CANCHA PRINCIPAL
@@ -215,8 +217,8 @@ export default function AsistenciaScreen() {
         <>
           {/* ── Contadores ─────────────────────────────────────────────────── */}
           <View style={s.contadores}>
-            <ContadorBox label="PRESENTES" count={presentes} color={VERDE}  />
-            <ContadorBox label="AUSENTES"  count={ausentes}  color={ROJO}   />
+            <ContadorBox label="PRESENTES" count={presentes} color={colors.confirmacion}  />
+            <ContadorBox label="AUSENTES"  count={ausentes}  color={colors.rojoTexto}   />
             <ContadorBox label="JUSTIF."   count={justifs}   color={DORADO} />
           </View>
 
@@ -272,8 +274,8 @@ export default function AsistenciaScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const DIVIDER = colors.borde
 
 const s = StyleSheet.create({
   root:     { flex: 1, backgroundColor: FONDO },
@@ -291,6 +293,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 8,
   },
   headerLeft: { flex: 1 },
@@ -304,14 +307,14 @@ const s = StyleSheet.create({
   titulo: {
     fontFamily: fonts.titulo,
     fontSize: 28,
-    color: colors.tinta,
+    color: colors.texto,
     lineHeight: 34,
   },
   headerMeta: {
     fontFamily: fonts.label,
     fontSize: 13,
     letterSpacing: 1.5,
-    color: '#7A7060',
+    color: colors.muted,
   },
 
   // GUARDAR button (header)
@@ -346,7 +349,7 @@ const s = StyleSheet.create({
   divisionChipTexto: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: '#A89E8C',
   },
-  divisionChipTextoActivo: { color: colors.tinta, fontWeight: '700' },
+  divisionChipTextoActivo: { color: colors.sobreOro, fontWeight: '700' },
 
   // Contadores
   contadores: {
@@ -397,13 +400,13 @@ const s = StyleSheet.create({
   nombre: {
     fontFamily: fonts.cuerpo,
     fontSize: 17,
-    color: colors.tinta,
+    color: colors.texto,
   },
   alertaInline: {
     fontFamily: fonts.label,
     fontSize: 12,
     letterSpacing: 1.5,
-    color: colors.rojoUrgente,
+    color: colors.rojoTexto,
     marginTop: 3,
   },
   separator: {
@@ -438,7 +441,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 13,
     letterSpacing: 1,
-    color: VERDE,
+    color: colors.confirmacion,
   },
   statusPendiente: {
     fontFamily: fonts.label,
@@ -450,6 +453,6 @@ const s = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 13,
     letterSpacing: 1,
-    color: colors.rojoUrgente,
+    color: colors.rojoTexto,
   },
 })

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
 import SeccionServicios from './seccion-servicios'
 
@@ -62,20 +63,12 @@ async function callImportarSocios(
   modo: 'preview' | 'confirmar',
   confirmarBajas?: string,
 ): Promise<DiffResultado & { error?: string; status: number }> {
-  const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
   formData.append('modo', modo)
   if (confirmarBajas) formData.append('confirmar_bajas', confirmarBajas)
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/importar-socios`,
-    {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${session?.access_token ?? ''}` },
-      body: formData,
-    }
-  )
-  return { ...(await res.json()), status: res.status }
+  // Cliente compartido: nunca tira (HTML del gateway, sin red) y corta a los 2 min.
+  return callEdgeFunction<DiffResultado>('importar-socios', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
 }
 
 function formatFecha(iso: string | null | undefined): string {
@@ -179,7 +172,7 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
 
       {error && (
         <div className="mt-4 p-4 border border-rojo bg-rojo/5">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-1">NO SE PUDO CALCULAR/APLICAR</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">NO SE PUDO CALCULAR/APLICAR</p>
           <p className="font-lora text-sm text-tinta/70 whitespace-pre-wrap">{error}</p>
         </div>
       )}
@@ -198,21 +191,21 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
           </div>
 
           {resultadoAMostrar.errores > 0 && (
-            <p className="font-lora text-xs text-rojo mt-1">
+            <p className="font-lora text-xs text-rojo-texto mt-1">
               {resultadoAMostrar.errores} fila{resultadoAMostrar.errores === 1 ? '' : 's'} con error — no se {aplicadoResultado ? 'aplicaron' : 'van a aplicar'} (ver detalle abajo)
             </p>
           )}
           {aplicadoResultado && (aplicadoResultado.errores_aplicacion ?? 0) > 0 && (
-            <p className="font-lora text-xs text-rojo mt-1">
+            <p className="font-lora text-xs text-rojo-texto mt-1">
               {aplicadoResultado.errores_aplicacion} error{aplicadoResultado.errores_aplicacion === 1 ? '' : 'es'} al aplicar — revisar logs de la función
             </p>
           )}
 
           <ListaDetalle titulo="ALTAS" items={resultadoAMostrar.detalle.altas} colorClase="text-[#2ECC71]" />
-          <ListaDetalle titulo="BAJAS" items={resultadoAMostrar.detalle.bajas} colorClase="text-rojo" />
+          <ListaDetalle titulo="BAJAS" items={resultadoAMostrar.detalle.bajas} colorClase="text-rojo-texto" />
           <ListaDetalle titulo="REINGRESOS" items={resultadoAMostrar.detalle.reingresos} colorClase="text-oro" />
           <ListaDetalle titulo="ACTUALIZADOS" items={resultadoAMostrar.detalle.actualizados} colorClase="text-tinta/60" />
-          <ListaDetalle titulo="ERRORES — SIN APLICAR" items={resultadoAMostrar.detalle.errores} colorClase="text-rojo" />
+          <ListaDetalle titulo="ERRORES — SIN APLICAR" items={resultadoAMostrar.detalle.errores} colorClase="text-rojo-texto" />
 
           {preview?.baja_masiva && !aplicadoResultado && (
             <div role="alert" className="mt-5 p-4 border border-rojo">
@@ -231,7 +224,7 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
                 onChange={e => setConfirmacionBajas(e.target.value)}
                 placeholder={CONFIRMACION_BAJAS}
                 autoComplete="off"
-                className="font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro"
+                className="font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro"
               />
             </div>
           )}
@@ -245,7 +238,7 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
               >
                 {aplicando ? 'APLICANDO…' : `CONFIRMAR Y APLICAR (${preview.altas} altas, ${preview.bajas} bajas, ${preview.reingresos} reingresos, ${preview.actualizados} cambios)`}
               </button>
-              <p className="font-lora text-xs text-tinta/40 italic">
+              <p className="font-lora text-xs text-texto-2 italic">
                 Las bajas bloquean el login real de esas personas — revisá la lista antes de confirmar.
               </p>
             </div>
@@ -264,7 +257,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionSocios[] }) {
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES</p>
       {historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
       ) : (
         <ListaColapsable items={historial} render={visibles => (
@@ -289,7 +282,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionSocios[] }) {
                 <td className="font-lora text-sm text-tinta text-right py-3 pr-4">{imp.bajas}</td>
                 <td className="font-lora text-sm text-tinta/60 text-right py-3 pr-4">{imp.actualizados}</td>
                 <td className="font-lora text-sm text-tinta/60 text-right py-3 pr-4">{imp.sin_cambio}</td>
-                <td className="font-lora text-sm text-right py-3 text-rojo">{imp.errores || '—'}</td>
+                <td className="font-lora text-sm text-right py-3 text-rojo-texto">{imp.errores || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -345,7 +338,7 @@ export default function ImportarSociosPage() {
       <SeccionImportar onAplicado={fetchHistorial} />
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : (
         <SeccionHistorial historial={historial} />
       )}

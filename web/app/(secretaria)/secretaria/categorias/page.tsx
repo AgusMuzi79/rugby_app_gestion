@@ -80,7 +80,7 @@ export default function CategoriasPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Categorías</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
@@ -109,7 +109,7 @@ export default function CategoriasPage() {
                 type="text"
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                 placeholder="Activo"
               />
             </div>
@@ -119,7 +119,7 @@ export default function CategoriasPage() {
                 type="text"
                 value={descripcion}
                 onChange={e => setDescripcion(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                 placeholder="Opcional"
               />
             </div>
@@ -129,13 +129,13 @@ export default function CategoriasPage() {
                 type="text"
                 value={monto}
                 onChange={e => setMonto(e.target.value)}
-                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                 placeholder="5000"
               />
             </div>
           </div>
-          {error && <p className="font-lora text-rojo text-sm mb-4">{error}</p>}
-          <p className="font-lora text-xs text-tinta/30 italic mb-5">
+          {error && <p className="font-lora text-rojo-texto text-sm mb-4">{error}</p>}
+          <p className="font-lora text-xs text-texto-2 italic mb-5">
             Los cambios de monto aplican al próximo período, no retroactivamente.
           </p>
           <div className="flex gap-3">
@@ -157,10 +157,10 @@ export default function CategoriasPage() {
       )}
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : categorias.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN CATEGORÍAS REGISTRADAS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN CATEGORÍAS REGISTRADAS</p>
         </div>
       ) : (
         <table className="w-full border-collapse">
@@ -187,7 +187,7 @@ export default function CategoriasPage() {
                     className={`font-lora text-xs tracking-widest px-3 py-1 border transition-colors ${
                       c.activa
                         ? 'border-oro text-oro hover:bg-oro/10'
-                        : 'border-gris-claro text-tinta/40 hover:border-gris'
+                        : 'border-gris-claro text-texto-2 hover:border-gris'
                     }`}
                   >
                     {c.activa ? 'ACTIVA' : 'INACTIVA'}
@@ -196,7 +196,7 @@ export default function CategoriasPage() {
                 <td className="py-4">
                   <button
                     onClick={() => handleEdit(c)}
-                    className="font-lora text-xs tracking-widest text-tinta/40 hover:text-tinta transition-colors"
+                    className="font-lora text-xs tracking-widest text-texto-2 hover:text-tinta transition-colors"
                   >
                     EDITAR
                   </button>

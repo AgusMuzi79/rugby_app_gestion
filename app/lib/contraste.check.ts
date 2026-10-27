@@ -56,9 +56,33 @@ const pares: [string, string, string][] = [
   // Cuotas, modal de pago: botón COPIAR ALIAS / ✓ COPIADO dentro del recuadro del alias.
   ['COPIAR ALIAS sobre fondo (modal de pago)', colors.oro, colors.fondo],
   ['✓ COPIADO sobre fondo (modal de pago)', colors.confirmacion, colors.fondo],
-  // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN)
-  ['etiqueta activa de la tab bar', '#E8B53C', '#0E0E0E'],
-  ['etiqueta inactiva de la tab bar', '#8E8574', '#0E0E0E'],
+  // Etiquetas de la tab bar (constants/tabOptions.ts, no importable fuera de RN:
+  // usa colors.fondo / colors.oro / colors.muted desde X4).
+  ['etiqueta activa de la tab bar', colors.oro, colors.fondo],
+  ['etiqueta inactiva de la tab bar', colors.muted, colors.fondo],
+  // X4 — contraste en todas las áreas (tablas de odd/tasks/auditoria-ux-*.md).
+  // Botones primarios, chips / pills / selectores activos, FAB, badges OK / HOY / W,
+  // TOMAR ASISTENCIA, COBRANZA ACTIVA, ASISTENCIA (Crónica), CERRAR SESIÓN de Usuarios.
+  ['sobreOro sobre estadoPendiente (badge PENDIENTE de Secretaría / cliente gimnasio)', colors.sobreOro, colors.estadoPendiente],
+  ['sobreOro sobre estadoActivo (badge AL DÍA / ACTIVO)', colors.sobreOro, colors.estadoActivo],
+  ['blanco sobre gris #555555 (badge INACTIVO de Secretaría)', colors.blanco, '#555555'],
+  // Superficies crema (tinta): barras de edición, tarjeta urgente de Crónica y
+  // Lesiones, jugador en mesa, header de Informes y Protocolos, banners OK.
+  ['mutedSobreClaro sobre tinta (desc / autor urgente, fecha urgente, sub de banner)', colors.mutedSobreClaro, colors.tinta],
+  ['grisClaro sobre tinta (fecha de la barra de edición)', colors.grisClaro, colors.tinta],
+  // Texto rojo y verde sobre oscuro.
+  ['estadoActivo sobre card (NETO positivo, PAGADOS, FICHA MÉD., Reactivar)', colors.estadoActivo, colors.card],
+  ['estadoActivo sobre fondo (turno con reserva del escáner)', colors.estadoActivo, colors.fondo],
+  ['confirmacion sobre fondo (✓ Asistencia guardada, contador PRESENTES)', colors.confirmacion, colors.fondo],
+  // Subtítulos y textos secundarios.
+  ['textoSecundario sobre fondo (subtítulos de auth, "Ahora no")', colors.textoSecundario, colors.fondo],
+  ['textoSecundario sobre borde (pills inactivas de Informes)', colors.textoSecundario, colors.borde],
+  ['oro sobre card (REINTENTAR dentro del banner de error de Términos)', colors.oro, colors.card],
+  // Badges con fondo de color propio.
+  ['blanco sobre verde #4A7C59 (badge PAGADO / PRES)', colors.blanco, '#4A7C59'],
+  ['blanco sobre #C0392B (badge LESIÓN de Crónica, G4 de Lesiones)', colors.blanco, '#C0392B'],
+  ['sobreOro sobre #C4960A (badge G2 de Lesiones)', colors.sobreOro, '#C4960A'],
+  ['#5B9BE0 sobre card (badge VIAJE de Subcomisión)', '#5B9BE0', colors.card],
 ]
 
 for (const [nombre, texto, fondo] of pares) {

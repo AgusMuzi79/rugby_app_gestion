@@ -1,59 +1,13 @@
-'use client'
+import type { Metadata } from 'next'
+import PanelShell from '@/components/PanelShell'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import Sidebar from '@/components/Sidebar'
-
-interface UserProfile {
-  nombre: string
-  rol: string
+export const metadata: Metadata = {
+  title: {
+    template: '%s — Subcomisión · Uncas Rugby',
+    default: 'Subcomisión — Uncas Rugby',
+  },
 }
 
-export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.replace('/login')
-        return
-      }
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('nombre, rol')
-        .eq('id', user.id)
-        .single()
-
-      if (!data || !['subcomision', 'admin'].includes(data.rol)) {
-        await supabase.auth.signOut()
-        router.replace('/login')
-        return
-      }
-
-      setProfile(data)
-      setLoading(false)
-    }
-
-    checkAuth()
-  }, [router])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-papel flex items-center justify-center">
-        <p className="font-lora text-tinta/50 tracking-widest text-sm">CARGANDO…</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex min-h-screen bg-papel">
-      <Sidebar nombre={profile?.nombre} rol={profile?.rol} />
-      <main className="flex-1 ml-56 p-8 min-h-screen">{children}</main>
-    </div>
-  )
+export default function SubcomisionLayout({ children }: { children: React.ReactNode }) {
+  return <PanelShell panel="subcomision">{children}</PanelShell>
 }

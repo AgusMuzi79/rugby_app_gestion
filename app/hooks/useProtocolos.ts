@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Linking, Alert } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -43,7 +44,7 @@ function sortProtocolos(list: Protocolo[]): Protocolo[] {
 export function useProtocolos() {
   const { session } = useAuthStore()
 
-  const [loading,      setLoading]      = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [protocolos,   setProtocolos]   = useState<Protocolo[]>([])
   const [modalVisible, setModalVisible] = useState(false)
   const [form,         setForm]         = useState<FormProtocolo>({ titulo: '', grado: null })
@@ -55,13 +56,13 @@ export function useProtocolos() {
   useRefreshOnFocus(cargarProtocolos)
 
   async function cargarProtocolos() {
-    setLoading(true)
+    empezar()
     const { data } = await supabase
       .from('protocolos')
       .select('id, titulo, grado_asociado, storage_path, nombre_archivo, created_at')
       .order('grado_asociado', { ascending: true, nullsFirst: true })
     setProtocolos(data ?? [])
-    setLoading(false)
+    terminar()
   }
 
   function abrirModal() {
@@ -147,6 +148,7 @@ export function useProtocolos() {
 
   return {
     loading,
+    refrescando,
     protocolos,
     modalVisible,
     abrirModal,

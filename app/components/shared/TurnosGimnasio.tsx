@@ -91,7 +91,7 @@ export function TurnosGimnasio({ encabezado, onRefresh }: {
   onRefresh?:  () => void
 } = {}) {
   const {
-    dias, fijos, loading, error,
+    dias, fijos, loading, refrescando, error,
     refetch, reservar, cancelar, crearFijo, cancelarFijo,
   } = useTurnos()
   const [ocupado, setOcupado] = useState(false)
@@ -233,7 +233,7 @@ export function TurnosGimnasio({ encabezado, onRefresh }: {
         </View>
       )}
       onRefresh={recargar}
-      refreshing={loading}
+      refreshing={refrescando}
     />
   )
 }

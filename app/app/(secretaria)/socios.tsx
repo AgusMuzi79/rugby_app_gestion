@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, ScrollView, Image,
+  TouchableOpacity, Alert, ScrollView, Image, RefreshControl,
 } from 'react-native'
 import { useState, useCallback, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -12,16 +12,17 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 
+// Fondo del badge de estado. Texto: sobreOro sobre verde / oro / naranja, blanco sobre gris.
 const ESTADO_COLOR: Record<string, string> = {
-  activo:    '#2ECC71',
+  activo:    colors.estadoActivo,
   moroso:    colors.oro,
-  pendiente: '#E67E22',
+  pendiente: colors.estadoPendiente,
   inactivo:  '#555555',
 }
 const ESTADO_LABEL: Record<string, string> = {
@@ -185,7 +186,7 @@ function SocioRow({ socio, onPress }: { socio: SocioItem; onPress: () => void })
         <Text style={ss.socioCat}>{socio.categoria}</Text>
       </View>
       <View style={[ss.estadoBadge, { backgroundColor: ESTADO_COLOR[socio.estado] ?? '#555' }]}>
-        <Text style={ss.estadoBadgeText}>{ESTADO_LABEL[socio.estado]?.[0] ?? '?'}</Text>
+        <Text style={[ss.estadoBadgeText, { color: socio.estado === 'activo' || socio.estado === 'moroso' || socio.estado === 'pendiente' ? colors.sobreOro : colors.blanco }]}>{ESTADO_LABEL[socio.estado]?.[0] ?? '?'}</Text>
       </View>
     </TouchableOpacity>
   )
@@ -198,7 +199,7 @@ export default function SociosScreen() {
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
   const {
-    socios, categorias, servicios, serviciosSocio, loading,
+    socios, categorias, servicios, serviciosSocio, loading, refrescando, refetch,
     filtro, setFiltro,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     fetchServiciosSocio, toggleServicio,
@@ -303,6 +304,7 @@ export default function SociosScreen() {
           data={socios}
           keyExtractor={item => item.id}
           contentContainerStyle={ss.listContent}
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
           renderItem={({ item }) => (
             <SocioRow socio={item} onPress={() => abrirDetalle(item)} />
           )}
@@ -326,7 +328,7 @@ const ss = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionFecha: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -339,7 +341,7 @@ const ss = StyleSheet.create({
   filtroBtnActive:{ borderBottomWidth: 2, borderBottomColor: colors.oro },
   filtroBtnText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: '#888',
+    textTransform: 'uppercase', color: MUTED,
   },
   filtroBtnTextActive: { color: colors.oro },
 
@@ -383,23 +385,23 @@ const ss = StyleSheet.create({
   catBtn: {
     borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8, gap: 2,
   },
-  catBtnActivo:         { borderColor: colors.oro, backgroundColor: colors.tinta },
+  catBtnActivo:         { borderColor: colors.oro, backgroundColor: colors.oro },
   catBtnInactivo:       { borderColor: DIVIDER, backgroundColor: 'transparent' },
   catBtnText:           { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
-  catBtnTextActivo:     { color: colors.oro },
+  catBtnTextActivo:     { color: colors.sobreOro },
   catBtnTextInactivo:   { color: TEXTO },
   catMonto:             { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic' },
   catMontoActivo:       { color: colors.grisClaro },
   catMontoInactivo:     { color: MUTED },
   catVacio:             { fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', marginTop: 8, color: MUTED },
   crearBtn: {
-    backgroundColor: colors.tinta, paddingVertical: 16,
+    backgroundColor: colors.oro, paddingVertical: 16,
     alignItems: 'center', borderRadius: 4, marginTop: 20, marginBottom: 8,
   },
   crearBtnOff: { opacity: 0.5 },
   crearBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.sobreOro,
   },
 
   // Pago modal
@@ -411,10 +413,10 @@ const ss = StyleSheet.create({
     flex: 1, borderWidth: 1, borderRadius: 4,
     paddingVertical: 10, alignItems: 'center',
   },
-  formaPagoBtnActivo:       { borderColor: colors.oro, backgroundColor: colors.tinta },
+  formaPagoBtnActivo:       { borderColor: colors.oro, backgroundColor: colors.oro },
   formaPagoBtnInactivo:     { borderColor: DIVIDER, backgroundColor: 'transparent' },
   formaPagoBtnText:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' },
-  formaPagoBtnTextActivo:   { color: colors.oro },
+  formaPagoBtnTextActivo:   { color: colors.sobreOro },
   formaPagoBtnTextInactivo: { color: TEXTO },
 
   // Detalle
@@ -445,10 +447,10 @@ const ss = StyleSheet.create({
   },
   serviciosGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   servicioChip:    { borderWidth: 1, borderRadius: 4, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
-  servicioChipActivo:   { backgroundColor: colors.tinta, borderColor: colors.tinta },
+  servicioChipActivo:   { backgroundColor: colors.oro, borderColor: colors.oro },
   servicioChipInactivo: { backgroundColor: 'transparent', borderColor: DIVIDER },
   servicioChipNombre:         { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1 },
-  servicioChipNombreActivo:   { color: colors.oro },
+  servicioChipNombreActivo:   { color: colors.sobreOro },
   servicioChipNombreInactivo: { color: TEXTO },
   servicioChipMonto:          { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic' },
   servicioChipMontoActivo:    { color: colors.grisClaro },
@@ -464,13 +466,13 @@ const ss = StyleSheet.create({
   accionBtn: {
     borderWidth: 1, paddingVertical: 14, alignItems: 'center', borderRadius: 4,
   },
-  accionBtnVerde:    { borderColor: '#2ECC71' },
+  accionBtnVerde:    { borderColor: colors.estadoActivo },
   accionBtnOro:      { borderColor: colors.oro },
   accionBtnRojo:     { borderColor: colors.rojoUrgente },
   accionBtnText:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' },
-  accionBtnTextVerde:{ color: '#2ECC71' },
+  accionBtnTextVerde:{ color: colors.estadoActivo },
   accionBtnTextOro:  { color: colors.oro },
-  accionBtnTextRojo: { color: colors.rojoUrgente },
+  accionBtnTextRojo: { color: colors.rojoTexto },
 
   empty:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
