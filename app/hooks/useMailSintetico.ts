@@ -17,8 +17,13 @@ const useMailSinteticoStore = create<{ loading: boolean; pendiente: boolean }>((
 }))
 
 let cargadoPara: string | null = null
+// Cuenta que ya registró u omitió el mail en esta sesión de la app. Si el
+// refresh de la sesión falló (sin red), el token sigue con el mail sintético y
+// la próxima lectura volvería a pedirlo aunque el mail ya esté registrado.
+let resueltoPara: string | null = null
 
-export function marcarMailResuelto() {
+export function marcarMailResuelto(userId: string) {
+  resueltoPara = userId
   useMailSinteticoStore.setState({ loading: false, pendiente: false })
 }
 
@@ -27,10 +32,16 @@ export function useMailSintetico() {
   const { loading, pendiente } = useMailSinteticoStore()
 
   const fetchEstado = useCallback(async () => {
-    if (!session) { useMailSinteticoStore.setState({ loading: false }); return }
+    if (!session) {
+      // Sin sesión el gate no se consulta; el próximo login (la misma cuenta u
+      // otra) arranca en "cargando", sin el valor de la sesión anterior.
+      cargadoPara = null
+      useMailSinteticoStore.setState({ loading: true, pendiente: false })
+      return
+    }
 
     const email = session.user.email ?? ''
-    if (!email.endsWith('@uncas.local')) {
+    if (!email.endsWith('@uncas.local') || resueltoPara === session.user.id) {
       useMailSinteticoStore.setState({ loading: false, pendiente: false })
       return
     }

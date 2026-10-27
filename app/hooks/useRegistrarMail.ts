@@ -26,9 +26,12 @@ export function useRegistrarMail() {
     }
     // La sesión guardada sigue con el mail sintético hasta refrescarse: sin
     // esto el gate volvía a pedir el mail en la próxima lectura. Si el refresh
-    // falla (sin red) el mail igual quedó registrado; se toma en el próximo.
+    // falla (sin red), marcarMailResuelto igual recuerda que esta cuenta ya lo
+    // registró y el gate no vuelve a pedirlo; el token se actualiza en el
+    // próximo refresh.
+    const userId = useAuthStore.getState().session?.user.id
     await supabase.auth.refreshSession()
-    marcarMailResuelto()
+    if (userId) marcarMailResuelto(userId)
     return true
   }, [])
 
@@ -45,7 +48,7 @@ export function useRegistrarMail() {
       setError(esErrorDeRed(updateErr) ? SIN_CONEXION : 'No se pudo guardar. Probá de nuevo.')
       return false
     }
-    marcarMailResuelto()
+    marcarMailResuelto(session.user.id)
     return true
   }, [session])
 

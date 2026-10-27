@@ -23,6 +23,19 @@ caso('sesión con rol: va al inicio del rol', () => {
   assert.equal(destinoGuard(base), '/(socio)/carnet')
 })
 
+caso('cada rol va al mismo inicio que el mapa que reemplazó (_layout.tsx)', () => {
+  const antes: Record<string, string> = {
+    subcomision: '/(subcomision)/diario', coordinador: '/(coordinador)/diario',
+    entrenador: '/(entrenador)/diario', manager: '/(manager)/diario',
+    admin: '/(admin)/usuarios', secretaria: '/(secretaria)/diario',
+    porteria: '/(porteria)/scanner', canchero: '/(porteria)/scanner', buffet: '/(porteria)/scanner',
+    cliente_gimnasio: '/(cliente-gimnasio)/carnet', socio: '/(socio)/carnet', tutor: '/(tutor)/carnet',
+  }
+  for (const [rol, ruta] of Object.entries(antes)) {
+    assert.equal(destinoGuard({ ...base, rol: rol as EstadoGuard['rol'] }), ruta, rol)
+  }
+})
+
 caso('sin sesión: login, salvo durante el registro de tutor', () => {
   assert.equal(destinoGuard({ ...base, haySesion: false, rol: null }), '/(auth)/login')
   assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, registroSinSesion: true }), null)
