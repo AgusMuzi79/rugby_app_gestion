@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorFunction } from '@/lib/errorFunction'
 
 export type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
@@ -9,6 +10,7 @@ export interface Usuario {
   id:         string
   nombre:     string
   rol:        string
+  roles:      string[] | null
   activo:     boolean
   divisiones: string[] | null
   deporte:    string | null
@@ -51,6 +53,7 @@ export function rolLabel(rol: string): string {
 export function useUsuarios() {
   // Lista
   const [loading, setLoading]   = useState(true)
+  const [errorLista, setErrorLista] = useState<string | null>(null)
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [divisiones, setDivisiones] = useState<DivisionOpcion[]>([])
 
@@ -113,15 +116,17 @@ export function useUsuarios() {
     setLoading(false)
   }
 
+  // Un error de la consulta no es "sin usuarios": se muestra con REINTENTAR.
   async function fetchUsuarios() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .select('id, nombre, rol, activo, divisiones, deporte')
+      .select('id, nombre, rol, roles, activo, divisiones, deporte')
       .neq('rol', 'admin')
       .neq('rol', 'socio')
       .neq('rol', 'cliente_gimnasio')
       .order('nombre')
-    setUsuarios(data ?? [])
+    setErrorLista(error ? 'No se pudo cargar la lista de usuarios. Revisá la conexión.' : null)
+    if (!error) setUsuarios(data ?? [])
   }
 
   async function fetchDivisiones() {
@@ -276,7 +281,7 @@ export function useUsuarios() {
     })
 
     if (error || data?.error) {
-      setErrorAsignacion(data?.error ?? error?.message ?? 'Error al asignar el rol.')
+      setErrorAsignacion(await mensajeErrorFunction(error, 'Error al asignar el rol.', data))
       setAsignando(false)
       return
     }
@@ -316,7 +321,7 @@ export function useUsuarios() {
     })
 
     if (error || data?.error) {
-      setErrorForm(data?.error ?? error?.message ?? 'Error al crear el usuario.')
+      setErrorForm(await mensajeErrorFunction(error, 'Error al crear el usuario.', data))
       setCreando(false)
       return
     }
@@ -391,7 +396,31 @@ export function useUsuarios() {
     })
 
     if (error || data?.error) {
-      setErrorEstado(data?.error ?? error?.message ?? 'Error al eliminar el usuario.')
+      setErrorEstado(await mensajeErrorFunction(error, 'Error al eliminar el usuario.', data))
+      setEliminando(false)
+      return
+    }
+
+    setUsuarios(prev => prev.filter(u => u.id !== usuarioSeleccionado.id))
+    setEliminando(false)
+    volverALista()
+  }
+
+  // ─── Quitar rol de staff ──────────────────────────────────────────────────
+  // Cuenta de socio con rol de staff: vuelve a su vista de socio. Nunca se
+  // elimina (borrar la cuenta arrastra su socio, cuotas y pagos).
+
+  async function quitarRolStaff() {
+    if (!usuarioSeleccionado) return
+    setEliminando(true)
+    setErrorEstado(null)
+
+    const { data, error } = await supabase.functions.invoke('admin-usuarios', {
+      body: { action: 'remove-role', userId: usuarioSeleccionado.id },
+    })
+
+    if (error || data?.error) {
+      setErrorEstado(await mensajeErrorFunction(error, 'Error al quitar el rol.', data))
       setEliminando(false)
       return
     }
@@ -414,7 +443,7 @@ export function useUsuarios() {
     })
 
     if (error || data?.error) {
-      setErrorEstado(data?.error ?? error?.message ?? 'Error al cambiar estado.')
+      setErrorEstado(await mensajeErrorFunction(error, 'Error al cambiar estado.', data))
       setCambiandoEstado(false)
       return
     }
@@ -431,6 +460,8 @@ export function useUsuarios() {
   return {
     loading,
     usuarios,
+    errorLista,
+    reintentarLista: fetchUsuarios,
     divisiones,
     paso,
     usuarioSeleccionado,
@@ -442,6 +473,7 @@ export function useUsuarios() {
     cambiarEstado,
     eliminando,
     eliminarUsuario,
+    quitarRolStaff,
     emailUsuario,
     cargandoEmail,
     divisionesEditDetalle,

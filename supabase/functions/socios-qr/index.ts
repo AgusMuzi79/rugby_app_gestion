@@ -46,10 +46,11 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { verifyTOTP } from '../_shared/totp.ts'
+import { matchingStep } from '../_shared/totp.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
+import { motivoRechazoPorEstado } from '../_shared/estado-acceso.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -397,14 +398,18 @@ async function handleValidate(
     return jsonOk({ valido: false, motivo: 'Carnet no configurado. Contactar Secretaría.' })
   }
 
-  // Verificar código TOTP (drift ±1 step = ±30s de tolerancia)
-  const esValido = await verifyTOTP(secretData.totp_secret, code)
+  // Verificar código TOTP (drift ±1 step = ±60s de tolerancia)
+  const paso = await matchingStep(secretData.totp_secret, code)
 
-  if (!esValido) {
+  if (paso === null) {
     return jsonOk({ valido: false, motivo: 'Código QR inválido o expirado' })
   }
 
   const row = socio as unknown as SocioRow
+
+  // Dado de baja: no pasa en ningún lector (antes salía verde "AL DÍA").
+  const motivoEstado = motivoRechazoPorEstado(row.estado)
+  if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
 
   let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {
@@ -422,6 +427,28 @@ async function handleValidate(
         valido: false,
         motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
         turno,
+      })
+    }
+  }
+
+  // Un código abre una sola vez en el gimnasio (autoservicio: nadie mira la
+  // foto, una captura reenviada abría la puerta). Canchero y Buffet son
+  // atendidos y no lo consumen, así un socio puede pasar por los dos en el
+  // mismo minuto. Se consume recién al dejar pasar (un rechazo no lo quema).
+  // Si el RPC falla se deja pasar y se loguea: un error de la base no es una
+  // captura reenviada, y cerrar la puerta a todos es peor.
+  if (callerRol === 'porteria') {
+    const { data: consumido, error: consumoErr } = await supabaseAdmin
+      .rpc('consumir_paso_totp', { p_socio_id: row.id, p_paso: paso })
+    if (consumoErr) {
+      console.error('consumir_paso_totp:', consumoErr.message)
+    } else if (consumido !== true) {
+      return jsonOk({
+        valido: false,
+        // La tablet lo usa para reconocer el reintento de su propio escaneo
+        // que se cortó por timeout (el ingreso ya quedó registrado).
+        codigo_ya_usado: true,
+        motivo: 'Este código ya se usó. Esperá el código siguiente del carnet (cambia cada minuto).',
       })
     }
   }
@@ -460,6 +487,9 @@ async function handleValidateDni(
   }
 
   const row = socio as unknown as SocioRow
+
+  const motivoEstado = motivoRechazoPorEstado(row.estado)
+  if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
 
   let turno: TurnoActual | null = null
   if (callerRol === 'porteria') {

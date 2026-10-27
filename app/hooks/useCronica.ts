@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { FEATURES } from '@/constants/features'
 
 export type FeedTipo = 'LESIÓN' | 'ASISTENCIA' | 'FICHAJE' | 'RESULTADO' | 'INFO'
 
@@ -95,8 +96,10 @@ export function useCronica() {
         fichajesQ = fichajesQ.eq('division_id', divId)
       }
 
+      // Módulo de lesiones oculto (FEATURES.lesiones): ni se consulta la tabla.
       const [lesionesRes, fichajesRes, resultadosRes, notifRes] = await Promise.all([
-        lesionesQ, fichajesQ, resultadosQ, notifQ,
+        FEATURES.lesiones ? lesionesQ : Promise.resolve({ data: [] }),
+        fichajesQ, resultadosQ, notifQ,
       ])
 
       // Lesiones

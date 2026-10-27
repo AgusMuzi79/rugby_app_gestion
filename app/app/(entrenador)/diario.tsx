@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
+import { FEATURES } from '@/constants/features'
 import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -31,6 +32,28 @@ function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
   if (ev.tipo === 'partido') return `vs ${ev.rival ?? 'Rival'}`
   if (ev.tipo === 'actividad') return etiquetaEvento(ev)
   return divisionNombre
+}
+
+// Atajos rápidos. Mesa y resultado se cargan los dos desde la pantalla Partido.
+// Los de lesiones se ocultan con FEATURES.lesiones (no se borran).
+type Atajo = {
+  label:      string
+  ruta:       '/(entrenador)/partido' | '/(entrenador)/lesiones'
+  destacado?: boolean
+  lesiones?:  boolean
+}
+const ATAJOS: Atajo[] = [
+  { label: '+ LESIÓN',     ruta: '/(entrenador)/lesiones', destacado: true, lesiones: true },
+  { label: 'MESA PARTIDO', ruta: '/(entrenador)/partido' },
+  { label: 'RESULTADO',    ruta: '/(entrenador)/partido' },
+  { label: 'PROTOCOLOS',   ruta: '/(entrenador)/lesiones', lesiones: true },
+]
+
+// De a dos por fila.
+function filasDeAtajos(atajos: Atajo[]): Atajo[][] {
+  const filas: Atajo[][] = []
+  for (let i = 0; i < atajos.length; i += 2) filas.push(atajos.slice(i, i + 2))
+  return filas
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -167,38 +190,20 @@ export default function DiarioEntrenadorScreen() {
           <View style={s.section}>
             <SectionHeader title="ATAJOS RÁPIDOS" />
             <View style={s.grid}>
-              <View style={s.gridRow}>
-                <TouchableOpacity
-                  style={[s.atajoCard, s.atajoCardGold]}
-                  onPress={() => router.navigate('/(entrenador)/lesiones')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[s.atajoText, s.atajoTextDark]}>+ LESIÓN</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/partido')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>MESA PARTIDO</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={s.gridRow}>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/partido')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>RESULTADO</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.atajoCard}
-                  onPress={() => router.navigate('/(entrenador)/lesiones')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={s.atajoText}>PROTOCOLOS</Text>
-                </TouchableOpacity>
-              </View>
+              {filasDeAtajos(ATAJOS.filter(a => FEATURES.lesiones || !a.lesiones)).map((fila, i) => (
+                <View key={i} style={s.gridRow}>
+                  {fila.map(a => (
+                    <TouchableOpacity
+                      key={a.label}
+                      style={[s.atajoCard, a.destacado && s.atajoCardGold]}
+                      onPress={() => router.navigate(a.ruta)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.atajoText, a.destacado && s.atajoTextDark]}>{a.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
             </View>
           </View>
         </>

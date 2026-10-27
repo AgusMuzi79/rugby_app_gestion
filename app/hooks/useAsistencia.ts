@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { encolar } from '@/lib/offlineQueue'
+import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
+import { esErrorDeRed } from '@/lib/offlineSync'
+import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
 
@@ -157,40 +159,9 @@ export function useAsistencia(): UseAsistenciaReturn {
     setAlertas([])
     setErrorGuardado(null)
 
-    const { isConnected } = await NetInfo.fetch()
-
-    if (isConnected) {
-      const eventoId = await obtenerOCrearEvento(divisionId)
-      if (!eventoId) {
-        setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
-        setGuardando(false)
-        return
-      }
-
-      const asistencias = jugadores
-        .filter(j => j.estado !== null)
-        .map(j => ({
-          evento_id: eventoId,
-          jugador_id: j.id,
-          division_id: divisionId,
-          estado: j.estado!,
-          registrado_por: session.user.id,
-        }))
-
-      if (asistencias.length > 0) {
-        const { error: asistError } = await supabase
-          .from('asistencias')
-          .upsert(asistencias, { onConflict: 'evento_id,jugador_id' })
-        if (asistError) {
-          setErrorGuardado('Error al guardar asistencias: ' + asistError.message)
-          setGuardando(false)
-          return
-        }
-      }
-
-      await verificarAusenciasConsecutivas(divisionId)
-      setGuardado(true)
-    } else {
+    // Sin señal (o si la red se cae a mitad): queda en el teléfono y
+    // useSincronizacionOffline la manda cuando vuelve la conexión.
+    const guardarEnTelefono = async () => {
       await encolar({
         tipo: 'asistencia',
         payload: {
@@ -202,15 +173,61 @@ export function useAsistencia(): UseAsistenciaReturn {
             .map(j => ({ jugador_id: j.id, estado: j.estado })),
         },
       })
+      await actualizarPendientes()
       setPendienteSync(true)
       setGuardado(true)
+      setGuardando(false)
     }
 
+    const { isConnected } = await NetInfo.fetch()
+    if (!isConnected) { await guardarEnTelefono(); return }
+
+    const evento = await obtenerOCrearEvento(divisionId)
+    if (!evento.id) {
+      if (esErrorDeRed(evento.error)) { await guardarEnTelefono(); return }
+      setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
+      setGuardando(false)
+      return
+    }
+    const eventoId = evento.id
+
+    const asistencias = jugadores
+      .filter(j => j.estado !== null)
+      .map(j => ({
+        evento_id: eventoId,
+        jugador_id: j.id,
+        division_id: divisionId,
+        estado: j.estado!,
+        registrado_por: session.user.id,
+      }))
+
+    if (asistencias.length > 0) {
+      const { error: asistError } = await supabase
+        .from('asistencias')
+        .upsert(asistencias, { onConflict: 'evento_id,jugador_id' })
+      if (asistError) {
+        if (esErrorDeRed(asistError)) { await guardarEnTelefono(); return }
+        setErrorGuardado('Error al guardar asistencias: ' + asistError.message)
+        setGuardando(false)
+        return
+      }
+    }
+
+    await verificarAusenciasConsecutivas(divisionId)
+    // Si había una de esta división y fecha que no se pudo enviar, esta la
+    // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
+    try {
+      await resolverNoEnviadas(divisionId, fecha)
+      await actualizarPendientes()
+    } catch (e) {
+      console.warn('no enviadas:', e instanceof Error ? e.message : String(e))
+    }
+    setGuardado(true)
     setGuardando(false)
   }
 
-  async function obtenerOCrearEvento(divId: string): Promise<string | null> {
-    const { data: existente } = await supabase
+  async function obtenerOCrearEvento(divId: string): Promise<{ id: string | null; error: unknown }> {
+    const { data: existente, error: errorBusqueda } = await supabase
       .from('eventos')
       .select('id')
       .eq('tipo', 'entrenamiento')
@@ -219,7 +236,8 @@ export function useAsistencia(): UseAsistenciaReturn {
       .eq('cancelado', false)
       .maybeSingle()
 
-    if (existente) return existente.id
+    if (existente) return { id: existente.id, error: null }
+    if (errorBusqueda && esErrorDeRed(errorBusqueda)) return { id: null, error: errorBusqueda }
 
     const { data: nuevo, error } = await supabase
       .from('eventos')
@@ -227,7 +245,7 @@ export function useAsistencia(): UseAsistenciaReturn {
       .select('id')
       .single()
 
-    return error ? null : nuevo.id
+    return error ? { id: null, error } : { id: nuevo.id, error: null }
   }
 
   async function verificarAusenciasConsecutivas(divId: string) {

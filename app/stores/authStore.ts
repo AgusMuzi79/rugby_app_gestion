@@ -12,6 +12,10 @@ interface AuthState {
   // True while app/(auth)/registro-tutor.tsx is open: a screen that works
   // without a session, so the root guard must not redirect it to the login.
   registroSinSesion: boolean
+  // Por qué la persona volvió (o quedó) en el login: el perfil no cargó, etc.
+  // La pantalla de login lo muestra en su banner de error.
+  avisoAuth: string | null
+  setAvisoAuth: (aviso: string | null) => void
   setSession: (session: Session | null) => void
   setRol: (rol: Rol | null) => void
   setRoles: (roles: Rol[]) => void
@@ -30,6 +34,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isPasswordRecovery: false,
   isNuevoUsuario: false,
   registroSinSesion: false,
+  avisoAuth: null,
+  setAvisoAuth: (avisoAuth) => set({ avisoAuth }),
   setSession: (session) => set({ session, loading: false }),
   setRol: (rol) => set({ rol }),
   setRoles: (roles) => set({ roles }),

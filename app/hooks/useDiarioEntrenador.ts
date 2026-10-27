@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
+import { FEATURES } from '@/constants/features'
 
 export interface ProximoEvento {
   id:    string
@@ -78,10 +79,12 @@ export function useDiarioEntrenador() {
             .gte('fecha', hoy())
             .order('fecha').order('hora', { nullsFirst: false })
             .limit(1),
-          // Lesiones últimos 30 días
-          supabase.from('lesiones')
-            .select('id', { count: 'exact', head: true })
-            .eq('division_id', divId).gte('fecha', hace30Dias()),
+          // Lesiones últimos 30 días (módulo oculto: ni se consulta la tabla)
+          FEATURES.lesiones
+            ? supabase.from('lesiones')
+                .select('id', { count: 'exact', head: true })
+                .eq('division_id', divId).gte('fecha', hace30Dias())
+            : Promise.resolve({ count: 0 as number | null }),
           // Partidos de los últimos 3 días (para resultado pendiente)
           supabase.from('eventos')
             .select('id')

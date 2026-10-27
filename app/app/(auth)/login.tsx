@@ -14,6 +14,7 @@ import {
 import { Link, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useLogin } from '@/hooks/useLogin'
+import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -34,6 +35,8 @@ export default function LoginScreen() {
   } = useLogin()
 
   const { mensaje } = useLocalSearchParams<{ mensaje?: string }>()
+  const avisoAuth = useAuthStore(st => st.avisoAuth)
+  const errorVisible = error ?? avisoAuth
 
   return (
     <KeyboardAvoidingView
@@ -80,7 +83,7 @@ export default function LoginScreen() {
 
           {/* Campo DNI o mail */}
           <View style={s.fieldWrap}>
-            <Text style={s.label}>DNI O MAIL</Text>
+            <Text style={s.label}>DNI (SIN PUNTOS) O MAIL</Text>
             <TextInput
               style={s.input}
               value={dni}
@@ -118,12 +121,14 @@ export default function LoginScreen() {
                 />
               </TouchableOpacity>
             </View>
+            {/* Los socios entran por primera vez con su DNI como contraseña. */}
+            <Text style={s.ayuda}>¿Primera vez? Tu contraseña es tu DNI, sin puntos.</Text>
           </View>
 
           {/* Error banner */}
-          {error !== null && (
+          {errorVisible !== null && (
             <View style={s.errorBanner}>
-              <Text style={s.errorText}>{error}</Text>
+              <Text style={s.errorText}>{errorVisible}</Text>
             </View>
           )}
 
@@ -233,6 +238,12 @@ const s = StyleSheet.create({
   },
   fieldWrapLast: {
     marginBottom: 32,
+  },
+  ayuda: {
+    fontFamily: fonts.cuerpo,
+    fontSize: 14,
+    marginTop: 8,
+    color: colors.textoSecundario,
   },
   label: {
     fontFamily: fonts.label,

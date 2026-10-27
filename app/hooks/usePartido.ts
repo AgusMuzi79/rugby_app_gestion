@@ -4,6 +4,8 @@ import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { encolar } from '@/lib/offlineQueue'
+import { esErrorDeRed } from '@/lib/offlineSync'
+import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 
 export type RolEnMesa = 'titular' | 'suplente'
 export type Paso = 'equipo' | 'asistencia' | 'mesa' | 'resultado'
@@ -365,16 +367,21 @@ export function usePartido() {
       registrado_por: session.user.id,
     }))
 
+    let enTelefono = !isConnected
     if (isConnected) {
       const { error } = await supabase
         .from('asistencias')
         .upsert(payload, { onConflict: 'evento_id,jugador_id' })
-      if (error) {
+      if (error && !esErrorDeRed(error)) {
         setErrorAsistencia('Error al guardar: ' + error.message)
         setGuardandoAsistencia(false)
         return
       }
-    } else {
+      enTelefono = !!error
+    }
+    // Sin señal (o si la red se cae a mitad): queda en el teléfono y
+    // useSincronizacionOffline la manda cuando vuelve la conexión.
+    if (enTelefono) {
       await encolar({
         tipo: 'asistencia',
         payload: {
@@ -387,6 +394,7 @@ export function usePartido() {
           })),
         },
       })
+      await actualizarPendientes()
     }
 
     setAsistenciaGuardada(true)

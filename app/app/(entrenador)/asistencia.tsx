@@ -11,6 +11,7 @@ import {
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
+import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -130,6 +131,9 @@ function FilaJugador({
 export default function AsistenciaScreen() {
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
+  // Si la cola ya se vació (volvió la señal), la asistencia llegó: "guardada".
+  const pendientesCola = useColaOffline(st => st.pendientes)
+  const noEnviadas = useColaOffline(st => st.noEnviadas)
   const {
     jugadores,
     loading,
@@ -235,6 +239,16 @@ export default function AsistenciaScreen() {
         </>
       )}
 
+      {/* Guardadas sin señal que fallaron varias veces por un error que no es de
+          red: no se reintentan más (siguen guardadas en el teléfono). */}
+      {noEnviadas > 0 && (
+        <View style={s.statusBar} accessibilityRole="alert">
+          <Text style={s.statusError}>
+            ✕ {noEnviadas === 1 ? 'Una asistencia guardada sin señal no se pudo enviar' : `${noEnviadas} asistencias guardadas sin señal no se pudieron enviar`}. Volvé a tomarla y guardala con conexión.
+          </Text>
+        </View>
+      )}
+
       {/* ── Estado ─────────────────────────────────────────────────────────── */}
       {(errorGuardado || (guardado && !guardando)) && (
         <View style={s.statusBar}>
@@ -242,8 +256,11 @@ export default function AsistenciaScreen() {
             <Text style={s.statusError}>✕ {errorGuardado}</Text>
           )}
           {guardado && !guardando && !errorGuardado && (
-            pendienteSync
-              ? <Text style={s.statusPendiente}>⏳ Pendiente de sincronización</Text>
+            pendienteSync && pendientesCola > 0
+              ? <Text style={s.statusPendiente}>
+                  ⏳ Sin señal: guardada en el teléfono. Se envía sola cuando vuelva la conexión
+                  {pendientesCola > 1 ? ` (${pendientesCola} pendientes)` : ''}.
+                </Text>
               : <Text style={s.statusOk}>✓ Asistencia guardada — {marcados}/{jugadores.length} marcados</Text>
           )}
         </View>

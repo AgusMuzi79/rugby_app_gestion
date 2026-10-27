@@ -6,9 +6,9 @@ export const metadata: Metadata = {
 }
 
 // Página pública, sin autenticación — URL requerida por Google Play Console
-// (y App Store Connect) cuando la app permite crear cuentas. El proceso de
-// borrado hoy es manual (a cargo de Secretaría), igual que el resto de las
-// bajas/altas del Club — no hay autoservicio automático todavía.
+// (y App Store Connect) cuando la app permite crear cuentas. La baja es
+// manual (a cargo de Secretaría, vía el padrón de NUVIX) y la cuenta se
+// bloquea, no se borra: el texto tiene que decir exactamente eso.
 
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -41,19 +41,23 @@ export default function EliminarCuentaPage() {
           </p>
         </Seccion>
 
-        <Seccion titulo="Qué se elimina">
+        {/* Proceso real (decisión del club 2026-10-26): Secretaría da de baja al socio
+            en el padrón de NUVIX y el import siguiente bloquea la cuenta
+            (importar-socios: ban de la cuenta). No se borra nada en la base ni en Auth. */}
+        <Seccion titulo="Qué pasa con tu cuenta">
           <ul className="list-disc pl-5 flex flex-col gap-1">
-            <li>Tu acceso y credenciales de inicio de sesión.</li>
-            <li>Tu perfil: datos de contacto, foto de carnet, tokens de notificaciones.</li>
-            <li>Datos deportivos asociados (asistencia, fichajes) si no corresponden a otro socio.</li>
+            <li>Secretaría te da de baja en el padrón de socios del Club.</li>
+            <li>Con la siguiente actualización del padrón, tu cuenta queda bloqueada: ya no podés iniciar sesión ni usar el carnet digital.</li>
+            <li>Dejás de recibir notificaciones del Club.</li>
           </ul>
         </Seccion>
 
         <Seccion titulo="Qué se conserva">
           <p>
-            Los registros de cuotas y pagos pueden conservarse por el tiempo que exijan las
-            obligaciones contables e impositivas del Club, de forma disociada de tu perfil una vez
-            eliminada la cuenta.
+            Tus datos no se borran: quedan guardados, sin uso y con acceso restringido, junto con el
+            historial de tu cuenta (cuotas, pagos, accesos y actividad deportiva), por el tiempo que
+            exijan las obligaciones contables e impositivas del Club. Si volvés a asociarte, tu
+            cuenta se reactiva con el mismo historial.
           </p>
         </Seccion>
 

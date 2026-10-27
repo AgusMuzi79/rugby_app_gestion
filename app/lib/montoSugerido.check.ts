@@ -28,6 +28,9 @@ caso('montoSugeridoDe: punto como separador de miles', () => {
   assert.equal(montoSugeridoDe('1.250.000'), 1250000)
   assert.equal(montoSugeridoDe('2.500,50'), 2500.5)
   assert.equal(montoSugeridoDe('$ 2.500'), 2500)
+  // Lo que tipea un manager en Cobranzas (parseFloat daba 15 y 1.5).
+  assert.equal(montoSugeridoDe('15.000'), 15000)
+  assert.equal(montoSugeridoDe('1.500,50'), 1500.5)
 })
 
 caso('montoSugeridoDe: punto decimal sin miles se respeta', () => {

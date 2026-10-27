@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { montoInicialCobranza } from '@/lib/montoSugerido'
+import { filasAGuardar, parseMontoCobranza, type OriginalCobranza } from '@/lib/cobranzasGuardado'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -46,14 +47,10 @@ export interface Resumen {
   pendientes: number
 }
 
+// Fecha local (no UTC: después de las 21 h de Argentina toISOString ya es mañana).
 function fechaHoy(): string {
-  return new Date().toISOString().split('T')[0]
-}
-
-function parseMonto(str: string): number | null {
-  if (!str.trim()) return null
-  const n = parseFloat(str.replace(',', '.'))
-  return isNaN(n) ? null : n
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export function useCobranzas() {
@@ -74,9 +71,14 @@ export function useCobranzas() {
   const [guardando, setGuardando]   = useState(false)
   const [guardadoOk, setGuardadoOk] = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  // La lectura de pagos del evento falló: no se puede guardar (se pisarían los
+  // pagos registrados con PENDIENTE).
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  // Estado en la base al abrir el evento, para guardar sólo lo que cambió.
+  const originales = useRef(new Map<string, OriginalCobranza>())
 
   const resumen: Resumen = {
-    cobrado:    jugadores.filter(j => j.estado === 'pagado').reduce((s, j) => s + (parseMonto(j.monto) ?? 0), 0),
+    cobrado:    jugadores.filter(j => j.estado === 'pagado').reduce((s, j) => s + (parseMontoCobranza(j.monto) ?? 0), 0),
     pagados:    jugadores.filter(j => j.estado === 'pagado').length,
     pendientes: jugadores.filter(j => j.estado === 'pendiente').length,
   }
@@ -203,6 +205,7 @@ export function useCobranzas() {
     setEventoSeleccionado(ev)
     setGuardadoOk(false)
     setError(null)
+    setErrorCarga(null)
     setCargandoJugadores(true)
     setPaso('jugadores')
 
@@ -217,29 +220,50 @@ export function useCobranzas() {
         .order('nombre_completo'),
       supabase
         .from('cobranzas')
-        .select('jugador_id, estado, monto, forma_de_pago')
+        .select('jugador_id, estado, monto, forma_de_pago, fecha_pago, registrado_por')
         .eq('evento_financiero_id', ev.id),
     ])
+
+    if (jgsRes.error || cobranzasRes.error) {
+      originales.current = new Map()
+      setJugadores([])
+      setErrorCarga('No se pudieron cargar los pagos de este evento. Revisá la conexión y reintentá.')
+      setCargandoJugadores(false)
+      return
+    }
 
     const mapa             = new Map((cobranzasRes.data ?? []).map(c => [c.jugador_id, c]))
     const variasDivisiones = ev.divisionIds.length > 1
     const nombreDivision   = new Map(misDivisiones.map(d => [d.id, d.nombre]))
 
-    setJugadores(
-      (jgsRes.data ?? []).map(j => {
-        const c = mapa.get(j.id)
-        return {
-          jugadorId:      j.id,
-          nombre:         j.nombre_completo,
-          divisionNombre: variasDivisiones ? (nombreDivision.get(j.division_id) ?? null) : null,
-          estado:         (c?.estado as EstadoPago) ?? 'pendiente',
-          monto:          montoInicialCobranza(c?.monto, ev.descripcion),
-          formaDePago:    (c?.forma_de_pago as FormaDePago | null) ?? null,
-        }
-      }),
-    )
+    const filas: CobranzaJugador[] = (jgsRes.data ?? []).map(j => {
+      const c = mapa.get(j.id)
+      return {
+        jugadorId:      j.id,
+        nombre:         j.nombre_completo,
+        divisionNombre: variasDivisiones ? (nombreDivision.get(j.division_id) ?? null) : null,
+        estado:         (c?.estado as EstadoPago) ?? 'pendiente',
+        monto:          montoInicialCobranza(c?.monto, ev.descripcion),
+        formaDePago:    (c?.forma_de_pago as FormaDePago | null) ?? null,
+      }
+    })
+    originales.current = new Map(filas.map(f => {
+      const c = mapa.get(f.jugadorId)
+      return [f.jugadorId, {
+        estado:        f.estado,
+        monto:         f.monto,
+        formaDePago:   f.formaDePago,
+        fechaPago:     (c?.fecha_pago as string | null) ?? null,
+        registradoPor: (c?.registrado_por as string | null) ?? null,
+      }]
+    }))
+    setJugadores(filas)
 
     setCargandoJugadores(false)
+  }
+
+  function reintentarCarga() {
+    if (eventoSeleccionado) seleccionarEvento(eventoSeleccionado)
   }
 
   function volverAEventos() {
@@ -277,33 +301,46 @@ export function useCobranzas() {
 
   // ─── Guardar ───────────────────────────────────────────────────────────────
 
-  async function guardarCobranzas() {
-    if (!session || !eventoSeleccionado) return
-    setGuardando(true)
+  // Guarda sólo las filas que cambiaron desde que se abrió el evento (o sólo
+  // un jugador, desde el modal). Devuelve true si quedó todo guardado.
+  async function guardarCobranzas(soloJugadorId?: string): Promise<boolean> {
+    if (!session || !eventoSeleccionado) return false
+    if (errorCarga) { setError(errorCarga); return false }
+    setGuardadoOk(false)
     setError(null)
 
-    const rows = jugadores.map(j => ({
-      evento_financiero_id: eventoSeleccionado.id,
-      jugador_id:           j.jugadorId,
-      estado:               j.estado,
-      monto:                j.estado === 'pagado' ? parseMonto(j.monto) : null,
-      forma_de_pago:        j.estado === 'pagado' ? j.formaDePago : null,
-      fecha_pago:           j.estado === 'pagado' ? fechaHoy() : null,
-      registrado_por:       session.user.id,
-    }))
+    const { filas, errores } = filasAGuardar(jugadores, originales.current, {
+      eventoId: eventoSeleccionado.id,
+      userId:   session.user.id,
+      hoy:      fechaHoy(),
+      soloJugadorId,
+    })
+    if (errores.length > 0) { setError(errores.join('\n')); return false }
+    if (filas.length === 0) { setGuardadoOk(true); return true }
 
+    setGuardando(true)
     const { error: dbErr } = await supabase
       .from('cobranzas')
-      .upsert(rows, { onConflict: 'evento_financiero_id,jugador_id' })
+      .upsert(filas, { onConflict: 'evento_financiero_id,jugador_id' })
 
     if (dbErr) {
       setError('Error al guardar: ' + dbErr.message)
       setGuardando(false)
-      return
+      return false
     }
 
+    for (const f of filas) {
+      originales.current.set(f.jugador_id, {
+        estado:        f.estado,
+        monto:         f.monto != null ? String(f.monto) : '',
+        formaDePago:   f.forma_de_pago,
+        fechaPago:     f.fecha_pago,
+        registradoPor: f.registrado_por,
+      })
+    }
     setGuardadoOk(true)
     setGuardando(false)
+    return true
   }
 
   return {
@@ -319,6 +356,8 @@ export function useCobranzas() {
     guardando,
     guardadoOk,
     error,
+    errorCarga,
+    reintentarCarga,
     seleccionarEvento,
     volverAEventos,
     toggleEstado,

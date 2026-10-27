@@ -3,18 +3,23 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityInd
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
+import { useNetInfo } from '@react-native-community/netinfo'
 import { Feather } from '@expo/vector-icons'
-import { useScanner, UMBRAL_INVITADO_REPETIDO, type ScanResult, type InvitadoResult } from '@/hooks/useScanner'
+import { useScanner, UMBRAL_INVITADO_REPETIDO, type InvitadoResult } from '@/hooks/useScanner'
+import { estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Mismo criterio que el carnet del socio: 'activo' con semáforo 'rojo'
-// (2+ períodos impagos) se muestra como 'moroso' acá también.
-function estadoVisual(result: ScanResult): string {
-  if (result.estado === 'activo' && result.semaforo === 'rojo') return 'moroso'
-  return result.estado ?? ''
+// Un color, ícono y texto por veredicto: el título dice la acción (entra / no
+// entra), no el dato. Ratios: blanco/#1A7A1A 5.46 · #15110A/#E67E22 6.60 ·
+// blanco/#CC4127 4.82 · texto/card.
+const VEREDICTO_UI: Record<Veredicto, { bg: string; fg: string; icon: 'check-circle' | 'alert-circle' | 'x-octagon' | 'wifi-off' }> = {
+  pasa:         { bg: colors.exito,           fg: colors.blanco,   icon: 'check-circle' },
+  pasa_aviso:   { bg: colors.estadoPendiente, fg: colors.sobreOro, icon: 'alert-circle' },
+  no_pasa:      { bg: colors.rojoUrgente,     fg: colors.blanco,   icon: 'x-octagon' },
+  sin_conexion: { bg: colors.card,            fg: colors.texto,    icon: 'wifi-off' },
 }
 
 // Color de la línea del turnero bajo los datos del socio: verde con reserva, ámbar sin
@@ -45,7 +50,9 @@ export default function ScannerScreen() {
   // Gimnasio (rol porteria): autoservicio, el socio escanea su propio carnet → cámara frontal.
   // Canchero y Buffet: atendido, es él quien escanea el carnet del socio → cámara trasera.
   const camaraFacing = esAutoservicio ? 'front' : 'back'
-  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, registrarInvitado, reset } = useScanner()
+  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, registrarInvitado, cancelar, reset } = useScanner()
+  const netInfo = useNetInfo()
+  const sinRed = netInfo.isInternetReachable === false
 
   // Fallback sin QR — el socio no llevaba el celular encima.
   const [modoDni, setModoDni] = useState(false)
@@ -66,14 +73,16 @@ export default function ScannerScreen() {
   }
 
   const sonidoOk      = useAudioPlayer(require('../../assets/sounds/ok.wav'))
+  const sonidoAviso   = useAudioPlayer(require('../../assets/sounds/aviso.wav'))
   const sonidoAlerta  = useAudioPlayer(require('../../assets/sounds/alerta.wav'))
 
-  // Un sonido distinto según el resultado — pensado para que el encargado del
-  // gimnasio lo note sin tener que mirar la pantalla en cada escaneo.
+  // Un sonido por veredicto — pensado para que el encargado del gimnasio lo
+  // note sin tener que mirar la pantalla: ok = pasa, aviso = pasa con aviso
+  // (moroso, sin reserva), alerta = no pasa o no se pudo verificar.
   useEffect(() => {
     if (!result) return
-    const moroso = result.valido ? estadoVisual(result) === 'moroso' : true
-    const player = moroso ? sonidoAlerta : sonidoOk
+    const v = veredicto(result)
+    const player = v === 'pasa' ? sonidoOk : v === 'pasa_aviso' ? sonidoAviso : sonidoAlerta
     player.seekTo(0)
     player.play()
   }, [result])
@@ -157,8 +166,10 @@ export default function ScannerScreen() {
 
   // ── Resultado ──────────────────────────────────────────────────────────
   if (result || validando) {
-    const esValido = result?.valido === true
-    const moroso   = result ? (esValido ? estadoVisual(result) === 'moroso' : true) : false
+    const v        = result ? veredicto(result) : null
+    const ui       = v ? VEREDICTO_UI[v] : null
+    const pasa     = v === 'pasa' || v === 'pasa_aviso'
+    const motivo   = result ? motivoVeredicto(result) : null
 
     return (
       <View style={[s.root, { paddingTop: insets.top }]}>
@@ -170,22 +181,29 @@ export default function ScannerScreen() {
           <View style={s.validandoContainer}>
             <ActivityIndicator color={colors.oro} size="large" />
             <Text style={s.validandoText}>Verificando carnet…</Text>
+            <TouchableOpacity style={s.permBtn} onPress={cancelar} activeOpacity={0.8}>
+              <Text style={s.permBtnText}>CANCELAR</Text>
+            </TouchableOpacity>
           </View>
-        ) : result ? (
+        ) : result && ui ? (
           <View style={s.resultContainer}>
-            {/* Banda de estado — foco en la cuota, acá no se bloquea el acceso a nadie */}
-            <View style={[s.resultBand, { backgroundColor: moroso ? colors.rojoUrgente : '#1A7A1A' }, esTablet && s.resultBandTablet]}>
-              <Feather
-                name={moroso ? 'alert-triangle' : 'check-circle'}
-                size={esTablet ? 56 : 32}
-                color={colors.blanco}
-              />
-              <Text style={[s.resultBandText, esTablet && s.resultBandTextTablet]}>
-                {esValido ? (moroso ? 'MOROSO' : 'AL DÍA') : 'QR NO VÁLIDO'}
-              </Text>
+            {/* Banda del veredicto: ¿entra o no entra? */}
+            <View style={[s.resultBand, { backgroundColor: ui.bg }, esTablet && s.resultBandTablet]}>
+              <Feather name={ui.icon} size={esTablet ? 56 : 32} color={ui.fg} />
+              <View style={s.resultBandTextos}>
+                <Text style={[s.resultBandText, { color: ui.fg }, esTablet && s.resultBandTextTablet]}>
+                  {tituloVeredicto(result)}
+                </Text>
+                {pasa && !!motivo && (
+                  <Text style={[s.resultBandMotivo, { color: ui.fg }, esTablet && s.resultBandMotivoTablet]}>
+                    {motivo}
+                  </Text>
+                )}
+              </View>
             </View>
 
-            {esValido ? (
+            {/* Reintento ya registrado: no hay ficha del socio, el motivo va en la banda. */}
+            {result.reintentoRegistrado ? null : pasa ? (
               <View style={[s.resultBody, esTablet && s.resultBodyTablet]}>
                 {/* Foto */}
                 {result.foto_url ? (
@@ -236,7 +254,7 @@ export default function ScannerScreen() {
                   esTablet && s.motivoTextTablet,
                   result.turno?.bloquear === true && { color: colors.rojoUrgente },
                 ]}>
-                  {result.motivo ?? 'QR inválido'}
+                  {motivo}
                 </Text>
               </View>
             )}
@@ -383,6 +401,13 @@ export default function ScannerScreen() {
       <View style={s.permBar}>
         <Text style={s.permBarLabel}>{tituloHeader}</Text>
       </View>
+
+      {sinRed && (
+        <View style={s.sinRedBanner} accessibilityRole="alert">
+          <Feather name="wifi-off" size={16} color={colors.texto} />
+          <Text style={s.sinRedTexto}>SIN CONEXIÓN · no se pueden verificar carnets</Text>
+        </View>
+      )}
 
       <View style={s.cameraContainer}>
         <CameraView
@@ -553,6 +578,17 @@ const s = StyleSheet.create({
   },
   resultBandTablet: { paddingHorizontal: 48, paddingVertical: 40, gap: 28 },
   resultBandTextTablet: { fontSize: 34 },
+  resultBandTextos: { flex: 1, gap: 4 },
+  resultBandMotivo: { fontFamily: fonts.cuerpo, fontSize: 15 },
+  resultBandMotivoTablet: { fontSize: 24 },
+
+  sinRedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.card,
+  },
+  sinRedTexto: {
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: colors.texto,
+  },
 
   resultBody: {
     flexDirection: 'row', gap: 20, padding: 24,

@@ -1,26 +1,25 @@
 // Edge Function: socios-pagos
-// Gestión de pagos de cuotas — Mercado Pago + pagos manuales + generación de PDF.
+// Gestión de pagos de cuotas — Mercado Pago.
+// NUVIX es el único registro de pagos y el que manda los comprobantes: el pago
+// manual de Secretaría y los comprobantes PDF por mail se sacaron (2026-10-26).
 //
 // Actions:
 //   checkout              — Crea una preferencia de pago en Mercado Pago (llamada por el socio)
 //   webhook               — Webhook de Mercado Pago al confirmar pago (sin JWT — MP lo llama directamente)
-//   manual                — Registro de pago en ventanilla por Secretaría
-//   declarar-comprobante  — Socio declara su comprobante de transferencia (flujo alias manual)
-//   aprobar-comprobante   — Secretaría aprueba un comprobante en revisión (cuota → pagado)
-//   rechazar-comprobante  — Secretaría rechaza un comprobante en revisión (cuota → pendiente, email con motivo)
+//   manual                — 410: se sacó el "Registrar pago" de Secretaría (NUVIX es la fuente)
+//   declarar-comprobante  — 410 (aprobar-comprobante / rechazar-comprobante se
+//    borraron el 2026-10-26 con la pantalla /secretaria/comprobantes: los
+//    comprobantes llegan por WhatsApp; sin ellas una cuota declarada quedaba
+//    'en_revision' para siempre)
 //
 // Deploy: supabase functions deploy socios-pagos --no-verify-jwt
 //   (necesario para que el webhook de MP funcione sin JWT)
 //
 // Secrets requeridos:
 //   MERCADOPAGO_ACCESS_TOKEN
-//   RESEND_API_KEY   — sin esto, los emails de comprobante se omiten (fire and forget, ver _shared/email.ts)
-//   CLUB_EMAIL_FROM  — ej: "UNCAS Rugby Club <pagos@dominio-del-club.com>", el dominio debe estar verificado en Resend
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { enviarEmail, emailTemplate } from '../_shared/email.ts'
-import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1'
 
 const MP_API = 'https://api.mercadopago.com'
 
@@ -66,13 +65,24 @@ Deno.serve(async (req: Request) => {
   const bodyAction = body.action as string | undefined
 
   if (bodyAction === 'checkout')              return handleCheckout(body, callerRol, caller.id)
-  if (bodyAction === 'manual')                return handleManual(body, callerRol, caller.id)
+  if (bodyAction === 'manual') {
+    return jsonError(410, 'El registro manual de pagos ya no existe: los pagos se cargan en NUVIX.')
+  }
+  // El flujo de tarjeta desde el panel (número completo + CVV pasando por una
+  // función propia: alcance PCI SAQ D) se abandonó: el staff ya no puede usarlo.
+  const ACCIONES_TARJETA = ['associate-card', 'remove-card', 'charge-card']
+  const ROLES_STAFF = ['secretaria', 'admin', 'subcomision']
+  if (ACCIONES_TARJETA.includes(bodyAction ?? '') && ROLES_STAFF.includes(callerRol)) {
+    return jsonError(410, 'El cobro con tarjeta desde el panel ya no existe.')
+  }
   if (bodyAction === 'associate-card')        return handleAssociateCard(body, callerRol, caller.id)
   if (bodyAction === 'remove-card')           return handleRemoveCard(body, callerRol, caller.id)
   if (bodyAction === 'charge-card')           return handleChargeCard(body, callerRol, caller.id)
-  if (bodyAction === 'declarar-comprobante')  return handleDeclararComprobante(body, callerRol, caller.id)
-  if (bodyAction === 'aprobar-comprobante')   return handleAprobarComprobante(body, callerRol, caller.id)
-  if (bodyAction === 'rechazar-comprobante')  return handleRechazarComprobante(body, callerRol, caller.id)
+  // Sin aprobar/rechazar, una cuota declarada quedaba en 'en_revision' para
+  // siempre: el comprobante se manda por WhatsApp y Secretaría lo carga en NUVIX.
+  if (bodyAction === 'declarar-comprobante') {
+    return jsonError(410, 'El comprobante se manda por WhatsApp a Secretaría.')
+  }
 
   return jsonError(400, `Acción desconocida: ${bodyAction}`)
 })
@@ -190,324 +200,6 @@ async function handleCheckout(
   return jsonOk({ checkout_url: mpData.init_point, cuota_id: cuotaId })
 }
 
-// ─── Declarar comprobante de transferencia (flujo alias manual) ─────────────────
-// El socio ya subió el archivo a Storage (bucket comprobantes, carpeta propia);
-// acá solo resolvemos/creamos la fila de cuotas con el monto correcto — el
-// cliente nunca escribe monto directo. Mismo patrón que handleCheckout, sin
-// tocar Mercado Pago.
-
-async function handleDeclararComprobante(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (callerRol !== 'socio') return jsonError(403, 'Solo el socio puede declarar su comprobante')
-
-  const periodo          = (body.periodo as string | undefined)?.trim()
-  const comprobante_path = (body.comprobante_path as string | undefined)?.trim()
-
-  if (!periodo || !/^\d{4}-\d{2}$/.test(periodo)) {
-    return jsonError(400, 'periodo inválido. Formato: YYYY-MM')
-  }
-  if (!comprobante_path) return jsonError(400, 'comprobante_path es requerido')
-
-  const { data: socio, error: socioErr } = await supabaseAdmin
-    .from('socios')
-    .select('id, categorias_socio ( monto_mensual )')
-    .eq('profile_id', callerId)
-    .single()
-
-  if (socioErr || !socio) return jsonError(404, 'Socio no encontrado')
-
-  // el comprobante tiene que estar en la carpeta del propio socio
-  if (!comprobante_path.startsWith(`${socio.id}/`)) {
-    return jsonError(403, 'comprobante_path inválido')
-  }
-
-  const categoria = socio.categorias_socio as { monto_mensual: number } | null
-
-  // importe real del vínculo manda sobre el precio de catálogo (ver nota en handleCheckout)
-  const { data: serviciosActivos } = await supabaseAdmin
-    .from('socio_servicios')
-    .select('importe, servicios_opcionales ( monto_mensual )')
-    .eq('socio_id', socio.id)
-
-  const montoServicios = (serviciosActivos ?? []).reduce((sum, s) => {
-    const srv = s.servicios_opcionales as { monto_mensual: number } | null
-    return sum + (s.importe ?? srv?.monto_mensual ?? 0)
-  }, 0)
-
-  const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
-
-  const { data: cuotaExistente } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, estado')
-    .eq('socio_id', socio.id)
-    .eq('periodo', periodo)
-    .single()
-
-  if (cuotaExistente?.estado === 'pagado') {
-    return jsonError(409, `La cuota de ${periodo} ya está pagada`)
-  }
-
-  if (cuotaExistente) {
-    const { error: updErr } = await supabaseAdmin
-      .from('cuotas')
-      .update({ estado: 'en_revision', comprobante_path })
-      .eq('id', cuotaExistente.id)
-
-    if (updErr) return jsonError(500, 'Error al actualizar la cuota: ' + updErr.message)
-    return jsonOk({ ok: true, cuota_id: cuotaExistente.id })
-  }
-
-  const { data: nuevaCuota, error: cuotaErr } = await supabaseAdmin
-    .from('cuotas')
-    .insert({
-      socio_id: socio.id,
-      periodo,
-      monto:    montoTotal,
-      estado:   'en_revision',
-      comprobante_path,
-    })
-    .select('id')
-    .single()
-
-  if (cuotaErr || !nuevaCuota) return jsonError(500, 'Error al crear la cuota: ' + cuotaErr?.message)
-  return jsonOk({ ok: true, cuota_id: nuevaCuota.id })
-}
-
-// ─── Aprobar comprobante en revisión (Secretaría) ─────────────────────────────
-
-async function handleAprobarComprobante(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (!['secretaria', 'admin', 'subcomision'].includes(callerRol)) {
-    return jsonError(403, 'Solo Secretaría puede aprobar comprobantes')
-  }
-
-  const cuota_id = body.cuota_id as string | undefined
-  if (!cuota_id) return jsonError(400, 'cuota_id es requerido')
-
-  const { data: cuota, error: cuotaErr } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, socio_id, periodo, monto, estado, comprobante_path')
-    .eq('id', cuota_id)
-    .single()
-
-  if (cuotaErr || !cuota) return jsonError(404, 'Cuota no encontrada')
-  if (cuota.estado !== 'en_revision') {
-    return jsonError(409, `La cuota no está en revisión (estado actual: ${cuota.estado})`)
-  }
-
-  const [cuotaRes, pagoRes] = await Promise.all([
-    supabaseAdmin.from('cuotas').update({ estado: 'pagado' }).eq('id', cuota.id),
-    supabaseAdmin.from('pagos_socios').insert({
-      socio_id:          cuota.socio_id,
-      cuota_id:          cuota.id,
-      monto:             cuota.monto,
-      forma_pago:        'transferencia',
-      estado:            'aprobado',
-      registrado_por:    callerId,
-      comprobante_path:  cuota.comprobante_path,
-    }).select('id').single(),
-  ])
-
-  if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
-
-  const pagoId = (pagoRes.data as { id: string } | null)?.id
-  if (pagoId) {
-    // mismo generador que el pago manual — el socio recibe el PDF oficial del club
-    // por email, más allá de la foto que ya subió como comprobante
-    EdgeRuntime.waitUntil(Promise.allSettled([
-      generarYEnviarComprobante(cuota.socio_id, pagoId, cuota.periodo, cuota.monto, 'transferencia'),
-      notificarPushAprobacionComprobante(cuota.socio_id, cuota.periodo),
-    ]))
-  }
-
-  return jsonOk({ ok: true, cuota_id: cuota.id, pago_id: pagoId })
-}
-
-async function notificarPushAprobacionComprobante(
-  socioId: string,
-  periodo: string
-): Promise<void> {
-  const { data: socio } = await supabaseAdmin
-    .from('socios')
-    .select('profile_id')
-    .eq('id', socioId)
-    .single()
-  if (!socio?.profile_id) return
-
-  const { data: tokens } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .eq('usuario_id', socio.profile_id)
-
-  const expoPushTokens = (tokens ?? [])
-    .map(t => t.token)
-    .filter(t => t.startsWith('ExponentPushToken'))
-  if (!expoPushTokens.length) return
-
-  const [anio, mes] = periodo.split('-')
-  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-  await fetch('https://exp.host/--/api/v2/push/send', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expoPushTokens.map(token => ({
-      to:       token,
-      title:    'Comprobante aprobado',
-      body:     `Tu pago de ${periodoLabel} fue confirmado. Te enviamos el comprobante oficial por email.`,
-      sound:    'default',
-      priority: 'high',
-      data:     { type: 'comprobante_aprobado', periodo },
-    }))),
-  })
-}
-
-// ─── Rechazar comprobante en revisión (Secretaría) ────────────────────────────
-
-async function handleRechazarComprobante(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (!['secretaria', 'admin', 'subcomision'].includes(callerRol)) {
-    return jsonError(403, 'Solo Secretaría puede rechazar comprobantes')
-  }
-
-  const cuota_id = body.cuota_id as string | undefined
-  const motivo   = (body.motivo as string | undefined)?.trim()
-  if (!cuota_id) return jsonError(400, 'cuota_id es requerido')
-  if (!motivo)   return jsonError(400, 'motivo es requerido')
-
-  const { data: cuota, error: cuotaErr } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, socio_id, periodo, monto, estado, comprobante_path')
-    .eq('id', cuota_id)
-    .single()
-
-  if (cuotaErr || !cuota) return jsonError(404, 'Cuota no encontrada')
-  if (cuota.estado !== 'en_revision') {
-    return jsonError(409, `La cuota no está en revisión (estado actual: ${cuota.estado})`)
-  }
-
-  const [cuotaRes, pagoRes] = await Promise.all([
-    // vuelve a pendiente y se limpia comprobante_path para que el socio pueda volver a
-    // subir uno — el guard_cuotas_update sólo restringe al propio socio (auth.uid()
-    // presente); esta escritura corre con service_role, así que no aplica acá
-    supabaseAdmin.from('cuotas').update({ estado: 'pendiente', comprobante_path: null }).eq('id', cuota.id),
-    // pagos_socios.estado sí admite 'rechazado' (a diferencia de cuotas.estado) —
-    // queda como registro histórico del comprobante rechazado, con el path original
-    supabaseAdmin.from('pagos_socios').insert({
-      socio_id:          cuota.socio_id,
-      cuota_id:          cuota.id,
-      monto:             cuota.monto,
-      forma_pago:        'transferencia',
-      estado:            'rechazado',
-      registrado_por:    callerId,
-      comprobante_path:  cuota.comprobante_path,
-    }).select('id').single(),
-  ])
-
-  if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
-  if (pagoRes.error)  return jsonError(500, 'Error al registrar el rechazo: ' + pagoRes.error.message)
-
-  EdgeRuntime.waitUntil(Promise.allSettled([
-    enviarEmailRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
-    notificarPushRechazoComprobante(cuota.socio_id, cuota.periodo, motivo),
-  ]))
-
-  return jsonOk({ ok: true, cuota_id: cuota.id })
-}
-
-async function notificarPushRechazoComprobante(
-  socioId: string,
-  periodo: string,
-  motivo:  string
-): Promise<void> {
-  const { data: socio } = await supabaseAdmin
-    .from('socios')
-    .select('profile_id')
-    .eq('id', socioId)
-    .single()
-  if (!socio?.profile_id) return
-
-  const { data: tokens } = await supabaseAdmin
-    .from('push_tokens')
-    .select('token')
-    .eq('usuario_id', socio.profile_id)
-
-  const expoPushTokens = (tokens ?? [])
-    .map(t => t.token)
-    .filter(t => t.startsWith('ExponentPushToken'))
-  if (!expoPushTokens.length) return
-
-  const [anio, mes] = periodo.split('-')
-  const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-  const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-  await fetch('https://exp.host/--/api/v2/push/send', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(expoPushTokens.map(token => ({
-      to:       token,
-      title:    'Comprobante rechazado',
-      body:     `Tu comprobante de ${periodoLabel} no pudo aprobarse. Motivo: ${motivo}`,
-      sound:    'default',
-      priority: 'high',
-      data:     { type: 'comprobante_rechazado', periodo },
-    }))),
-  })
-}
-
-async function enviarEmailRechazoComprobante(
-  socioId: string,
-  periodo: string,
-  motivo:  string
-): Promise<void> {
-  try {
-    const { data: socio } = await supabaseAdmin
-      .from('socios')
-      .select('profile_id')
-      .eq('id', socioId)
-      .single()
-    if (!socio) return
-
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(socio.profile_id)
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('nombre')
-      .eq('id', socio.profile_id)
-      .single()
-
-    const email  = user?.email ?? ''
-    const nombre = profile?.nombre ?? 'Socio'
-    if (!email) return
-
-    const [anio, mes] = periodo.split('-')
-    const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-    const html = emailTemplate(`
-      <p style="font-size:15px">Hola ${nombre},</p>
-      <p style="font-size:15px;line-height:1.6">Secretaría revisó el comprobante que subiste para la cuota de <strong>${periodoLabel}</strong> y no pudo aprobarlo.</p>
-      <p style="font-size:15px;line-height:1.6"><strong>Motivo:</strong> ${motivo}</p>
-      <p style="font-size:15px;line-height:1.6">Podés volver a subir el comprobante desde la app cuando lo tengas corregido.</p>
-    `)
-
-    await enviarEmail({ to: email, subject: `Tu comprobante de ${periodoLabel} necesita revisión`, html })
-  } catch (err) {
-    console.error('Error enviando email de rechazo:', err)
-  }
-}
-
 // ─── Webhook de Mercado Pago ──────────────────────────────────────────────────
 
 async function handleWebhook(req: Request): Promise<Response> {
@@ -566,234 +258,9 @@ async function handleWebhook(req: Request): Promise<Response> {
 
   if (cuotaRes.error) console.error('Error actualizando cuota:', cuotaRes.error.message)
 
-  const pagoId = (pagoRes.data as { id: string } | null)?.id
-
-  // Generar PDF y enviar email en background (no bloquear respuesta a MP)
-  if (pagoId) {
-    EdgeRuntime.waitUntil(
-      generarYEnviarComprobante(cuota.socio_id, pagoId, cuota.periodo, cuota.monto, 'Mercado Pago')
-    )
-  }
+  if (pagoRes.error) console.error('Error registrando pago:', pagoRes.error.message)
 
   return new Response('ok', { status: 200 })
-}
-
-// ─── Pago manual en ventanilla (Secretaría) ───────────────────────────────────
-
-async function handleManual(
-  body: Record<string, unknown>,
-  callerRol: string,
-  callerId: string
-): Promise<Response> {
-  if (!['secretaria', 'admin', 'subcomision'].includes(callerRol)) {
-    return jsonError(403, 'Solo Secretaría puede registrar pagos manuales')
-  }
-
-  const socio_id   = body.socio_id   as string | undefined
-  const periodo    = (body.periodo   as string | undefined)?.trim()
-  const monto      = body.monto      as number | undefined
-  const forma_pago = body.forma_pago as string | undefined
-
-  if (!socio_id)   return jsonError(400, 'socio_id es requerido')
-  if (!periodo || !/^\d{4}-\d{2}$/.test(periodo)) return jsonError(400, 'periodo inválido')
-  if (!monto || monto <= 0) return jsonError(400, 'monto inválido')
-  if (!['efectivo', 'transferencia'].includes(forma_pago ?? '')) {
-    return jsonError(400, 'forma_pago debe ser efectivo o transferencia')
-  }
-
-  // Verificar que no esté ya pagado
-  const { data: cuotaExistente } = await supabaseAdmin
-    .from('cuotas')
-    .select('id, estado')
-    .eq('socio_id', socio_id)
-    .eq('periodo', periodo)
-    .single()
-
-  if (cuotaExistente?.estado === 'pagado') {
-    return jsonError(409, `La cuota de ${periodo} ya está pagada`)
-  }
-
-  // Crear o reusar cuota
-  let cuotaId: string
-  if (cuotaExistente) {
-    cuotaId = cuotaExistente.id
-  } else {
-    const { data: nuevaCuota, error: cuotaErr } = await supabaseAdmin
-      .from('cuotas')
-      .insert({ socio_id, periodo, monto, estado: 'pendiente' })
-      .select('id')
-      .single()
-    if (cuotaErr || !nuevaCuota) return jsonError(500, 'Error al crear cuota: ' + cuotaErr?.message)
-    cuotaId = nuevaCuota.id
-  }
-
-  // Actualizar cuota + insertar pago
-  const [cuotaRes, pagoRes] = await Promise.all([
-    supabaseAdmin.from('cuotas').update({ estado: 'pagado' }).eq('id', cuotaId),
-    supabaseAdmin.from('pagos_socios').insert({
-      socio_id,
-      cuota_id:       cuotaId,
-      monto,
-      forma_pago,
-      estado:         'aprobado',
-      registrado_por: callerId,
-    }).select('id').single(),
-  ])
-
-  if (cuotaRes.error) return jsonError(500, 'Error al actualizar cuota: ' + cuotaRes.error.message)
-
-  const pagoId = (pagoRes.data as { id: string } | null)?.id
-
-  if (pagoId) {
-    EdgeRuntime.waitUntil(
-      generarYEnviarComprobante(socio_id, pagoId, periodo, monto, forma_pago!)
-    )
-  }
-
-  return jsonOk({ ok: true, cuota_id: cuotaId, pago_id: pagoId })
-}
-
-// ─── Generar PDF comprobante y enviar por email ───────────────────────────────
-
-async function generarYEnviarComprobante(
-  socioId: string,
-  pagoId: string,
-  periodo: string,
-  monto: number,
-  formaPago: string
-): Promise<void> {
-  try {
-    // Obtener datos del socio + email
-    const { data: socio } = await supabaseAdmin
-      .from('socios')
-      .select('numero_socio, profile_id, categorias_socio ( nombre )')
-      .eq('id', socioId)
-      .single()
-
-    if (!socio) return
-
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(socio.profile_id)
-    const { data: profile  } = await supabaseAdmin
-      .from('profiles')
-      .select('nombre')
-      .eq('id', socio.profile_id)
-      .single()
-
-    const email    = user?.email ?? ''
-    const nombre   = profile?.nombre ?? 'Socio'
-    const categoria = (socio.categorias_socio as { nombre: string } | null)?.nombre ?? '—'
-
-    // ── Generar PDF ──────────────────────────────────────────────────────────
-    const pdfDoc = await PDFDocument.create()
-    const page   = pdfDoc.addPage([595, 842]) // A4
-    const font   = await pdfDoc.embedFont(StandardFonts.Helvetica)
-    const fontB  = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-    const { width, height } = page.getSize()
-
-    const margen = 60
-    const col    = width / 2
-
-    const draw = (text: string, x: number, y: number, size = 12, bold = false, color = rgb(0, 0, 0)) => {
-      page.drawText(text, { x, y, size, font: bold ? fontB : font, color })
-    }
-
-    // Cabecera
-    draw('UNCAS RUGBY CLUB', margen, height - 70, 20, true, rgb(0.06, 0.06, 0.06))
-    draw('EST. 1836', margen, height - 92, 10, false, rgb(0.4, 0.4, 0.4))
-
-    // Línea separadora
-    page.drawLine({
-      start: { x: margen, y: height - 108 },
-      end:   { x: width - margen, y: height - 108 },
-      thickness: 1, color: rgb(0.8, 0.8, 0.8),
-    })
-
-    // Título
-    draw('COMPROBANTE DE PAGO', col - 80, height - 140, 16, true)
-
-    // Datos del socio
-    draw('DATOS DEL SOCIO', margen, height - 190, 10, true, rgb(0.5, 0.5, 0.5))
-    draw(`Nombre:`,      margen, height - 212, 11, true)
-    draw(nombre,         margen + 90, height - 212, 11)
-    draw(`Nro. Socio:`,  margen, height - 232, 11, true)
-    draw(socio.numero_socio, margen + 90, height - 232, 11)
-    draw(`Categoría:`,   margen, height - 252, 11, true)
-    draw(categoria,      margen + 90, height - 252, 11)
-
-    // Línea separadora
-    page.drawLine({
-      start: { x: margen, y: height - 270 },
-      end:   { x: width - margen, y: height - 270 },
-      thickness: 0.5, color: rgb(0.9, 0.9, 0.9),
-    })
-
-    // Datos del pago
-    draw('DETALLE DEL PAGO', margen, height - 295, 10, true, rgb(0.5, 0.5, 0.5))
-
-    const [anio, mes] = periodo.split('-')
-    const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-    const periodoLabel = `${meses[parseInt(mes)]} ${anio}`
-
-    draw('Período:',      margen, height - 317, 11, true)
-    draw(periodoLabel,    margen + 90, height - 317, 11)
-    draw('Monto:',        margen, height - 337, 11, true)
-    draw(`$${monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`, margen + 90, height - 337, 14, true)
-    draw('Forma de pago:', margen, height - 360, 11, true)
-    draw(formaPago.charAt(0).toUpperCase() + formaPago.slice(1), margen + 110, height - 360, 11)
-    draw('Fecha:',        margen, height - 380, 11, true)
-    draw(new Date().toLocaleDateString('es-AR'), margen + 90, height - 380, 11)
-
-    // Pie
-    page.drawLine({
-      start: { x: margen, y: 80 },
-      end:   { x: width - margen, y: 80 },
-      thickness: 0.5, color: rgb(0.9, 0.9, 0.9),
-    })
-    draw('Comprobante generado automáticamente · UNCAS Rugby Club', margen, 60, 8, false, rgb(0.6, 0.6, 0.6))
-
-    const pdfBytes = await pdfDoc.save()
-
-    // ── Subir PDF a Storage ──────────────────────────────────────────────────
-    const storagePath = `${socioId}/${pagoId}.pdf`
-    const { error: uploadErr } = await supabaseAdmin.storage
-      .from('comprobantes')
-      .upload(storagePath, pdfBytes, {
-        contentType: 'application/pdf',
-        upsert: true,
-      })
-
-    if (!uploadErr) {
-      await supabaseAdmin
-        .from('pagos_socios')
-        .update({ comprobante_path: storagePath })
-        .eq('id', pagoId)
-    }
-
-    // ── Enviar email con PDF adjunto ─────────────────────────────────────────
-    if (!email) return
-
-    // Convertir Uint8Array a base64 sin spread (evita stack overflow en PDFs grandes)
-    let binary = ''
-    for (let i = 0; i < pdfBytes.length; i++) binary += String.fromCharCode(pdfBytes[i])
-    const base64Pdf = btoa(binary)
-
-    const html = emailTemplate(`
-      <p style="font-size:15px">Hola ${nombre},</p>
-      <p style="font-size:15px;line-height:1.6">Adjuntamos tu comprobante de pago de la cuota correspondiente a <strong>${periodoLabel}</strong>.</p>
-      <p style="font-size:15px;line-height:1.6"><strong>Monto:</strong> $${monto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-      <p style="font-size:15px;line-height:1.6">¡Gracias!</p>
-    `)
-
-    await enviarEmail({
-      to: email,
-      subject: `Comprobante de pago — Cuota ${periodoLabel}`,
-      html,
-      attachments: [{ filename: `comprobante-${periodo}.pdf`, content: base64Pdf }],
-    })
-  } catch (err) {
-    console.error('Error generando comprobante:', err)
-  }
 }
 
 // ─── Helpers compartidos ──────────────────────────────────────────────────────
@@ -902,10 +369,6 @@ async function cobrarTarjetaGuardada(
   await supabaseAdmin.from('socios')
     .update({ mp_card_retries: 0, mp_card_retry_at: null })
     .eq('id', socio.id)
-
-  EdgeRuntime.waitUntil(
-    generarYEnviarComprobante(socio.id, cuotaResult.cuotaId, periodo, monto, 'Tarjeta')
-  )
 
   return { success: true, paymentId: String(payment.id) }
 }

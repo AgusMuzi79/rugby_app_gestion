@@ -14,18 +14,32 @@ import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { useTerminos } from '@/hooks/useTerminos'
 import { useAuthStore } from '@/stores/authStore'
+import { supabase } from '@/lib/supabase'
 import { ROL_RUTA_INICIAL } from '@/constants/roles'
 import { colors, fonts } from '@/constants/theme'
 
 export default function TerminosScreen() {
-  const { loading, version, titulo, pdfUrl, aceptando, error, aceptar } = useTerminos()
+  const { loading, version, titulo, pdfUrl, aceptando, error, aceptar, refetch } = useTerminos()
   const [leido, setLeido] = useState(false)
+  const [errorPdf, setErrorPdf] = useState<string | null>(null)
   const router = useRouter()
   const rol = useAuthStore(s => s.rol)
+  // Sin versión cargada (la lectura falló) no hay nada que aceptar todavía.
+  const sinVersion = !version
 
   const handleAceptar = async () => {
     const ok = await aceptar()
     if (ok && rol) router.replace(ROL_RUTA_INICIAL[rol])
+  }
+
+  const abrirPdf = async () => {
+    if (!pdfUrl) return
+    setErrorPdf(null)
+    try {
+      await Linking.openURL(pdfUrl)
+    } catch {
+      setErrorPdf('No se pudo abrir el documento. Probá de nuevo.')
+    }
   }
 
   if (loading) {
@@ -53,8 +67,9 @@ export default function TerminosScreen() {
           </Text>
 
           <TouchableOpacity
-            style={styles.pdfButton}
-            onPress={() => pdfUrl && Linking.openURL(pdfUrl)}
+            style={[styles.pdfButton, !pdfUrl && styles.pdfDisabled]}
+            onPress={abrirPdf}
+            disabled={!pdfUrl}
             activeOpacity={0.85}
           >
             <Ionicons name="document-text-outline" size={20} color={colors.oro} />
@@ -72,22 +87,36 @@ export default function TerminosScreen() {
             <Text style={styles.checkLabel}>Leí y acepto los Términos y Condiciones</Text>
           </TouchableOpacity>
 
-          {error !== null && (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{error}</Text>
+          {(error ?? errorPdf) !== null && (
+            <View style={styles.errorBanner} accessibilityRole="alert">
+              <Text style={styles.errorText}>{error ?? errorPdf}</Text>
+              {sinVersion && (
+                <TouchableOpacity onPress={() => { void refetch() }} accessibilityRole="button" style={styles.linkBtn}>
+                  <Text style={[styles.linkText, styles.linkTextBanner]}>REINTENTAR</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
           <TouchableOpacity
-            style={[styles.button, (!leido || aceptando) && styles.buttonDisabled]}
+            style={[styles.button, (!leido || aceptando || sinVersion) && styles.buttonDisabled]}
             onPress={handleAceptar}
-            disabled={!leido || aceptando}
+            disabled={!leido || aceptando || sinVersion}
             activeOpacity={0.85}
           >
             {aceptando
               ? <ActivityIndicator color={colors.oro} size="small" />
               : <Text style={styles.buttonText}>ACEPTO →</Text>
             }
+          </TouchableOpacity>
+
+          {/* Salida: sin esto la persona quedaba atrapada en esta pantalla. */}
+          <TouchableOpacity
+            onPress={() => { void supabase.auth.signOut() }}
+            accessibilityRole="button"
+            style={styles.linkBtn}
+          >
+            <Text style={styles.linkText}>Cerrar sesión</Text>
           </TouchableOpacity>
 
           <Text style={styles.footer}>UNCAS RUGBY APP · V1.0</Text>
@@ -188,6 +217,16 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     backgroundColor: '#333',
   },
+  pdfDisabled: { opacity: 0.5 },
+  linkBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  linkText: {
+    fontFamily: fonts.label,
+    fontSize: 14,
+    letterSpacing: 1.5,
+    color: colors.oro,
+  },
+  // REINTENTAR dentro del banner claro.
+  linkTextBanner: { color: colors.oroSobreClaro },
   buttonText: {
     fontFamily: fonts.label,
     fontSize: 14,
