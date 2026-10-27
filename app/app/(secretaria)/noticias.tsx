@@ -7,6 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
 import { useNoticias, type Noticia } from '@/hooks/useNoticias'
 import { colors, fonts } from '@/constants/theme'
 
@@ -196,7 +197,7 @@ export default function NoticiasSecretariaScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { noticias, loading, refrescando, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
+  const { noticias, loading, refrescando, error, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
   const [modalVisible, setModalVisible] = useState(false)
 
   const handleCrear = async (titulo: string, cuerpo: string, etiquetas: string[]) => {
@@ -220,9 +221,13 @@ export default function NoticiasSecretariaScreen() {
         </View>
       </View>
 
+      {/* Un error de lectura no es "no hay noticias" (las ya cargadas se mantienen). */}
+      {error ? <ErrorCarga mensaje={error} onReintentar={() => { void refetch() }} /> : null}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
       ) : noticias.length === 0 ? (
+        error ? null :
         <View style={s.emptyContainer}>
           <Text style={s.emptyText}>No hay noticias creadas aún.</Text>
         </View>

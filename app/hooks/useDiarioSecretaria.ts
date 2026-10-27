@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { ReporteDeuda } from '@/lib/secretariaNuvix'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 
@@ -26,6 +27,8 @@ const INITIAL: DashboardSecretaria = {
 export function useDiarioSecretaria() {
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DashboardSecretaria>(INITIAL)
+  const [error, setError]     = useState<string | null>(null)
+  const [cargado, setCargado] = useState(false)   // hubo al menos una lectura buena
 
   const fetch = useCallback(async () => {
     empezar()
@@ -54,6 +57,18 @@ export function useDiarioSecretaria() {
         .maybeSingle(),
     ])
 
+    // Un error de lectura no es "0 socios": se avisa y se deja reintentar
+    // (si ya había datos, se mantienen a la vista).
+    const err = primerError(
+      activosRes.error, enRojoRes.error, pendientesRes.error, inactivosRes.error, totalRes.error, reporteRes.error,
+    )
+    if (err) {
+      setError(mensajeErrorCarga('el resumen de socios', err))
+      terminar()
+      return
+    }
+    setError(null)
+
     const estados: EstadosSocios = {
       activos:    activosRes.count    ?? 0,
       enRojo:     enRojoRes.count     ?? 0,
@@ -61,6 +76,7 @@ export function useDiarioSecretaria() {
       inactivos:  inactivosRes.count  ?? 0,
     }
 
+    setCargado(true)
     setData({
       estados,
       ultimoReporte: (reporteRes.data as ReporteDeuda | null) ?? null,
@@ -72,5 +88,5 @@ export function useDiarioSecretaria() {
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
-  return { loading, refrescando, data, refetch: fetch }
+  return { loading, refrescando, data, cargado, error, refetch: fetch }
 }

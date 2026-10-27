@@ -5,6 +5,7 @@ import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
 import { useDiarioSecretaria } from '@/hooks/useDiarioSecretaria'
 import { textoUltimoReporte } from '@/lib/secretariaNuvix'
 import { colors, fonts } from '@/constants/theme'
@@ -49,7 +50,7 @@ export default function DiarioSecretariaScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioSecretaria()
+  const { loading, refrescando, data, cargado, error, refetch } = useDiarioSecretaria()
 
   return (
     <ScrollView
@@ -71,9 +72,11 @@ export default function DiarioSecretariaScreen() {
         <View style={s.divider} />
       </View>
 
+      {error ? <ErrorCarga mensaje={error} onReintentar={() => { void refetch() }} /> : null}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
-      ) : (
+      ) : !cargado ? null : (
         <>
           {/* ── RESUMEN DE SOCIOS ── */}
           <View style={s.section}>

@@ -7,6 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
 import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional } from '@/hooks/useSociosSecretaria'
 import { montoServicio, montoServiciosSocio, type VinculoServicio } from '@/lib/secretariaNuvix'
 import { colors, fonts } from '@/constants/theme'
@@ -45,6 +46,8 @@ function DetalleSocio({
   onReactivate,
   onValidarFoto,
   onToggleServicio,
+  errorDetalle,
+  onReintentar,
   onClose,
 }: {
   socio:            SocioItem
@@ -56,6 +59,8 @@ function DetalleSocio({
   onReactivate:      (id: string) => void
   onValidarFoto:     (id: string) => void
   onToggleServicio:  (servicioId: string, agregar: boolean) => void
+  errorDetalle:      string | null
+  onReintentar:      () => void
   onClose:           () => void
 }) {
   const [fotoUrl,              setFotoUrl]              = useState<string | null>(null)
@@ -70,6 +75,7 @@ function DetalleSocio({
     if (!socio.foto_path) { Alert.alert('Sin foto', 'El socio no tiene foto cargada.'); return }
     const url = await fotoSignedUrl(socio.foto_path)
     if (url) setFotoUrl(url)
+    else Alert.alert('No se pudo abrir la foto', 'Revisá la conexión y probá de nuevo.')
   }
 
   return (
@@ -113,6 +119,10 @@ function DetalleSocio({
         ))}
 
         {/* ── Servicios opcionales ─────────────────────────────────── */}
+        {/* Si falló la lectura, no se muestran servicios ni total (serían falsos). */}
+        {errorDetalle ? (
+          <ErrorCarga mensaje={errorDetalle} onReintentar={onReintentar} />
+        ) : (
         <View style={ss.serviciosSection}>
           <Text style={ss.serviciosTitulo}>SERVICIOS OPCIONALES</Text>
           <View style={ss.serviciosGrid}>
@@ -143,6 +153,7 @@ function DetalleSocio({
             </Text>
           </View>
         </View>
+        )}
 
         <View style={ss.acciones}>
           {!socio.foto_validada && socio.foto_path && (
@@ -206,6 +217,7 @@ export default function SociosScreen() {
     filtro, setFiltro,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     fetchServiciosSocio, toggleServicio,
+    errorLista, errorDetalle, reintentarDetalle,
   } = useSociosSecretaria()
 
   const [detalle, setDetalle]       = useState<SocioItem | null>(null)
@@ -259,6 +271,8 @@ export default function SociosScreen() {
           onReactivate={handleReactivate}
           onValidarFoto={handleValidarFoto}
           onToggleServicio={handleToggleServicio}
+          errorDetalle={errorDetalle}
+          onReintentar={() => { void reintentarDetalle(actualizado.id) }}
           onClose={() => setDetalle(null)}
         />
       </View>
@@ -295,9 +309,12 @@ export default function SociosScreen() {
         </ScrollView>
       </View>
 
+      {errorLista ? <ErrorCarga mensaje={errorLista} onReintentar={() => { void refetch() }} /> : null}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={ss.activityIndicator} />
       ) : socios.length === 0 ? (
+        errorLista ? null :
         <View style={ss.empty}>
           <Text style={ss.emptyText}>No hay socios en esta vista.</Text>
         </View>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import type { VinculoServicio } from '@/lib/secretariaNuvix'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -51,21 +52,35 @@ export function useSociosSecretaria() {
   const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
+  // Errores de lectura: un fallo no se muestra como "no hay socios" ni como
+  // "sin servicios" (auditoría UX secretaría, T12).
+  const [errorLista, setErrorLista]           = useState<string | null>(null)
+  const [errorCategorias, setErrorCategorias] = useState<string | null>(null)
+  const [errorServicios, setErrorServicios]   = useState<string | null>(null)
+  const [errorVinculos, setErrorVinculos]     = useState<string | null>(null)
 
   const fetchServicios = useCallback(async () => {
-    const { data } = await db
+    const { data, error } = await db
       .from('servicios_opcionales')
       .select('id, nombre, descripcion, monto_mensual, activo')
       .eq('activo', true)
       .order('nombre')
+    if (error) { setErrorServicios(mensajeErrorCarga('los servicios del club', error)); return }
+    setErrorServicios(null)
     setServicios((data ?? []) as ServicioOpcional[])
   }, [])
 
   const fetchServiciosSocio = useCallback(async (socioId: string) => {
-    const { data } = await db
+    const { data, error } = await db
       .from('socio_servicios')
       .select('servicio_id, importe')
       .eq('socio_id', socioId)
+    if (error) {
+      setServiciosSocio([])
+      setErrorVinculos(mensajeErrorCarga('los servicios del socio', error))
+      return
+    }
+    setErrorVinculos(null)
     setServiciosSocio((data ?? []) as VinculoServicio[])
   }, [])
 
@@ -90,8 +105,10 @@ export function useSociosSecretaria() {
       .order('nombre')
     if (error) {
       console.error('[useSociosSecretaria] fetchCategorias error:', error)
-      Alert.alert('Error', 'No se pudieron cargar las categorías: ' + error.message)
+      setErrorCategorias(mensajeErrorCarga('las categorías', error))
+      return
     }
+    setErrorCategorias(null)
     setCategorias((data ?? []) as CategoriaSocio[])
   }, [])
 
@@ -125,6 +142,10 @@ export function useSociosSecretaria() {
       }))
 
       setSocios(normalized)
+      setErrorLista(null)
+    } catch (err) {
+      // selectAllRows lanza el error de Supabase: se avisa y se mantiene lo cargado.
+      setErrorLista(mensajeErrorCarga('los socios', err))
     } finally {
       terminar()
     }
@@ -142,6 +163,10 @@ export function useSociosSecretaria() {
     fetchSocios()
   }, [fetchCategorias, fetchServicios, fetchSocios])
   useRefreshOnFocus(refreshAll)
+
+  const reintentarDetalle = useCallback(async (socioId: string) => {
+    await Promise.all([fetchCategorias(), fetchServicios(), fetchServiciosSocio(socioId)])
+  }, [fetchCategorias, fetchServicios, fetchServiciosSocio])
 
   const sociosFiltrados = socios.filter(s =>
     filtro === 'todos' ? true : s.estado === filtro
@@ -196,6 +221,10 @@ export function useSociosSecretaria() {
 
   return {
     socios: sociosFiltrados,
+    errorLista,
+    // Lo que usa el detalle: catálogo (categorías, servicios) y vínculos del socio.
+    errorDetalle: primerError(errorVinculos, errorServicios, errorCategorias),
+    reintentarDetalle,
     todosLosSocios: socios,
     categorias,
     servicios,
