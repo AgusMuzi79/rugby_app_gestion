@@ -45,6 +45,9 @@ export default function Modal({
       ref={ref}
       aria-labelledby={idTitulo}
       onCancel={e => { e.preventDefault(); onClose() }}
+      // Si el navegador lo cierra por su cuenta (sin un cancel cancelable), el
+      // padre se entera igual y no queda un modal cerrado con el estado abierto.
+      onClose={onClose}
       className={`m-auto w-[calc(100%-2rem)] ${ancho} max-h-[90vh] overflow-y-auto bg-card text-tinta ${relleno} backdrop:bg-dark/70`}
     >
       <div className={encabezado}>

@@ -108,9 +108,13 @@ export default function PanelShell({ panel, children }: { panel: PanelId; childr
     )
   }
 
-  // Subcomisión y admin entran a Turnos (portería) desde su panel: conservan su barra lateral.
-  const config = panel === 'porteria' && ['subcomision', 'admin'].includes(profile?.rol ?? '')
-    ? PANELES.subcomision
+  // Subcomisión y admin entran a Turnos (portería) desde su panel: conservan su
+  // barra lateral. Admin además ve Accesos (antes lo tenía en la barra de portería).
+  const rol = profile?.rol ?? ''
+  const config = panel === 'porteria' && ['subcomision', 'admin'].includes(rol)
+    ? rol === 'admin'
+      ? { ...PANELES.subcomision, items: [...PANELES.subcomision.items, { href: '/porteria/accesos', label: 'Accesos' }] }
+      : PANELES.subcomision
     : PANELES[panel]
 
   return (
