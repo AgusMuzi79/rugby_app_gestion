@@ -667,9 +667,11 @@ function ImportarSeccion() {
         </div>
 
         <div className="flex flex-wrap gap-4 items-center">
-          <label className={`${BTN} cursor-pointer`}>
+          {/* sr-only en vez de hidden: el input sigue alcanzable con Tab, y el
+              foco se ve en la etiqueta que hace de botón. */}
+          <label className={`${BTN} cursor-pointer focus-within:outline-2 focus-within:outline-oro focus-within:outline-offset-2`}>
             SUBIR CSV
-            <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={subirCsv} className="hidden" />
+            <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={subirCsv} className="sr-only" />
           </label>
           <button type="button" className={BTN} onClick={descargarPlantilla}>DESCARGAR PLANTILLA</button>
         </div>
