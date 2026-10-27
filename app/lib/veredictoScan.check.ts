@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/veredictoScan.check.ts
 
 import assert from 'node:assert/strict'
-import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type EscaneoCortado, type ScanResult } from './veredictoScan'
+import { anuncioVeredicto, cortadoTrasResultado, resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type EscaneoCortado, type ScanResult } from './veredictoScan'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -81,6 +81,12 @@ caso('el escaneo cortado sirve para UN reintento: la siguiente reutilización de
   assert.equal(veredicto(primero), 'pasa_aviso')
   const segundo = resolverReintento(yaUsado, '123:456789', cortado, ahora + 5_000)
   assert.equal(veredicto(segundo), 'no_pasa')
+})
+
+caso('anuncio para lector de pantalla: veredicto, nombre y motivo en una frase', () => {
+  assert.equal(anuncioVeredicto(alDia), 'PUEDE PASAR. Ana')
+  assert.equal(anuncioVeredicto({ ...alDia, semaforo: 'rojo' }), 'PASA · CON AVISO. Ana. Cuota atrasada: avisale que pase por Secretaría.')
+  assert.equal(anuncioVeredicto({ valido: false, motivo: 'Código QR inválido o expirado' }), 'QR NO VÁLIDO. Código QR inválido o expirado')
 })
 
 console.log(`\n${casos} casos ok`)

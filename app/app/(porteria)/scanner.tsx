@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking, useWindowDimensions, KeyboardAvoidingView, ScrollView, Platform } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking, useWindowDimensions, KeyboardAvoidingView, ScrollView, Platform, AccessibilityInfo } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
 import { useNetInfo } from '@react-native-community/netinfo'
 import { Feather } from '@expo/vector-icons'
 import { useScanner, UMBRAL_INVITADO_REPETIDO, type InvitadoResult } from '@/hooks/useScanner'
-import { estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
+import { anuncioVeredicto, estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
 import { accionDni, normalizarDni, volverAlFormularioDni, PAUSA_DNI_7_MS } from '@/lib/entradaDni'
 import { codigoManualAQR, normalizarCodigo, normalizarNumeroSocio } from '@/lib/qrCarnet'
 import { useAuthStore } from '@/stores/authStore'
@@ -98,6 +98,9 @@ export default function ScannerScreen() {
     const player = v === 'pasa' ? sonidoOk : v === 'pasa_aviso' ? sonidoAviso : sonidoAlerta
     player.seekTo(0)
     player.play()
+    // Lector de pantalla: el resultado se anuncia apenas llega (además de la
+    // live region de la banda, que Android no siempre lee al aparecer).
+    AccessibilityInfo.announceForAccessibility(anuncioVeredicto(result))
   }, [result])
 
   // Autoservicio: vuelve sola a la cámara, sin esperar que alguien la toque.
@@ -232,6 +235,7 @@ export default function ScannerScreen() {
               : 'La app necesita acceso a la cámara para escanear los carnets.'}
           </Text>
           <TouchableOpacity
+            accessibilityRole="button"
             style={s.permBtn}
             onPress={bloqueado ? () => Linking.openSettings() : requestPermission}
             activeOpacity={0.8}
@@ -260,14 +264,20 @@ export default function ScannerScreen() {
           <View style={s.validandoContainer}>
             <ActivityIndicator color={colors.oro} size="large" />
             <Text style={s.validandoText}>Verificando carnet…</Text>
-            <TouchableOpacity style={s.permBtn} onPress={cancelar} activeOpacity={0.8}>
+            <TouchableOpacity accessibilityRole="button" style={s.permBtn} onPress={cancelar} activeOpacity={0.8}>
               <Text style={s.permBtnText}>CANCELAR</Text>
             </TouchableOpacity>
           </View>
         ) : result && ui ? (
           <View style={s.resultContainer}>
             {/* Banda del veredicto: ¿entra o no entra? */}
-            <View style={[s.resultBand, { backgroundColor: ui.bg }, esTablet && s.resultBandTablet]}>
+            <View
+              style={[s.resultBand, { backgroundColor: ui.bg }, esTablet && s.resultBandTablet]}
+              accessible
+              accessibilityRole="alert"
+              accessibilityLiveRegion="assertive"
+              accessibilityLabel={anuncioVeredicto(result)}
+            >
               <Feather name={ui.icon} size={esTablet ? 56 : 32} color={ui.fg} />
               <View style={s.resultBandTextos}>
                 <Text style={[s.resultBandText, { color: ui.fg }, esTablet && s.resultBandTextTablet]}>
@@ -339,6 +349,7 @@ export default function ScannerScreen() {
             )}
 
             <TouchableOpacity
+              accessibilityRole="button"
               style={[s.nuevoBtn, esTablet && s.nuevoBtnTablet]}
               onPress={despuesDelResultado}
               activeOpacity={0.8}
@@ -381,7 +392,7 @@ export default function ScannerScreen() {
                     Derivar a Secretaría para que se haga socio.
                   </Text>
                 )}
-                <TouchableOpacity style={s.dniBtn} onPress={cerrarInvitado} activeOpacity={0.8}>
+                <TouchableOpacity accessibilityRole="button" style={s.dniBtn} onPress={cerrarInvitado} activeOpacity={0.8}>
                   <Text style={s.dniBtnText}>LISTO</Text>
                 </TouchableOpacity>
               </>
@@ -419,6 +430,7 @@ export default function ScannerScreen() {
                 )}
 
                 <TouchableOpacity
+                  accessibilityRole="button"
                   style={[s.dniBtn, (!invitadoDni.trim() || invitadoEnviando) && { opacity: 0.5 }]}
                   onPress={enviarInvitado}
                   disabled={!invitadoDni.trim() || invitadoEnviando}
@@ -429,7 +441,7 @@ export default function ScannerScreen() {
                     : <Text style={s.dniBtnText}>REGISTRAR</Text>}
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={cerrarInvitado} activeOpacity={0.7}>
+                <TouchableOpacity accessibilityRole="button" onPress={cerrarInvitado} style={s.volverBtn} activeOpacity={0.7}>
                   <Text style={s.dniVolver}>Volver a escanear QR</Text>
                 </TouchableOpacity>
               </>
@@ -486,6 +498,7 @@ export default function ScannerScreen() {
             />
 
             <TouchableOpacity
+              accessibilityRole="button"
               style={[s.dniBtn, !listo && { opacity: 0.5 }]}
               onPress={() => consultarCodigo()}
               disabled={!listo}
@@ -494,7 +507,7 @@ export default function ScannerScreen() {
               <Text style={s.dniBtnText}>CONSULTAR</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={salirDeCodigo} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" onPress={salirDeCodigo} style={s.volverBtn} activeOpacity={0.7}>
               <Text style={s.dniVolver}>Volver a escanear QR</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -530,11 +543,11 @@ export default function ScannerScreen() {
               onSubmitEditing={() => consultarDni()}
             />
 
-            <TouchableOpacity style={s.dniBtn} onPress={() => consultarDni()} activeOpacity={0.8}>
+            <TouchableOpacity accessibilityRole="button" style={s.dniBtn} onPress={() => consultarDni()} activeOpacity={0.8}>
               <Text style={s.dniBtnText}>CONSULTAR</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={salirDeDni} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" onPress={salirDeDni} style={s.volverBtn} activeOpacity={0.7}>
               <Text style={s.dniVolver}>Volver a escanear QR</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -577,7 +590,7 @@ export default function ScannerScreen() {
           </View>
         </View>
 
-        <View style={[s.hint, { bottom: esAutoservicio ? 140 : 100 }]}>
+        <View style={[s.hint, { bottom: esAutoservicio ? 176 : 124 }]}>
           <View style={s.hintChip}>
             <Text style={s.hintText}>
               {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
@@ -586,18 +599,18 @@ export default function ScannerScreen() {
         </View>
 
         <View style={s.dniLink}>
-          <TouchableOpacity onPress={() => setModoCodigo(true)} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => setModoCodigo(true)} activeOpacity={0.7}>
             <View style={s.dniLinkChip}>
               <Text style={s.dniLinkText}>¿No lee el QR? Ingresar código</Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setModoDni(true)} activeOpacity={0.7}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => setModoDni(true)} activeOpacity={0.7}>
             <View style={s.dniLinkChip}>
               <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>
             </View>
           </TouchableOpacity>
           {esAutoservicio && (
-            <TouchableOpacity onPress={() => setModoInvitado(true)} activeOpacity={0.7}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => setModoInvitado(true)} activeOpacity={0.7}>
               <View style={s.dniLinkChip}>
                 <Text style={s.dniLinkText}>Registrar invitado</Text>
               </View>
@@ -678,9 +691,11 @@ const s = StyleSheet.create({
   dniLink: {
     position: 'absolute', bottom: 16, left: 0, right: 0, alignItems: 'center', gap: 8,
   },
+  // minHeight 44: área táctil mínima (antes ~30).
   dniLinkChip: {
     backgroundColor: 'rgba(0,0,0,0.45)',
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6,
+    minHeight: 44, justifyContent: 'center',
   },
   dniLinkText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
@@ -712,8 +727,10 @@ const s = StyleSheet.create({
   dniBtnText: {
     fontFamily: fonts.label, fontSize: 14, letterSpacing: 2.5, color: colors.papel,
   },
+  // El link entero es el botón (minHeight 44), no sólo el texto (~17).
+  volverBtn: { marginTop: 8, minHeight: 44, justifyContent: 'center', paddingHorizontal: 16 },
   dniVolver: {
-    marginTop: 16, fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1,
     textTransform: 'uppercase', color: MUTED, textDecorationLine: 'underline',
   },
 

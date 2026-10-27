@@ -46,7 +46,13 @@ function FilaPromo({ promo, onEliminar }: { promo: Promo; onEliminar: (p: Promo)
         <Text style={s.filaCuerpo} numberOfLines={2}>{promo.cuerpo}</Text>
         <Text style={s.filaFecha}>{fechaCorta(promo.created_at)}</Text>
       </View>
-      <TouchableOpacity onPress={() => onEliminar(promo)} activeOpacity={0.7} style={s.eliminarBtn}>
+      <TouchableOpacity
+        onPress={() => onEliminar(promo)}
+        activeOpacity={0.7}
+        style={s.eliminarBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Eliminar ${promo.titulo}`}
+      >
         <Text style={s.eliminarBtnTexto}>✕</Text>
       </TouchableOpacity>
     </View>
@@ -97,7 +103,7 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
         <SafeAreaView style={s.modalContainer}>
           <View style={s.modalHeader}>
             <Text style={s.modalTitulo}>Nueva promoción</Text>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
+            <TouchableOpacity onPress={handleClose} activeOpacity={0.7} style={s.modalCerrarBtn} accessibilityRole="button">
               <Text style={s.modalCerrar}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -127,7 +133,7 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
             {imagenUri ? (
               <View style={s.previewWrap}>
                 <Image source={{ uri: imagenUri }} style={s.preview} />
-                <TouchableOpacity onPress={() => setImagenUri(null)} activeOpacity={0.7} style={s.previewQuitar}>
+                <TouchableOpacity onPress={() => setImagenUri(null)} activeOpacity={0.7} style={s.previewQuitar} accessibilityRole="button" accessibilityLabel="Quitar foto">
                   <Text style={s.previewQuitarTexto}>QUITAR</Text>
                 </TouchableOpacity>
               </View>
@@ -190,7 +196,7 @@ export default function PromosScreen() {
         <Text style={s.labelHeader}>BUFFET</Text>
         <View style={s.headerRow}>
           <Text style={s.titulo}>Promociones</Text>
-          <TouchableOpacity style={s.botonNuevo} onPress={() => setModalVisible(true)} activeOpacity={0.8}>
+          <TouchableOpacity style={s.botonNuevo} onPress={() => setModalVisible(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Nueva promoción">
             <Text style={s.botonNuevoTexto}>+ Nueva</Text>
           </TouchableOpacity>
         </View>
@@ -234,7 +240,7 @@ const s = StyleSheet.create({
   labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO },
-  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4, minHeight: 44, justifyContent: 'center' },
   botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
 
   divider:     { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
@@ -249,7 +255,7 @@ const s = StyleSheet.create({
   filaCuerpo:{ fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 2 },
   filaFecha: { fontFamily: fonts.label, fontSize: 12, color: colors.oro, marginTop: 4, letterSpacing: 0.5 },
 
-  eliminarBtn:      { padding: 8 },
+  eliminarBtn:      { padding: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   eliminarBtnTexto: { fontFamily: fonts.label, fontSize: 16, color: colors.rojoUrgente, fontWeight: '700' },
 
   // Modal
@@ -258,6 +264,7 @@ const s = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: FONDO },
   modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: DIVIDER },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 19, color: TEXTO },
+  modalCerrarBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 },
   modalCerrar:    { fontFamily: fonts.cuerpo, fontSize: 16, color: MUTED },
   modalBody:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER },
@@ -269,7 +276,7 @@ const s = StyleSheet.create({
   botonImagenTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 13, letterSpacing: 1.5, fontWeight: '600' },
   previewWrap:      { marginBottom: 20 },
   preview:          { width: '100%', aspectRatio: 4 / 3, borderRadius: 6, backgroundColor: DIVIDER },
-  previewQuitar:    { alignSelf: 'flex-start', marginTop: 8 },
+  previewQuitar:    { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, justifyContent: 'center', paddingRight: 16 },
   previewQuitarTexto: { fontFamily: fonts.label, color: colors.rojoUrgente, fontSize: 12, letterSpacing: 1.5, fontWeight: '600' },
   botonGuardar:   { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:       { opacity: 0.5 },

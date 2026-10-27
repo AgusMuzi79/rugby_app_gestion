@@ -109,6 +109,12 @@ export function motivoVeredicto(r: ScanResult): string | null {
   }
 }
 
+// Lo que anuncia el lector de pantalla al llegar el resultado: el veredicto,
+// el nombre si lo hay y el motivo, en una sola frase.
+export function anuncioVeredicto(r: ScanResult): string {
+  return [tituloVeredicto(r), r.nombre, motivoVeredicto(r)].filter(Boolean).join('. ')
+}
+
 // Resultado cuando no se pudo hablar con socios-qr. `status` = HTTP del error, si hubo.
 export function resultadoErrorRed(status: number | undefined): ScanResult {
   if (status === 401) {
