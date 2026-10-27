@@ -221,9 +221,14 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen
   })
 }
 
+// Si no se libera, la noticia queda como "ya avisada" sin que el aviso haya
+// salido y un nuevo publicar no reintenta: se prueba dos veces antes de rendirse.
 async function liberarAvisoNoticia(noticiaId: string): Promise<void> {
-  const { error } = await supabaseAdmin.rpc('liberar_aviso_noticia', { p_noticia_id: noticiaId })
-  if (error) console.error(`No se pudo liberar el aviso de la noticia ${noticiaId}:`, error.message)
+  for (let intento = 1; intento <= 2; intento++) {
+    const { error } = await supabaseAdmin.rpc('liberar_aviso_noticia', { p_noticia_id: noticiaId })
+    if (!error) return
+    console.error(`No se pudo liberar el aviso de la noticia ${noticiaId} (intento ${intento}):`, error.message)
+  }
 }
 
 // Same labels as app/lib/tipoEvento.ts etiquetaEvento / tituloCancelacion (Deno can't import app/).
