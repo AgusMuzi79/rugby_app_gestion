@@ -27,13 +27,18 @@ export default function Modal({
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const idTitulo = useId()
+  // false desde que el padre lo desmonta: el `close` nativo que dispara ese
+  // cierre llega después (asíncrono) y no tiene que volver a llamar a onClose.
+  const abierto = useRef(true)
 
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
+    abierto.current = true
     const previo = document.activeElement instanceof HTMLElement ? document.activeElement : null
     if (!dialog.open) dialog.showModal()
     return () => {
+      abierto.current = false
       if (dialog.open) dialog.close()
       // Devuelve el foco al control que abrió el modal.
       previo?.focus()
@@ -47,7 +52,7 @@ export default function Modal({
       onCancel={e => { e.preventDefault(); onClose() }}
       // Si el navegador lo cierra por su cuenta (sin un cancel cancelable), el
       // padre se entera igual y no queda un modal cerrado con el estado abierto.
-      onClose={onClose}
+      onClose={() => { if (abierto.current) { abierto.current = false; onClose() } }}
       className={`m-auto w-[calc(100%-2rem)] ${ancho} max-h-[90vh] overflow-y-auto bg-card text-tinta ${relleno} backdrop:bg-dark/70`}
     >
       <div className={encabezado}>

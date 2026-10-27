@@ -39,6 +39,11 @@ caso('cada rol va al mismo inicio que el mapa que reemplazó (_layout.tsx)', () 
 caso('sin sesión: login, salvo durante el registro de tutor', () => {
   assert.equal(destinoGuard({ ...base, haySesion: false, rol: null }), '/(auth)/login')
   assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, registroSinSesion: true }), null)
+  // Tras cerrar sesión los gates quedan "cargando": no frenan la ida al login.
+  assert.equal(destinoGuard({
+    ...base, haySesion: false, rol: null,
+    mailLoading: true, terminosLoading: true, restringidoLoading: true,
+  }), '/(auth)/login')
 })
 
 caso('gates en orden: restringido, términos, mail; mientras cargan, no se mueve', () => {
