@@ -88,6 +88,15 @@ async function main() {
     assert.deepEqual(r.omitidos, ['l'])
   })
 
+  await caso('un escaneo de la puerta (acceso) no lo toca la sync de asistencia: sólo omitido', async () => {
+    const db = baseFalsa()
+    const acceso = { id: 'x', tipo: 'acceso' as const, creadoEn: 1, payload: { tipo: 'qr', qr: '123:456789' } }
+    const r = await sincronizarItems([acceso as never, entrenamiento('a')], db.puerto)
+    assert.deepEqual(r.omitidos, ['x'])
+    assert.equal(r.fallidos.some(f => f.id === 'x'), false)
+    assert.equal(r.enviados.includes('x'), false)
+  })
+
   await caso('un payload roto no frena al resto', async () => {
     const db = baseFalsa()
     const roto: ItemCola = { id: 'x', tipo: 'asistencia', creadoEn: 1, payload: { jugadores: 'no' } }
