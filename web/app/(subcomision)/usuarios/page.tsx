@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import Modal from '@/components/Modal'
 import { callEdgeFunction } from '@/lib/edgeFunction'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ export default function UsuariosPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · USUARIOS</p>
           <h1 className="font-playfair italic text-4xl text-tinta">Gestión de Usuarios</h1>
@@ -256,7 +257,7 @@ export default function UsuariosPage() {
 
             {p.expanded && (
               <div className="px-6 pb-6 border-t border-gris-claro">
-                <div className="pt-4 grid grid-cols-2 gap-6">
+                <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">EMAIL</p>
                     <p className="font-lora text-sm text-tinta">{p.loadingEmail ? 'Cargando…' : (p.email ?? '—')}</p>
@@ -475,233 +476,231 @@ function ModalNuevoUsuario({
     set(sel.includes(id) ? sel.filter(d => d !== id) : [...sel, id])
 
   return (
-    <div className="fixed inset-0 bg-dark/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-card w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        {/* Header modal */}
-        <div className="flex justify-between items-center px-8 py-6 border-b border-gris-claro">
-          <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVO USUARIO STAFF</p>
-          <button onClick={onClose} className="text-texto-2 hover:text-tinta text-xl">×</button>
+    <Modal
+      titulo="NUEVO USUARIO STAFF"
+      onClose={onClose}
+      ancho="max-w-lg"
+      relleno="p-0"
+      encabezado="flex justify-between items-center px-8 py-6 border-b border-gris-claro"
+    >
+      {/* Tabs — solo admin puede crear usuarios nuevos */}
+      {isAdmin && (
+        <div className="flex border-b border-gris-claro">
+          {(['asignar', 'crear'] as ModoModal[]).map(m => (
+            <button
+              key={m}
+              onClick={() => setModo(m)}
+              className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
+                modo === m
+                  ? 'text-oro border-b-2 border-oro'
+                  : 'text-texto-2 hover:text-tinta/60'
+              }`}
+            >
+              {m === 'asignar' ? 'DESDE SOCIO EXISTENTE' : 'NUEVO USUARIO'}
+            </button>
+          ))}
         </div>
+      )}
 
-        {/* Tabs — solo admin puede crear usuarios nuevos */}
-        {isAdmin && (
-          <div className="flex border-b border-gris-claro">
-            {(['asignar', 'crear'] as ModoModal[]).map(m => (
-              <button
-                key={m}
-                onClick={() => setModo(m)}
-                className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
-                  modo === m
-                    ? 'text-oro border-b-2 border-oro'
-                    : 'text-texto-2 hover:text-tinta/60'
-                }`}
-              >
-                {m === 'asignar' ? 'DESDE SOCIO EXISTENTE' : 'NUEVO USUARIO'}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="p-8 flex flex-col gap-4">
-          {modo === 'asignar' ? (
-            asignadoOk ? (
-              <div className="text-center py-6">
-                <p className="font-lora text-sm text-tinta mb-4">
-                  ✓ Rol asignado a <strong>{socioElegido?.nombre}</strong>. Ya puede ingresar con su email y DNI.
-                </p>
-                <button onClick={onSuccess} className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel">CERRAR</button>
-              </div>
-            ) : (
-              <>
-                {/* Búsqueda */}
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={busqueda}
-                      onChange={e => setBusqueda(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && buscarSocio()}
-                      placeholder="12345678 o Juan Pérez"
-                      className="flex-1 font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
-                    />
-                    <button
-                      onClick={buscarSocio}
-                      disabled={buscando}
-                      className="font-lora text-xs tracking-widest px-4 py-2 bg-oro text-papel disabled:opacity-50"
-                    >
-                      {buscando ? '…' : 'BUSCAR'}
-                    </button>
-                  </div>
-                </div>
-
-                {errorBusqueda && <p className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
-
-                {/* Lista de resultados */}
-                {resultados.length > 0 && (
-                  <div className="border border-gris-claro divide-y divide-gris-claro">
-                    {resultados.map(r => (
-                      <button
-                        key={r.id}
-                        onClick={() => { setSocioElegido(r); setResultados([]) }}
-                        className="w-full text-left px-4 py-3 font-lora text-sm text-tinta hover:bg-gris-claro/30 transition-colors flex justify-between items-center"
-                      >
-                        {r.nombre}
-                        <span className="text-texto-2">›</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Socio encontrado */}
-                {socioElegido && (
-                  <>
-                    <div className="border border-oro/40 bg-oro/5 px-4 py-3">
-                      <p className="font-lora text-sm text-tinta">✓ {socioElegido.nombre}</p>
-                    </div>
-
-                    <div>
-                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</label>
-                      <div className="flex flex-wrap gap-2">
-                        {rolesDisponibles.map(r => (
-                          <button
-                            key={r}
-                            onClick={() => setRolAsignacion(r)}
-                            className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
-                              rolAsignacion === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-                            }`}
-                          >
-                            {ROL_LABEL[r]}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {isAdmin && rolAsignacion === 'subcomision' && (
-                      <div>
-                        <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
-                        <div className="flex flex-wrap gap-2">
-                          {DEPORTE_SUBCO_OPCIONES.map(o => (
-                            <button
-                              key={o.label}
-                              onClick={() => setDeporteAsignacion(o.value)}
-                              className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                                deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
-                              }`}
-                            >
-                              {o.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
-                      <DivisionesPillSelector
-                        divisiones={divisiones}
-                        seleccionadas={divsAsignacion}
-                        onToggle={id => toggleDiv(id, divsAsignacion, setDivsAsignacion)}
-                      />
-                    </div>
-
-                    {errorAsignacion && <p className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
-
-                    <button
-                      onClick={asignarRol}
-                      disabled={asignando}
-                      className="font-lora text-xs tracking-widest py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
-                    >
-                      {asignando ? 'PROCESANDO…' : 'ASIGNAR ROL DE STAFF'}
-                    </button>
-                  </>
-                )}
-              </>
-            )
+      <div className="p-8 flex flex-col gap-4">
+        {modo === 'asignar' ? (
+          asignadoOk ? (
+            <div className="text-center py-6">
+              <p className="font-lora text-sm text-tinta mb-4">
+                ✓ Rol asignado a <strong>{socioElegido?.nombre}</strong>. Ya puede ingresar con su email y DNI.
+              </p>
+              <button onClick={onSuccess} className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel">CERRAR</button>
+            </div>
           ) : (
-            creadoOk ? (
-              <div className="text-center py-6">
-                <p className="font-lora text-sm text-tinta mb-4">✓ Usuario creado. Puede ingresar con su email y DNI como contraseña.</p>
-                <button onClick={onSuccess} className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel">CERRAR</button>
-              </div>
-            ) : (
-              <>
-                {[
-                  { label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
-                  { label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
-                  { label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
-                    <input
-                      type={f.type ?? 'text'}
-                      value={f.value}
-                      onChange={e => f.set(e.target.value)}
-                      placeholder={f.placeholder}
-                      className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
-                    />
-                  </div>
-                ))}
-
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</label>
-                  <div className="flex flex-wrap gap-2">
-                    {rolesDisponibles.map(r => (
-                      <button
-                        key={r}
-                        onClick={() => setRolNuevo(r)}
-                        className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
-                          rolNuevo === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
-                        }`}
-                      >
-                        {ROL_LABEL[r]}
-                      </button>
-                    ))}
-                  </div>
+            <>
+              {/* Búsqueda */}
+              <div>
+                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={busqueda}
+                    onChange={e => setBusqueda(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && buscarSocio()}
+                    placeholder="12345678 o Juan Pérez"
+                    className="flex-1 font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
+                  />
+                  <button
+                    onClick={buscarSocio}
+                    disabled={buscando}
+                    className="font-lora text-xs tracking-widest px-4 py-2 bg-oro text-papel disabled:opacity-50"
+                  >
+                    {buscando ? '…' : 'BUSCAR'}
+                  </button>
                 </div>
+              </div>
 
-                {isAdmin && rolNuevo === 'subcomision' && (
+              {errorBusqueda && <p className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
+
+              {/* Lista de resultados */}
+              {resultados.length > 0 && (
+                <div className="border border-gris-claro divide-y divide-gris-claro">
+                  {resultados.map(r => (
+                    <button
+                      key={r.id}
+                      onClick={() => { setSocioElegido(r); setResultados([]) }}
+                      className="w-full text-left px-4 py-3 font-lora text-sm text-tinta hover:bg-gris-claro/30 transition-colors flex justify-between items-center"
+                    >
+                      {r.nombre}
+                      <span className="text-texto-2">›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Socio encontrado */}
+              {socioElegido && (
+                <>
+                  <div className="border border-oro/40 bg-oro/5 px-4 py-3">
+                    <p className="font-lora text-sm text-tinta">✓ {socioElegido.nombre}</p>
+                  </div>
+
                   <div>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</label>
                     <div className="flex flex-wrap gap-2">
-                      {DEPORTE_SUBCO_OPCIONES.map(o => (
+                      {rolesDisponibles.map(r => (
                         <button
-                          key={o.label}
-                          onClick={() => setDeporteNuevo(o.value)}
-                          className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                            deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
+                          key={r}
+                          onClick={() => setRolAsignacion(r)}
+                          className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
+                            rolAsignacion === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
                           }`}
                         >
-                          {o.label}
+                          {ROL_LABEL[r]}
                         </button>
                       ))}
                     </div>
                   </div>
-                )}
 
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
-                  <DivisionesPillSelector
-                    divisiones={divisiones}
-                    seleccionadas={divsNuevo}
-                    onToggle={id => toggleDiv(id, divsNuevo, setDivsNuevo)}
+                  {isAdmin && rolAsignacion === 'subcomision' && (
+                    <div>
+                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                      <div className="flex flex-wrap gap-2">
+                        {DEPORTE_SUBCO_OPCIONES.map(o => (
+                          <button
+                            key={o.label}
+                            onClick={() => setDeporteAsignacion(o.value)}
+                            className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
+                              deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
+                            }`}
+                          >
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                    <DivisionesPillSelector
+                      divisiones={divisiones}
+                      seleccionadas={divsAsignacion}
+                      onToggle={id => toggleDiv(id, divsAsignacion, setDivsAsignacion)}
+                    />
+                  </div>
+
+                  {errorAsignacion && <p className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
+
+                  <button
+                    onClick={asignarRol}
+                    disabled={asignando}
+                    className="font-lora text-xs tracking-widest py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
+                  >
+                    {asignando ? 'PROCESANDO…' : 'ASIGNAR ROL DE STAFF'}
+                  </button>
+                </>
+              )}
+            </>
+          )
+        ) : (
+          creadoOk ? (
+            <div className="text-center py-6">
+              <p className="font-lora text-sm text-tinta mb-4">✓ Usuario creado. Puede ingresar con su email y DNI como contraseña.</p>
+              <button onClick={onSuccess} className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel">CERRAR</button>
+            </div>
+          ) : (
+            <>
+              {[
+                { label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
+                { label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
+                { label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
+              ].map(f => (
+                <div key={f.label}>
+                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
+                  <input
+                    type={f.type ?? 'text'}
+                    value={f.value}
+                    onChange={e => f.set(e.target.value)}
+                    placeholder={f.placeholder}
+                    className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                   />
                 </div>
+              ))}
 
-                {errorCrear && <p className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
+              <div>
+                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</label>
+                <div className="flex flex-wrap gap-2">
+                  {rolesDisponibles.map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setRolNuevo(r)}
+                      className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
+                        rolNuevo === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
+                      }`}
+                    >
+                      {ROL_LABEL[r]}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-                <button
-                  onClick={crearUsuario}
-                  disabled={creando}
-                  className="font-lora text-xs tracking-widest py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
-                >
-                  {creando ? 'PROCESANDO…' : 'CREAR USUARIO'}
-                </button>
-              </>
-            )
-          )}
-        </div>
+              {isAdmin && rolNuevo === 'subcomision' && (
+                <div>
+                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                  <div className="flex flex-wrap gap-2">
+                    {DEPORTE_SUBCO_OPCIONES.map(o => (
+                      <button
+                        key={o.label}
+                        onClick={() => setDeporteNuevo(o.value)}
+                        className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
+                          deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                <DivisionesPillSelector
+                  divisiones={divisiones}
+                  seleccionadas={divsNuevo}
+                  onToggle={id => toggleDiv(id, divsNuevo, setDivsNuevo)}
+                />
+              </div>
+
+              {errorCrear && <p className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
+
+              <button
+                onClick={crearUsuario}
+                disabled={creando}
+                className="font-lora text-xs tracking-widest py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
+              >
+                {creando ? 'PROCESANDO…' : 'CREAR USUARIO'}
+              </button>
+            </>
+          )
+        )}
       </div>
-    </div>
+    </Modal>
   )
 }

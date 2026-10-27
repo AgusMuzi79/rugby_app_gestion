@@ -102,7 +102,7 @@ export default function ServiciosPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Servicios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">

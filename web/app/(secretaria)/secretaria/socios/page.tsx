@@ -88,7 +88,9 @@ function DetalleSocio({
 
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
-  const setStatus = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3500) }
+  // Sin auto-ocultado: el mensaje queda hasta la próxima acción (auditoría UX, X8).
+  const setStatus = (m: string) => setMsg(m)
+  const msgEsError = msg.startsWith('Error:')
 
   const handleDesactivar = async () => {
     if (!confirm('¿Desactivar este socio? Se bloqueará su acceso.')) return
@@ -145,9 +147,17 @@ function DetalleSocio({
         ← VOLVER A SOCIOS
       </button>
 
-      {msg && (
-        <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-tinta">{msg}</div>
-      )}
+      {/* Regiones vivas siempre montadas para que el lector de pantalla anuncie el cambio. */}
+      <div role="status">
+        {msg && !msgEsError && (
+          <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-tinta">{msg}</div>
+        )}
+      </div>
+      <div role="alert">
+        {msgEsError && (
+          <div className="mb-4 p-3 border border-gris-claro bg-card font-lora text-sm text-rojo-texto">{msg}</div>
+        )}
+      </div>
 
       <div className="grid grid-cols-3 gap-8">
         {/* Info principal */}
@@ -406,7 +416,7 @@ export default function SociosPage() {
   // ── Vista lista ────────────────────────────────────────────────────────────
   return (
     <div>
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Socios</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">

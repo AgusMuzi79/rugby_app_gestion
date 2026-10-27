@@ -24,10 +24,17 @@
 }
 
 body {
-  background: repeating-linear-gradient(135deg, #15110A 0 17px, #191309 17px 34px);
-  color: #F3EFE4;
+  background: repeating-linear-gradient(135deg, var(--color-papel) 0 17px, #191309 17px 34px);
+  color: var(--color-tinta);
 }
 
 .bg-papel {
-  background: repeating-linear-gradient(135deg, #15110A 0 17px, #191309 17px 34px);
+  background: repeating-linear-gradient(135deg, var(--color-papel) 0 17px, #191309 17px 34px);
+}
+
+/* Foco visible en todo el panel (auditoría UX, X8). Fuera de capa a propósito:
+   le gana a outline-none de las utilidades, que dejaba controles sin foco visible. */
+:focus-visible {
+  outline: 2px solid var(--color-oro);
+  outline-offset: 2px;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import Modal from '@/components/Modal'
 
 interface Promo {
   id:          string
@@ -129,7 +130,7 @@ export default function BuffetPromosPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-end justify-between">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Promociones</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">{promos.length} publicadas</p>
@@ -174,86 +175,79 @@ export default function BuffetPromosPage() {
 
       {/* Modal nueva promo */}
       {showModal && (
-        <div className="fixed inset-0 bg-dark/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-card w-full max-w-xl p-8">
-            <div className="flex justify-between items-center mb-6">
-              <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVA PROMOCIÓN</p>
-              <button onClick={closeModal} className="text-texto-2 hover:text-tinta text-xl leading-none">×</button>
+        <Modal titulo="NUEVA PROMOCIÓN" onClose={closeModal}>
+          <div className="flex flex-col gap-5">
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
+              <input
+                type="text"
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
+                placeholder="Ej: 2x1 en hamburguesas"
+              />
             </div>
 
-            <div className="flex flex-col gap-5">
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
-                <input
-                  type="text"
-                  value={titulo}
-                  onChange={e => setTitulo(e.target.value)}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
-                  placeholder="Ej: 2x1 en hamburguesas"
-                />
-              </div>
-
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DETALLE</label>
-                <textarea
-                  value={cuerpo}
-                  onChange={e => setCuerpo(e.target.value)}
-                  rows={4}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
-                  placeholder="Contá la promo, vigencia, condiciones…"
-                />
-              </div>
-
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">FOTO (OPCIONAL)</label>
-                {imagenPreview ? (
-                  <div>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={imagenPreview} alt="" className="w-full aspect-[4/3] object-cover" />
-                    <button
-                      type="button"
-                      onClick={quitarImagen}
-                      className="font-lora text-xs tracking-widest text-rojo-texto hover:text-rojo-texto mt-2"
-                    >
-                      QUITAR
-                    </button>
-                  </div>
-                ) : (
-                  <label className="flex items-center justify-center border border-dashed border-gris-claro py-6 cursor-pointer hover:border-tinta/40 transition-colors">
-                    <span className="font-lora text-xs tracking-widest text-oro">+ AGREGAR FOTO</span>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleElegirImagen}
-                      className="hidden"
-                    />
-                  </label>
-                )}
-              </div>
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DETALLE</label>
+              <textarea
+                value={cuerpo}
+                onChange={e => setCuerpo(e.target.value)}
+                rows={4}
+                className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
+                placeholder="Contá la promo, vigencia, condiciones…"
+              />
             </div>
 
-            {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
-
-            <p className="font-lora text-xs text-texto-2 italic mt-4">Se publica de una para todos los socios del club.</p>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handlePublicar}
-                disabled={publicando}
-                className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
-              >
-                {publicando ? 'PUBLICANDO…' : 'PUBLICAR PROMOCIÓN'}
-              </button>
-              <button
-                onClick={closeModal}
-                className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors"
-              >
-                CANCELAR
-              </button>
+            <div>
+              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">FOTO (OPCIONAL)</label>
+              {imagenPreview ? (
+                <div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imagenPreview} alt="" className="w-full aspect-[4/3] object-cover" />
+                  <button
+                    type="button"
+                    onClick={quitarImagen}
+                    className="font-lora text-xs tracking-widest text-rojo-texto hover:text-rojo-texto mt-2"
+                  >
+                    QUITAR
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center justify-center border border-dashed border-gris-claro py-6 cursor-pointer hover:border-tinta/40 transition-colors">
+                  <span className="font-lora text-xs tracking-widest text-oro">+ AGREGAR FOTO</span>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleElegirImagen}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
           </div>
-        </div>
+
+          {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
+
+          <p className="font-lora text-xs text-texto-2 italic mt-4">Se publica de una para todos los socios del club.</p>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={handlePublicar}
+              disabled={publicando}
+              className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
+            >
+              {publicando ? 'PUBLICANDO…' : 'PUBLICAR PROMOCIÓN'}
+            </button>
+            <button
+              onClick={closeModal}
+              className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors"
+            >
+              CANCELAR
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )
