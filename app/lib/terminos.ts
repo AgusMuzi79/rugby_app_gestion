@@ -9,15 +9,24 @@ export interface VersionTerminos { id: string; version: string; titulo: string; 
 
 export const ERROR_LECTURA_TERMINOS = 'No pudimos verificar los términos y condiciones. Revisá la conexión y reintentá.'
 
+// `aceptadaEnTelefono`: esta cuenta ya aceptó alguna versión en este teléfono.
+// Sólo cuenta cuando no se pudo leer la base (sin red): así una sesión
+// restaurada sin señal abre igual (el carnet tiene que funcionar offline) y
+// una versión nueva se exige apenas vuelve la conexión.
 export function estadoTerminos(r: {
   activa: VersionTerminos | null
   errorActiva: unknown
   aceptacion: { id: string } | null
   errorAceptacion: unknown
+  aceptadaEnTelefono?: boolean
 }): { pendiente: boolean; error: string | null } {
-  if (r.errorActiva) return { pendiente: true, error: ERROR_LECTURA_TERMINOS }
+  const sinLectura = !!r.errorActiva || (!!r.activa && !!r.errorAceptacion)
+  if (sinLectura) {
+    return r.aceptadaEnTelefono
+      ? { pendiente: false, error: null }
+      : { pendiente: true, error: ERROR_LECTURA_TERMINOS }
+  }
   if (!r.activa) return { pendiente: false, error: null }
-  if (r.errorAceptacion) return { pendiente: true, error: ERROR_LECTURA_TERMINOS }
   return { pendiente: !r.aceptacion, error: null }
 }
 

@@ -37,6 +37,19 @@ caso('versión activa ya aceptada → no pendiente; sin aceptar → pendiente', 
   assert.equal(estadoTerminos({ activa: ACTIVA, errorActiva: null, aceptacion: null, errorAceptacion: null }).pendiente, true)
 })
 
+caso('sin red, si esta cuenta ya aceptó en este teléfono, pasa (el carnet abre sin señal)', () => {
+  const e = estadoTerminos({ activa: null, errorActiva: red, aceptacion: null, errorAceptacion: null, aceptadaEnTelefono: true })
+  assert.equal(e.pendiente, false)
+  assert.equal(e.error, null)
+  const e2 = estadoTerminos({ activa: ACTIVA, errorActiva: null, aceptacion: null, errorAceptacion: red, aceptadaEnTelefono: true })
+  assert.equal(e2.pendiente, false)
+})
+
+caso('con red, el registro del teléfono no alcanza: manda la base (versión nueva sin aceptar)', () => {
+  const e = estadoTerminos({ activa: ACTIVA, errorActiva: null, aceptacion: null, errorAceptacion: null, aceptadaEnTelefono: true })
+  assert.equal(e.pendiente, true)
+})
+
 caso('una aceptación duplicada (23505) cuenta como aceptada', () => {
   assert.equal(aceptacionRegistrada(null), true)
   assert.equal(aceptacionRegistrada({ code: '23505', message: 'duplicate key' }), true)
