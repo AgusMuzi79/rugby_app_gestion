@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Linking, StyleSheet, View } from 'react-native'
-import { Slot, useRouter } from 'expo-router'
+import { Slot, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import {
   useFonts,
@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
+import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
@@ -30,21 +31,6 @@ SplashScreen.preventAutoHideAsync()
 
 // Reintentos del perfil sin red (2 s … 1 min, unos 2 minutos en total).
 const REINTENTOS_PERFIL = 6
-
-const ROL_RUTAS: Record<string, string> = {
-  subcomision: '/(subcomision)/diario',
-  coordinador: '/(coordinador)/diario',
-  entrenador:  '/(entrenador)/diario',
-  manager:     '/(manager)/diario',
-  admin:       '/(admin)/usuarios',
-  secretaria:  '/(secretaria)/diario',
-  porteria:    '/(porteria)/scanner',
-  canchero:    '/(porteria)/scanner',
-  buffet:      '/(porteria)/scanner',
-  cliente_gimnasio: '/(cliente-gimnasio)/carnet',
-  socio:       '/(socio)/carnet',
-  tutor:       '/(tutor)/carnet',
-}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -64,6 +50,7 @@ export default function RootLayout() {
   useEffect(() => { setMounted(true) }, [])
 
   const router = useRouter()
+  const segments = useSegments()
   const {
     session, rol, loading, isPasswordRecovery, isNuevoUsuario,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
@@ -222,46 +209,32 @@ export default function RootLayout() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Guard de navegación — espera a que el layout esté montado y auth resuelto
+  // Guard de navegación — espera a que el layout esté montado y auth resuelto.
+  // Sólo redirige si la persona no está ya donde tiene que estar: el refresh
+  // del token (cada hora, o al volver a la app) ya no la saca de lo que estaba
+  // haciendo (lib/guardRaiz.ts).
   useEffect(() => {
     if (!mounted || loading) return
-    if (isNuevoUsuario && session) {
-      router.replace('/(auth)/registro')
-      return
-    }
-    if (isPasswordRecovery) {
-      router.replace('/(auth)/reset-password')
-      return
-    }
-    if (!session) {
+    const destino = destinoGuard({
+      haySesion: !!session,
+      rol,
+      nuevoUsuario: isNuevoUsuario,
+      recuperandoPassword: isPasswordRecovery,
       // registro-tutor runs without a session and signs out the restricted
       // minor on mount: that sign-out must not bounce it to the login. Read
       // from getState(), not as a dependency, so toggling the flag never
       // re-runs the guard by itself.
-      if (useAuthStore.getState().registroSinSesion) return
-      router.replace('/(auth)/login')
-    } else if (rol) {
-      if (restringidoLoading) return
-      if (restringido) {
-        router.replace('/(auth)/acceso-restringido')
-        return
-      }
-      if (terminosLoading) return
-      if (terminosPendiente) {
-        router.replace('/(auth)/terminos')
-        return
-      }
-      if (mailSinteticoLoading) return
-      if (mailSinteticoPendiente) {
-        router.replace('/(auth)/registrar-mail')
-        return
-      }
-      router.replace(ROL_RUTAS[rol] ?? '/(auth)/login')
-    }
+      registroSinSesion: useAuthStore.getState().registroSinSesion,
+      restringido, restringidoLoading,
+      terminosPendiente, terminosLoading,
+      mailPendiente: mailSinteticoPendiente, mailLoading: mailSinteticoLoading,
+    })
+    if (!destino || yaEstaEnDestino(destino, segments)) return
+    router.replace(destino as Parameters<typeof router.replace>[0])
   }, [
     mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario,
     terminosPendiente, terminosLoading, restringido, restringidoLoading,
-    mailSinteticoPendiente, mailSinteticoLoading,
+    mailSinteticoPendiente, mailSinteticoLoading, segments[0],
   ])
 
   // Siempre renderizamos el árbol — el SplashScreen oculta la UI hasta que

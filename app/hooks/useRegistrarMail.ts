@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { SIN_CONEXION, mensajeErrorFunction } from '@/lib/errorFunction'
 import { esErrorDeRed } from '@/lib/offlineSync'
+import { marcarMailResuelto } from '@/hooks/useMailSintetico'
 
 export function useRegistrarMail() {
   const session = useAuthStore(s => s.session)
@@ -23,6 +24,11 @@ export function useRegistrarMail() {
       setError(await mensajeErrorFunction(fnError, 'No se pudo registrar el mail. Probá de nuevo.', data))
       return false
     }
+    // La sesión guardada sigue con el mail sintético hasta refrescarse: sin
+    // esto el gate volvía a pedir el mail en la próxima lectura. Si el refresh
+    // falla (sin red) el mail igual quedó registrado; se toma en el próximo.
+    await supabase.auth.refreshSession()
+    marcarMailResuelto()
     return true
   }, [])
 
@@ -39,6 +45,7 @@ export function useRegistrarMail() {
       setError(esErrorDeRed(updateErr) ? SIN_CONEXION : 'No se pudo guardar. Probá de nuevo.')
       return false
     }
+    marcarMailResuelto()
     return true
   }, [session])
 
