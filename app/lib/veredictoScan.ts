@@ -27,7 +27,7 @@ export interface ScanResult {
   categoria?:    string
   foto_path?:    string | null
   foto_validada?: boolean
-  foto_url?:     string | null   // signed URL, resolved after validate
+  foto_url?:     string | null   // URL firmada (la manda socios-qr)
   turno?:        TurnoActual | null
   // No se pudo preguntar al server (red, timeout, sesión vencida): no se sabe.
   errorRed?:     boolean

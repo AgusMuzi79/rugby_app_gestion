@@ -31,6 +31,8 @@ export function useScanner() {
   const [result, setResult]             = useState<ScanResult | null>(null)
   const [scanning, setScanning]         = useState(true)
   const [validando, setValidando]       = useState(false)
+  // Foto firmada por la app cuando la socios-qr deployada no la manda (ver validar).
+  const [fotoTardia, setFotoTardia]     = useState<{ para: ScanResult; url: string } | null>(null)
   // Validación en curso: se aborta con CANCELAR o por timeout.
   const enCurso = useRef<AbortController | null>(null)
   // Último QR que se cortó (timeout o CANCELAR) sin respuesta.
@@ -58,16 +60,8 @@ export function useScanner() {
         const status = (res.error as { context?: { status?: number } }).context?.status
         sr = resultadoErrorRed(typeof status === 'number' ? status : undefined)
       } else {
+        // socios-qr ya trae la foto firmada (`foto_url`): sin segundo viaje.
         sr = res.data as ScanResult
-        // Foto para portería, dentro del mismo límite de tiempo: si la firma
-        // no llega a tiempo se muestra el resultado sin foto.
-        if (sr.valido && sr.foto_path) {
-          const signed = await Promise.race([
-            supabase.storage.from('socios-fotos').createSignedUrl(sr.foto_path, 60),
-            new Promise<null>(resolve => ctrl.signal.addEventListener('abort', () => resolve(null))),
-          ])
-          sr = { ...sr, foto_url: signed?.data?.signedUrl ?? null }
-        }
       }
     } catch {
       sr = resultadoErrorRed(undefined)
@@ -86,8 +80,22 @@ export function useScanner() {
     // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
     if (enCurso.current !== ctrl) return
     enCurso.current = null
+    // La banda del veredicto sale ya; la foto llega después (la imagen carga sola).
     setResult(sr)
     setValidando(false)
+
+    // Compatibilidad con una socios-qr anterior que no firma la foto: se firma
+    // acá, sin demorar el veredicto. Va en un estado aparte (no en `result`)
+    // para no volver a disparar el sonido ni el auto-reset de la pantalla.
+    setFotoTardia(null)
+    if (sr.valido && sr.foto_path && sr.foto_url === undefined) {
+      const signed = await Promise.race([
+        supabase.storage.from('socios-fotos').createSignedUrl(sr.foto_path, 60),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), TIMEOUT_MS)),
+      ])
+      const url = signed?.data?.signedUrl
+      if (url && enCurso.current === null) setFotoTardia({ para: sr, url })
+    }
   }, [])
 
   const handleQR = useCallback(async (rawData: string) => {
@@ -143,10 +151,14 @@ export function useScanner() {
     setScanning(true)
   }, [])
 
+  // La foto del resultado en pantalla: la que trae socios-qr o la firmada después.
+  const fotoUrl = result?.foto_url ?? (fotoTardia && fotoTardia.para === result ? fotoTardia.url : null)
+
   return {
     permission,
     requestPermission,
     result,
+    fotoUrl,
     scanning,
     validando,
     handleQR,

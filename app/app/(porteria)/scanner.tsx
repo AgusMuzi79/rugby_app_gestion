@@ -52,7 +52,7 @@ export default function ScannerScreen() {
   // Gimnasio (rol porteria): autoservicio, el socio escanea su propio carnet → cámara frontal.
   // Canchero y Buffet: atendido, es él quien escanea el carnet del socio → cámara trasera.
   const camaraFacing = esAutoservicio ? 'front' : 'back'
-  const { permission, requestPermission, result, scanning, validando, handleQR, handleDNI, registrarInvitado, cancelar, reset } = useScanner()
+  const { permission, requestPermission, result, fotoUrl, scanning, validando, handleQR, handleDNI, registrarInvitado, cancelar, reset } = useScanner()
   const netInfo = useNetInfo()
   const sinRed = netInfo.isInternetReachable === false
 
@@ -295,8 +295,8 @@ export default function ScannerScreen() {
             {result.reintentoRegistrado ? null : pasa ? (
               <View style={[s.resultBody, esTablet && s.resultBodyTablet]}>
                 {/* Foto */}
-                {result.foto_url ? (
-                  <Image source={{ uri: result.foto_url }} style={[s.fotoSocio, esTablet && s.fotoSocioTablet]} />
+                {fotoUrl ? (
+                  <Image source={{ uri: fotoUrl }} style={[s.fotoSocio, esTablet && s.fotoSocioTablet]} />
                 ) : (
                   <View style={[s.fotoSocio, s.fotoPlaceholder, esTablet && s.fotoSocioTablet]}>
                     <Feather name="user" size={esTablet ? 84 : 40} color={colors.grisClaro} />
