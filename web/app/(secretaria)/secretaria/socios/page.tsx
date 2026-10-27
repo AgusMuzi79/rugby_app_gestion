@@ -1,11 +1,13 @@
 ﻿'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo, useDeferredValue } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
+import VerMas from '@/components/secretaria/VerMas'
 import { coincideBusqueda, nombresSocio, resumenDeudaNuvix, type Semaforo } from '@/lib/busquedaSocios'
+import { PAGINA_LISTA, paginar, ordenarCon, reemplazarPorId } from '@/lib/listaPaginada'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -295,6 +297,29 @@ function compareSocios(a: SocioItem, b: SocioItem, column: SortColumn): number {
   return String(a[column]).localeCompare(String(b[column]), 'es')
 }
 
+// ─── Lectura de socios ────────────────────────────────────────────────────────
+
+// Mismas columnas para la lista completa y para releer un socio después de editarlo.
+const SELECT_SOCIO = 'id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, nombre_padron, semaforo, deuda_vencida, meses_impagos, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)'
+
+function normalizarSocio(s: Record<string, unknown>): SocioItem {
+  return {
+    id:               s.id as string,
+    numero_socio:     s.numero_socio as string,
+    dni:              s.dni as string,
+    estado:           s.estado as string,
+    foto_path:        s.foto_path as string | null,
+    foto_validada:    s.foto_validada as boolean,
+    created_at:       s.created_at as string,
+    categoria_id:     s.categoria_id as string,
+    ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
+    semaforo:         (s.semaforo as Semaforo | null) ?? null,
+    deuda_vencida:    Number(s.deuda_vencida ?? 0),
+    meses_impagos:    Number(s.meses_impagos ?? 0),
+    categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
+  }
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function SociosPage() {
@@ -326,7 +351,7 @@ export default function SociosPage() {
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, nombre_padron, semaforo, deuda_vencida, meses_impagos, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .select(SELECT_SOCIO)
             .order('numero_socio')
             .range(from, to)
         ),
@@ -336,23 +361,7 @@ export default function SociosPage() {
         supabase.from('importaciones_deuda').select('fecha_corte').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ])
 
-      const normalized: SocioItem[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
-        id:               s.id as string,
-        numero_socio:     s.numero_socio as string,
-        dni:              s.dni as string,
-        estado:           s.estado as string,
-        foto_path:        s.foto_path as string | null,
-        foto_validada:    s.foto_validada as boolean,
-        created_at:       s.created_at as string,
-        categoria_id:     s.categoria_id as string,
-        ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
-        semaforo:         (s.semaforo as Semaforo | null) ?? null,
-        deuda_vencida:    Number(s.deuda_vencida ?? 0),
-        meses_impagos:    Number(s.meses_impagos ?? 0),
-        categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
-      }))
-
-      setSocios(normalized)
+      setSocios((sociosData ?? []).map(normalizarSocio))
       setCategorias(catsData ?? [])
       setServicios(srvsData ?? [])
       setFechaCorteDeuda((ultimaDeuda as { fecha_corte: string } | null)?.fecha_corte ?? null)
@@ -376,18 +385,40 @@ export default function SociosPage() {
     void fetchServiciosSocio(socio.id)
   }
 
-  const handleRefreshDetalle = useCallback(async () => {
-    await fetchAll()
-    if (detalle) void fetchServiciosSocio(detalle.id)
-  }, [fetchAll, detalle, fetchServiciosSocio])
+  // Después de una acción en el detalle se vuelve a leer sólo ese socio (no todo el padrón).
+  const fetchSocio = useCallback(async (socioId: string) => {
+    const { data } = await supabase.from('socios').select(SELECT_SOCIO).eq('id', socioId).maybeSingle()
+    const nuevo = data ? normalizarSocio(data as unknown as Record<string, unknown>) : null
+    setSocios(lista => reemplazarPorId(lista, socioId, nuevo))
+  }, [])
 
-  const sociosFiltrados = socios
-    .filter(s => filtro === 'todos' || s.estado === filtro)
-    .filter(s => coincideBusqueda(busqueda, s))
-    .sort((a, b) => {
-      const cmp = compareSocios(a, b, sortColumn)
-      return sortDirection === 'asc' ? cmp : -cmp
-    })
+  const handleRefreshDetalle = useCallback(async () => {
+    if (!detalle) return
+    await Promise.all([fetchSocio(detalle.id), fetchServiciosSocio(detalle.id)])
+  }, [detalle, fetchSocio, fetchServiciosSocio])
+
+  // La búsqueda se difiere para que tipear no espere al filtro + orden de ~1.500 filas.
+  const busquedaDiferida = useDeferredValue(busqueda)
+  const sociosFiltrados = useMemo(
+    () => ordenarCon(
+      socios
+        .filter(s => filtro === 'todos' || s.estado === filtro)
+        .filter(s => coincideBusqueda(busquedaDiferida, s)),
+      (a, b) => compareSocios(a, b, sortColumn),
+      sortDirection,
+    ),
+    [socios, filtro, busquedaDiferida, sortColumn, sortDirection],
+  )
+
+  // Se renderizan de a PAGINA_LISTA filas; al cambiar filtros u orden vuelve a la primera tanda.
+  const [limite, setLimite] = useState(PAGINA_LISTA)
+  const claveVista = `${filtro}|${busquedaDiferida}|${sortColumn}|${sortDirection}`
+  const [claveLimite, setClaveLimite] = useState(claveVista)
+  if (claveLimite !== claveVista) {
+    setClaveLimite(claveVista)
+    setLimite(PAGINA_LISTA)
+  }
+  const { visibles, restantes } = paginar(sociosFiltrados, limite)
 
   // ── Vista detalle ──────────────────────────────────────────────────────────
   if (detalle) {
@@ -466,7 +497,7 @@ export default function SociosPage() {
             </tr>
           </thead>
           <tbody>
-            {sociosFiltrados.map(s => (
+            {visibles.map(s => (
               <tr
                 key={s.id}
                 onClick={() => handleAbrirDetalle(s)}
@@ -494,6 +525,15 @@ export default function SociosPage() {
             ))}
           </tbody>
         </table>
+      )}
+      {!loading && (
+        <VerMas
+          mostrando={visibles.length}
+          total={sociosFiltrados.length}
+          restantes={restantes}
+          paso={PAGINA_LISTA}
+          onVerMas={() => setLimite(l => l + PAGINA_LISTA)}
+        />
       )}
     </div>
   )

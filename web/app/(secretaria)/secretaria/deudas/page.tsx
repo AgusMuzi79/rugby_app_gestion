@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
+import VerMas from '@/components/secretaria/VerMas'
+import { PAGINA_LISTA, paginar, ordenarCon } from '@/lib/listaPaginada'
 import { filtrarDeudas, mensajeVacioDeudas, nombresSocio, SEMAFORO_LABEL, type Semaforo } from '@/lib/busquedaSocios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -176,13 +178,31 @@ export default function DeudasPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const opcionesServicio = [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es'))
+  const opcionesServicio = useMemo(
+    () => [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es')),
+    [socios],
+  )
 
-  const sociosFiltrados = filtrarDeudas(socios, { filtro, filtroServicio, busqueda })
-    .sort((a, b) => {
-      const cmp = compareSocios(a, b, sortColumn)
-      return sortDirection === 'asc' ? cmp : -cmp
-    })
+  // La búsqueda se difiere para que tipear no espere al filtro + orden de toda la lista.
+  const busquedaDiferida = useDeferredValue(busqueda)
+  const sociosFiltrados = useMemo(
+    () => ordenarCon(
+      filtrarDeudas(socios, { filtro, filtroServicio, busqueda: busquedaDiferida }),
+      (a, b) => compareSocios(a, b, sortColumn),
+      sortDirection,
+    ),
+    [socios, filtro, filtroServicio, busquedaDiferida, sortColumn, sortDirection],
+  )
+
+  // Se renderizan de a PAGINA_LISTA filas (el CSV exporta todas); al cambiar filtros u orden vuelve a la primera tanda.
+  const [limite, setLimite] = useState(PAGINA_LISTA)
+  const claveVista = `${filtro}|${filtroServicio}|${busquedaDiferida}|${sortColumn}|${sortDirection}`
+  const [claveLimite, setClaveLimite] = useState(claveVista)
+  if (claveLimite !== claveVista) {
+    setClaveLimite(claveVista)
+    setLimite(PAGINA_LISTA)
+  }
+  const { visibles, restantes } = paginar(sociosFiltrados, limite)
 
   const handleExportar = () => {
     const columnas = ['Nº Socio', 'Nombre', 'Semáforo', 'Deuda Vencida', 'Meses Impagos', 'Mora Máx (días)', 'Categoría', 'Servicios']
@@ -300,7 +320,7 @@ export default function DeudasPage() {
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">
-            {mensajeVacioDeudas({ filtro, filtroServicio, busqueda })}
+            {mensajeVacioDeudas({ filtro, filtroServicio, busqueda: busquedaDiferida })}
           </p>
         </div>
       ) : (
@@ -317,7 +337,7 @@ export default function DeudasPage() {
             </tr>
           </thead>
           <tbody>
-            {sociosFiltrados.map(s => (
+            {visibles.map(s => (
               <tr key={s.id} className="border-b border-gris-claro">
                 <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{s.numero_socio}</td>
                 <td className="font-lora text-sm text-tinta py-4 pr-4">{s.nombre}</td>
@@ -346,6 +366,15 @@ export default function DeudasPage() {
             ))}
           </tbody>
         </table>
+      )}
+      {!loading && (
+        <VerMas
+          mostrando={visibles.length}
+          total={sociosFiltrados.length}
+          restantes={restantes}
+          paso={PAGINA_LISTA}
+          onVerMas={() => setLimite(l => l + PAGINA_LISTA)}
+        />
       )}
     </div>
   )
