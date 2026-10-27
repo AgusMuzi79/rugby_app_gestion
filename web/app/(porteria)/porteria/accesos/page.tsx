@@ -142,8 +142,9 @@ export default function AccesosPage() {
       <div className="flex flex-wrap gap-4 mb-4 items-end justify-between">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>DESDE</label>
+            <label htmlFor="accesos-desde" className={labelClass}>DESDE</label>
             <input
+              id="accesos-desde"
               type="date"
               value={desde}
               onChange={e => setDesde(e.target.value)}
@@ -152,8 +153,9 @@ export default function AccesosPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>HASTA</label>
+            <label htmlFor="accesos-hasta" className={labelClass}>HASTA</label>
             <input
+              id="accesos-hasta"
               type="date"
               value={hasta}
               onChange={e => setHasta(e.target.value)}
@@ -168,6 +170,8 @@ export default function AccesosPage() {
               return (
                 <button
                   key={atajo.label}
+                  type="button"
+                  aria-pressed={activo}
                   onClick={() => { setDesde(atajo.desde()); setHasta(hoyISO()) }}
                   className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
                     activo ? 'border-oro text-oro bg-oro/10' : 'border-gris-claro text-tinta/50 hover:border-oro'
@@ -191,8 +195,9 @@ export default function AccesosPage() {
       {/* Filtros */}
       <div className="flex flex-wrap gap-4 mb-6 items-end">
         <div className="flex flex-col gap-1 flex-1 min-w-48">
-          <label className={labelClass}>BUSCAR</label>
+          <label htmlFor="accesos-buscar" className={labelClass}>BUSCAR</label>
           <input
+            id="accesos-buscar"
             type="search"
             value={filtros.busqueda}
             onChange={e => setFiltro('busqueda', e.target.value)}
@@ -201,8 +206,8 @@ export default function AccesosPage() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <span className={labelClass}>ESTADO DE CUOTA</span>
-          <div className="flex flex-wrap gap-2">
+          <span id="accesos-estado-cuota" className={labelClass}>ESTADO DE CUOTA</span>
+          <div role="group" aria-labelledby="accesos-estado-cuota" className="flex flex-wrap gap-2">
             {(Object.keys(SEMAFORO_LABEL) as Semaforo[]).map(s => {
               const activo = filtros.estados.includes(s)
               return (
@@ -222,8 +227,9 @@ export default function AccesosPage() {
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>TIPO</label>
+          <label htmlFor="accesos-tipo" className={labelClass}>TIPO</label>
           <select
+            id="accesos-tipo"
             value={filtros.tipo}
             onChange={e => setFiltro('tipo', e.target.value as FiltrosAccesos['tipo'])}
             className={inputClass}

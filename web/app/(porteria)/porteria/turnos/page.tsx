@@ -195,8 +195,8 @@ function OcupacionSeccion() {
   return (
     <div>
       <div className="flex flex-col gap-1 mb-6 w-fit">
-        <label className={LABEL}>FECHA</label>
-        <input type="date" value={fecha} onChange={e => e.target.value && setFecha(e.target.value)} className={INPUT} />
+        <label htmlFor="ocupacion-fecha" className={LABEL}>FECHA</label>
+        <input id="ocupacion-fecha" type="date" value={fecha} onChange={e => e.target.value && setFecha(e.target.value)} className={INPUT} />
       </div>
 
       <AvisoBox aviso={aviso} />
@@ -356,26 +356,27 @@ function FranjasSeccion() {
       <form onSubmit={guardar} className="mb-8 border border-gris-claro p-4 flex flex-wrap gap-4 items-end">
         <p className="w-full font-lora text-xs tracking-widest text-oro">{form.id ? 'EDITAR FRANJA' : 'NUEVA FRANJA'}</p>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>DÍA</label>
-          <select value={form.dia_semana} onChange={e => setForm({ ...form, dia_semana: Number(e.target.value) })} className={INPUT}>
+          <label htmlFor="franja-dia" className={LABEL}>DÍA</label>
+          <select id="franja-dia" value={form.dia_semana} onChange={e => setForm({ ...form, dia_semana: Number(e.target.value) })} className={INPUT}>
             {DIAS.slice(1).map((d, i) => <option key={d} value={i + 1}>{d}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>DESDE</label>
-          <input type="time" value={form.hora_desde} onChange={e => setForm({ ...form, hora_desde: e.target.value })} className={INPUT} required />
+          <label htmlFor="franja-desde" className={LABEL}>DESDE</label>
+          <input id="franja-desde" type="time" value={form.hora_desde} onChange={e => setForm({ ...form, hora_desde: e.target.value })} className={INPUT} required />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>HASTA</label>
-          <input type="time" value={form.hora_hasta} onChange={e => setForm({ ...form, hora_hasta: e.target.value })} className={INPUT} required />
+          <label htmlFor="franja-hasta" className={LABEL}>HASTA</label>
+          <input id="franja-hasta" type="time" value={form.hora_hasta} onChange={e => setForm({ ...form, hora_hasta: e.target.value })} className={INPUT} required />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>CUPO</label>
-          <input type="number" min={1} max={500} value={form.cupo} onChange={e => setForm({ ...form, cupo: e.target.value })} className={`${INPUT} w-24`} required />
+          <label htmlFor="franja-cupo" className={LABEL}>CUPO</label>
+          <input id="franja-cupo" type="number" min={1} max={500} value={form.cupo} onChange={e => setForm({ ...form, cupo: e.target.value })} className={`${INPUT} w-24`} required />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>PROFESOR</label>
+          <label htmlFor="franja-profesor" className={LABEL}>PROFESOR</label>
           <input
+            id="franja-profesor"
             value={form.profesor} onChange={e => setForm({ ...form, profesor: e.target.value })}
             maxLength={80} className={`${INPUT} w-64`} placeholder="opcional (Ana / Luis si son dos)"
           />
@@ -652,8 +653,9 @@ function ImportarSeccion() {
         </p>
 
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>PEGÁ ACÁ EL CALENDARIO DESDE EXCEL O GOOGLE SHEETS</label>
+          <label htmlFor="importar-texto" className={LABEL}>PEGÁ ACÁ EL CALENDARIO DESDE EXCEL O GOOGLE SHEETS</label>
           <textarea
+            id="importar-texto"
             value={texto}
             disabled={trabajando}
             onChange={e => cambiarTexto(e.target.value)}
@@ -672,8 +674,8 @@ function ImportarSeccion() {
           <button type="button" className={BTN} onClick={descargarPlantilla}>DESCARGAR PLANTILLA</button>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <p className={LABEL}>MODO</p>
+        <div role="radiogroup" aria-labelledby="importar-modo" className="flex flex-col gap-2">
+          <p id="importar-modo" className={LABEL}>MODO</p>
           {MODOS_IMPORT.map(m => (
             <label key={m.id} className="flex items-start gap-2 font-lora text-sm text-tinta cursor-pointer">
               <input type="radio" name="modo-import" className="mt-1" checked={modo === m.id} disabled={trabajando} onChange={() => cambiarModo(m.id)} />
@@ -940,12 +942,12 @@ function ExcepcionesSeccion() {
       <form onSubmit={guardar} className="mb-8 border border-gris-claro p-4 flex flex-wrap gap-4 items-end">
         <p className="w-full font-lora text-xs tracking-widest text-oro">NUEVA EXCEPCIÓN (FERIADO, CIERRE, CUPO ESPECIAL)</p>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>FECHA</label>
-          <input type="date" value={fecha} onChange={e => e.target.value && setFecha(e.target.value)} className={INPUT} required />
+          <label htmlFor="excepcion-fecha" className={LABEL}>FECHA</label>
+          <input id="excepcion-fecha" type="date" value={fecha} onChange={e => e.target.value && setFecha(e.target.value)} className={INPUT} required />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>FRANJA</label>
-          <select value={franjaId} onChange={e => setFranjaId(e.target.value)} className={INPUT}>
+          <label htmlFor="excepcion-franja" className={LABEL}>FRANJA</label>
+          <select id="excepcion-franja" value={franjaId} onChange={e => setFranjaId(e.target.value)} className={INPUT}>
             <option value="">Todas las franjas</option>
             {franjas.filter(f => f.activa).map(f => <option key={f.id} value={f.id}>{etiquetaFranja(f)}</option>)}
           </select>
@@ -955,12 +957,13 @@ function ExcepcionesSeccion() {
           Cerrado
         </label>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>CUPO ESPECIAL</label>
-          <input type="number" min={1} max={500} value={cupo} onChange={e => setCupo(e.target.value)} className={`${INPUT} w-28`} placeholder="opcional" />
+          <label htmlFor="excepcion-cupo" className={LABEL}>CUPO ESPECIAL</label>
+          <input id="excepcion-cupo" type="number" min={1} max={500} value={cupo} onChange={e => setCupo(e.target.value)} className={`${INPUT} w-28`} placeholder="opcional" />
         </div>
         <div className="flex flex-col gap-1 w-full max-w-xl">
-          <label className={LABEL}>{cerrado ? 'MENSAJE PARA LOS SOCIOS' : 'MOTIVO'}</label>
+          <label htmlFor="excepcion-motivo" className={LABEL}>{cerrado ? 'MENSAJE PARA LOS SOCIOS' : 'MOTIVO'}</label>
           <input
+            id="excepcion-motivo"
             value={motivo} onChange={e => setMotivo(e.target.value)} maxLength={300} className={INPUT}
             placeholder={cerrado ? 'Ej: Feriado, abrimos el viernes' : 'opcional'}
             required={cerrado} minLength={cerrado ? 3 : undefined}
@@ -979,12 +982,12 @@ function ExcepcionesSeccion() {
 
       <div className="flex gap-4 mb-4">
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>DESDE</label>
-          <input type="date" value={desde} onChange={e => e.target.value && setDesde(e.target.value)} className={INPUT} />
+          <label htmlFor="excepciones-desde" className={LABEL}>DESDE</label>
+          <input id="excepciones-desde" type="date" value={desde} onChange={e => e.target.value && setDesde(e.target.value)} className={INPUT} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>HASTA</label>
-          <input type="date" value={hasta} onChange={e => e.target.value && setHasta(e.target.value)} className={INPUT} />
+          <label htmlFor="excepciones-hasta" className={LABEL}>HASTA</label>
+          <input id="excepciones-hasta" type="date" value={hasta} onChange={e => e.target.value && setHasta(e.target.value)} className={INPUT} />
         </div>
       </div>
 
@@ -1096,8 +1099,8 @@ function ConfigSeccion() {
         <p className="font-lora text-xs tracking-widest text-oro">CONFIGURACIÓN GENERAL</p>
 
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>MODO DE CUPOS EN EL LECTOR</label>
-          <select value={cfg.modo_cupos} onChange={e => setCfg({ ...cfg, modo_cupos: e.target.value as Config['modo_cupos'] })} className={`${INPUT} w-64`}>
+          <label htmlFor="config-modo-cupos" className={LABEL}>MODO DE CUPOS EN EL LECTOR</label>
+          <select id="config-modo-cupos" value={cfg.modo_cupos} onChange={e => setCfg({ ...cfg, modo_cupos: e.target.value as Config['modo_cupos'] })} className={`${INPUT} w-64`}>
             <option value="informativo">Informativo (solo avisa)</option>
             <option value="bloqueante">Bloqueante (exige reserva)</option>
           </select>
@@ -1110,8 +1113,8 @@ function ConfigSeccion() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className={LABEL}>VENTANA DE RESERVA</label>
-          <select value={cfg.ventana_reserva} onChange={e => setCfg({ ...cfg, ventana_reserva: e.target.value as Config['ventana_reserva'] })} className={`${INPUT} w-64`}>
+          <label htmlFor="config-ventana" className={LABEL}>VENTANA DE RESERVA</label>
+          <select id="config-ventana" value={cfg.ventana_reserva} onChange={e => setCfg({ ...cfg, ventana_reserva: e.target.value as Config['ventana_reserva'] })} className={`${INPUT} w-64`}>
             <option value="mes">Todo el mes en curso</option>
             <option value="dias">Próximos N días</option>
           </select>
@@ -1125,8 +1128,9 @@ function ConfigSeccion() {
         <div className="flex flex-wrap gap-6">
           {campos.map(x => (
             <div key={x.campo} className="flex flex-col gap-1 w-56">
-              <label className={LABEL}>{x.label}</label>
+              <label htmlFor={`config-${x.campo}`} className={LABEL}>{x.label}</label>
               <input
+                id={`config-${x.campo}`}
                 type="number" min={x.min} max={x.max}
                 value={valores[x.campo] ?? ''}
                 onChange={e => setValores({ ...valores, [x.campo]: e.target.value })}
@@ -1185,6 +1189,8 @@ export default function TurnosPage() {
         {SECCIONES.map(s => (
           <button
             key={s.id}
+            type="button"
+            aria-pressed={seccion === s.id}
             onClick={() => setSeccion(s.id)}
             className={`font-lora text-xs tracking-widest pb-3 -mb-px border-b-2 transition-colors ${
               seccion === s.id ? 'text-tinta border-oro' : 'text-gris border-transparent hover:text-tinta'
