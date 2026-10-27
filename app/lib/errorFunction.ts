@@ -9,6 +9,11 @@
 
 export const SIN_CONEXION = 'No hay conexión. Revisá internet y volvé a intentar.'
 
+// Largo mínimo de contraseña que pide la app (registro, reset, tutor). Tiene
+// que coincidir con Supabase → Auth → "Minimum password length": si se
+// cambia allá, cambiarlo acá y en esas pantallas.
+export const MIN_PASSWORD = 8
+
 interface ErrorConContexto { name?: string; message?: string; context?: unknown }
 
 function comoError(e: unknown): ErrorConContexto | null {
@@ -67,7 +72,7 @@ export function mensajeErrorAuth(
     return 'La contraseña nueva tiene que ser distinta de la actual.'
   }
   if (error?.code === 'weak_password' || /password should|weak password/i.test(msg)) {
-    return 'La contraseña es muy débil: usá al menos 8 caracteres.'
+    return `La contraseña es muy débil: usá al menos ${MIN_PASSWORD} caracteres.`
   }
   if (error?.code === 'over_request_rate_limit' || /rate limit/i.test(msg)) {
     return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'

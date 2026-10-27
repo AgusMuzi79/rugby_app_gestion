@@ -22,7 +22,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { normalizarIdentificador, variantesPassword } from '../_shared/login-identificador.ts'
+import { normalizarIdentificador, passwordAProbar } from '../_shared/login-identificador.ts'
 import { respuestaErrorLogin } from '../_shared/login-errores.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
@@ -71,20 +71,19 @@ Deno.serve(async (req: Request) => {
     { auth: { autoRefreshToken: false, persistSession: false } },
   )
 
-  // La contraseña inicial es el DNI: si la tipearon con puntos, se prueba
-  // también sin ellos (variantesPassword).
-  for (const intento of variantesPassword(password)) {
-    const { data: authData, error: authErr } = await supabaseAnon.auth.signInWithPassword({ email, password: intento })
-    if (!authErr && authData.session) {
-      return jsonOk({
-        access_token: authData.session.access_token,
-        refresh_token: authData.session.refresh_token,
-      })
-    }
-    // Cuenta dada de baja (baneada por el import) o GoTrue limitando la IP de
-    // esta función: decirlo, en vez de culpar a la contraseña.
-    const especial = respuestaErrorLogin(authErr)
-    if (especial) return jsonError(especial.status, especial.mensaje)
+  // Un solo intento: la inicial es el DNI, y si tipearon el DNI de esta misma
+  // cuenta con puntos se manda sin ellos (passwordAProbar).
+  const intento = passwordAProbar(password, identificador.tipo === 'dni' ? identificador.dni : null)
+  const { data: authData, error: authErr } = await supabaseAnon.auth.signInWithPassword({ email, password: intento })
+  if (!authErr && authData.session) {
+    return jsonOk({
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+    })
   }
+  // Cuenta dada de baja (baneada por el import) o GoTrue limitando la IP de
+  // esta función: decirlo, en vez de culpar a la contraseña.
+  const especial = respuestaErrorLogin(authErr)
+  if (especial) return jsonError(especial.status, especial.mensaje)
   return jsonError(401, GENERIC_ERROR)
 })

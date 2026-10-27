@@ -24,12 +24,12 @@ export function normalizarIdentificador(raw: string): Identificador | null {
   return dni ? { tipo: 'dni', dni } : null
 }
 
-// Contraseñas a probar, en orden. Si lo tipeado es un DNI con puntos o
-// espacios ("30.123.456"), también se prueba sin ellos: la inicial es el DNI.
-export function variantesPassword(password: string): string[] {
-  const sinSeparadores = password.replace(/[.\s]/g, '')
-  if (/^[\d.\s]+$/.test(password) && sinSeparadores !== password && sinSeparadores.length > 0) {
-    return [password, sinSeparadores]
-  }
-  return [password]
+// La contraseña a probar: un solo intento contra GoTrue (todos los logins
+// salen de la IP de login-dni y comparten su límite). La inicial es el DNI:
+// si lo tipeado es el DNI de esta misma cuenta con puntos o espacios
+// ("30.123.456"), se prueba sin ellos; cualquier otra cosa, tal cual.
+// `dniCuenta` = null cuando se entra por mail (no se conoce el DNI).
+export function passwordAProbar(password: string, dniCuenta: string | null): string {
+  if (!dniCuenta || !/^[\d.\s]+$/.test(password)) return password
+  return normalizarDni(password) === dniCuenta ? dniCuenta : password
 }

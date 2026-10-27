@@ -2,7 +2,7 @@
 //   npx --yes tsx supabase/functions/_shared/login-identificador.check.ts
 
 import assert from 'node:assert/strict'
-import { normalizarDni, normalizarIdentificador, variantesPassword } from './login-identificador.ts'
+import { normalizarDni, normalizarIdentificador, passwordAProbar } from './login-identificador.ts'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -26,14 +26,18 @@ caso('vacío o sin dígitos → null', () => {
   assert.equal(normalizarIdentificador('abc'), null)
 })
 
-caso('contraseña tipeada como DNI con puntos: se prueba también sin puntos', () => {
-  assert.deepEqual(variantesPassword('30.123.456'), ['30.123.456', '30123456'])
-  assert.deepEqual(variantesPassword('30 123 456'), ['30 123 456', '30123456'])
+caso('el DNI de la cuenta tipeado con puntos como contraseña: se prueba sin puntos (un solo intento)', () => {
+  assert.equal(passwordAProbar('30.123.456', '30123456'), '30123456')
+  assert.equal(passwordAProbar('30 123 456', '30123456'), '30123456')
 })
 
-caso('una contraseña normal se prueba una sola vez', () => {
-  assert.deepEqual(variantesPassword('30123456'), ['30123456'])
-  assert.deepEqual(variantesPassword('Clave.2026'), ['Clave.2026'])
+caso('cualquier otra contraseña se prueba tal cual (un solo intento a GoTrue)', () => {
+  assert.equal(passwordAProbar('30123456', '30123456'), '30123456')
+  assert.equal(passwordAProbar('Clave.2026', '30123456'), 'Clave.2026')
+  // Un DNI ajeno con puntos no se convierte: no duplica intentos de adivinar.
+  assert.equal(passwordAProbar('11.222.333', '30123456'), '11.222.333')
+  // Login por mail: no se conoce el DNI de la cuenta.
+  assert.equal(passwordAProbar('30.123.456', null), '30.123.456')
 })
 
 caso('normalizarDni para el alta de staff', () => {
