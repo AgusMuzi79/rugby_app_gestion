@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
+import type { VinculoServicio } from '@/lib/secretariaNuvix'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
@@ -38,13 +39,16 @@ export interface SocioItem {
   categoria_id:     string
 }
 
-type FiltroEstado = 'todos' | 'activo' | 'moroso' | 'pendiente' | 'inactivo'
+// Sin filtro MOROSO: el estado 'moroso' no lo setea nadie (la deuda real es el
+// semáforo de NUVIX, que se ve en el panel web › Deudas).
+type FiltroEstado = 'todos' | 'activo' | 'pendiente' | 'inactivo'
 
 export function useSociosSecretaria() {
   const [socios, setSocios]             = useState<SocioItem[]>([])
   const [categorias, setCategorias]     = useState<CategoriaSocio[]>([])
   const [servicios, setServicios]       = useState<ServicioOpcional[]>([])
-  const [serviciosSocio, setServiciosSocio] = useState<string[]>([]) // servicio_id[]
+  // Vínculos del socio abierto: el importe real (NUVIX) manda sobre el catálogo.
+  const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
 
@@ -60,21 +64,22 @@ export function useSociosSecretaria() {
   const fetchServiciosSocio = useCallback(async (socioId: string) => {
     const { data } = await db
       .from('socio_servicios')
-      .select('servicio_id')
+      .select('servicio_id, importe')
       .eq('socio_id', socioId)
-    setServiciosSocio((data ?? []).map((r: { servicio_id: string }) => r.servicio_id))
+    setServiciosSocio((data ?? []) as VinculoServicio[])
   }, [])
 
   const toggleServicio = useCallback(async (socioId: string, servicioId: string, agregar: boolean) => {
     if (agregar) {
       const { error } = await db.from('socio_servicios').insert({ socio_id: socioId, servicio_id: servicioId })
       if (error) { Alert.alert('Error', error.message); return }
-      setServiciosSocio(prev => [...prev, servicioId])
+      // Alta manual: sin importe propio, se toma el de catálogo hasta que lo liquide NUVIX.
+      setServiciosSocio(prev => [...prev, { servicio_id: servicioId, importe: null }])
     } else {
       const { error } = await db.from('socio_servicios').delete()
         .eq('socio_id', socioId).eq('servicio_id', servicioId)
       if (error) { Alert.alert('Error', error.message); return }
-      setServiciosSocio(prev => prev.filter(id => id !== servicioId))
+      setServiciosSocio(prev => prev.filter(v => v.servicio_id !== servicioId))
     }
   }, [])
 

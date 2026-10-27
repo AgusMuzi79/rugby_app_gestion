@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
 import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional } from '@/hooks/useSociosSecretaria'
+import { montoServicio, montoServiciosSocio, type VinculoServicio } from '@/lib/secretariaNuvix'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -28,7 +29,8 @@ const ESTADO_COLOR: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = {
   activo: 'ACTIVO', moroso: 'MOROSO', pendiente: 'PENDIENTE', inactivo: 'INACTIVO',
 }
-const FILTROS = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo'] as const
+// Sin MOROSO: ese estado no lo setea nadie; la deuda real es el semáforo de NUVIX.
+const FILTROS = ['todos', 'activo', 'pendiente', 'inactivo'] as const
 type Filtro = typeof FILTROS[number]
 
 // ─── Detalle Socio ────────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ function DetalleSocio({
   socio:            SocioItem
   categorias:       CategoriaSocio[]
   servicios:        ServicioOpcional[]
-  serviciosSocio:   string[]
+  serviciosSocio:   VinculoServicio[]
   fotoSignedUrl:    (path: string) => Promise<string | null>
   onDeactivate:      (id: string) => void
   onReactivate:      (id: string) => void
@@ -59,9 +61,9 @@ function DetalleSocio({
   const [fotoUrl,              setFotoUrl]              = useState<string | null>(null)
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
-  const montoServicios = servicios
-    .filter(s => serviciosSocio.includes(s.id))
-    .reduce((sum, s) => sum + s.monto_mensual, 0)
+  // Importe real del vínculo (NUVIX) o, si no lo trae, el precio de catálogo.
+  const vinculoPorServicio = new Map(serviciosSocio.map(v => [v.servicio_id, v]))
+  const montoServicios = montoServiciosSocio(servicios, serviciosSocio)
   const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
 
   const verFoto = async () => {
@@ -115,7 +117,8 @@ function DetalleSocio({
           <Text style={ss.serviciosTitulo}>SERVICIOS OPCIONALES</Text>
           <View style={ss.serviciosGrid}>
             {servicios.map(srv => {
-              const activo = serviciosSocio.includes(srv.id)
+              const vinculo = vinculoPorServicio.get(srv.id)
+              const activo = !!vinculo
               return (
                 <TouchableOpacity
                   key={srv.id}
@@ -127,7 +130,7 @@ function DetalleSocio({
                     {srv.nombre}
                   </Text>
                   <Text style={[ss.servicioChipMonto, activo ? ss.servicioChipMontoActivo : ss.servicioChipMontoInactivo]}>
-                    +${srv.monto_mensual}/mes
+                    +${montoServicio(srv, vinculo)}/mes
                   </Text>
                 </TouchableOpacity>
               )

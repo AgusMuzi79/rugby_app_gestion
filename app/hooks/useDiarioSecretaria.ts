@@ -1,35 +1,26 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { ReporteDeuda } from '@/lib/secretariaNuvix'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 
 interface EstadosSocios {
-  activos:   number
-  morosos:   number
+  activos:    number
+  enRojo:     number   // semáforo NUVIX en rojo (activos o pendientes)
   pendientes: number
-  inactivos: number
-}
-
-interface PagoReciente {
-  id:          string
-  nombre:      string
-  numero_socio: string
-  periodo:     string
-  monto:       number
-  forma_pago:  string
-  created_at:  string
+  inactivos:  number
 }
 
 interface DashboardSecretaria {
   estados:       EstadosSocios
-  pagosRecientes: PagoReciente[]
+  ultimoReporte: ReporteDeuda | null
   totalSocios:   number
 }
 
 const INITIAL: DashboardSecretaria = {
-  estados:        { activos: 0, morosos: 0, pendientes: 0, inactivos: 0 },
-  pagosRecientes: [],
-  totalSocios:    0,
+  estados:       { activos: 0, enRojo: 0, pendientes: 0, inactivos: 0 },
+  ultimoReporte: null,
+  totalSocios:   0,
 }
 
 export function useDiarioSecretaria() {
@@ -46,46 +37,35 @@ export function useDiarioSecretaria() {
     const countByEstado = (estado: string) =>
       db.from('socios').select('*', { count: 'exact', head: true }).eq('estado', estado)
 
-    const [activosRes, morososRes, pendientesRes, inactivosRes, totalRes, pagosRes] = await Promise.all([
+    // La deuda real es la de NUVIX (semáforo del último reporte importado); el
+    // estado 'moroso' de socios no lo setea nadie.
+    const [activosRes, enRojoRes, pendientesRes, inactivosRes, totalRes, reporteRes] = await Promise.all([
       countByEstado('activo'),
-      countByEstado('moroso'),
+      db.from('socios').select('*', { count: 'exact', head: true })
+        .in('estado', ['activo', 'pendiente']).eq('semaforo', 'rojo'),
       countByEstado('pendiente'),
       countByEstado('inactivo'),
       db.from('socios').select('*', { count: 'exact', head: true }),
-      db
-        .from('pagos_socios')
-        .select(`
-          id, monto, forma_pago, created_at,
-          cuotas ( periodo ),
-          socios ( numero_socio, profiles!socios_profile_id_fkey ( nombre ) )
-        `)
-        .eq('estado', 'aprobado')
+      // El último reporte aplicado es el que definió el semáforo actual.
+      db.from('importaciones_deuda')
+        .select('fecha_corte, created_at')
         .order('created_at', { ascending: false })
-        .limit(6),
+        .limit(1)
+        .maybeSingle(),
     ])
 
     const estados: EstadosSocios = {
       activos:    activosRes.count    ?? 0,
-      morosos:    morososRes.count    ?? 0,
+      enRojo:     enRojoRes.count     ?? 0,
       pendientes: pendientesRes.count ?? 0,
       inactivos:  inactivosRes.count  ?? 0,
     }
 
-    const pagosRecientes: PagoReciente[] = (pagosRes.data ?? []).map((p: Record<string, unknown>) => {
-      const socio  = p.socios  as { numero_socio: string; profiles: { nombre: string } | null } | null
-      const cuota  = p.cuotas  as { periodo: string } | null
-      return {
-        id:           p.id as string,
-        nombre:       socio?.profiles?.nombre  ?? '—',
-        numero_socio: socio?.numero_socio       ?? '—',
-        periodo:      cuota?.periodo            ?? '—',
-        monto:        p.monto as number,
-        forma_pago:   p.forma_pago as string,
-        created_at:   p.created_at as string,
-      }
+    setData({
+      estados,
+      ultimoReporte: (reporteRes.data as ReporteDeuda | null) ?? null,
+      totalSocios:   totalRes.count ?? 0,
     })
-
-    setData({ estados, pagosRecientes, totalSocios: totalRes.count ?? 0 })
     terminar()
   }, [empezar, terminar])
 
