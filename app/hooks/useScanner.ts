@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
-import { resultadoErrorRed, type ScanResult } from '@/lib/veredictoScan'
+import { resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
 
@@ -31,10 +31,13 @@ export function useScanner() {
   const [validando, setValidando]       = useState(false)
   // Validación en curso: se aborta con CANCELAR o por timeout.
   const enCurso = useRef<AbortController | null>(null)
+  // Último QR que se cortó (timeout o CANCELAR) sin respuesta.
+  const escaneoCortado = useRef<EscaneoCortado | null>(null)
+  const rawEnCurso = useRef<string | null>(null)
 
   // Llama a socios-qr y arma el resultado. Un error de red / timeout / 401 no
   // es un "QR inválido": vuelve como `errorRed` con un mensaje en castellano.
-  const validar = useCallback(async (body: Record<string, unknown>) => {
+  const validar = useCallback(async (body: Record<string, unknown>, raw?: string) => {
     const ctrl = new AbortController()
     enCurso.current = ctrl
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
@@ -49,12 +52,14 @@ export function useScanner() {
         sr = resultadoErrorRed(typeof status === 'number' ? status : undefined)
       } else {
         sr = res.data as ScanResult
-        // Si hay foto_path, obtener signed URL para mostrársela a portería
+        // Foto para portería, dentro del mismo límite de tiempo: si la firma
+        // no llega a tiempo se muestra el resultado sin foto.
         if (sr.valido && sr.foto_path) {
-          const { data: signed } = await supabase.storage
-            .from('socios-fotos')
-            .createSignedUrl(sr.foto_path, 60)
-          sr = { ...sr, foto_url: signed?.signedUrl ?? null }
+          const signed = await Promise.race([
+            supabase.storage.from('socios-fotos').createSignedUrl(sr.foto_path, 60),
+            new Promise<null>(resolve => ctrl.signal.addEventListener('abort', () => resolve(null))),
+          ])
+          sr = { ...sr, foto_url: signed?.data?.signedUrl ?? null }
         }
       }
     } catch {
@@ -62,6 +67,11 @@ export function useScanner() {
     } finally {
       clearTimeout(timer)
     }
+
+    // Un QR que no tuvo respuesta pudo quedar registrado (y su código
+    // consumido) en el server: se recuerda para reconocer el reintento.
+    if (raw && sr.errorRed) escaneoCortado.current = { raw, en: Date.now() }
+    if (raw) sr = resolverReintento(sr, raw, escaneoCortado.current, Date.now())
 
     // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
     if (enCurso.current !== ctrl) return
@@ -82,7 +92,9 @@ export function useScanner() {
     }
 
     const [numero_socio, code] = parts
-    await validar({ action: 'validate', numero_socio, code })
+    rawEnCurso.current = rawData
+    await validar({ action: 'validate', numero_socio, code }, rawData)
+    rawEnCurso.current = null
   }, [scanning, validando, validar])
 
   // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.
@@ -103,6 +115,8 @@ export function useScanner() {
 
   // CANCELAR mientras se valida: vuelve a la cámara sin esperar al server.
   const cancelar = useCallback(() => {
+    // El server pudo haber registrado el ingreso igual: recordar el QR.
+    if (rawEnCurso.current) escaneoCortado.current = { raw: rawEnCurso.current, en: Date.now() }
     enCurso.current?.abort()
     enCurso.current = null
     setValidando(false)

@@ -202,7 +202,8 @@ export default function ScannerScreen() {
               </View>
             </View>
 
-            {pasa ? (
+            {/* Reintento ya registrado: no hay ficha del socio, el motivo va en la banda. */}
+            {result.reintentoRegistrado ? null : pasa ? (
               <View style={[s.resultBody, esTablet && s.resultBodyTablet]}>
                 {/* Foto */}
                 {result.foto_url ? (

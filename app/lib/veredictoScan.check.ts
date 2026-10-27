@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/veredictoScan.check.ts
 
 import assert from 'node:assert/strict'
-import { resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type ScanResult } from './veredictoScan'
+import { resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type ScanResult } from './veredictoScan'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -54,6 +54,22 @@ caso('error de red → SIN CONEXIÓN; 401 → sesión vencida', () => {
   assert.match(red.motivo!, /sin conexión/)
   assert.match(resultadoErrorRed(401).motivo!, /sesión de esta tablet venció/)
   assert.match(resultadoErrorRed(500).motivo!, /No se pudo verificar/)
+})
+
+caso('reintento del mismo QR tras un timeout: el ingreso ya quedó registrado → pasa con aviso', () => {
+  const yaUsado: ScanResult = { valido: false, codigo_ya_usado: true, motivo: 'Este código ya se usó.' }
+  const ahora = 1_000_000
+  const r = resolverReintento(yaUsado, '123:456789', { raw: '123:456789', en: ahora - 30_000 }, ahora)
+  assert.equal(veredicto(r), 'pasa_aviso')
+  assert.match(motivoVeredicto(r)!, /ya quedó registrado/)
+})
+
+caso('"ya se usó" sin timeout previo de esta tablet (captura reenviada) sigue sin pasar', () => {
+  const yaUsado: ScanResult = { valido: false, codigo_ya_usado: true, motivo: 'Este código ya se usó.' }
+  const ahora = 1_000_000
+  assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', null, ahora)), 'no_pasa')
+  assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', { raw: '999:111111', en: ahora }, ahora)), 'no_pasa')
+  assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', { raw: '123:456789', en: ahora - 400_000 }, ahora)), 'no_pasa')
 })
 
 console.log(`\n${casos} casos ok`)

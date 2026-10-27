@@ -431,18 +431,26 @@ async function handleValidate(
     }
   }
 
-  // Un código abre una sola vez: se consume recién al dejar pasar (un rechazo
-  // no lo quema). Si el RPC falla se deja pasar y se loguea: un error de la
-  // base no es una captura reenviada, y cerrar la puerta a todos es peor.
-  const { data: consumido, error: consumoErr } = await supabaseAdmin
-    .rpc('consumir_paso_totp', { p_socio_id: row.id, p_paso: paso })
-  if (consumoErr) {
-    console.error('consumir_paso_totp:', consumoErr.message)
-  } else if (consumido !== true) {
-    return jsonOk({
-      valido: false,
-      motivo: 'Este código ya se usó. Esperá el código siguiente del carnet (cambia cada minuto).',
-    })
+  // Un código abre una sola vez en el gimnasio (autoservicio: nadie mira la
+  // foto, una captura reenviada abría la puerta). Canchero y Buffet son
+  // atendidos y no lo consumen, así un socio puede pasar por los dos en el
+  // mismo minuto. Se consume recién al dejar pasar (un rechazo no lo quema).
+  // Si el RPC falla se deja pasar y se loguea: un error de la base no es una
+  // captura reenviada, y cerrar la puerta a todos es peor.
+  if (callerRol === 'porteria') {
+    const { data: consumido, error: consumoErr } = await supabaseAdmin
+      .rpc('consumir_paso_totp', { p_socio_id: row.id, p_paso: paso })
+    if (consumoErr) {
+      console.error('consumir_paso_totp:', consumoErr.message)
+    } else if (consumido !== true) {
+      return jsonOk({
+        valido: false,
+        // La tablet lo usa para reconocer el reintento de su propio escaneo
+        // que se cortó por timeout (el ingreso ya quedó registrado).
+        codigo_ya_usado: true,
+        motivo: 'Este código ya se usó. Esperá el código siguiente del carnet (cambia cada minuto).',
+      })
+    }
   }
 
   if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {

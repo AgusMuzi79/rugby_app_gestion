@@ -31,6 +31,29 @@ export interface ScanResult {
   turno?:        TurnoActual | null
   // No se pudo preguntar al server (red, timeout, sesión vencida): no se sabe.
   errorRed?:     boolean
+  // socios-qr: el paso TOTP ya estaba consumido (gimnasio, un solo uso).
+  codigo_ya_usado?: boolean
+  // El "ya se usó" es el reintento de un escaneo de esta misma tablet que se
+  // cortó por timeout: el ingreso ya quedó registrado en el server.
+  reintentoRegistrado?: boolean
+}
+
+// Escaneo de esta tablet que se cortó por timeout (puede que el server ya lo
+// haya registrado y consumido el código).
+export interface EscaneoCortado { raw: string; en: number }
+
+// Ventana en la que un "ya se usó" del mismo QR se toma como el reintento
+// propio: el código del carnet vale como mucho ~3 minutos (paso ±1).
+const VENTANA_REINTENTO_MS = 3 * 60 * 1000
+
+export function resolverReintento(
+  r: ScanResult,
+  raw: string,
+  cortado: EscaneoCortado | null,
+  ahora: number,
+): ScanResult {
+  if (!r.codigo_ya_usado || !cortado || cortado.raw !== raw || ahora - cortado.en > VENTANA_REINTENTO_MS) return r
+  return { valido: true, reintentoRegistrado: true }
 }
 
 export type Veredicto = 'pasa' | 'pasa_aviso' | 'no_pasa' | 'sin_conexion'
@@ -45,6 +68,7 @@ export function estadoVisual(result: ScanResult): string {
 export function veredicto(r: ScanResult): Veredicto {
   if (r.errorRed) return 'sin_conexion'
   if (!r.valido) return 'no_pasa'
+  if (r.reintentoRegistrado) return 'pasa_aviso'
   const e = estadoVisual(r)
   if (e === 'inactivo') return 'no_pasa' // por si sigue deployada una function vieja
   if (e === 'moroso' || r.turno?.estado === 'sin_reserva') return 'pasa_aviso'
@@ -68,6 +92,7 @@ export function motivoVeredicto(r: ScanResult): string | null {
     case 'pasa':
       return r.turno?.mensaje || null
     case 'pasa_aviso':
+      if (r.reintentoRegistrado) return 'El ingreso ya quedó registrado (la conexión tardó). Puede pasar.'
       if (estadoVisual(r) === 'moroso') return 'Cuota atrasada: avisale que pase por Secretaría.'
       return r.turno?.mensaje || 'No reservó este horario.'
     case 'no_pasa':
