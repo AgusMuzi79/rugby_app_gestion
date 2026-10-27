@@ -25,7 +25,7 @@ export function interpretarRespuesta<T = Record<string, unknown>>(status: number
     // HTML o nada: nunca mostrarle eso a Secretaría.
     return { error: ok ? 'El servidor respondió algo inesperado. Probá de nuevo.' : `El servidor no respondió bien (error ${status}). Probá de nuevo.`, status } as EdgeResponse<T>
   }
-  const mensaje = body.error ?? body.msg ?? body.message
+  const mensaje = body.error ?? body.motivo ?? body.msg ?? body.message
   if (!ok && !(typeof mensaje === 'string' && mensaje)) {
     return { ...body, error: `Error ${status} al llamar al servidor. Probá de nuevo.`, status } as EdgeResponse<T>
   }

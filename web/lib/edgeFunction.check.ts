@@ -29,6 +29,11 @@ caso('respuesta del gateway sin JSON (HTML, 502): mensaje en castellano, no el H
   assert.doesNotMatch(r.error!, /html/i)
 })
 
+caso('non-2xx con { motivo } y sin error: se muestra el motivo, no un texto genérico', () => {
+  const r = interpretarRespuesta(400, '{"ok":false,"motivo":"El turno ya está lleno"}')
+  assert.equal(r.error, 'El turno ya está lleno')
+})
+
 caso('non-2xx con JSON pero sin error: igual hay error', () => {
   const r = interpretarRespuesta(500, '{"foo":1}')
   assert.match(r.error!, /500/)
