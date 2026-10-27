@@ -33,6 +33,7 @@ function acceso(parcial: Partial<Acceso>): Acceso {
     sin_reserva: false,
     denegado: false,
     motivo_rechazo: null,
+    sin_conexion: false,
     es_invitado: false,
     invitado_dni: null,
     veces_invitado: null,
@@ -172,6 +173,12 @@ caso('CSV con columna Fecha en horario de Argentina y ";" como delimitador', () 
   const [encabezado, fila] = csv.replace(/^﻿/, '').split('\r\n')
   assert.ok(encabezado.startsWith('Fecha;Hora;Nº Socio;Nombre'))
   assert.ok(fila.startsWith('08/10/2026;22:15;100;Ana Pérez;Verde'), fila)
+})
+caso('CSV marca los ingresos que se dejaron pasar sin conexión', () => {
+  const [encabezado, fila] = accesosACsv([acceso({ sin_conexion: true })]).replace(/^﻿/, '').split('\r\n')
+  const i = encabezado.split(';').indexOf('Sin conexión')
+  assert.ok(i >= 0, encabezado)
+  assert.equal(fila.split(';')[i], 'Sí')
 })
 caso('CSV escapa valores con ";" o comillas', () => {
   const csv = accesosACsv([acceso({ nombre: 'Pérez; "Ana"' })])

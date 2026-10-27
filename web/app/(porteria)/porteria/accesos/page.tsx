@@ -314,6 +314,11 @@ export default function AccesosPage() {
                         {rechazo}
                       </span>
                     )}
+                    {a.sin_conexion && (
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-oro border-oro">
+                        SIN CONEXIÓN
+                      </span>
+                    )}
                     {a.sin_reserva && !rechazo && (
                       <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-sky-400 border-sky-400">
                         SIN RESERVA

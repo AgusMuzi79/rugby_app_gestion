@@ -31,6 +31,12 @@ export interface ScanResult {
   turno?:        TurnoActual | null
   // No se pudo preguntar al server (red, timeout, sesión vencida): no se sabe.
   errorRed?:     boolean
+  // Dentro de errorRed: no hubo respuesta del servidor (sin red o timeout), no
+  // un 401 ni un error del servidor. Es el caso en que la puerta deja pasar.
+  sinRed?:       boolean
+  // Sin conexión: se dejó pasar y el escaneo quedó en la cola para validarse
+  // cuando vuelva la red (socios-qr registrar-offline).
+  encoladoOffline?: boolean
   // socios-qr: el paso TOTP ya estaba consumido (gimnasio, un solo uso).
   codigo_ya_usado?: boolean
   // El "ya se usó" es el reintento de un escaneo de esta misma tablet que se
@@ -62,7 +68,7 @@ export function cortadoTrasResultado(r: ScanResult, cortado: EscaneoCortado | nu
   return r.reintentoRegistrado ? null : cortado
 }
 
-export type Veredicto = 'pasa' | 'pasa_aviso' | 'no_pasa' | 'sin_conexion'
+export type Veredicto = 'pasa' | 'pasa_aviso' | 'pasa_sin_validar' | 'no_pasa' | 'sin_conexion'
 
 // Mismo criterio que el carnet del socio: 'activo' con semáforo 'rojo'
 // (2+ períodos impagos) se muestra como 'moroso' acá también.
@@ -72,6 +78,7 @@ export function estadoVisual(result: ScanResult): string {
 }
 
 export function veredicto(r: ScanResult): Veredicto {
+  if (r.encoladoOffline) return 'pasa_sin_validar'
   if (r.errorRed) return 'sin_conexion'
   if (!r.valido) return 'no_pasa'
   if (r.reintentoRegistrado) return 'pasa_aviso'
@@ -87,6 +94,7 @@ export function tituloVeredicto(r: ScanResult): string {
   switch (veredicto(r)) {
     case 'pasa':         return 'PUEDE PASAR'
     case 'pasa_aviso':   return 'PASA · CON AVISO'
+    case 'pasa_sin_validar': return 'SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR'
     case 'sin_conexion': return 'SIN CONEXIÓN'
     case 'no_pasa':      return MOTIVOS_QR_INVALIDO.includes(r.motivo ?? '') ? 'QR NO VÁLIDO' : 'NO PUEDE PASAR'
   }
@@ -101,6 +109,8 @@ export function motivoVeredicto(r: ScanResult): string | null {
       if (r.reintentoRegistrado) return 'El ingreso ya quedó registrado (la conexión tardó). Puede pasar.'
       if (estadoVisual(r) === 'moroso') return 'Cuota atrasada: avisale que pase por Secretaría.'
       return r.turno?.mensaje || 'No reservó este horario.'
+    case 'pasa_sin_validar':
+      return 'Mirá a la persona y su carnet: se valida cuando vuelva la conexión.'
     case 'no_pasa':
       if (estadoVisual(r) === 'inactivo') return 'Socio dado de baja. Consultá en Secretaría.'
       return r.motivo ?? 'No puede pasar.'
@@ -123,5 +133,16 @@ export function resultadoErrorRed(status: number | undefined): ScanResult {
   if (status !== undefined) {
     return { valido: false, errorRed: true, motivo: 'No se pudo verificar: el servidor no respondió bien. Probá de nuevo.' }
   }
-  return { valido: false, errorRed: true, motivo: 'No se pudo verificar: sin conexión. Probá de nuevo.' }
+  return { valido: false, errorRed: true, sinRed: true, motivo: 'No se pudo verificar: sin conexión. Probá de nuevo.' }
+}
+
+// Política de la puerta sin red (decisión 2026-10-26, opción b): deja pasar y
+// encola. Sólo cuando no hubo respuesta: un 401 o un error del servidor siguen
+// siendo "SIN CONEXIÓN" sin dejar pasar.
+export function debeEncolarOffline(r: ScanResult): boolean {
+  return r.errorRed === true && r.sinRed === true
+}
+
+export function resultadoEncoladoOffline(): ScanResult {
+  return { valido: true, encoladoOffline: true }
 }

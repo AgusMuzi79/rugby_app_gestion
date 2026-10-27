@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/veredictoScan.check.ts
 
 import assert from 'node:assert/strict'
-import { anuncioVeredicto, cortadoTrasResultado, resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type EscaneoCortado, type ScanResult } from './veredictoScan'
+import { anuncioVeredicto, cortadoTrasResultado, debeEncolarOffline, resolverReintento, resultadoEncoladoOffline, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type EscaneoCortado, type ScanResult } from './veredictoScan'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -87,6 +87,28 @@ caso('anuncio para lector de pantalla: veredicto, nombre y motivo en una frase',
   assert.equal(anuncioVeredicto(alDia), 'PUEDE PASAR. Ana')
   assert.equal(anuncioVeredicto({ ...alDia, semaforo: 'rojo' }), 'PASA · CON AVISO. Ana. Cuota atrasada: avisale que pase por Secretaría.')
   assert.equal(anuncioVeredicto({ valido: false, motivo: 'Código QR inválido o expirado' }), 'QR NO VÁLIDO. Código QR inválido o expirado')
+})
+
+// ─── Sin conexión en la puerta (T4, decisión b: deja pasar y encola) ─────────
+
+caso('sólo se encola si no hubo red (sin respuesta del servidor), no por 401 ni por un error del servidor', () => {
+  assert.equal(debeEncolarOffline(resultadoErrorRed(undefined)), true)
+  assert.equal(debeEncolarOffline(resultadoErrorRed(401)), false)
+  assert.equal(debeEncolarOffline(resultadoErrorRed(500)), false)
+  assert.equal(debeEncolarOffline(alDia), false)
+  assert.equal(debeEncolarOffline({ valido: false, motivo: 'Código QR inválido o expirado' }), false)
+})
+
+caso('encolado → SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR, pide mirar a la persona', () => {
+  const r = resultadoEncoladoOffline()
+  assert.equal(veredicto(r), 'pasa_sin_validar')
+  assert.equal(tituloVeredicto(r), 'SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR')
+  assert.match(motivoVeredicto(r) ?? '', /Mirá a la persona/)
+})
+
+caso('el SIN CONEXIÓN que no deja pasar sigue igual (sesión vencida, servidor caído, no se pudo encolar)', () => {
+  assert.equal(veredicto(resultadoErrorRed(401)), 'sin_conexion')
+  assert.equal(tituloVeredicto(resultadoErrorRed(undefined)), 'SIN CONEXIÓN')
 })
 
 console.log(`\n${casos} casos ok`)

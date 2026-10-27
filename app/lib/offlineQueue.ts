@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { nuevoIdCola, sinNoEnviadasDe } from './offlineSync'
 
-export type OperacionOffline = 'asistencia' | 'lesion'
+// 'acceso': escaneo de la puerta sin conexión (portería T4, ver offlineSync).
+export type OperacionOffline = 'asistencia' | 'lesion' | 'acceso'
 
 export interface ItemCola {
   id: string

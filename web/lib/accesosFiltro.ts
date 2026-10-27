@@ -13,6 +13,8 @@ export interface Acceso {
   // El escaneo NO pasó (sin servicio, bloqueado por el turnero): no es un ingreso.
   denegado: boolean
   motivo_rechazo: string | null
+  // La tablet lo dejó pasar sin conexión y se validó después (portería T4).
+  sin_conexion: boolean
   es_invitado: boolean
   invitado_dni: string | null
   veces_invitado: number | null
@@ -126,7 +128,7 @@ export function formatHora(iso: string): string {
 // Sólo los ingresos: los rechazos se ven en el panel pero no son entradas.
 // (La columna "Sin servicio" se fue: esas filas son siempre rechazos.)
 export function accesosACsv(accesos: Acceso[]): string {
-  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin reserva', 'Invitado', 'DNI invitado', 'Veces en los 30 días previos a la visita']
+  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin reserva', 'Sin conexión', 'Invitado', 'DNI invitado', 'Veces en los 30 días previos a la visita']
   const filas = accesos.filter(a => !esRechazo(a)).map(a => [
     formatFecha(a.creado_en),
     formatHora(a.creado_en),
@@ -134,6 +136,7 @@ export function accesosACsv(accesos: Acceso[]): string {
     a.nombre,
     a.semaforo ? SEMAFORO_LABEL[a.semaforo] : '',
     a.sin_reserva ? 'Sí' : '',
+    a.sin_conexion ? 'Sí' : '',
     a.es_invitado ? 'Sí' : '',
     a.invitado_dni ?? '',
     a.veces_invitado != null ? String(a.veces_invitado) : '',

@@ -10,6 +10,7 @@ import { anuncioVeredicto, estadoVisual, motivoVeredicto, tituloVeredicto, vered
 import { accionDni, normalizarDni, volverAlFormularioDni, PAUSA_DNI_7_MS } from '@/lib/entradaDni'
 import { codigoManualAQR, normalizarCodigo, normalizarNumeroSocio } from '@/lib/qrCarnet'
 import { useAuthStore } from '@/stores/authStore'
+import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -20,6 +21,8 @@ import { colors, fonts } from '@/constants/theme'
 const VEREDICTO_UI: Record<Veredicto, { bg: string; fg: string; icon: 'check-circle' | 'alert-circle' | 'x-octagon' | 'wifi-off' }> = {
   pasa:         { bg: colors.exito,           fg: colors.blanco,   icon: 'check-circle' },
   pasa_aviso:   { bg: colors.estadoPendiente, fg: colors.sobreOro, icon: 'alert-circle' },
+  // Sin red: se dejó pasar sin validar (el personal mira a la persona).
+  pasa_sin_validar: { bg: colors.estadoPendiente, fg: colors.sobreOro, icon: 'wifi-off' },
   no_pasa:      { bg: colors.rojoUrgente,     fg: colors.blanco,   icon: 'x-octagon' },
   sin_conexion: { bg: colors.card,            fg: colors.texto,    icon: 'wifi-off' },
 }
@@ -30,6 +33,15 @@ function colorTurno(estado: string): string {
   if (estado === 'con_reserva') return colors.estadoActivo
   if (estado === 'sin_reserva') return colors.oro
   return MUTED
+}
+
+// Aviso de la cola de ingresos sin conexión: cuántos esperan la red y cuántos
+// el servidor no pudo registrar (quedan guardados en la tablet).
+function textoCola(pendientes: number, noEnviadas: number): string {
+  const partes: string[] = []
+  if (pendientes > 0) partes.push(`${pendientes} ${pendientes === 1 ? 'INGRESO' : 'INGRESOS'} SIN CONEXIÓN POR ENVIAR`)
+  if (noEnviadas > 0) partes.push(`${noEnviadas} SIN ENVIAR · AVISÁ AL ADMINISTRADOR`)
+  return partes.join(' · ')
 }
 
 // Sin que nadie toque la pantalla entre un escaneo y el siguiente, vuelve
@@ -55,6 +67,9 @@ export default function ScannerScreen() {
   const { permission, requestPermission, result, fotoUrl, scanning, validando, handleQR, handleDNI, registrarInvitado, cancelar, reset } = useScanner()
   const netInfo = useNetInfo()
   const sinRed = netInfo.isInternetReachable === false
+  // Ingresos sin conexión que esperan la red (los manda el layout, useSincronizacionOffline).
+  const colaPendientes = useColaOffline(c => c.pendientes)
+  const colaNoEnviadas = useColaOffline(c => c.noEnviadas)
 
   // Fallback sin QR — el socio no llevaba el celular encima.
   const [modoDni, setModoDni] = useState(false)
@@ -95,7 +110,7 @@ export default function ScannerScreen() {
   useEffect(() => {
     if (!result) return
     const v = veredicto(result)
-    const player = v === 'pasa' ? sonidoOk : v === 'pasa_aviso' ? sonidoAviso : sonidoAlerta
+    const player = v === 'pasa' ? sonidoOk : v === 'pasa_aviso' || v === 'pasa_sin_validar' ? sonidoAviso : sonidoAlerta
     player.seekTo(0)
     player.play()
     // Lector de pantalla: el resultado se anuncia apenas llega (además de la
@@ -251,7 +266,7 @@ export default function ScannerScreen() {
   if (result || validando) {
     const v        = result ? veredicto(result) : null
     const ui       = v ? VEREDICTO_UI[v] : null
-    const pasa     = v === 'pasa' || v === 'pasa_aviso'
+    const pasa     = v === 'pasa' || v === 'pasa_aviso' || v === 'pasa_sin_validar'
     const motivo   = result ? motivoVeredicto(result) : null
 
     return (
@@ -291,8 +306,8 @@ export default function ScannerScreen() {
               </View>
             </View>
 
-            {/* Reintento ya registrado: no hay ficha del socio, el motivo va en la banda. */}
-            {result.reintentoRegistrado ? null : pasa ? (
+            {/* Reintento ya registrado o ingreso sin conexión: no hay ficha del socio, el motivo va en la banda. */}
+            {result.reintentoRegistrado || result.encoladoOffline ? null : pasa ? (
               <View style={[s.resultBody, esTablet && s.resultBodyTablet]}>
                 {/* Foto */}
                 {fotoUrl ? (
@@ -566,7 +581,13 @@ export default function ScannerScreen() {
       {sinRed && (
         <View style={s.sinRedBanner} accessibilityRole="alert">
           <Feather name="wifi-off" size={16} color={colors.texto} />
-          <Text style={s.sinRedTexto}>SIN CONEXIÓN · no se pueden verificar carnets</Text>
+          <Text style={s.sinRedTexto}>SIN CONEXIÓN · los ingresos se registran sin validar</Text>
+        </View>
+      )}
+      {(colaPendientes > 0 || colaNoEnviadas > 0) && (
+        <View style={s.sinRedBanner} accessible accessibilityLabel={textoCola(colaPendientes, colaNoEnviadas)}>
+          <Feather name="upload-cloud" size={16} color={colors.texto} />
+          <Text style={s.sinRedTexto}>{textoCola(colaPendientes, colaNoEnviadas)}</Text>
         </View>
       )}
 

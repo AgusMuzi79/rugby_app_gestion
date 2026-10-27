@@ -14,6 +14,10 @@
 //   registrar-invitado — Anota el ingreso de un no-socio (DNI obligatorio, nombre opcional) y
 //                    devuelve cuántas veces entró ese DNI en los últimos 30 días, para que
 //                    se lo derive a Secretaría cuando se repite (ver 20261003000001_accesos_invitados).
+//   registrar-offline — La tablet dejó pasar SIN CONEXIÓN y encoló los escaneos: los valida
+//                    a posteriori (código a la hora del escaneo, estado y servicio a la hora
+//                    de sincronizar) y los registra con sin_conexion = true (y denegado si
+//                    la validación falla). Ver 20261029000001_accesos_sin_conexion.
 //
 // Turnero (T7): en validate/validate-dni de una cuenta Lector (rol='porteria') la respuesta
 //   suma `turno` (franja vigente, reserva del socio, mensaje para la tablet; ver
@@ -46,7 +50,8 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { matchingStep } from '../_shared/totp.ts'
+import { codigoValidoEnInstante, matchingStep } from '../_shared/totp.ts'
+import { VENTANA_DUPLICADO_MS, leerItemOffline, leerLoteOffline, type ItemOffline } from '../_shared/accesos-offline.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
@@ -82,6 +87,7 @@ Deno.serve(async (req: Request) => {
   if (action === 'validate-dni')   return handleValidateDni(body, callerRol)
   if (action === 'listar-accesos') return handleListarAccesos(body, callerRol)
   if (action === 'registrar-invitado') return handleRegistrarInvitado(body, callerRol)
+  if (action === 'registrar-offline')  return handleRegistrarOffline(body, callerRol)
 
   return jsonError(400, `Acción desconocida: ${action}`)
 })
@@ -647,6 +653,141 @@ async function handleRegistrarInvitado(
   return jsonOk({ ok: true, dni, nombre, veces })
 }
 
+// ─── Escaneos sin conexión (T4) ───────────────────────────────────────────────
+//
+// Sin red la tablet deja pasar ("SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR",
+// el personal mira a la persona) y encola el escaneo crudo. Al volver la red lo
+// manda acá en tandas (`items`, ver _shared/accesos-offline.ts) y se valida a
+// posteriori: el código TOTP a la hora del escaneo (sin consumir el paso: es
+// del pasado), y estado y servicio a la hora de sincronizar. Cada ítem queda en
+// `accesos` con creado_en = hora del escaneo y sin_conexion = true; si la
+// validación falla, además denegado + motivo (entró, pero sin un carnet válido).
+// El turnero no se evalúa (no tiene sentido a posteriori).
+//
+// Respuesta: { ok: true, resultados: [{ id_cola, estado, motivo? }] }, estado:
+//   registrado    — fila nueva (con denegado si la validación falló).
+//   duplicado     — ya estaba: lote reintentado (id_cola único) o el escaneo en
+//                   línea llegó al servidor aunque la tablet se cortó por timeout.
+//   invalido      — no se puede usar (forma, hora fuera de ventana): la tablet lo saca de la cola.
+//   no_encontrado — no hay socio con ese número / DNI: no hay a quién registrarlo.
+//   error         — falla de la base: la tablet lo reintenta.
+
+type EstadoOffline = 'registrado' | 'duplicado' | 'invalido' | 'no_encontrado' | 'error'
+
+interface ResultadoOffline {
+  id_cola: string | null
+  estado:  EstadoOffline
+  motivo?: string
+}
+
+async function handleRegistrarOffline(
+  body: Record<string, unknown>,
+  callerRol: string
+): Promise<Response> {
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para registrar accesos')
+
+  // Igual que validate: secretaria/admin/subcomision no representan un ingreso real.
+  const punto = PUNTO_POR_ROL[callerRol]
+  if (!punto) return jsonOk({ ok: false, motivo: 'Sólo las cuentas de acceso registran ingresos' })
+
+  const lote = leerLoteOffline(body.items)
+  if (!lote.ok) return jsonError(400, lote.motivo)
+
+  const ahora = Date.now()
+  const resultados: ResultadoOffline[] = []
+  // De a uno: son pocos (lo que se juntó sin red) y un ítem que falla no tumba al resto.
+  for (const raw of lote.items) {
+    const lectura = leerItemOffline(raw, ahora)
+    if (!lectura.ok) {
+      resultados.push({ id_cola: lectura.id_cola, estado: 'invalido', motivo: lectura.motivo })
+      continue
+    }
+    try {
+      resultados.push(await registrarItemOffline(lectura.item, callerRol, punto))
+    } catch (e) {
+      console.error('registrar-offline:', lectura.item.id_cola, e instanceof Error ? e.message : String(e))
+      resultados.push({ id_cola: lectura.item.id_cola, estado: 'error', motivo: 'No se pudo registrar. Se reintenta.' })
+    }
+  }
+
+  return jsonOk({ ok: true, resultados })
+}
+
+async function buscarSocioOffline(item: ItemOffline) {
+  if (item.tipo === 'qr') {
+    return await supabaseAdmin.from('socios').select(SOCIO_SELECT_CON_SECRET).eq('numero_socio', item.numero_socio).single()
+  }
+  return await supabaseAdmin.from('socios').select(SOCIO_SELECT).eq('dni', item.dni).single()
+}
+
+// Tira ante un error de la base (el ítem vuelve como 'error' y se reintenta).
+async function registrarItemOffline(item: ItemOffline, callerRol: string, punto: string): Promise<ResultadoOffline> {
+  const id_cola = item.id_cola
+
+  const { data: socio, error: socioErr } = await buscarSocioOffline(item)
+  if (socioErr && !esNoEncontrado(socioErr)) throw new Error(socioErr.message)
+  if (!socio) {
+    return { id_cola, estado: 'no_encontrado', motivo: item.tipo === 'qr' ? 'Socio no encontrado' : 'No hay socio con ese DNI' }
+  }
+  const row = socio as unknown as SocioRow & { socios_secrets?: SecretEmbed }
+
+  // El escaneo en línea pudo llegar al servidor aunque la tablet se cortó por
+  // timeout (y lo encoló): un ingreso en línea del mismo socio en esa ventana
+  // es el mismo. Sólo los que pasaron: un rechazo en línea seguido de un
+  // ingreso sin conexión son dos hechos distintos.
+  const { data: previo, error: previoErr } = await supabaseAdmin
+    .from('accesos')
+    .select('id')
+    .eq('socio_id', row.id)
+    .eq('punto', punto)
+    .eq('sin_conexion', false)
+    .eq('denegado', false)
+    .gte('creado_en', new Date(item.instante - VENTANA_DUPLICADO_MS).toISOString())
+    .lte('creado_en', new Date(item.instante + VENTANA_DUPLICADO_MS).toISOString())
+    .limit(1)
+  if (previoErr) throw new Error(previoErr.message)
+  if ((previo?.length ?? 0) > 0) return { id_cola, estado: 'duplicado', motivo: 'Ya estaba registrado en línea' }
+
+  // Validación a posteriori. Motivos cortos: el panel los muestra como "RECHAZADO · …".
+  let motivo: string | null = null
+  let sinServicio = false
+  if (item.tipo === 'qr') {
+    const secret = Array.isArray(row.socios_secrets) ? row.socios_secrets[0] : row.socios_secrets
+    if (!secret?.totp_secret) motivo = 'Carnet sin configurar'
+    else if (!(await codigoValidoEnInstante(secret.totp_secret, item.code, item.instante))) motivo = 'Código inválido'
+  }
+  if (!motivo && motivoRechazoPorEstado(row.estado)) motivo = 'Dado de baja'
+  if (!motivo && callerRol === 'porteria') {
+    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
+    if (tieneGimnasio === null) throw new Error('no se pudo verificar el servicio de Gimnasio')
+    if (!tieneGimnasio) {
+      motivo = 'Sin servicio'
+      sinServicio = true
+    }
+  }
+
+  // id_cola único: un lote reintentado no duplica (ON CONFLICT DO NOTHING).
+  const { data: insertado, error: insertErr } = await supabaseAdmin
+    .from('accesos')
+    .upsert({
+      socio_id:     row.id,
+      // Semáforo de hoy (no se sabe el de la hora del escaneo).
+      semaforo:     row.semaforo,
+      punto,
+      creado_en:    new Date(item.instante).toISOString(),
+      sin_servicio: sinServicio,
+      sin_conexion: true,
+      id_cola,
+      ...(motivo ? { denegado: true, motivo_rechazo: motivo } : {}),
+    }, { onConflict: 'id_cola', ignoreDuplicates: true })
+    .select('id')
+  if (insertErr) throw new Error(insertErr.message)
+  if ((insertado?.length ?? 0) === 0) return { id_cola, estado: 'duplicado', motivo: 'Ya estaba registrado' }
+
+  return motivo ? { id_cola, estado: 'registrado', motivo } : { id_cola, estado: 'registrado' }
+}
+
 // ─── Panel web de Lector: historial de accesos de un rango ───────────────────
 //
 // `fecha` en formato YYYY-MM-DD, interpretada en horario de Argentina
@@ -675,6 +816,7 @@ async function handleListarAccesos(
         sin_reserva,
         denegado,
         motivo_rechazo,
+        sin_conexion,
         es_invitado,
         invitado_dni,
         invitado_nombre,
@@ -696,6 +838,7 @@ async function handleListarAccesos(
     sin_reserva: boolean
     denegado: boolean
     motivo_rechazo: string | null
+    sin_conexion: boolean
     es_invitado: boolean
     invitado_dni: string | null
     invitado_nombre: string | null
@@ -754,6 +897,7 @@ async function handleListarAccesos(
     sin_reserva:     a.sin_reserva,
     denegado:        a.denegado,
     motivo_rechazo:  a.motivo_rechazo,
+    sin_conexion:    a.sin_conexion,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
     veces_invitado:  vecesPorFila[i],

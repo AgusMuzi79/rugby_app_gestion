@@ -3,7 +3,10 @@ import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { parsearQR } from '@/lib/qrCarnet'
-import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
+import { encolar } from '@/lib/offlineQueue'
+import { useAuthStore } from '@/stores/authStore'
+import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { cortadoTrasResultado, debeEncolarOffline, resolverReintento, resultadoEncoladoOffline, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
 
@@ -46,7 +49,15 @@ export function useScanner() {
 
   // Llama a socios-qr y arma el resultado. Un error de red / timeout / 401 no
   // es un "QR inválido": vuelve como `errorRed` con un mensaje en castellano.
-  const validar = useCallback(async (body: Record<string, unknown>, raw?: string) => {
+  //
+  // Sin red (decisión 2026-10-26, opción b): la puerta deja pasar y encola el
+  // escaneo crudo (`offline`: el QR o el DNI) con su hora; al volver la red
+  // socios-qr lo valida a posteriori (useSincronizacionOffline). La pantalla
+  // dice "SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR" para que el personal
+  // mire a la persona. Si no se pudo guardar en la cola, sigue el SIN CONEXIÓN
+  // que no deja pasar.
+  const validar = useCallback(async (body: Record<string, unknown>, raw?: string, offline?: Record<string, unknown>) => {
+    const escaneadoEn = new Date().toISOString()
     const ctrl = new AbortController()
     enCurso.current = ctrl
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
@@ -77,8 +88,23 @@ export function useScanner() {
       escaneoCortado.current = cortadoTrasResultado(sr, escaneoCortado.current)
     }
 
-    // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
+    // Cancelado (o reemplazado por otra validación): no pisar la pantalla (ni encolar).
     if (enCurso.current !== ctrl) return
+
+    if (offline && debeEncolarOffline(sr)) {
+      try {
+        await encolar({
+          tipo: 'acceso',
+          payload: { ...offline, escaneado_en: escaneadoEn, rol: useAuthStore.getState().rol },
+        })
+        sr = resultadoEncoladoOffline()
+        actualizarPendientes().catch(() => undefined)
+      } catch (e) {
+        console.warn('cola de accesos sin conexión:', e instanceof Error ? e.message : String(e))
+      }
+      if (enCurso.current !== ctrl) return
+    }
+
     enCurso.current = null
     // La banda del veredicto sale ya; la foto llega después (la imagen carga sola).
     setResult(sr)
@@ -113,14 +139,14 @@ export function useScanner() {
 
     const { numero_socio, code } = qr
     rawEnCurso.current = rawData
-    await validar({ action: 'validate', numero_socio, code }, rawData)
+    await validar({ action: 'validate', numero_socio, code }, rawData, { tipo: 'qr', qr: rawData })
     rawEnCurso.current = null
   }, [scanning, validando, validar])
 
   // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.
   const handleDNI = useCallback(async (dni: string) => {
     if (validando) return
-    await validar({ action: 'validate-dni', dni })
+    await validar({ action: 'validate-dni', dni }, undefined, { tipo: 'dni', dni })
   }, [validando, validar])
 
   // Invitado (no-socio): DNI obligatorio, nombre opcional. No toca `result` —
