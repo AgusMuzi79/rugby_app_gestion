@@ -81,7 +81,13 @@ function DetalleSocio({
   return (
     <View style={ss.detalle}>
       <View style={ss.detalleBar}>
-        <TouchableOpacity onPress={onClose} style={ss.backBtn} activeOpacity={0.75}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={ss.backBtn}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a la lista de socios"
+        >
           <Feather name="arrow-left" size={18} color={TEXTO} />
           <Text style={ss.backText}>SOCIOS</Text>
         </TouchableOpacity>
@@ -95,6 +101,8 @@ function DetalleSocio({
             style={[ss.fotoDetalle, ss.fotoPlaceholder]}
             onPress={verFoto}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Ver foto del socio"
           >
             <Feather name="image" size={32} color={MUTED} />
             <Text style={ss.verFotoText}>VER FOTO</Text>
@@ -135,6 +143,9 @@ function DetalleSocio({
                   style={[ss.servicioChip, activo ? ss.servicioChipActivo : ss.servicioChipInactivo]}
                   onPress={() => onToggleServicio(srv.id, !activo)}
                   activeOpacity={0.75}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={`${srv.nombre}, $${montoServicio(srv, vinculo)} por mes`}
+                  accessibilityState={{ checked: activo }}
                 >
                   <Text style={[ss.servicioChipNombre, activo ? ss.servicioChipNombreActivo : ss.servicioChipNombreInactivo]}>
                     {srv.nombre}
@@ -161,6 +172,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnOro]}
               onPress={() => onValidarFoto(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextOro]}>VALIDAR FOTO</Text>
             </TouchableOpacity>
@@ -170,6 +182,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnRojo]}
               onPress={() => onDeactivate(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextRojo]}>DESACTIVAR SOCIO</Text>
             </TouchableOpacity>
@@ -178,6 +191,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnVerde]}
               onPress={() => onReactivate(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextVerde]}>REACTIVAR SOCIO</Text>
             </TouchableOpacity>
@@ -193,7 +207,15 @@ function DetalleSocio({
 
 function SocioRow({ socio, onPress }: { socio: SocioItem; onPress: () => void }) {
   return (
-    <TouchableOpacity style={ss.socioRow} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={ss.socioRow}
+      onPress={onPress}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      // El badge muestra sólo la inicial del estado: el lector lo dice completo.
+      accessibilityLabel={`${socio.nombre}, socio Nº ${socio.numero_socio}, ${socio.categoria}, ${(ESTADO_LABEL[socio.estado] ?? socio.estado).toLowerCase()}`}
+      accessibilityHint="Abre el detalle del socio"
+    >
       <Text style={ss.socioNum}>{socio.numero_socio}</Text>
       <View style={ss.socioInfo}>
         <Text style={ss.socioNombre} numberOfLines={1}>{socio.nombre}</Text>
@@ -300,6 +322,9 @@ export default function SociosScreen() {
               style={[ss.filtroBtn, filtro === f && ss.filtroBtnActive]}
               onPress={() => setFiltro(f as Filtro)}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Filtrar: ${f === 'todos' ? 'todos' : ESTADO_LABEL[f]?.toLowerCase() ?? f}`}
+              accessibilityState={{ selected: filtro === f }}
             >
               <Text style={[ss.filtroBtnText, filtro === f && ss.filtroBtnTextActive]}>
                 {f === 'todos' ? 'TODOS' : ESTADO_LABEL[f] ?? f.toUpperCase()}
@@ -355,9 +380,10 @@ const ss = StyleSheet.create({
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
-  filtrosBar:     { borderBottomWidth: 1, maxHeight: 46, backgroundColor: CARD, borderBottomColor: DIVIDER },
+  filtrosBar:     { borderBottomWidth: 1, maxHeight: 48, backgroundColor: CARD, borderBottomColor: DIVIDER },
   filtrosContent: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
-  filtroBtn:      { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 2 },
+  // 44 pt de alto táctil (HIG / Material); el texto queda centrado.
+  filtroBtn:      { paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', borderRadius: 2 },
   filtroBtnActive:{ borderBottomWidth: 2, borderBottomColor: colors.oro },
   filtroBtnText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -441,8 +467,8 @@ const ss = StyleSheet.create({
 
   // Detalle
   detalle:            { flex: 1 },
-  detalleBar:         { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  backBtn:            { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detalleBar:         { paddingHorizontal: 20, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: DIVIDER },
+  backBtn:            { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, alignSelf: 'flex-start' },
   backText:           { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO },
   detalleScrollContent: { padding: 20, gap: 16 },
 

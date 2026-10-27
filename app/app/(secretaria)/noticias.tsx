@@ -59,6 +59,8 @@ function NoticiaRow({
           style={s.actionBtn}
           onPress={() => onToggle(noticia.id, !noticia.publicada)}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={noticia.publicada ? `Despublicar "${noticia.titulo}"` : `Publicar "${noticia.titulo}"`}
         >
           <Feather name={noticia.publicada ? 'eye-off' : 'eye'} size={14} color={noticia.publicada ? MUTED : colors.oro} />
         </TouchableOpacity>
@@ -66,6 +68,8 @@ function NoticiaRow({
           style={s.actionBtn}
           onPress={confirmEliminar}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Eliminar "${noticia.titulo}"`}
         >
           <Feather name="trash-2" size={14} color={colors.rojoUrgente} />
         </TouchableOpacity>
@@ -121,7 +125,13 @@ function ModalNuevaNoticia({
         >
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>NUEVA NOTICIA</Text>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
+            <TouchableOpacity
+              onPress={handleClose}
+              activeOpacity={0.75}
+              style={s.cerrarBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar"
+            >
               <Feather name="x" size={20} color={TEXTO} />
             </TouchableOpacity>
           </View>
@@ -157,6 +167,9 @@ function ModalNuevaNoticia({
                   style={[s.deporteChip, activo ? s.deporteChipActivo : s.deporteChipInactivo]}
                   onPress={() => setDeporte(prev => prev === d ? null : d)}
                   activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Deporte ${d}`}
+                  accessibilityState={{ selected: activo }}
                 >
                   <Text style={[s.deporteChipText, activo ? s.deporteChipTextActivo : s.deporteChipTextInactivo]}>
                     {d.toUpperCase()}
@@ -178,6 +191,9 @@ function ModalNuevaNoticia({
             onPress={handleCrear}
             disabled={guardando}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Guardar borrador"
+            accessibilityState={{ disabled: guardando, busy: guardando }}
           >
             {guardando ? (
               <ActivityIndicator color={colors.sobreOro} />
@@ -254,6 +270,8 @@ export default function NoticiasSecretariaScreen() {
         style={s.fab}
         onPress={() => setModalVisible(true)}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Nueva noticia"
       >
         <Feather name="plus" size={22} color={colors.sobreOro} />
       </TouchableOpacity>
@@ -320,8 +338,10 @@ const s = StyleSheet.create({
   rowMeta:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED },
 
   rowActions: { flexDirection: 'row', gap: 8, paddingTop: 4 },
+  // 44 pt de área táctil (HIG / Material) aunque el ícono sea de 14.
   actionBtn: {
     borderWidth: 1, borderRadius: 4, padding: 8, borderColor: DIVIDER,
+    minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center',
   },
 
   fab: {
@@ -351,9 +371,10 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: TEXTO,
   },
+  cerrarBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
 
   deporteRow:             { flexDirection: 'row', gap: 8, marginTop: 8 },
-  deporteChip:            { borderWidth: 1, borderRadius: 3, paddingHorizontal: 14, paddingVertical: 7 },
+  deporteChip:            { borderWidth: 1, borderRadius: 3, paddingHorizontal: 14, paddingVertical: 7, minHeight: 44, justifyContent: 'center' },
   deporteChipActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },
   deporteChipInactivo:    { backgroundColor: 'transparent', borderColor: DIVIDER },
   deporteChipText:        { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2 },
