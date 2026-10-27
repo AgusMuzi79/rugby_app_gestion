@@ -35,6 +35,11 @@ export function useScanner() {
   // Último QR que se cortó (timeout o CANCELAR) sin respuesta.
   const escaneoCortado = useRef<EscaneoCortado | null>(null)
   const rawEnCurso = useRef<string | null>(null)
+  // Candado del lector: la cámara dispara onBarcodeScanned varias veces por
+  // el mismo QR antes de que React aplique `setScanning(false)`, y cada
+  // disparo era un invoke (y un registro en accesos). El ref se toma al
+  // instante; se suelta sólo en reset / cancelar.
+  const candado = useRef(false)
 
   // Llama a socios-qr y arma el resultado. Un error de red / timeout / 401 no
   // es un "QR inválido": vuelve como `errorRed` con un mensaje en castellano.
@@ -85,7 +90,8 @@ export function useScanner() {
   }, [])
 
   const handleQR = useCallback(async (rawData: string) => {
-    if (!scanning || validando) return
+    if (candado.current || !scanning || validando) return
+    candado.current = true
 
     // Formato esperado: "{numero_socio}:{6-digit-code}"
     const parts = rawData.split(':')
@@ -123,12 +129,14 @@ export function useScanner() {
     if (rawEnCurso.current) escaneoCortado.current = { raw: rawEnCurso.current, en: Date.now() }
     enCurso.current?.abort()
     enCurso.current = null
+    candado.current = false
     setValidando(false)
     setResult(null)
     setScanning(true)
   }, [])
 
   const reset = useCallback(() => {
+    candado.current = false
     setResult(null)
     setScanning(true)
   }, [])

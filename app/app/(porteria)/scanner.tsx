@@ -414,7 +414,9 @@ export default function ScannerScreen() {
           style={StyleSheet.absoluteFillObject}
           facing={camaraFacing}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          onBarcodeScanned={({ data }) => handleQR(data)}
+          // Sin handler mientras no se escanea: la cámara deja de mandar
+          // eventos (el candado de useScanner frena los que ya venían).
+          onBarcodeScanned={scanning ? ({ data }) => handleQR(data) : undefined}
         />
 
         {/* Visor overlay */}
