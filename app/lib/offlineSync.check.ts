@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/offlineSync.check.ts
 
 import assert from 'node:assert/strict'
-import { MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sincronizarItems, type FilaAsistencia, type PuertoSync } from './offlineSync'
+import { MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sinNoEnviadasDe, sincronizarItems, type FilaAsistencia, type PuertoSync } from './offlineSync'
 import type { ItemCola } from './offlineQueue'
 
 let casos = 0
@@ -140,6 +140,13 @@ async function main() {
   await caso('el resultado marca qué fallas fueron de red', async () => {
     const r = await sincronizarItems([entrenamiento('a')], baseFalsa({ caida: true }).puerto)
     assert.equal(r.fallidos[0].red, true)
+  })
+
+  await caso('guardar online división+fecha saca sólo las no enviadas de esa división y fecha', () => {
+    const otraFecha = entrenamiento('b', '2026-10-25')
+    const otraDiv: ItemCola = { ...entrenamiento('c'), payload: { ...entrenamiento('c').payload, division_id: 'div-2' } }
+    const quedan = sinNoEnviadasDe([entrenamiento('a'), otraFecha, otraDiv], 'div-1', '2026-10-26')
+    assert.deepEqual(quedan.map(i => i.id), ['b', 'c'])
   })
 
   await caso('ids de cola distintos sin crypto.randomUUID', () => {

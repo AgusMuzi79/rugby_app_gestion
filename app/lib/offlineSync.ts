@@ -118,6 +118,12 @@ export async function sincronizarItems(items: ItemCola[], db: PuertoSync): Promi
   return r
 }
 
+// Las no enviadas que quedan después de guardar online la asistencia de una
+// división y fecha (esa asistencia las reemplaza).
+export function sinNoEnviadasDe(items: ItemCola[], divisionId: string, fecha: string): ItemCola[] {
+  return items.filter(i => !(i.payload.division_id === divisionId && i.payload.fecha === fecha))
+}
+
 // Falla de red (no de permisos ni de datos): conviene encolar y reintentar.
 export function esErrorDeRed(e: unknown): boolean {
   if (!e) return false

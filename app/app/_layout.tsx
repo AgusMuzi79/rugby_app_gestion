@@ -113,12 +113,15 @@ export default function RootLayout() {
         setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Se reintenta solo cuando vuelva la conexión.')
         // NetInfo avisa enseguida el estado actual: sólo se reintenta en un
         // cambio de "sin red" a "con red", así no se arma un bucle.
+        // cargarPerfil ya canceló todo al empezar; igual se desarma uno previo.
+        esperaRedPerfil.current?.()
         let habiaRed: boolean | null = null
         esperaRedPerfil.current = NetInfo.addEventListener(estado => {
           const hayRed = !!estado.isConnected && estado.isInternetReachable !== false
           const volvio = habiaRed === false && hayRed
           habiaRed = hayRed
-          if (volvio) void cargarPerfil(userId, 0)
+          // Se desarma antes de reintentar: un único reintento por reconexión.
+          if (volvio) { cancelarReintentoPerfil(); void cargarPerfil(userId, 0) }
         })
       }
       return false

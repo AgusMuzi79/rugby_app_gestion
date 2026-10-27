@@ -214,9 +214,14 @@ export function useAsistencia(): UseAsistenciaReturn {
     }
 
     await verificarAusenciasConsecutivas(divisionId)
-    // Si había una de esta división y fecha que no se pudo enviar, esta la reemplaza.
-    await resolverNoEnviadas(divisionId, fecha)
-    await actualizarPendientes()
+    // Si había una de esta división y fecha que no se pudo enviar, esta la
+    // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
+    try {
+      await resolverNoEnviadas(divisionId, fecha)
+      await actualizarPendientes()
+    } catch (e) {
+      console.warn('no enviadas:', e instanceof Error ? e.message : String(e))
+    }
     setGuardado(true)
     setGuardando(false)
   }

@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { nuevoIdCola } from './offlineSync'
+import { nuevoIdCola, sinNoEnviadasDe } from './offlineSync'
 
 export type OperacionOffline = 'asistencia' | 'lesion'
 
@@ -90,7 +90,7 @@ export async function tamañoCola(): Promise<number> {
 export function resolverNoEnviadas(divisionId: string, fecha: string): Promise<void> {
   return conCandado(async () => {
     const noEnviadas = await leer(CLAVE_NO_ENVIADAS)
-    const quedan = noEnviadas.filter(i => !(i.payload.division_id === divisionId && i.payload.fecha === fecha))
+    const quedan = sinNoEnviadasDe(noEnviadas, divisionId, fecha)
     if (quedan.length !== noEnviadas.length) {
       await AsyncStorage.setItem(CLAVE_NO_ENVIADAS, JSON.stringify(quedan))
     }
