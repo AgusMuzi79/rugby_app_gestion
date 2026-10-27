@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/offlineSync.check.ts
 
 import assert from 'node:assert/strict'
-import { MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sinNoEnviadasDe, sincronizarItems, type FilaAsistencia, type PuertoSync } from './offlineSync'
+import { LOTE_ACCESOS_OFFLINE, MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sinNoEnviadasDe, sincronizarAccesosOffline, sincronizarItems, type EscaneoOffline, type FilaAsistencia, type PuertoAccesos, type PuertoSync, type ResultadoAccesoOffline } from './offlineSync'
 import type { ItemCola } from './offlineQueue'
 
 let casos = 0
@@ -88,6 +88,15 @@ async function main() {
     assert.deepEqual(r.omitidos, ['l'])
   })
 
+  await caso('un escaneo de la puerta (acceso) no lo toca la sync de asistencia: sólo omitido', async () => {
+    const db = baseFalsa()
+    const acceso = { id: 'x', tipo: 'acceso' as const, creadoEn: 1, payload: { tipo: 'qr', qr: '123:456789' } }
+    const r = await sincronizarItems([acceso as never, entrenamiento('a')], db.puerto)
+    assert.deepEqual(r.omitidos, ['x'])
+    assert.equal(r.fallidos.some(f => f.id === 'x'), false)
+    assert.equal(r.enviados.includes('x'), false)
+  })
+
   await caso('un payload roto no frena al resto', async () => {
     const db = baseFalsa()
     const roto: ItemCola = { id: 'x', tipo: 'asistencia', creadoEn: 1, payload: { jugadores: 'no' } }
@@ -152,6 +161,82 @@ async function main() {
   await caso('ids de cola distintos sin crypto.randomUUID', () => {
     const ids = new Set(Array.from({ length: 200 }, () => nuevoIdCola()))
     assert.equal(ids.size, 200)
+  })
+
+  // ─── Escaneos de la puerta sin conexión (T4) ─────────────────────────────────
+
+  const escaneo = (id: string, payload: Record<string, unknown> = { tipo: 'qr', qr: '1234:045123', escaneado_en: '2026-10-27T13:00:00.000Z', rol: 'porteria' }): ItemCola =>
+    ({ id, tipo: 'acceso', creadoEn: 1, payload })
+
+  function puertoAccesos(respuesta: (lote: EscaneoOffline[]) => ResultadoAccesoOffline[] | Promise<ResultadoAccesoOffline[]>) {
+    const lotes: EscaneoOffline[][] = []
+    const puerto: PuertoAccesos = {
+      async registrarAccesosOffline(lote) {
+        lotes.push(lote)
+        return respuesta(lote)
+      },
+    }
+    return { puerto, lotes }
+  }
+
+  await caso('el escaneo viaja con el id de la cola como id_cola (idempotencia en el servidor)', async () => {
+    const { puerto, lotes } = puertoAccesos(l => l.map(e => ({ id_cola: e.id_cola, estado: 'registrado' })))
+    const r = await sincronizarAccesosOffline([escaneo('a1'), entrenamiento('x')], puerto)
+    assert.deepEqual(lotes, [[{ id_cola: 'a1', escaneado_en: '2026-10-27T13:00:00.000Z', tipo: 'qr', qr: '1234:045123' }]])
+    assert.deepEqual(r.enviados, ['a1'])
+    assert.deepEqual(r.omitidos, ['x'], 'la asistencia no es de este envío')
+  })
+
+  await caso('registrado y duplicado salen de la cola; no_encontrado e invalido van directo a no enviadas', async () => {
+    const { puerto } = puertoAccesos(() => [
+      { id_cola: 'r', estado: 'registrado', motivo: 'Código inválido' },
+      { id_cola: 'd', estado: 'duplicado' },
+      { id_cola: 'n', estado: 'no_encontrado', motivo: 'Socio no encontrado' },
+      { id_cola: 'i', estado: 'invalido', motivo: 'Escaneo de hace más de 7 días' },
+      { id_cola: 'e', estado: 'error', motivo: 'No se pudo registrar' },
+    ])
+    const items = ['r', 'd', 'n', 'i', 'e'].map(id => escaneo(id))
+    const r = await sincronizarAccesosOffline(items, puerto)
+    assert.deepEqual(r.enviados, ['r', 'd'])
+    const p = particionarFallidos(items, r.fallidos)
+    assert.deepEqual(p.descartar.map(i => i.id), ['n', 'i'], 'definitivos: no se reintentan 5 veces')
+    assert.deepEqual(p.reintentar.map(i => [i.id, i.intentos]), [['e', 1]])
+  })
+
+  await caso('sin red todo el lote se reintenta sin sumar intentos', async () => {
+    const { puerto } = puertoAccesos(() => { throw new TypeError('Network request failed') })
+    const items = [escaneo('a'), escaneo('b')]
+    const r = await sincronizarAccesosOffline(items, puerto)
+    assert.deepEqual(r.fallidos.map(f => [f.id, f.red]), [['a', true], ['b', true]])
+    assert.equal(particionarFallidos(items, r.fallidos).reintentar.every(i => !i.intentos), true)
+  })
+
+  await caso('un ítem sin respuesta del servidor no se da por enviado', async () => {
+    const { puerto } = puertoAccesos(() => [])
+    const r = await sincronizarAccesosOffline([escaneo('a')], puerto)
+    assert.deepEqual(r.enviados, [])
+    assert.equal(r.fallidos[0].red, false)
+  })
+
+  await caso('un payload roto no se manda y va directo a no enviadas', async () => {
+    const { puerto, lotes } = puertoAccesos(l => l.map(e => ({ id_cola: e.id_cola, estado: 'registrado' })))
+    const r = await sincronizarAccesosOffline([escaneo('roto', { tipo: 'qr' })], puerto)
+    assert.equal(lotes.length, 0)
+    assert.equal(r.fallidos[0].definitivo, true)
+  })
+
+  await caso('se manda en tandas de LOTE_ACCESOS_OFFLINE', async () => {
+    const { puerto, lotes } = puertoAccesos(l => l.map(e => ({ id_cola: e.id_cola, estado: 'registrado' })))
+    const items = Array.from({ length: LOTE_ACCESOS_OFFLINE + 3 }, (_, i) => escaneo(`a${i}`))
+    const r = await sincronizarAccesosOffline(items, puerto)
+    assert.deepEqual(lotes.map(l => l.length), [LOTE_ACCESOS_OFFLINE, 3])
+    assert.equal(r.enviados.length, LOTE_ACCESOS_OFFLINE + 3)
+  })
+
+  await caso('el escaneo por DNI viaja con el DNI', async () => {
+    const { puerto, lotes } = puertoAccesos(l => l.map(e => ({ id_cola: e.id_cola, estado: 'registrado' })))
+    await sincronizarAccesosOffline([escaneo('d1', { tipo: 'dni', dni: '30123456', escaneado_en: '2026-10-27T13:00:00.000Z', rol: 'porteria' })], puerto)
+    assert.deepEqual(lotes[0], [{ id_cola: 'd1', escaneado_en: '2026-10-27T13:00:00.000Z', tipo: 'dni', dni: '30123456' }])
   })
 
   console.log(`\n${casos} casos ok`)

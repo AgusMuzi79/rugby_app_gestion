@@ -4,7 +4,7 @@ import NetInfo from '@react-native-community/netinfo'
 import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import { aplicarResultadoSync, cantidadNoEnviadas, obtenerCola, tamañoCola } from '@/lib/offlineQueue'
-import { particionarFallidos, sincronizarItems, type PuertoSync } from '@/lib/offlineSync'
+import { particionarFallidos, sincronizarAccesosOffline, sincronizarItems, type PuertoAccesos, type PuertoSync, type ResultadoAccesoOffline } from '@/lib/offlineSync'
 
 // Lo que queda en el teléfono: `pendientes` todavía se va a mandar;
 // `noEnviadas` falló MAX_INTENTOS veces por un error que no es de red
@@ -80,6 +80,25 @@ const puertoSupabase: PuertoSync = {
   },
 }
 
+// Escaneos de la puerta que se dejaron pasar sin conexión (portería T4): socios-qr
+// los valida a posteriori y los registra (acción registrar-offline).
+const puertoAccesos: PuertoAccesos = {
+  async registrarAccesosOffline(lote) {
+    const res = await supabase.functions.invoke('socios-qr', { body: { action: 'registrar-offline', items: lote } })
+    if (res.error) {
+      const status = (res.error as { context?: { status?: number } }).context?.status
+      // Sin status HTTP no llegó al servidor: es de red (se reintenta sin sumar
+      // intentos). Una sesión vencida (401) tampoco suma: los ingresos esperan a
+      // que vuelvan a iniciar sesión en la tablet, no pasan a "no enviadas".
+      if (typeof status !== 'number' || status === 401) throw new Error(`network error: ${status ?? 'sin respuesta'} ${res.error.message}`)
+      throw new Error(`socios-qr ${status}: ${res.error.message}`)
+    }
+    const data = res.data as { ok?: boolean; motivo?: string; resultados?: ResultadoAccesoOffline[] } | null
+    if (!data?.ok || !Array.isArray(data.resultados)) throw new Error(data?.motivo ?? 'respuesta inesperada de socios-qr')
+    return data.resultados
+  },
+}
+
 // Una sola sincronización a la vez (montaje, vuelta de red y vuelta a primer
 // plano pueden dispararse juntos).
 let enCurso: Promise<void> | null = null
@@ -91,10 +110,15 @@ export function sincronizarCola(): Promise<void> {
       try {
         const cola = await obtenerCola()
         if (cola.length > 0) {
+          // Asistencia (entrenador) y escaneos de la puerta (portería): cada
+          // envío deja pasar los ítems del otro.
           const r = await sincronizarItems(cola, puertoSupabase)
-          const { reintentar, descartar } = particionarFallidos(cola, r.fallidos)
-          await aplicarResultadoSync({ enviados: r.enviados, reintentar, descartar })
-          for (const f of r.fallidos) console.warn('offline sync:', f.id, f.red ? 'red' : 'permanente', f.error)
+          const ra = cola.some(i => i.tipo === 'acceso') ? await sincronizarAccesosOffline(cola, puertoAccesos) : null
+          const enviados = [...r.enviados, ...(ra?.enviados ?? [])]
+          const fallidos = [...r.fallidos, ...(ra?.fallidos ?? [])]
+          const { reintentar, descartar } = particionarFallidos(cola, fallidos)
+          await aplicarResultadoSync({ enviados, reintentar, descartar })
+          for (const f of fallidos) console.warn('offline sync:', f.id, f.red ? 'red' : 'permanente', f.error)
         }
         await actualizarPendientes()
       } finally {
@@ -105,7 +129,8 @@ export function sincronizarCola(): Promise<void> {
   return enCurso
 }
 
-// Se monta en el layout del rol que encola (entrenador). `pendientes` cuenta
+// Se monta en el layout de los roles que encolan (entrenador; portería, que
+// encola los escaneos sin conexión). `pendientes` cuenta
 // también las lesiones guardadas, que quedan en la cola mientras el módulo
 // está oculto.
 export function useSincronizacionOffline() {

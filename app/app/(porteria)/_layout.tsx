@@ -2,10 +2,14 @@ import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { TAB_SCREEN_OPTIONS } from '@/constants/tabOptions'
 import { useAuthStore } from '@/stores/authStore'
+import { useSincronizacionOffline } from '@/hooks/useSincronizacionOffline'
 
 export default function PorteriaLayout() {
   const { rol } = useAuthStore()
   const esBuffet = rol === 'buffet'
+  // Manda los ingresos que se dejaron pasar sin conexión al volver la red o
+  // la app a primer plano (ver useScanner).
+  useSincronizacionOffline()
 
   return (
     <Tabs screenOptions={TAB_SCREEN_OPTIONS}>

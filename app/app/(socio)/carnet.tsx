@@ -203,7 +203,7 @@ export default function CarnetScreen() {
   // Tutor (also served from app/(tutor)/carnet.tsx): always the selected minor's
   // carnet. For every other role socioIdTutor is undefined -> unchanged.
   const { esTutor, socioId: socioIdTutor } = useSocioObjetivo()
-  const { loading, error, data, refresh } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
+  const { loading, error, data, refresh, avisoSinConexion } = useCarnet(socioIdTutor ?? verComoId ?? undefined)
   const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
@@ -293,6 +293,14 @@ export default function CarnetScreen() {
         </View>
       ) : data ? (
         <>
+          {/* ── SIN CONEXIÓN: el QR sigue rotando; los datos son de la última lectura ── */}
+          {avisoSinConexion && (
+            <View style={[s.banner, s.bannerSinConexion]} accessibilityRole="alert">
+              <Feather name="wifi-off" size={14} color={colors.texto} />
+              <Text style={s.bannerText}>{avisoSinConexion}</Text>
+            </View>
+          )}
+
           {/* ── AVISO: falta foto de perfil (solo mi propio carnet — no hay
               forma de subirle la foto a un dependiente todavía) ── */}
           {!esCarnetAjeno && !data.fotoUrl && (
@@ -354,11 +362,11 @@ export default function CarnetScreen() {
           {/* ── CÓDIGO MANUAL ── */}
           <View style={s.sectionCodigo}>
             <View style={s.secRow}>
-              <Text style={s.secTitle}>CÓDIGO DE HOY</Text>
+              <Text style={s.secTitle}>CÓDIGO MANUAL · CAMBIA CADA MINUTO</Text>
               <View style={s.secLine} />
             </View>
             <Text style={s.codigoHint}>
-              Si la cámara no puede leer tu QR, dictá este código.
+              Si la cámara no lee tu QR, en el lector elegí «Ingresar código» y escribí (o dictá) tu Nº de socio y este código.
             </Text>
             <Text style={s.codigoValue}>
               {formatCodigo(data.code)}
@@ -424,6 +432,7 @@ const s = StyleSheet.create({
     marginHorizontal: 20, marginTop: 14,
   },
   bannerFoto:  { backgroundColor: colors.estadoPendiente },
+  bannerSinConexion: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.borde },
   bannerText:  { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, flex: 1, color: colors.texto },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },

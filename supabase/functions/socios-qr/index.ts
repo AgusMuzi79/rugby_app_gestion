@@ -14,6 +14,10 @@
 //   registrar-invitado — Anota el ingreso de un no-socio (DNI obligatorio, nombre opcional) y
 //                    devuelve cuántas veces entró ese DNI en los últimos 30 días, para que
 //                    se lo derive a Secretaría cuando se repite (ver 20261003000001_accesos_invitados).
+//   registrar-offline — La tablet dejó pasar SIN CONEXIÓN y encoló los escaneos: los valida
+//                    a posteriori (código a la hora del escaneo, estado y servicio a la hora
+//                    de sincronizar) y los registra con sin_conexion = true (y denegado si
+//                    la validación falla). Ver 20261029000001_accesos_sin_conexion.
 //
 // Turnero (T7): en validate/validate-dni de una cuenta Lector (rol='porteria') la respuesta
 //   suma `turno` (franja vigente, reserva del socio, mensaje para la tablet; ver
@@ -46,11 +50,13 @@
 
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { matchingStep } from '../_shared/totp.ts'
+import { codigoValidoEnInstante, matchingStep } from '../_shared/totp.ts'
+import { VENTANA_DUPLICADO_MS, leerItemOffline, leerLoteOffline, type ItemOffline } from '../_shared/accesos-offline.ts'
 import { esTutorDe } from '../_shared/tutores.ts'
 import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerTodasLasPaginas } from '../_shared/accesosRango.ts'
 import { nombreVisible } from '../_shared/nombre-padron.ts'
 import { motivoRechazoPorEstado } from '../_shared/estado-acceso.ts'
+import { normalizarDni } from '../_shared/login-identificador.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -81,6 +87,7 @@ Deno.serve(async (req: Request) => {
   if (action === 'validate-dni')   return handleValidateDni(body, callerRol)
   if (action === 'listar-accesos') return handleListarAccesos(body, callerRol)
   if (action === 'registrar-invitado') return handleRegistrarInvitado(body, callerRol)
+  if (action === 'registrar-offline')  return handleRegistrarOffline(body, callerRol)
 
   return jsonError(400, `Acción desconocida: ${action}`)
 })
@@ -223,6 +230,12 @@ const SOCIO_SELECT = `
   profiles!socios_profile_id_fkey ( nombre )
 `
 
+// validate trae el secret en la misma consulta (socios_secrets.socio_id es PK:
+// relación uno a uno) — antes era un segundo viaje a la base.
+const SOCIO_SELECT_CON_SECRET = `${SOCIO_SELECT}, socios_secrets ( totp_secret )`
+
+type SecretEmbed = { totp_secret: string } | { totp_secret: string }[] | null
+
 type SocioRow = {
   id: string
   numero_socio: string
@@ -278,10 +291,12 @@ const PUNTO_POR_ROL: Record<string, string> = {
 // `socios` con categoría "Cliente Gimnasio" y rol 'cliente_gimnasio' (ver
 // 20260911000000_rol_cliente_gimnasio) — no tienen fila en `socio_servicios`
 // porque la categoría ya los distingue, el gimnasio ES su único servicio.
-async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | null): Promise<boolean> {
+// null = no se pudo consultar (error de la base): no es lo mismo que "no tiene
+// el servicio", y el socio no puede leer un rechazo falso.
+async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | null): Promise<boolean | null> {
   if (categoriaNombre === 'Cliente Gimnasio') return true
 
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('socio_servicios')
     .select('servicios_opcionales!inner(nombre, activo)')
     .eq('socio_id', socioId)
@@ -289,20 +304,63 @@ async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | 
     .ilike('servicios_opcionales.nombre', '%gimnasio%')
     .limit(1)
 
+  if (error) {
+    console.error('servicio-gimnasio:', error.message)
+    return null
+  }
   return (data?.length ?? 0) > 0
+}
+
+// Firma la foto para la tablet (antes la app hacía un segundo viaje para esto).
+// null si no hay foto o la firma falla: el resultado se muestra igual, sin foto.
+async function firmarFoto(path: string | null): Promise<string | null> {
+  if (!path) return null
+  try {
+    const { data, error } = await supabaseAdmin.storage.from('socios-fotos').createSignedUrl(path, 60)
+    if (error) {
+      console.error('firmar-foto:', error.message)
+      return null
+    }
+    return data?.signedUrl ?? null
+  } catch (e) {
+    console.error('firmar-foto:', e instanceof Error ? e.message : String(e))
+    return null
+  }
+}
+
+// Corre la tarea después de responder (EdgeRuntime.waitUntil): el registro en
+// `accesos` ya no demora el resultado en la tablet. Sin EdgeRuntime (fuera de
+// Supabase) se espera, como antes.
+function enSegundoPlano(tarea: Promise<unknown>): Promise<void> {
+  const segura = tarea.then(
+    () => undefined,
+    (e) => console.error('segundo plano:', e instanceof Error ? e.message : String(e)),
+  )
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime
+  if (typeof rt?.waitUntil === 'function') {
+    rt.waitUntil(segura)
+    return Promise.resolve()
+  }
+  return segura
 }
 
 // `sinServicio` marca el escaneo de un socio sin Gimnasio contratado (el
 // Lector igual le muestra el aviso, pero el intento queda visible en el panel).
-// `sinReserva` marca el escaneo dentro de una franja vigente sin reserva (turnero). La
-// columna sólo se escribe cuando es true: así un ingreso normal no depende de que la
-// migración 20261008000000 ya esté aplicada.
+// `sinReserva` marca el escaneo dentro de una franja vigente sin reserva (turnero).
+// `motivoRechazo` (texto corto) = el escaneo NO pasó: se guarda con denegado = true
+// para que el panel no lo cuente como ingreso (migración 20261029000000). Las
+// columnas opcionales sólo se escriben cuando hacen falta.
+interface MarcasAcceso {
+  sinServicio?:   boolean
+  sinReserva?:    boolean
+  motivoRechazo?: string | null
+}
+
 async function registrarAcceso(
   socioId: string,
   semaforo: string | null,
   callerRol: string,
-  sinServicio = false,
-  sinReserva = false,
+  marcas: MarcasAcceso = {},
 ): Promise<void> {
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return
@@ -312,8 +370,9 @@ async function registrarAcceso(
       socio_id: socioId,
       semaforo,
       punto,
-      sin_servicio: sinServicio,
-      ...(sinReserva ? { sin_reserva: true } : {}),
+      sin_servicio: marcas.sinServicio ?? false,
+      ...(marcas.sinReserva ? { sin_reserva: true } : {}),
+      ...(marcas.motivoRechazo ? { denegado: true, motivo_rechazo: marcas.motivoRechazo } : {}),
     })
   if (error) console.error('registrarAcceso:', error.message)
 }
@@ -362,73 +421,48 @@ async function obtenerTurno(socioId: string): Promise<TurnoActual | null> {
   }
 }
 
-async function handleValidate(
-  body: Record<string, unknown>,
-  callerRol: string
-): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
-  if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
+// No encontrado (0 filas, o más de una para `.single()`) se distingue de un
+// error de la base: éste no puede mostrarse como "no existe".
+function esNoEncontrado(error: { code?: string } | null): boolean {
+  return !error || error.code === 'PGRST116'
+}
 
-  const numero_socio = (body.numero_socio as string | undefined)?.trim()
-  const code         = (body.code as string | undefined)?.trim()
+const MOTIVO_SIN_SERVICIO = 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.'
 
-  if (!numero_socio) return jsonError(400, 'numero_socio es requerido')
-  if (!code)         return jsonError(400, 'code es requerido')
-  if (!/^\d{6}$/.test(code)) return jsonError(400, 'code debe tener 6 dígitos')
-
-  // Buscar socio por numero_socio con join a categorias y secret
-  const { data: socio, error: socioErr } = await supabaseAdmin
-    .from('socios')
-    .select(SOCIO_SELECT)
-    .eq('numero_socio', numero_socio)
-    .single()
-
-  if (socioErr || !socio) {
-    return jsonOk({ valido: false, motivo: 'Socio no encontrado' })
-  }
-
-  // Leer TOTP secret
-  const { data: secretData } = await supabaseAdmin
-    .from('socios_secrets')
-    .select('totp_secret')
-    .eq('socio_id', socio.id)
-    .single()
-
-  if (!secretData) {
-    return jsonOk({ valido: false, motivo: 'Carnet no configurado. Contactar Secretaría.' })
-  }
-
-  // Verificar código TOTP (drift ±1 step = ±60s de tolerancia)
-  const paso = await matchingStep(secretData.totp_secret, code)
-
-  if (paso === null) {
-    return jsonOk({ valido: false, motivo: 'Código QR inválido o expirado' })
-  }
-
-  const row = socio as unknown as SocioRow
-
+// Lo común a validate y validate-dni una vez identificado el socio: estado,
+// servicio, turno, consumo del código (sólo QR en el gimnasio), registro y
+// respuesta. `paso` = paso TOTP a consumir, o null (DNI).
+//
+// Latencia: servicio, turno y firma de la foto no dependen entre sí y van en
+// paralelo; el registro en `accesos` corre después de responder. El consumo
+// del código sigue esperándose ANTES de decir "pasa" (es el control de reuso).
+async function decidirIngreso(row: SocioRow, callerRol: string, paso: number | null): Promise<Response> {
   // Dado de baja: no pasa en ningún lector (antes salía verde "AL DÍA").
   const motivoEstado = motivoRechazoPorEstado(row.estado)
   if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
 
-  let turno: TurnoActual | null = null
-  if (callerRol === 'porteria') {
-    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
-    if (!tieneGimnasio) {
-      await registrarAcceso(row.id, row.semaforo, callerRol, true)
-      return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
-    }
+  const esGimnasio = callerRol === 'porteria'
+  const [tieneGimnasio, turno, fotoUrl] = await Promise.all([
+    esGimnasio ? tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null) : Promise.resolve(true),
+    // FAIL-OPEN, nunca tira (ver obtenerTurno).
+    esGimnasio ? obtenerTurno(row.id) : Promise.resolve(null),
+    firmarFoto(row.foto_path),
+  ])
 
-    // Turnero: sólo después del gate de servicio (que conserva la prioridad).
-    turno = await obtenerTurno(row.id)
-    if (turno?.bloquear) {
-      await registrarAcceso(row.id, row.semaforo, callerRol, false, true)
-      return jsonOk({
-        valido: false,
-        motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
-        turno,
-      })
-    }
+  if (tieneGimnasio === null) return jsonError(500, 'No se pudo verificar el servicio de Gimnasio. Probá de nuevo.')
+  if (!tieneGimnasio) {
+    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinServicio: true, motivoRechazo: 'Sin servicio' }))
+    return jsonOk({ valido: false, motivo: MOTIVO_SIN_SERVICIO })
+  }
+
+  // Turnero: sólo después del gate de servicio (que conserva la prioridad).
+  if (turno?.bloquear) {
+    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinReserva: true, motivoRechazo: 'Sin reserva' }))
+    return jsonOk({
+      valido: false,
+      motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
+      turno,
+    })
   }
 
   // Un código abre una sola vez en el gimnasio (autoservicio: nadie mira la
@@ -437,7 +471,7 @@ async function handleValidate(
   // mismo minuto. Se consume recién al dejar pasar (un rechazo no lo quema).
   // Si el RPC falla se deja pasar y se loguea: un error de la base no es una
   // captura reenviada, y cerrar la puerta a todos es peor.
-  if (callerRol === 'porteria') {
+  if (esGimnasio && paso !== null) {
     const { data: consumido, error: consumoErr } = await supabaseAdmin
       .rpc('consumir_paso_totp', { p_socio_id: row.id, p_paso: paso })
     if (consumoErr) {
@@ -453,11 +487,56 @@ async function handleValidate(
     }
   }
 
-  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {
-    await registrarAcceso(row.id, row.semaforo, callerRol, false, turno?.estado === 'sin_reserva')
+  // registrarAcceso ignora a secretaria/admin/subcomision (sin punto).
+  await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinReserva: turno?.estado === 'sin_reserva' }))
+
+  return jsonOk({ ...socioResponse(row), foto_url: fotoUrl, turno })
+}
+
+async function handleValidate(
+  body: Record<string, unknown>,
+  callerRol: string
+): Promise<Response> {
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
+
+  const numero_socio = (body.numero_socio as string | undefined)?.trim()
+  const code         = (body.code as string | undefined)?.trim()
+
+  if (!numero_socio) return jsonError(400, 'numero_socio es requerido')
+  if (!code)         return jsonError(400, 'code es requerido')
+  if (!/^\d{6}$/.test(code)) return jsonError(400, 'code debe tener 6 dígitos')
+
+  // Socio + categoría + perfil + secret en una sola consulta.
+  const { data: socio, error: socioErr } = await supabaseAdmin
+    .from('socios')
+    .select(SOCIO_SELECT_CON_SECRET)
+    .eq('numero_socio', numero_socio)
+    .single()
+
+  if (socioErr && !esNoEncontrado(socioErr)) {
+    console.error('validate (socio):', socioErr.message)
+    return jsonError(500, 'No se pudo consultar el socio. Probá de nuevo.')
+  }
+  if (!socio) {
+    return jsonOk({ valido: false, motivo: 'Socio no encontrado' })
   }
 
-  return jsonOk({ ...socioResponse(row), turno })
+  const row = socio as unknown as SocioRow & { socios_secrets: SecretEmbed }
+  const secretData = Array.isArray(row.socios_secrets) ? row.socios_secrets[0] : row.socios_secrets
+
+  if (!secretData?.totp_secret) {
+    return jsonOk({ valido: false, motivo: 'Carnet no configurado. Contactar Secretaría.' })
+  }
+
+  // Verificar código TOTP (drift ±1 step = ±60s de tolerancia)
+  const paso = await matchingStep(secretData.totp_secret, code)
+
+  if (paso === null) {
+    return jsonOk({ valido: false, motivo: 'Código QR inválido o expirado' })
+  }
+
+  return decidirIngreso(row, callerRol, paso)
 }
 
 // ─── Fallback sin QR: buscar directo por DNI ──────────────────────────────────
@@ -473,7 +552,8 @@ async function handleValidateDni(
   const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
-  const dni = (body.dni as string | undefined)?.trim()
+  // socios.dni guarda sólo dígitos: "30.123.456" o con espacios no encontraba a nadie.
+  const dni = normalizarDni(body.dni as string | undefined)
   if (!dni) return jsonError(400, 'dni es requerido')
 
   const { data: socio, error: socioErr } = await supabaseAdmin
@@ -482,40 +562,15 @@ async function handleValidateDni(
     .eq('dni', dni)
     .single()
 
-  if (socioErr || !socio) {
+  if (socioErr && !esNoEncontrado(socioErr)) {
+    console.error('validate-dni (socio):', socioErr.message)
+    return jsonError(500, 'No se pudo consultar el socio. Probá de nuevo.')
+  }
+  if (!socio) {
     return jsonOk({ valido: false, motivo: 'No se encontró ningún socio con ese DNI' })
   }
 
-  const row = socio as unknown as SocioRow
-
-  const motivoEstado = motivoRechazoPorEstado(row.estado)
-  if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
-
-  let turno: TurnoActual | null = null
-  if (callerRol === 'porteria') {
-    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
-    if (!tieneGimnasio) {
-      await registrarAcceso(row.id, row.semaforo, callerRol, true)
-      return jsonOk({ valido: false, motivo: 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.' })
-    }
-
-    // Turnero: sólo después del gate de servicio (que conserva la prioridad).
-    turno = await obtenerTurno(row.id)
-    if (turno?.bloquear) {
-      await registrarAcceso(row.id, row.semaforo, callerRol, false, true)
-      return jsonOk({
-        valido: false,
-        motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
-        turno,
-      })
-    }
-  }
-
-  if (['porteria', 'canchero', 'buffet'].includes(callerRol)) {
-    await registrarAcceso(row.id, row.semaforo, callerRol, false, turno?.estado === 'sin_reserva')
-  }
-
-  return jsonOk({ ...socioResponse(row), turno })
+  return decidirIngreso(socio as unknown as SocioRow, callerRol, null)
 }
 
 // ─── Invitados (no-socios) en el gimnasio ─────────────────────────────────────
@@ -553,7 +608,7 @@ async function handleRegistrarInvitado(
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return jsonOk({ ok: false, motivo: 'Sólo las cuentas de acceso pueden registrar invitados' })
 
-  const dni = (body.dni as string | undefined)?.trim() ?? ''
+  const dni = normalizarDni(body.dni as string | undefined)
   if (!/^\d{6,9}$/.test(dni)) return jsonOk({ ok: false, motivo: 'El DNI debe tener entre 6 y 9 dígitos' })
 
   const nombreRaw = (body.nombre as string | undefined)?.trim() ?? ''
@@ -598,6 +653,141 @@ async function handleRegistrarInvitado(
   return jsonOk({ ok: true, dni, nombre, veces })
 }
 
+// ─── Escaneos sin conexión (T4) ───────────────────────────────────────────────
+//
+// Sin red la tablet deja pasar ("SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR",
+// el personal mira a la persona) y encola el escaneo crudo. Al volver la red lo
+// manda acá en tandas (`items`, ver _shared/accesos-offline.ts) y se valida a
+// posteriori: el código TOTP a la hora del escaneo (sin consumir el paso: es
+// del pasado), y estado y servicio a la hora de sincronizar. Cada ítem queda en
+// `accesos` con creado_en = hora del escaneo y sin_conexion = true; si la
+// validación falla, además denegado + motivo (entró, pero sin un carnet válido).
+// El turnero no se evalúa (no tiene sentido a posteriori).
+//
+// Respuesta: { ok: true, resultados: [{ id_cola, estado, motivo? }] }, estado:
+//   registrado    — fila nueva (con denegado si la validación falló).
+//   duplicado     — ya estaba: lote reintentado (id_cola único) o el escaneo en
+//                   línea llegó al servidor aunque la tablet se cortó por timeout.
+//   invalido      — no se puede usar (forma, hora fuera de ventana): la tablet lo saca de la cola.
+//   no_encontrado — no hay socio con ese número / DNI: no hay a quién registrarlo.
+//   error         — falla de la base: la tablet lo reintenta.
+
+type EstadoOffline = 'registrado' | 'duplicado' | 'invalido' | 'no_encontrado' | 'error'
+
+interface ResultadoOffline {
+  id_cola: string | null
+  estado:  EstadoOffline
+  motivo?: string
+}
+
+async function handleRegistrarOffline(
+  body: Record<string, unknown>,
+  callerRol: string
+): Promise<Response> {
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para registrar accesos')
+
+  // Igual que validate: secretaria/admin/subcomision no representan un ingreso real.
+  const punto = PUNTO_POR_ROL[callerRol]
+  if (!punto) return jsonOk({ ok: false, motivo: 'Sólo las cuentas de acceso registran ingresos' })
+
+  const lote = leerLoteOffline(body.items)
+  if (!lote.ok) return jsonError(400, lote.motivo)
+
+  const ahora = Date.now()
+  const resultados: ResultadoOffline[] = []
+  // De a uno: son pocos (lo que se juntó sin red) y un ítem que falla no tumba al resto.
+  for (const raw of lote.items) {
+    const lectura = leerItemOffline(raw, ahora)
+    if (!lectura.ok) {
+      resultados.push({ id_cola: lectura.id_cola, estado: 'invalido', motivo: lectura.motivo })
+      continue
+    }
+    try {
+      resultados.push(await registrarItemOffline(lectura.item, callerRol, punto))
+    } catch (e) {
+      console.error('registrar-offline:', lectura.item.id_cola, e instanceof Error ? e.message : String(e))
+      resultados.push({ id_cola: lectura.item.id_cola, estado: 'error', motivo: 'No se pudo registrar. Se reintenta.' })
+    }
+  }
+
+  return jsonOk({ ok: true, resultados })
+}
+
+async function buscarSocioOffline(item: ItemOffline) {
+  if (item.tipo === 'qr') {
+    return await supabaseAdmin.from('socios').select(SOCIO_SELECT_CON_SECRET).eq('numero_socio', item.numero_socio).single()
+  }
+  return await supabaseAdmin.from('socios').select(SOCIO_SELECT).eq('dni', item.dni).single()
+}
+
+// Tira ante un error de la base (el ítem vuelve como 'error' y se reintenta).
+async function registrarItemOffline(item: ItemOffline, callerRol: string, punto: string): Promise<ResultadoOffline> {
+  const id_cola = item.id_cola
+
+  const { data: socio, error: socioErr } = await buscarSocioOffline(item)
+  if (socioErr && !esNoEncontrado(socioErr)) throw new Error(socioErr.message)
+  if (!socio) {
+    return { id_cola, estado: 'no_encontrado', motivo: item.tipo === 'qr' ? 'Socio no encontrado' : 'No hay socio con ese DNI' }
+  }
+  const row = socio as unknown as SocioRow & { socios_secrets?: SecretEmbed }
+
+  // El escaneo en línea pudo llegar al servidor aunque la tablet se cortó por
+  // timeout (y lo encoló): un ingreso en línea del mismo socio en esa ventana
+  // es el mismo. Sólo los que pasaron: un rechazo en línea seguido de un
+  // ingreso sin conexión son dos hechos distintos.
+  const { data: previo, error: previoErr } = await supabaseAdmin
+    .from('accesos')
+    .select('id')
+    .eq('socio_id', row.id)
+    .eq('punto', punto)
+    .eq('sin_conexion', false)
+    .eq('denegado', false)
+    .gte('creado_en', new Date(item.instante - VENTANA_DUPLICADO_MS).toISOString())
+    .lte('creado_en', new Date(item.instante + VENTANA_DUPLICADO_MS).toISOString())
+    .limit(1)
+  if (previoErr) throw new Error(previoErr.message)
+  if ((previo?.length ?? 0) > 0) return { id_cola, estado: 'duplicado', motivo: 'Ya estaba registrado en línea' }
+
+  // Validación a posteriori. Motivos cortos: el panel los muestra como "RECHAZADO · …".
+  let motivo: string | null = null
+  let sinServicio = false
+  if (item.tipo === 'qr') {
+    const secret = Array.isArray(row.socios_secrets) ? row.socios_secrets[0] : row.socios_secrets
+    if (!secret?.totp_secret) motivo = 'Carnet sin configurar'
+    else if (!(await codigoValidoEnInstante(secret.totp_secret, item.code, item.instante))) motivo = 'Código inválido'
+  }
+  if (!motivo && motivoRechazoPorEstado(row.estado)) motivo = 'Dado de baja'
+  if (!motivo && callerRol === 'porteria') {
+    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
+    if (tieneGimnasio === null) throw new Error('no se pudo verificar el servicio de Gimnasio')
+    if (!tieneGimnasio) {
+      motivo = 'Sin servicio'
+      sinServicio = true
+    }
+  }
+
+  // id_cola único: un lote reintentado no duplica (ON CONFLICT DO NOTHING).
+  const { data: insertado, error: insertErr } = await supabaseAdmin
+    .from('accesos')
+    .upsert({
+      socio_id:     row.id,
+      // Semáforo de hoy (no se sabe el de la hora del escaneo).
+      semaforo:     row.semaforo,
+      punto,
+      creado_en:    new Date(item.instante).toISOString(),
+      sin_servicio: sinServicio,
+      sin_conexion: true,
+      id_cola,
+      ...(motivo ? { denegado: true, motivo_rechazo: motivo } : {}),
+    }, { onConflict: 'id_cola', ignoreDuplicates: true })
+    .select('id')
+  if (insertErr) throw new Error(insertErr.message)
+  if ((insertado?.length ?? 0) === 0) return { id_cola, estado: 'duplicado', motivo: 'Ya estaba registrado' }
+
+  return motivo ? { id_cola, estado: 'registrado', motivo } : { id_cola, estado: 'registrado' }
+}
+
 // ─── Panel web de Lector: historial de accesos de un rango ───────────────────
 //
 // `fecha` en formato YYYY-MM-DD, interpretada en horario de Argentina
@@ -624,6 +814,9 @@ async function handleListarAccesos(
         semaforo,
         sin_servicio,
         sin_reserva,
+        denegado,
+        motivo_rechazo,
+        sin_conexion,
         es_invitado,
         invitado_dni,
         invitado_nombre,
@@ -643,6 +836,9 @@ async function handleListarAccesos(
     semaforo: string | null
     sin_servicio: boolean
     sin_reserva: boolean
+    denegado: boolean
+    motivo_rechazo: string | null
+    sin_conexion: boolean
     es_invitado: boolean
     invitado_dni: string | null
     invitado_nombre: string | null
@@ -699,6 +895,9 @@ async function handleListarAccesos(
     semaforo:        a.semaforo,
     sin_servicio:    a.sin_servicio,
     sin_reserva:     a.sin_reserva,
+    denegado:        a.denegado,
+    motivo_rechazo:  a.motivo_rechazo,
+    sin_conexion:    a.sin_conexion,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
     veces_invitado:  vecesPorFila[i],

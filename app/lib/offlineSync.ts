@@ -25,7 +25,9 @@ export interface PuertoSync {
   alSincronizarEntrenamiento?(divisionId: string, jugadorIds: string[]): Promise<void>
 }
 
-export interface Fallido { id: string; error: string; red: boolean }
+// `definitivo`: el servidor ya contestó que el ítem no se puede usar (no existe
+// el socio, hora fuera de ventana): pasa a no enviadas sin reintentar.
+export interface Fallido { id: string; error: string; red: boolean; definitivo?: boolean }
 
 export interface ResultadoSync {
   enviados: string[]   // ids a sacar de la cola
@@ -52,7 +54,7 @@ export function particionarFallidos(
     if (!item) continue
     if (f.red) { reintentar.push(item); continue }
     const intentos = (item.intentos ?? 0) + 1
-    if (intentos >= MAX_INTENTOS) descartar.push({ ...item, intentos, ultimoError: f.error })
+    if (f.definitivo || intentos >= MAX_INTENTOS) descartar.push({ ...item, intentos, ultimoError: f.error })
     else reintentar.push({ ...item, intentos, ultimoError: f.error })
   }
   return { reintentar, descartar }
@@ -113,6 +115,79 @@ export async function sincronizarItems(items: ItemCola[], db: PuertoSync): Promi
       r.enviados.push(item.id)
     } catch (e) {
       r.fallidos.push({ id: item.id, error: e instanceof Error ? e.message : String(e), red: esErrorDeRed(e) })
+    }
+  }
+  return r
+}
+
+// ─── Escaneos de la puerta sin conexión (portería T4) ─────────────────────────
+//
+// Sin red la tablet deja pasar y encola el escaneo crudo (tipo 'acceso'): el QR
+// "{numero_socio}:{código}" (también el código tipeado a mano) o el DNI, con la
+// hora del escaneo. Al volver la red se manda a socios-qr (registrar-offline),
+// que lo valida a posteriori. El id del ítem viaja como `id_cola`: el servidor
+// no duplica un lote reintentado.
+
+export interface EscaneoOffline {
+  id_cola:      string
+  escaneado_en: string
+  tipo:         'qr' | 'dni'
+  qr?:          string
+  dni?:         string
+}
+
+export interface ResultadoAccesoOffline {
+  id_cola: string | null
+  estado:  string // registrado | duplicado | invalido | no_encontrado | error
+  motivo?: string
+}
+
+export interface PuertoAccesos {
+  // Tira si la llamada entera falla (red, sesión, servidor).
+  registrarAccesosOffline(lote: EscaneoOffline[]): Promise<ResultadoAccesoOffline[]>
+}
+
+// Mismo tope que acepta socios-qr por llamada (MAX_LOTE_OFFLINE).
+export const LOTE_ACCESOS_OFFLINE = 50
+
+export function escaneoDesdeItem(item: ItemCola): EscaneoOffline | null {
+  const p = item.payload
+  if (typeof p.escaneado_en !== 'string') return null
+  if (p.tipo === 'qr' && typeof p.qr === 'string') return { id_cola: item.id, escaneado_en: p.escaneado_en, tipo: 'qr', qr: p.qr }
+  if (p.tipo === 'dni' && typeof p.dni === 'string') return { id_cola: item.id, escaneado_en: p.escaneado_en, tipo: 'dni', dni: p.dni }
+  return null
+}
+
+const ENVIADO = new Set(['registrado', 'duplicado'])
+const DEFINITIVO = new Set(['invalido', 'no_encontrado'])
+
+export async function sincronizarAccesosOffline(items: ItemCola[], puerto: PuertoAccesos): Promise<ResultadoSync> {
+  const r: ResultadoSync = { enviados: [], fallidos: [], omitidos: [] }
+  const validos: EscaneoOffline[] = []
+  for (const item of items) {
+    if (item.tipo !== 'acceso') { r.omitidos.push(item.id); continue }
+    const e = escaneoDesdeItem(item)
+    if (e) validos.push(e)
+    else r.fallidos.push({ id: item.id, error: 'escaneo encolado inválido', red: false, definitivo: true })
+  }
+
+  for (let i = 0; i < validos.length; i += LOTE_ACCESOS_OFFLINE) {
+    const tanda = validos.slice(i, i + LOTE_ACCESOS_OFFLINE)
+    let resultados: ResultadoAccesoOffline[]
+    try {
+      resultados = await puerto.registrarAccesosOffline(tanda)
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      const red = esErrorDeRed(e)
+      for (const t of tanda) r.fallidos.push({ id: t.id_cola, error, red })
+      continue
+    }
+    const porId = new Map(resultados.map(x => [x.id_cola, x]))
+    for (const t of tanda) {
+      const res = porId.get(t.id_cola)
+      if (!res) r.fallidos.push({ id: t.id_cola, error: 'el servidor no respondió por este escaneo', red: false })
+      else if (ENVIADO.has(res.estado)) r.enviados.push(t.id_cola)
+      else r.fallidos.push({ id: t.id_cola, error: res.motivo ?? res.estado, red: false, definitivo: DEFINITIVO.has(res.estado) })
     }
   }
   return r

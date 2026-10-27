@@ -81,6 +81,14 @@ export async function verifyTOTP(secret: string, code: string, drift = 1): Promi
   return (await matchingStep(secret, code, drift)) !== null
 }
 
+// Escaneo sin conexión que se valida después (socios-qr registrar-offline): el
+// código tenía que valer a la hora del escaneo (`instanteMs`), con la misma
+// deriva ±1. No consume el paso: ultimo_paso_usado es para el control en línea
+// y un paso del pasado no puede moverlo.
+export async function codigoValidoEnInstante(secret: string, code: string, instanteMs: number): Promise<boolean> {
+  return (await matchingStep(secret, code, 1, instanteMs)) !== null
+}
+
 // Un paso sólo se acepta si es posterior al último usado. Misma regla que el
 // UPDATE atómico de consumir_paso_totp() (migración 20261028000002).
 export function pasoUsable(paso: number, ultimoUsado: number | null): boolean {

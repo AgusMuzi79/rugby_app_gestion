@@ -10,11 +10,34 @@ export interface Acceso {
   semaforo: Semaforo | null
   sin_servicio: boolean
   sin_reserva: boolean
+  // El escaneo NO pasó (sin servicio, bloqueado por el turnero): no es un ingreso.
+  denegado: boolean
+  motivo_rechazo: string | null
+  // La tablet lo dejó pasar sin conexión y se validó después (portería T4).
+  sin_conexion: boolean
   es_invitado: boolean
   invitado_dni: string | null
   veces_invitado: number | null
   numero_socio: string
   nombre: string
+}
+
+// Un rechazo en la puerta no es un ingreso. Filas anteriores a la columna
+// `denegado`: `sin_servicio` sólo se escribía al rechazar, así que también cuenta.
+export function esRechazo(a: Acceso): boolean {
+  return a.denegado === true || a.sin_servicio
+}
+
+export function contarAccesos(accesos: Acceso[]): { ingresos: number; rechazados: number } {
+  const rechazados = accesos.filter(esRechazo).length
+  return { ingresos: accesos.length - rechazados, rechazados }
+}
+
+// "RECHAZADO · SIN SERVICIO" para la fila del panel; null si fue un ingreso.
+export function etiquetaRechazo(a: Acceso): string | null {
+  if (!esRechazo(a)) return null
+  const motivo = a.motivo_rechazo?.trim() || (a.sin_servicio ? 'Sin servicio' : '')
+  return motivo ? `RECHAZADO · ${motivo.toUpperCase()}` : 'RECHAZADO'
 }
 
 export const SEMAFORO_LABEL: Record<Semaforo, string> = {
@@ -102,16 +125,18 @@ export function formatHora(iso: string): string {
   })
 }
 
+// Sólo los ingresos: los rechazos se ven en el panel pero no son entradas.
+// (La columna "Sin servicio" se fue: esas filas son siempre rechazos.)
 export function accesosACsv(accesos: Acceso[]): string {
-  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin servicio', 'Sin reserva', 'Invitado', 'DNI invitado', 'Veces en los 30 días previos a la visita']
-  const filas = accesos.map(a => [
+  const columnas = ['Fecha', 'Hora', 'Nº Socio', 'Nombre', 'Estado de cuota', 'Sin reserva', 'Sin conexión', 'Invitado', 'DNI invitado', 'Veces en los 30 días previos a la visita']
+  const filas = accesos.filter(a => !esRechazo(a)).map(a => [
     formatFecha(a.creado_en),
     formatHora(a.creado_en),
     a.numero_socio,
     a.nombre,
     a.semaforo ? SEMAFORO_LABEL[a.semaforo] : '',
-    a.sin_servicio ? 'Sí' : '',
     a.sin_reserva ? 'Sí' : '',
+    a.sin_conexion ? 'Sí' : '',
     a.es_invitado ? 'Sí' : '',
     a.invitado_dni ?? '',
     a.veces_invitado != null ? String(a.veces_invitado) : '',

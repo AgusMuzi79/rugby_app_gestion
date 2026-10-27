@@ -86,7 +86,13 @@ function compute(secret: string, step: number): string {
 const STEP = 60
 
 export function generateTOTP(secret: string): string {
-  return compute(secret, Math.floor(Date.now() / 1000 / STEP))
+  return generateTOTPAt(secret, Date.now())
+}
+
+// Mismo código para un instante dado (ms): el carnet lo genera solo, sin red,
+// a partir del secreto guardado (ver carnetOffline.ts).
+export function generateTOTPAt(secret: string, ms: number): string {
+  return compute(secret, Math.floor(ms / 1000 / STEP))
 }
 
 export function secondsUntilRefresh(): number {

@@ -10,7 +10,9 @@ import {
   FILTROS_VACIOS,
   SEMAFORO_LABEL,
   accesosACsv,
+  contarAccesos,
   crearSecuenciador,
+  etiquetaRechazo,
   filtrarAccesos,
   formatFecha,
   formatHora,
@@ -109,6 +111,8 @@ export default function AccesosPage() {
 
   const visibles = useMemo(() => filtrarAccesos(accesos, filtros), [accesos, filtros])
   const hayFiltros = JSON.stringify(filtros) !== JSON.stringify(FILTROS_VACIOS)
+  // Los rechazos se listan pero no son ingresos (ni van al CSV).
+  const conteo = useMemo(() => contarAccesos(visibles), [visibles])
 
   const setFiltro = <K extends keyof FiltrosAccesos>(clave: K, valor: FiltrosAccesos[K]) =>
     setFiltros(f => ({ ...f, [clave]: valor }))
@@ -138,8 +142,9 @@ export default function AccesosPage() {
       <div className="flex flex-wrap gap-4 mb-4 items-end justify-between">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>DESDE</label>
+            <label htmlFor="accesos-desde" className={labelClass}>DESDE</label>
             <input
+              id="accesos-desde"
               type="date"
               value={desde}
               onChange={e => setDesde(e.target.value)}
@@ -148,8 +153,9 @@ export default function AccesosPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className={labelClass}>HASTA</label>
+            <label htmlFor="accesos-hasta" className={labelClass}>HASTA</label>
             <input
+              id="accesos-hasta"
               type="date"
               value={hasta}
               onChange={e => setHasta(e.target.value)}
@@ -164,6 +170,8 @@ export default function AccesosPage() {
               return (
                 <button
                   key={atajo.label}
+                  type="button"
+                  aria-pressed={activo}
                   onClick={() => { setDesde(atajo.desde()); setHasta(hoyISO()) }}
                   className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
                     activo ? 'border-oro text-oro bg-oro/10' : 'border-gris-claro text-tinta/50 hover:border-oro'
@@ -177,18 +185,19 @@ export default function AccesosPage() {
         </div>
         <button
           onClick={handleExportar}
-          disabled={visibles.length === 0 || loading || !!errorRango}
+          disabled={conteo.ingresos === 0 || loading || !!errorRango}
           className="font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
         >
-          EXPORTAR CSV ({visibles.length})
+          EXPORTAR CSV ({conteo.ingresos} INGRESOS)
         </button>
       </div>
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-4 mb-6 items-end">
         <div className="flex flex-col gap-1 flex-1 min-w-48">
-          <label className={labelClass}>BUSCAR</label>
+          <label htmlFor="accesos-buscar" className={labelClass}>BUSCAR</label>
           <input
+            id="accesos-buscar"
             type="search"
             value={filtros.busqueda}
             onChange={e => setFiltro('busqueda', e.target.value)}
@@ -197,8 +206,8 @@ export default function AccesosPage() {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <span className={labelClass}>ESTADO DE CUOTA</span>
-          <div className="flex flex-wrap gap-2">
+          <span id="accesos-estado-cuota" className={labelClass}>ESTADO DE CUOTA</span>
+          <div role="group" aria-labelledby="accesos-estado-cuota" className="flex flex-wrap gap-2">
             {(Object.keys(SEMAFORO_LABEL) as Semaforo[]).map(s => {
               const activo = filtros.estados.includes(s)
               return (
@@ -218,8 +227,9 @@ export default function AccesosPage() {
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>TIPO</label>
+          <label htmlFor="accesos-tipo" className={labelClass}>TIPO</label>
           <select
+            id="accesos-tipo"
             value={filtros.tipo}
             onChange={e => setFiltro('tipo', e.target.value as FiltrosAccesos['tipo'])}
             className={inputClass}
@@ -278,7 +288,8 @@ export default function AccesosPage() {
       ) : (
         <>
           <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">
-            {hayFiltros ? `${visibles.length} DE ${accesos.length} INGRESOS` : `${accesos.length} INGRESOS`}
+            {`${conteo.ingresos} INGRESOS · ${conteo.rechazados} RECHAZADOS`}
+            {hayFiltros && ` (${visibles.length} DE ${accesos.length} REGISTROS)`}
           </p>
           <table className="w-full border-collapse">
             <thead>
@@ -293,7 +304,9 @@ export default function AccesosPage() {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((a, i) => (
+              {visibles.map((a, i) => {
+                const rechazo = etiquetaRechazo(a)
+                return (
                 <tr key={i} className="border-b border-gris-claro">
                   {!esUnDia && (
                     <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{formatFecha(a.creado_en)}</td>
@@ -302,12 +315,17 @@ export default function AccesosPage() {
                   <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{a.numero_socio}</td>
                   <td className="font-lora text-sm text-tinta py-4 pr-4">
                     {a.nombre}
-                    {a.sin_servicio && (
-                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo">
-                        SIN SERVICIO
+                    {rechazo && (
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo bg-rojo/10">
+                        {rechazo}
                       </span>
                     )}
-                    {a.sin_reserva && (
+                    {a.sin_conexion && (
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-oro border-oro">
+                        SIN CONEXIÓN
+                      </span>
+                    )}
+                    {a.sin_reserva && !rechazo && (
                       <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-sky-400 border-sky-400">
                         SIN RESERVA
                       </span>
@@ -336,7 +354,8 @@ export default function AccesosPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </>

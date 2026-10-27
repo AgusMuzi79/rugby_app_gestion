@@ -2,7 +2,11 @@ import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
-import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
+import { parsearQR } from '@/lib/qrCarnet'
+import { encolar } from '@/lib/offlineQueue'
+import { useAuthStore } from '@/stores/authStore'
+import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { cortadoTrasResultado, debeEncolarOffline, resolverReintento, resultadoEncoladoOffline, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
 
@@ -30,15 +34,30 @@ export function useScanner() {
   const [result, setResult]             = useState<ScanResult | null>(null)
   const [scanning, setScanning]         = useState(true)
   const [validando, setValidando]       = useState(false)
+  // Foto firmada por la app cuando la socios-qr deployada no la manda (ver validar).
+  const [fotoTardia, setFotoTardia]     = useState<{ para: ScanResult; url: string } | null>(null)
   // Validación en curso: se aborta con CANCELAR o por timeout.
   const enCurso = useRef<AbortController | null>(null)
   // Último QR que se cortó (timeout o CANCELAR) sin respuesta.
   const escaneoCortado = useRef<EscaneoCortado | null>(null)
   const rawEnCurso = useRef<string | null>(null)
+  // Candado del lector: la cámara dispara onBarcodeScanned varias veces por
+  // el mismo QR antes de que React aplique `setScanning(false)`, y cada
+  // disparo era un invoke (y un registro en accesos). El ref se toma al
+  // instante; se suelta sólo en reset / cancelar.
+  const candado = useRef(false)
 
   // Llama a socios-qr y arma el resultado. Un error de red / timeout / 401 no
   // es un "QR inválido": vuelve como `errorRed` con un mensaje en castellano.
-  const validar = useCallback(async (body: Record<string, unknown>, raw?: string) => {
+  //
+  // Sin red (decisión 2026-10-26, opción b): la puerta deja pasar y encola el
+  // escaneo crudo (`offline`: el QR o el DNI) con su hora; al volver la red
+  // socios-qr lo valida a posteriori (useSincronizacionOffline). La pantalla
+  // dice "SIN CONEXIÓN · INGRESO REGISTRADO SIN VALIDAR" para que el personal
+  // mire a la persona. Si no se pudo guardar en la cola, sigue el SIN CONEXIÓN
+  // que no deja pasar.
+  const validar = useCallback(async (body: Record<string, unknown>, raw?: string, offline?: Record<string, unknown>) => {
+    const escaneadoEn = new Date().toISOString()
     const ctrl = new AbortController()
     enCurso.current = ctrl
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
@@ -52,16 +71,8 @@ export function useScanner() {
         const status = (res.error as { context?: { status?: number } }).context?.status
         sr = resultadoErrorRed(typeof status === 'number' ? status : undefined)
       } else {
+        // socios-qr ya trae la foto firmada (`foto_url`): sin segundo viaje.
         sr = res.data as ScanResult
-        // Foto para portería, dentro del mismo límite de tiempo: si la firma
-        // no llega a tiempo se muestra el resultado sin foto.
-        if (sr.valido && sr.foto_path) {
-          const signed = await Promise.race([
-            supabase.storage.from('socios-fotos').createSignedUrl(sr.foto_path, 60),
-            new Promise<null>(resolve => ctrl.signal.addEventListener('abort', () => resolve(null))),
-          ])
-          sr = { ...sr, foto_url: signed?.data?.signedUrl ?? null }
-        }
       }
     } catch {
       sr = resultadoErrorRed(undefined)
@@ -77,34 +88,79 @@ export function useScanner() {
       escaneoCortado.current = cortadoTrasResultado(sr, escaneoCortado.current)
     }
 
-    // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
+    // Cancelado (o reemplazado por otra validación): no pisar la pantalla (ni encolar).
     if (enCurso.current !== ctrl) return
+
+    if (offline && debeEncolarOffline(sr)) {
+      try {
+        await encolar({
+          tipo: 'acceso',
+          payload: { ...offline, escaneado_en: escaneadoEn, rol: useAuthStore.getState().rol },
+        })
+        sr = resultadoEncoladoOffline()
+        actualizarPendientes().catch(() => undefined)
+      } catch (e) {
+        console.warn('cola de accesos sin conexión:', e instanceof Error ? e.message : String(e))
+      }
+      if (enCurso.current !== ctrl) return
+    }
+
     enCurso.current = null
+    // La banda del veredicto sale ya; la foto llega después (la imagen carga sola).
     setResult(sr)
     setValidando(false)
+
+    // Compatibilidad con una socios-qr anterior que no firma la foto: se firma
+    // acá, sin demorar el veredicto. Va en un estado aparte (no en `result`)
+    // para no volver a disparar el sonido ni el auto-reset de la pantalla.
+    // No se espera: validar (y el handleQR que la llama) termina con el
+    // veredicto, así un escaneo nuevo nunca convive con la cola de éste.
+    setFotoTardia(null)
+    const fotoPath = sr.valido && sr.foto_url === undefined ? sr.foto_path : undefined
+    if (fotoPath) {
+      const para = sr
+      void (async () => {
+        const signed = await Promise.race([
+          supabase.storage.from('socios-fotos').createSignedUrl(fotoPath, 60),
+          new Promise<null>(resolve => setTimeout(() => resolve(null), TIMEOUT_MS)),
+        ])
+        const url = signed?.data?.signedUrl
+        if (url && enCurso.current === null) setFotoTardia({ para, url })
+      })().catch(() => undefined)
+    }
   }, [])
 
   const handleQR = useCallback(async (rawData: string) => {
-    if (!scanning || validando) return
+    if (candado.current || !scanning || validando) return
+    candado.current = true
 
-    // Formato esperado: "{numero_socio}:{6-digit-code}"
-    const parts = rawData.split(':')
-    if (parts.length !== 2 || !/^\d{6}$/.test(parts[1])) {
+    // Formato esperado: "{numero_socio}:{6-digit-code}" (lib/qrCarnet). Llega
+    // igual desde la cámara o desde el modo "Ingresar código".
+    const qr = parsearQR(rawData)
+    if (!qr) {
       setResult({ valido: false, motivo: 'Formato de QR no reconocido' })
       setScanning(false)
       return
     }
 
-    const [numero_socio, code] = parts
+    const { numero_socio, code } = qr
     rawEnCurso.current = rawData
-    await validar({ action: 'validate', numero_socio, code }, rawData)
-    rawEnCurso.current = null
+    try {
+      await validar({ action: 'validate', numero_socio, code }, rawData, { tipo: 'qr', qr: rawData })
+    } catch {
+      // Un error inesperado no deja la cámara trabada: con un resultado en
+      // pantalla, la vuelta automática (reset) libera el candado.
+      setResult({ valido: false, motivo: 'No se pudo validar. Probá de nuevo.' })
+      setScanning(false)
+    } finally {
+      rawEnCurso.current = null
+    }
   }, [scanning, validando, validar])
 
   // Fallback sin QR — socio sin el celular encima. Mismo resultado, sin TOTP.
   const handleDNI = useCallback(async (dni: string) => {
     if (validando) return
-    await validar({ action: 'validate-dni', dni })
+    await validar({ action: 'validate-dni', dni }, undefined, { tipo: 'dni', dni })
   }, [validando, validar])
 
   // Invitado (no-socio): DNI obligatorio, nombre opcional. No toca `result` —
@@ -123,20 +179,26 @@ export function useScanner() {
     if (rawEnCurso.current) escaneoCortado.current = { raw: rawEnCurso.current, en: Date.now() }
     enCurso.current?.abort()
     enCurso.current = null
+    candado.current = false
     setValidando(false)
     setResult(null)
     setScanning(true)
   }, [])
 
   const reset = useCallback(() => {
+    candado.current = false
     setResult(null)
     setScanning(true)
   }, [])
+
+  // La foto del resultado en pantalla: la que trae socios-qr o la firmada después.
+  const fotoUrl = result?.foto_url ?? (fotoTardia && fotoTardia.para === result ? fotoTardia.url : null)
 
   return {
     permission,
     requestPermission,
     result,
+    fotoUrl,
     scanning,
     validando,
     handleQR,
