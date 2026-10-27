@@ -133,7 +133,10 @@ export default function DeudasPage() {
         supabase
           .from('importaciones_deuda')
           .select('fecha_corte')
-          .order('fecha_corte', { ascending: false })
+          // La importación que generó el semáforo actual es la última que
+          // entró (created_at), no la de fecha de corte más nueva: si se
+          // importó un reporte viejo con "IMPORTAR IGUAL", el semáforo es ése.
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
       ])

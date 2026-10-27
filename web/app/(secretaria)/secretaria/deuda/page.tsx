@@ -77,18 +77,26 @@ function SeccionImportar({
   const [importando, setImportando] = useState(false)
   const [resultado, setResultado] = useState<ResultadoImport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 409 de la función: el reporte es más viejo que el último importado.
+  const [reporteViejo, setReporteViejo] = useState<string | null>(null)
 
-  const handleImportar = async () => {
+  const handleImportar = async (forzar = false) => {
     if (!archivo) return
     setImportando(true)
     setError(null)
+    setReporteViejo(null)
     setResultado(null)
     const formData = new FormData()
     formData.append('archivo', archivo)
+    if (forzar) formData.append('forzar', '1')
     // El cliente compartido nunca tira y corta a los 2 min: la pantalla no
     // queda en "IMPORTANDO…" si el gateway responde HTML o no responde.
     const json = await callEdgeFunction('importar-deuda', formData, { timeoutMs: TIMEOUT_IMPORT_MS })
     setImportando(false)
+    if (json.status === 409) {
+      setReporteViejo(String(json.error ?? 'Este reporte es más viejo que el último importado.'))
+      return
+    }
     if (json.error) {
       setError(String(json.error))
       return
@@ -105,11 +113,11 @@ function SeccionImportar({
         <input
           type="file"
           accept=".xls"
-          onChange={e => { setArchivo(e.target.files?.[0] ?? null); setResultado(null); setError(null) }}
+          onChange={e => { setArchivo(e.target.files?.[0] ?? null); setResultado(null); setError(null); setReporteViejo(null) }}
           className="flex-1 font-lora text-sm text-tinta/70 file:mr-4 file:py-2 file:px-4 file:border file:border-gris-claro file:bg-transparent file:text-tinta file:text-xs file:tracking-widest file:cursor-pointer"
         />
         <button
-          onClick={handleImportar}
+          onClick={() => { void handleImportar() }}
           disabled={!archivo || importando}
           className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
         >
@@ -117,8 +125,31 @@ function SeccionImportar({
         </button>
       </div>
 
+      {reporteViejo && (
+        <div role="alert" className="mt-4 p-4 border border-rojo bg-rojo/5">
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">EL ARCHIVO NO SE IMPORTÓ</p>
+          <p className="font-lora text-sm text-tinta/70 mb-3">{reporteViejo}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { void handleImportar(true) }}
+              disabled={importando}
+              className="font-lora text-xs tracking-widest px-5 py-3 border border-rojo text-rojo-texto hover:bg-rojo/10 transition-colors disabled:opacity-50"
+            >
+              {importando ? 'IMPORTANDO…' : 'IMPORTAR IGUAL'}
+            </button>
+            <button
+              onClick={() => setReporteViejo(null)}
+              disabled={importando}
+              className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/70 hover:border-oro transition-colors disabled:opacity-50"
+            >
+              CANCELAR
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && (
-        <div className="mt-4 p-4 border border-rojo bg-rojo/5">
+        <div role="alert" className="mt-4 p-4 border border-rojo bg-rojo/5">
           <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">EL ARCHIVO NO SE IMPORTÓ</p>
           <p className="font-lora text-sm text-tinta/70 whitespace-pre-wrap">{error}</p>
         </div>
