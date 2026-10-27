@@ -43,13 +43,17 @@ function ddmmaaaa(isoFecha: string): string {
 
 // Argentina no tiene horario de verano: UTC-3 fijo. Así el día de importación
 // no depende de la zona horaria del teléfono.
-function fechaArgentina(isoTimestamp: string): string {
-  const ms = new Date(isoTimestamp).getTime() - 3 * 3600 * 1000
-  return new Date(ms).toISOString().slice(0, 10)
+// null si el timestamp no es válido (toISOString tiraría RangeError en el render).
+function fechaArgentina(isoTimestamp: string): string | null {
+  const t = new Date(isoTimestamp).getTime()
+  if (Number.isNaN(t)) return null
+  return new Date(t - 3 * 3600 * 1000).toISOString().slice(0, 10)
 }
 
 /** Texto del último reporte de deuda aplicado (el que define el semáforo actual). */
 export function textoUltimoReporte(reporte: ReporteDeuda | null): string {
   if (!reporte) return 'Todavía no se importó ningún reporte de deuda.'
-  return `Datos al ${ddmmaaaa(reporte.fecha_corte)} · importado el ${ddmmaaaa(fechaArgentina(reporte.created_at))}`
+  const datos = `Datos al ${ddmmaaaa(reporte.fecha_corte)}`
+  const importado = fechaArgentina(reporte.created_at)
+  return importado ? `${datos} · importado el ${ddmmaaaa(importado)}` : datos
 }

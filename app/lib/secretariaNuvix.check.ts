@@ -49,6 +49,11 @@ caso('último reporte: fecha de los datos y día en que se importó', () => {
   assert.equal(t, 'Datos al 20/10/2026 · importado el 22/10/2026')
 })
 
+caso('fecha de importación rota o vacía: no rompe la pantalla, sólo omite ese dato', () => {
+  assert.equal(textoUltimoReporte({ fecha_corte: '2026-10-20', created_at: 'no-es-fecha' }), 'Datos al 20/10/2026')
+  assert.equal(textoUltimoReporte({ fecha_corte: '2026-10-20', created_at: '' }), 'Datos al 20/10/2026')
+})
+
 caso('sin reportes importados', () => {
   assert.equal(textoUltimoReporte(null), 'Todavía no se importó ningún reporte de deuda.')
 })
