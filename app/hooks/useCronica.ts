@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { FEATURES } from '@/constants/features'
 
 export type FeedTipo = 'LESIÓN' | 'ASISTENCIA' | 'FICHAJE' | 'RESULTADO' | 'INFO'
@@ -51,7 +52,7 @@ type NotifRow = { id: string; titulo: string; mensaje: string; tipo: string; cre
 
 export function useCronica() {
   const { session, rol } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [items, setItems]     = useState<FeedItem[]>([])
 
   useEffect(() => { if (session && rol) void fetchTodo() }, [session, rol])
@@ -59,7 +60,7 @@ export function useCronica() {
 
   async function fetchTodo() {
     if (!session || !rol) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -169,8 +170,8 @@ export function useCronica() {
       setItems(all)
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, items, rol: rol ?? '' }
+  return { loading, refrescando, items, rol: rol ?? '', refetch: fetchTodo }
 }

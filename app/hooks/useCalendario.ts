@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { tituloActividadValido, tituloCancelacion, type TipoEventoCalendario } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
 
@@ -72,6 +73,7 @@ export interface UseCalendarioReturn {
   eventos: EventoCalendario[]
   divisiones: { id: string; nombre: string; deporte: string }[]
   loading: boolean
+  refrescando: boolean
   guardando: boolean
   errorGuardado: string | null
   sinDivisiones: boolean
@@ -89,7 +91,7 @@ export function useCalendario(): UseCalendarioReturn {
   const { session } = useAuthStore()
   const [eventos, setEventos] = useState<EventoCalendario[]>([])
   const [divisiones, setDivisiones] = useState<{ id: string; nombre: string; deporte: string }[]>([])
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [guardando, setGuardando] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState(false)
@@ -99,7 +101,7 @@ export function useCalendario(): UseCalendarioReturn {
 
   const fetchDatos = useCallback(async () => {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -111,7 +113,7 @@ export function useCalendario(): UseCalendarioReturn {
 
     if (divIds.length === 0) {
       setSinDivisiones(true)
-      setLoading(false)
+      terminar()
       return
     }
 
@@ -184,8 +186,8 @@ export function useCalendario(): UseCalendarioReturn {
     }))
 
     setEventos(eventosNormalizados)
-    setLoading(false)
-  }, [session])
+    terminar()
+  }, [session, empezar, terminar])
 
   useEffect(() => {
     fetchDatos()
@@ -309,6 +311,7 @@ export function useCalendario(): UseCalendarioReturn {
     eventos,
     divisiones,
     loading,
+    refrescando,
     guardando,
     errorGuardado,
     cancelando,

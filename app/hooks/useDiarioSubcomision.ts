@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { FEATURES } from '@/constants/features'
 import { fechaLocal } from '@/lib/fecha'
 
@@ -54,7 +55,7 @@ const DEFAULT: DiarioSubcomisionData = {
 
 export function useDiarioSubcomision() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioSubcomisionData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -62,7 +63,7 @@ export function useDiarioSubcomision() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const [profileRes, eventos7DRes, eventosPrev7DRes, fichadosRes, lesionesRes, financieroRes, notifRes] =
@@ -160,8 +161,8 @@ export function useDiarioSubcomision() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

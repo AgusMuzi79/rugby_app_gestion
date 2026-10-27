@@ -196,7 +196,7 @@ export default function NoticiasSecretariaScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { noticias, loading, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
+  const { noticias, loading, refrescando, guardando, crear, togglePublicar, eliminar, refetch } = useNoticias(false)
   const [modalVisible, setModalVisible] = useState(false)
 
   const handleCrear = async (titulo: string, cuerpo: string, etiquetas: string[]) => {
@@ -240,7 +240,7 @@ export default function NoticiasSecretariaScreen() {
             />
           )}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 

@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, ScrollView, Image,
+  TouchableOpacity, Alert, ScrollView, Image, RefreshControl,
 } from 'react-native'
 import { useState, useCallback, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -199,7 +199,7 @@ export default function SociosScreen() {
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
   const {
-    socios, categorias, servicios, serviciosSocio, loading,
+    socios, categorias, servicios, serviciosSocio, loading, refrescando, refetch,
     filtro, setFiltro,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     fetchServiciosSocio, toggleServicio,
@@ -304,6 +304,7 @@ export default function SociosScreen() {
           data={socios}
           keyExtractor={item => item.id}
           contentContainerStyle={ss.listContent}
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
           renderItem={({ item }) => (
             <SocioRow socio={item} onPress={() => abrirDetalle(item)} />
           )}

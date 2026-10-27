@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -55,7 +56,7 @@ const DEFAULT: DiarioCoordinadorData = {
 
 export function useDiarioCoordinador() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioCoordinadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -63,7 +64,7 @@ export function useDiarioCoordinador() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -72,7 +73,7 @@ export function useDiarioCoordinador() {
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       if (divIds.length === 0) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivisiones: true })
-        setLoading(false)
+        terminar()
         return
       }
 
@@ -187,8 +188,8 @@ export function useDiarioCoordinador() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

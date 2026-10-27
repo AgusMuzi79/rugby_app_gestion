@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  Modal, ActivityIndicator, StyleSheet, Platform,
+  Modal, ActivityIndicator, StyleSheet, Platform, RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -80,7 +80,7 @@ function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
 export function CronicaScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, items, rol } = useCronica()
+  const { loading, refrescando, items, rol, refetch } = useCronica()
   const { colors: tc } = useTheme()
   const esSubcomision = ['subcomision', 'admin'].includes(rol)
 
@@ -102,6 +102,7 @@ export function CronicaScreen() {
         style={[s.root, { backgroundColor: tc.fondo }]}
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
         <Header />
 

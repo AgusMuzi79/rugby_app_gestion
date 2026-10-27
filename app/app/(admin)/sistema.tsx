@@ -80,7 +80,7 @@ export default function SistemaAdminScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
-  const { sistema, loading, refetch } = useSistemaAdmin()
+  const { sistema, loading, refrescando, refetch } = useSistemaAdmin()
 
   return (
     <View style={s.root}>
@@ -95,7 +95,7 @@ export default function SistemaAdminScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={s.scrollContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={refetch} tintColor={colors.oro} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
         {loading && sistema.pushTokens === null ? (
           <ActivityIndicator color={colors.oro} style={s.activityIndicator} />

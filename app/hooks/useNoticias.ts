@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Alert } from 'react-native'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { useAuthStore } from '@/stores/authStore'
 
 export interface Noticia {
@@ -25,12 +26,12 @@ interface NuevosDatos {
 export function useNoticias(soloPublicadas: boolean) {
   const { session } = useAuthStore()
   const [noticias, setNoticias] = useState<Noticia[]>([])
-  const [loading, setLoading]   = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [guardando, setGuardando] = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
   const fetch = useCallback(async () => {
-    setLoading(true)
+    empezar()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
     let q = db
@@ -46,7 +47,7 @@ export function useNoticias(soloPublicadas: boolean) {
     // reintentar (las que ya estaban cargadas se mantienen).
     if (errLectura) {
       setError('No se pudieron cargar las noticias. Revisá tu conexión.')
-      setLoading(false)
+      terminar()
       return
     }
     setError(null)
@@ -67,15 +68,15 @@ export function useNoticias(soloPublicadas: boolean) {
     })
 
     setNoticias(normalized)
-    setLoading(false)
-  }, [soloPublicadas])
+    terminar()
+  }, [soloPublicadas, empezar, terminar])
 
   useEffect(() => { fetch() }, [fetch])
   useRefreshOnFocus(fetch)
 
-  // Pull-to-refresh con su propio indicador: `loading` también se prende en
-  // las recargas silenciosas (foco, realtime), así que la pantalla del socio
-  // usa `refreshing` para el RefreshControl y `loading` sólo sin datos.
+  // Pull-to-refresh con su propio indicador: `loading` es sólo la primera
+  // carga y las recargas silenciosas (foco, realtime) son `refrescando`; la
+  // pantalla del socio usa `refreshing` para el RefreshControl (sólo el tirón).
   const [refreshing, setRefreshing] = useState(false)
   const refrescar = useCallback(async () => {
     setRefreshing(true)
@@ -133,5 +134,5 @@ export function useNoticias(soloPublicadas: boolean) {
     setNoticias(prev => prev.filter(n => n.id !== noticiaId))
   }, [])
 
-  return { noticias, loading, error, guardando, crear, togglePublicar, eliminar, refetch: fetch, refreshing, refrescar }
+  return { noticias, loading, refrescando, error, guardando, crear, togglePublicar, eliminar, refetch: fetch, refreshing, refrescar }
 }

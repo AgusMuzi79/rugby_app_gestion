@@ -9,6 +9,7 @@ import {
   type AudienciaMostrada,
 } from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 export type { AudienciaComunicado, AudienciaMostrada }
 
@@ -30,12 +31,12 @@ export interface Comunicado {
 export function useComunicadosAdmin() {
   const { session } = useAuthStore()
   const [comunicados, setComunicados] = useState<Comunicado[]>([])
-  const [loading, setLoading]         = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [errorCarga, setErrorCarga]   = useState<string | null>(null)
   const [publicando, setPublicando]   = useState(false)
 
   const fetchComunicados = useCallback(async () => {
-    setLoading(true)
+    empezar()
     try {
       const { data, error } = await supabase
         .from('noticias')
@@ -55,9 +56,9 @@ export function useComunicadosAdmin() {
       setErrorCarga(e instanceof Error ? e.message : 'Error de conexión.')
       setComunicados([])
     } finally {
-      setLoading(false)
+      terminar()
     }
-  }, [])
+  }, [empezar, terminar])
 
   useEffect(() => { fetchComunicados() }, [fetchComunicados])
   useRefreshOnFocus(fetchComunicados)
@@ -131,5 +132,5 @@ export function useComunicadosAdmin() {
     return true
   }, [fetchComunicados])
 
-  return { comunicados, loading, errorCarga, publicando, publicar, eliminar, refetch: fetchComunicados }
+  return { comunicados, loading, refrescando, errorCarga, publicando, publicar, eliminar, refetch: fetchComunicados }
 }

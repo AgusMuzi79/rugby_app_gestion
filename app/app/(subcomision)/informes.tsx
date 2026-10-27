@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  RefreshControl,
 } from 'react-native'
 import {
   useInformes,
@@ -254,7 +255,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 
 export default function InformesScreen() {
   const {
-    loading, divisiones, divisionFiltro, setDivisionFiltro,
+    loading, refrescando, refetch, divisiones, divisionFiltro, setDivisionFiltro,
     asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
   } = useInformes()
 
@@ -306,6 +307,7 @@ export default function InformesScreen() {
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
         <SeccionAsistencia datos={asistencias} />
         <SeccionResultados datos={resultados} />

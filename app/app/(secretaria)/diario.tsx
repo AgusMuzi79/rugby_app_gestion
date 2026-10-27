@@ -1,5 +1,5 @@
 import {
-  ScrollView, View, Text, StyleSheet, ActivityIndicator,
+  ScrollView, View, Text, StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -61,7 +61,7 @@ export default function DiarioSecretariaScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, data } = useDiarioSecretaria()
+  const { loading, refrescando, data, refetch } = useDiarioSecretaria()
 
   return (
     <ScrollView
@@ -69,6 +69,7 @@ export default function DiarioSecretariaScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 

@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -113,7 +113,7 @@ export default function DiarioSubcomisionScreen() {
   useScrollToTop(scrollRef)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, data } = useDiarioSubcomision()
+  const { loading, refrescando, data, refetch } = useDiarioSubcomision()
 
   const primerNombre = data.nombre.split(' ')[0] || '—'
 
@@ -123,6 +123,7 @@ export default function DiarioSubcomisionScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 

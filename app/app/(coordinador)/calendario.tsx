@@ -389,7 +389,7 @@ function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCa
 
 export default function CalendarioScreen() {
   const {
-    eventos, divisiones, loading, guardando, errorGuardado,
+    eventos, divisiones, loading, refrescando, guardando, errorGuardado,
     sinDivisiones, form, setForm, resetForm, crearEvento, recargar,
     cancelarEvento, cancelando, errorCancelacion,
   } = useCalendario()
@@ -465,7 +465,7 @@ export default function CalendarioScreen() {
           </View>
         }
         onRefresh={recargar}
-        refreshing={loading}
+        refreshing={refrescando}
       />
 
       <ModalNuevoEvento

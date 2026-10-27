@@ -206,7 +206,7 @@ export default function ComunicadosAdminScreen() {
   const insets    = useSafeAreaInsets()
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
-  const { comunicados, loading, errorCarga, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
+  const { comunicados, loading, refrescando, errorCarga, publicando, publicar, eliminar, refetch } = useComunicadosAdmin()
   const [modalVisible, setModalVisible] = useState(false)
 
   return (
@@ -244,7 +244,7 @@ export default function ComunicadosAdminScreen() {
           contentContainerStyle={s.listContent}
           renderItem={({ item }) => <FilaComunicado comunicado={item} onEliminar={eliminar} />}
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 

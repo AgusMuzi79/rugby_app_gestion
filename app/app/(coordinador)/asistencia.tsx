@@ -105,6 +105,7 @@ export default function AsistenciaCoordinadorScreen() {
     divisionSeleccionada,
     divisionNombre,
     loading,
+    refrescando,
     sinDivisiones,
     seleccionarDivision,
     recargar,
@@ -184,7 +185,7 @@ export default function AsistenciaCoordinadorScreen() {
               </View>
             }
             onRefresh={recargar}
-            refreshing={loading}
+            refreshing={refrescando}
           />
         </>
       )}

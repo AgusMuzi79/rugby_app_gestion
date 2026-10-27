@@ -1,6 +1,6 @@
 import {
   ScrollView, View, Text, TouchableOpacity,
-  ActivityIndicator, StyleSheet,
+  ActivityIndicator, StyleSheet, RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -118,7 +118,7 @@ function FilaFichaje({ fichaje }: { fichaje: UltimoFichaje }) {
 export default function DiarioManagerScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, data } = useDiarioManager()
+  const { loading, refrescando, data, refetch } = useDiarioManager()
 
   if (data.sinDivision && !loading) {
     return (
@@ -138,6 +138,7 @@ export default function DiarioManagerScreen() {
       style={s.root}
       contentContainerStyle={[s.scrollContent, { paddingTop: insets.top }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
     >
       <Header />
 

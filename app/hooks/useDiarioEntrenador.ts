@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 import { FEATURES } from '@/constants/features'
 import { fechaLocal } from '@/lib/fecha'
@@ -43,7 +44,7 @@ const DEFAULT: DiarioEntrenadorData = {
 
 export function useDiarioEntrenador() {
   const { session } = useAuthStore()
-  const [loading, setLoading] = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioEntrenadorData>(DEFAULT)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
@@ -51,7 +52,7 @@ export function useDiarioEntrenador() {
 
   async function fetchTodo() {
     if (!session) return
-    setLoading(true)
+    empezar()
 
     try {
       const { data: profile } = await supabase
@@ -62,7 +63,7 @@ export function useDiarioEntrenador() {
 
       if (!divId) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
-        setLoading(false)
+        terminar()
         return
       }
 
@@ -161,8 +162,8 @@ export function useDiarioEntrenador() {
       })
     } catch { /* keep defaults */ }
 
-    setLoading(false)
+    terminar()
   }
 
-  return { loading, data }
+  return { loading, refrescando, data, refetch: fetchTodo }
 }

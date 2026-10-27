@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 export interface Promo {
   id:          string
@@ -33,11 +34,11 @@ function decodeBase64(base64: string): Uint8Array {
 export function usePromosBuffet() {
   const { session } = useAuthStore()
   const [promos, setPromos]       = useState<Promo[]>([])
-  const [loading, setLoading]     = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [publicando, setPublicando] = useState(false)
 
   const fetchPromos = useCallback(async () => {
-    setLoading(true)
+    empezar()
     const { data } = await supabase
       .from('noticias')
       .select('id, titulo, cuerpo, created_at, imagen_path')
@@ -50,8 +51,8 @@ export function usePromosBuffet() {
         : null,
     }))
     setPromos(conUrl)
-    setLoading(false)
-  }, [])
+    terminar()
+  }, [empezar, terminar])
 
   useEffect(() => { fetchPromos() }, [fetchPromos])
   useRefreshOnFocus(fetchPromos)
@@ -120,5 +121,5 @@ export function usePromosBuffet() {
     setPromos(prev => prev.filter(p => p.id !== promo.id))
   }, [])
 
-  return { promos, loading, publicando, publicar, eliminar, refetch: fetchPromos }
+  return { promos, loading, refrescando, publicando, publicar, eliminar, refetch: fetchPromos }
 }

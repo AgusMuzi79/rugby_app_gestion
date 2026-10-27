@@ -12,6 +12,7 @@ import {
   Alert,
   StyleSheet,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import {
@@ -529,7 +530,7 @@ function ModalNuevoEvento({
 // (viajes / tercer tiempos de sus divisiones, ver app/(manager)/eventos.tsx).
 export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
-    loading, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
+    loading, refrescando, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
     eventosActivos, eventosHistorial,
     paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
     abrirDetalle, volverALista,
@@ -563,14 +564,6 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
     )
   }
 
-  if (loading) {
-    return (
-      <View style={s.centrado}>
-        <ActivityIndicator size="large" color={ORO} />
-      </View>
-    )
-  }
-
   // Subcomisión: sus recaudaciones con Cobros | Egresos por división.
   if (paso === 'detalle' && eventoDetalle && !esManager) {
     return (
@@ -592,6 +585,15 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
         onCerrar={cerrarEvento}
         onVolver={volverALista}
       />
+    )
+  }
+
+  // Después de los detalles: una relectura nunca reemplaza un detalle abierto.
+  if (loading) {
+    return (
+      <View style={s.centrado}>
+        <ActivityIndicator size="large" color={ORO} />
+      </View>
     )
   }
 
@@ -624,6 +626,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
         style={s.scrollFlex}
         contentContainerStyle={s.lista}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={recargar} tintColor={ORO} />}
       >
         {listaActual.length === 0 ? (
           <Text style={s.emptyTexto}>

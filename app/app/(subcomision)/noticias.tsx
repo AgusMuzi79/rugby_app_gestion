@@ -178,7 +178,7 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
 export default function NoticiasSubcomisionScreen() {
   const { colors: tc } = useTheme()
   const insets = useSafeAreaInsets()
-  const { noticias, deporte, loading, error, publicando, publicar, eliminar, refetch } = useNoticiasSubcomision()
+  const { noticias, deporte, loading, refrescando, error, publicando, publicar, eliminar, refetch } = useNoticiasSubcomision()
   const [modalVisible, setModalVisible] = useState(false)
 
   const confirmarEliminar = (noticia: NoticiaSubco) => {
@@ -223,7 +223,7 @@ export default function NoticiasSubcomisionScreen() {
             </View>
           }
           onRefresh={refetch}
-          refreshing={loading}
+          refreshing={refrescando}
         />
       )}
 

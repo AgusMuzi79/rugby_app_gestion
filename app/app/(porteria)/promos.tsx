@@ -164,7 +164,7 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function PromosScreen() {
-  const { promos, loading, publicando, publicar, eliminar, refetch } = usePromosBuffet()
+  const { promos, loading, refrescando, publicando, publicar, eliminar, refetch } = usePromosBuffet()
   const [modalVisible, setModalVisible] = useState(false)
 
   const confirmarEliminar = (promo: Promo) => {
@@ -174,7 +174,9 @@ export default function PromosScreen() {
     ])
   }
 
-  if (loading) {
+  // Spinner de pantalla completa sólo si todavía no hay promos; las
+  // relecturas al volver a la pestaña van por el RefreshControl.
+  if (loading && promos.length === 0) {
     return (
       <SafeAreaView style={s.centrado}>
         <ActivityIndicator color={colors.oro} size="large" />
@@ -208,7 +210,7 @@ export default function PromosScreen() {
           </View>
         }
         onRefresh={refetch}
-        refreshing={loading}
+        refreshing={refrescando}
       />
 
       <ModalNuevaPromo

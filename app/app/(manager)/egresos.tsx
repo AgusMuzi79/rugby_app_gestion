@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useEgresos, type EventoEgresos } from '@/hooks/useEgresos'
@@ -49,7 +50,7 @@ function EventoChip({
 
 export default function EgresosScreen() {
   const {
-    loading, errorCarga, recargar,
+    loading, refrescando, errorCarga, recargar,
     eventos, eventoSeleccionado, seleccionarEvento, detalle,
   } = useEgresos()
   const router = useRouter()
@@ -71,7 +72,11 @@ export default function EgresosScreen() {
       <View style={s.separador} />
 
       <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={s.lista} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={s.lista}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refrescando} onRefresh={recargar} tintColor={ORO} />}
+        >
           {errorCarga && (
             <TouchableOpacity style={s.bannerError} onPress={recargar} activeOpacity={0.8}>
               <Text style={s.bannerErrorTexto}>{errorCarga} Tocá para reintentar.</Text>

@@ -8,6 +8,7 @@ import {
   type EventoDivisionesRow,
 } from './useEventos'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorAsistencia {
@@ -72,7 +73,7 @@ export interface DivisionOpcionInformes {
 export function useInformes() {
   const { session } = useAuthStore()
 
-  const [loading, setLoading]           = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [divisiones, setDivisiones]     = useState<DivisionOpcionInformes[]>([])
   const [divisionFiltro, setDivisionFiltro] = useState<string | null>(null)
 
@@ -88,7 +89,7 @@ export function useInformes() {
   useRefreshOnFocus(fetchTodo)
 
   async function fetchTodo() {
-    setLoading(true)
+    empezar()
     await Promise.all([
       fetchDivisiones(),
       fetchAsistencias(),
@@ -96,7 +97,7 @@ export function useInformes() {
       fetchFichajes(),
       fetchFinanciero(),
     ])
-    setLoading(false)
+    terminar()
   }
 
   async function fetchDivisiones() {
@@ -352,6 +353,8 @@ export function useInformes() {
 
   return {
     loading,
+    refrescando,
+    refetch: fetchTodo,
     divisiones,
     divisionFiltro,
     setDivisionFiltro,

@@ -3,6 +3,7 @@ import { Alert } from 'react-native'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { useEstadoCarga } from './useEstadoCarga'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any
@@ -44,7 +45,7 @@ export function useSociosSecretaria() {
   const [categorias, setCategorias]     = useState<CategoriaSocio[]>([])
   const [servicios, setServicios]       = useState<ServicioOpcional[]>([])
   const [serviciosSocio, setServiciosSocio] = useState<string[]>([]) // servicio_id[]
-  const [loading, setLoading]           = useState(true)
+  const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
 
   const fetchServicios = useCallback(async () => {
@@ -90,7 +91,7 @@ export function useSociosSecretaria() {
   }, [])
 
   const fetchSocios = useCallback(async () => {
-    setLoading(true)
+    empezar()
     try {
       const data = await selectAllRows<Record<string, unknown>>((from, to) =>
         db
@@ -120,9 +121,9 @@ export function useSociosSecretaria() {
 
       setSocios(normalized)
     } finally {
-      setLoading(false)
+      terminar()
     }
-  }, [])
+  }, [empezar, terminar])
 
   useEffect(() => {
     fetchCategorias()
@@ -195,6 +196,7 @@ export function useSociosSecretaria() {
     servicios,
     serviciosSocio,
     loading,
+    refrescando,
     filtro,
     setFiltro,
     desactivarSocio,
