@@ -36,13 +36,23 @@ export function usePromosBuffet() {
   const [promos, setPromos]       = useState<Promo[]>([])
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [publicando, setPublicando] = useState(false)
+  // Error de la última lectura. No borra las promos que ya había: la pantalla
+  // las sigue mostrando con un aviso, y sin promos muestra el error (nunca
+  // "todavía no publicaste" cuando en realidad falló la consulta).
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   const fetchPromos = useCallback(async () => {
     empezar()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('noticias')
       .select('id, titulo, cuerpo, created_at, imagen_path')
       .order('created_at', { ascending: false })
+
+    if (error) {
+      setErrorCarga('No se pudieron cargar las promociones. Revisá tu conexión.')
+      terminar()
+      return
+    }
 
     const conUrl: Promo[] = (data ?? []).map(n => ({
       ...n,
@@ -51,6 +61,7 @@ export function usePromosBuffet() {
         : null,
     }))
     setPromos(conUrl)
+    setErrorCarga(null)
     terminar()
   }, [empezar, terminar])
 
@@ -121,5 +132,5 @@ export function usePromosBuffet() {
     setPromos(prev => prev.filter(p => p.id !== promo.id))
   }, [])
 
-  return { promos, loading, refrescando, publicando, publicar, eliminar, refetch: fetchPromos }
+  return { promos, loading, refrescando, errorCarga, publicando, publicar, eliminar, refetch: fetchPromos }
 }

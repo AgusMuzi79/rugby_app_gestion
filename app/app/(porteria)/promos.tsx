@@ -170,7 +170,7 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function PromosScreen() {
-  const { promos, loading, refrescando, publicando, publicar, eliminar, refetch } = usePromosBuffet()
+  const { promos, loading, refrescando, errorCarga, publicando, publicar, eliminar, refetch } = usePromosBuffet()
   const [modalVisible, setModalVisible] = useState(false)
 
   const confirmarEliminar = (promo: Promo) => {
@@ -210,10 +210,28 @@ export default function PromosScreen() {
         renderItem={({ item }) => <FilaPromo promo={item} onEliminar={confirmarEliminar} />}
         ItemSeparatorComponent={() => <View style={s.divider} />}
         contentContainerStyle={promos.length === 0 ? s.listaVacia : s.listaContent}
-        ListEmptyComponent={
-          <View style={s.emptyWrap}>
-            <Text style={s.mutedTexto}>Todavía no publicaste ninguna promoción.</Text>
+        // Falló la relectura pero hay promos de antes: se muestran con el aviso.
+        ListHeaderComponent={errorCarga && promos.length > 0 ? (
+          <View style={s.errorBanner}>
+            <Text style={s.errorTexto}>{errorCarga}</Text>
+            <TouchableOpacity style={s.reintentar} onPress={refetch} activeOpacity={0.75} accessibilityRole="button">
+              <Text style={s.reintentarTexto}>REINTENTAR</Text>
+            </TouchableOpacity>
           </View>
+        ) : null}
+        ListEmptyComponent={
+          errorCarga ? (
+            <View style={s.emptyWrap}>
+              <Text style={s.errorTexto}>{errorCarga}</Text>
+              <TouchableOpacity style={s.reintentar} onPress={refetch} activeOpacity={0.75} accessibilityRole="button">
+                <Text style={s.reintentarTexto}>REINTENTAR</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={s.emptyWrap}>
+              <Text style={s.mutedTexto}>Todavía no publicaste ninguna promoción.</Text>
+            </View>
+          )
         }
         onRefresh={refetch}
         refreshing={refrescando}
@@ -246,7 +264,12 @@ const s = StyleSheet.create({
   divider:     { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   listaVacia:  { flex: 1 },
   listaContent:{ paddingBottom: 16 },
-  emptyWrap:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
+  emptyWrap:   { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 20, gap: 16 },
+
+  errorBanner:     { paddingHorizontal: 20, paddingVertical: 14, gap: 10, alignItems: 'flex-start' },
+  errorTexto:      { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.rojoTexto, textAlign: 'center' },
+  reintentar:      { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 24 },
+  reintentarTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
 
   fila:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12 },
   filaThumb: { width: 48, height: 48, borderRadius: 4, backgroundColor: DIVIDER },
