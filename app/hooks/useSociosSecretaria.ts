@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
 import { Alert } from 'react-native'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { filtrarSocios, nombresSocio } from '@/lib/busquedaSocios'
 import type { VinculoServicio } from '@/lib/secretariaNuvix'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -34,7 +35,8 @@ export interface SocioItem {
   foto_path:        string | null
   foto_validada:    boolean
   created_at:       string
-  nombre:           string    // from profiles
+  nombre:           string    // padrón NUVIX (o el de la app si no hay)
+  nombreApp:        string    // profiles.nombre (lo edita el socio)
   email:            string    // fetched separately if needed
   categoria:        string
   categoria_id:     string
@@ -52,6 +54,7 @@ export function useSociosSecretaria() {
   const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
+  const [busqueda, setBusqueda]         = useState('')
   // Errores de lectura: un fallo no se muestra como "no hay socios" ni como
   // "sin servicios" (auditoría UX secretaría, T12).
   const [errorLista, setErrorLista]           = useState<string | null>(null)
@@ -119,7 +122,7 @@ export function useSociosSecretaria() {
         db
           .from('socios')
           .select(`
-            id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id,
+            id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, nombre_padron,
             categorias_socio ( nombre ),
             profiles!socios_profile_id_fkey ( nombre )
           `)
@@ -135,7 +138,7 @@ export function useSociosSecretaria() {
         foto_path:     s.foto_path as string | null,
         foto_validada: s.foto_validada as boolean,
         created_at:    s.created_at as string,
-        nombre:            (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+        ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
         email:             '',
         categoria:         (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
         categoria_id:      s.categoria_id as string,
@@ -168,8 +171,11 @@ export function useSociosSecretaria() {
     await Promise.all([fetchCategorias(), fetchServicios(), fetchServiciosSocio(socioId)])
   }, [fetchCategorias, fetchServicios, fetchServiciosSocio])
 
-  const sociosFiltrados = socios.filter(s =>
-    filtro === 'todos' ? true : s.estado === filtro
+  // La búsqueda se difiere para que el TextInput no espere al filtrado de ~1.500 filas.
+  const busquedaDiferida = useDeferredValue(busqueda)
+  const sociosFiltrados = useMemo(
+    () => filtrarSocios(socios, filtro, busquedaDiferida),
+    [socios, filtro, busquedaDiferida],
   )
 
   const desactivarSocio = useCallback(async (socioId: string): Promise<boolean> => {
@@ -233,6 +239,8 @@ export function useSociosSecretaria() {
     refrescando,
     filtro,
     setFiltro,
+    busqueda,
+    setBusqueda,
     desactivarSocio,
     reactivarSocio,
     validarFoto,

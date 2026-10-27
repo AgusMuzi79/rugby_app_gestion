@@ -1,6 +1,6 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, ScrollView, Image, RefreshControl,
+  TouchableOpacity, Alert, ScrollView, Image, RefreshControl, TextInput, Platform,
 } from 'react-native'
 import { useState, useCallback, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
@@ -115,6 +115,10 @@ function DetalleSocio({
         </View>
 
         {[
+          // El nombre grande es el del padrón; si el socio se puso otro en la app, se muestra aparte.
+          ...(socio.nombreApp && socio.nombreApp !== socio.nombre
+            ? [{ label: 'NOMBRE EN LA APP', value: socio.nombreApp }]
+            : []),
           { label: 'DNI',       value: socio.dni },
           { label: 'CATEGORÍA', value: categoria?.nombre ?? socio.categoria },
           { label: 'ESTADO',    value: ESTADO_LABEL[socio.estado] ?? socio.estado.toUpperCase() },
@@ -236,7 +240,7 @@ export default function SociosScreen() {
   const insets = useSafeAreaInsets()
   const {
     socios, categorias, servicios, serviciosSocio, loading, refrescando, refetch,
-    filtro, setFiltro,
+    filtro, setFiltro, busqueda, setBusqueda,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     fetchServiciosSocio, toggleServicio,
     errorLista, errorDetalle, reintentarDetalle,
@@ -311,6 +315,32 @@ export default function SociosScreen() {
           <Text style={ss.edicionFecha}>{socios.length} EN VISTA</Text>
         </View>
 
+        <View style={ss.busquedaBar}>
+          <Feather name="search" size={16} color={MUTED} />
+          <TextInput
+            style={ss.busquedaInput}
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Nombre, DNI o Nº de socio"
+            placeholderTextColor={MUTED}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Buscar socio por nombre, DNI o número"
+          />
+          {busqueda && Platform.OS !== 'ios' ? (
+            <TouchableOpacity
+              onPress={() => setBusqueda('')}
+              style={ss.busquedaLimpiar}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar búsqueda"
+            >
+              <Feather name="x" size={16} color={MUTED} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
         <ScrollView
           horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={ss.filtrosContent}
@@ -336,19 +366,24 @@ export default function SociosScreen() {
 
       {errorLista ? <ErrorCarga mensaje={errorLista} onReintentar={() => { void refetch() }} /> : null}
 
+      {/* La lista queda montada mientras se escribe: el vacío va en ListEmptyComponent. */}
       {loading ? (
         <ActivityIndicator color={colors.oro} style={ss.activityIndicator} />
-      ) : socios.length === 0 ? (
-        errorLista ? null :
-        <View style={ss.empty}>
-          <Text style={ss.emptyText}>No hay socios en esta vista.</Text>
-        </View>
       ) : (
         <FlatList
           ref={scrollRef}
           data={socios}
           keyExtractor={item => item.id}
           contentContainerStyle={ss.listContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          ListEmptyComponent={errorLista ? null : (
+            <View style={ss.empty}>
+              <Text style={ss.emptyText}>
+                {busqueda.trim() ? 'Ningún socio con ese nombre, DNI o Nº en esta vista.' : 'No hay socios en esta vista.'}
+              </Text>
+            </View>
+          )}
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
           renderItem={({ item }) => (
             <SocioRow socio={item} onPress={() => abrirDetalle(item)} />
@@ -379,6 +414,13 @@ const ss = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.grisClaro,
   },
+
+  busquedaBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: DIVIDER,
+  },
+  busquedaInput:   { flex: 1, minHeight: 44, fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
+  busquedaLimpiar: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
 
   filtrosBar:     { borderBottomWidth: 1, maxHeight: 48, backgroundColor: CARD, borderBottomColor: DIVIDER },
   filtrosContent: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
@@ -520,6 +562,6 @@ const ss = StyleSheet.create({
   accionBtnTextOro:  { color: colors.oro },
   accionBtnTextRojo: { color: colors.rojoTexto },
 
-  empty:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty:     { alignItems: 'center', paddingTop: 40 },
   emptyText: { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 })
