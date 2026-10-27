@@ -46,6 +46,10 @@ async function recordarAceptada(userId: string, versionId: string): Promise<void
 let enCurso: { userId: string; promesa: Promise<void> } | null = null
 let cargadoPara: string | null = null
 
+// La sesión ya es de otra cuenta (salió y entró otra mientras se leía): el
+// resultado no se escribe, para no mostrarle el estado de A a B.
+const esDeOtraCuenta = (userId: string) => useAuthStore.getState().session?.user.id !== userId
+
 function cargarEstado(userId: string): Promise<void> {
   if (enCurso?.userId === userId) return enCurso.promesa
   const promesa = (async () => {
@@ -66,6 +70,7 @@ function cargarEstado(userId: string): Promise<void> {
         activa: null, errorActiva, aceptacion: null, errorAceptacion: null,
         aceptadaEnTelefono: errorActiva ? await aceptadaEnTelefono(userId) : false,
       })
+      if (esDeOtraCuenta(userId)) return
       useTerminosStore.setState({
         loading: false, pendiente: e.pendiente, error: e.error,
         version: null, versionId: null, titulo: null, pdfUrl: null,
@@ -87,6 +92,7 @@ function cargarEstado(userId: string): Promise<void> {
       aceptadaEnTelefono: errorAceptacion ? await aceptadaEnTelefono(userId) : false,
     })
 
+    if (esDeOtraCuenta(userId)) return
     useTerminosStore.setState({
       loading: false,
       pendiente: e.pendiente,
@@ -97,7 +103,11 @@ function cargarEstado(userId: string): Promise<void> {
       aceptando: false,
       error: e.error,
     })
-  })().finally(() => { enCurso = null; cargadoPara = userId })
+  })().finally(() => {
+    // Sólo limpia su propia lectura: la de otra cuenta puede seguir en curso.
+    if (enCurso?.promesa === promesa) enCurso = null
+    if (!esDeOtraCuenta(userId)) cargadoPara = userId
+  })
   enCurso = { userId, promesa }
   return promesa
 }

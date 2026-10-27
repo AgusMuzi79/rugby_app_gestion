@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
-import { resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
+import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
 
@@ -71,7 +71,10 @@ export function useScanner() {
     // Un QR que no tuvo respuesta pudo quedar registrado (y su código
     // consumido) en el server: se recuerda para reconocer el reintento.
     if (raw && sr.errorRed) escaneoCortado.current = { raw, en: Date.now() }
-    if (raw) sr = resolverReintento(sr, raw, escaneoCortado.current, Date.now())
+    if (raw) {
+      sr = resolverReintento(sr, raw, escaneoCortado.current, Date.now())
+      escaneoCortado.current = cortadoTrasResultado(sr, escaneoCortado.current)
+    }
 
     // Cancelado (o reemplazado por otra validación): no pisar la pantalla.
     if (enCurso.current !== ctrl) return

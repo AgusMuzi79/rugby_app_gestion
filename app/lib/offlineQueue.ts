@@ -85,6 +85,18 @@ export async function tamañoCola(): Promise<number> {
   return (await leer(CLAVE_COLA)).length
 }
 
+// El entrenador volvió a tomar y guardó online la asistencia de esa división y
+// fecha (lo que pide el aviso): las no enviadas que reemplaza salen de la lista.
+export function resolverNoEnviadas(divisionId: string, fecha: string): Promise<void> {
+  return conCandado(async () => {
+    const noEnviadas = await leer(CLAVE_NO_ENVIADAS)
+    const quedan = noEnviadas.filter(i => !(i.payload.division_id === divisionId && i.payload.fecha === fecha))
+    if (quedan.length !== noEnviadas.length) {
+      await AsyncStorage.setItem(CLAVE_NO_ENVIADAS, JSON.stringify(quedan))
+    }
+  })
+}
+
 export async function cantidadNoEnviadas(): Promise<number> {
   return (await leer(CLAVE_NO_ENVIADAS)).length
 }

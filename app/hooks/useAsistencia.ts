@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { encolar } from '@/lib/offlineQueue'
+import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 
@@ -214,6 +214,9 @@ export function useAsistencia(): UseAsistenciaReturn {
     }
 
     await verificarAusenciasConsecutivas(divisionId)
+    // Si había una de esta división y fecha que no se pudo enviar, esta la reemplaza.
+    await resolverNoEnviadas(divisionId, fecha)
+    await actualizarPendientes()
     setGuardado(true)
     setGuardando(false)
   }

@@ -15,6 +15,7 @@ import {
   BarlowSemiCondensed_700Bold,
 } from '@expo-google-fonts/barlow-semi-condensed'
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono'
+import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
@@ -74,9 +75,13 @@ export default function RootLayout() {
   // Un único reintento pendiente a la vez, atado a la cuenta: se cancela si la
   // sesión cambia, así nunca se aplica el rol de la cuenta anterior.
   const reintentoPerfil = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Agotados los reintentos, un único listener vuelve a probar al recuperar la red.
+  const esperaRedPerfil = useRef<(() => void) | null>(null)
   function cancelarReintentoPerfil() {
     if (reintentoPerfil.current) clearTimeout(reintentoPerfil.current)
     reintentoPerfil.current = null
+    esperaRedPerfil.current?.()
+    esperaRedPerfil.current = null
   }
 
   // Lee el perfil y aplica rol/roles. true = quedó cargado.
@@ -105,7 +110,16 @@ export default function RootLayout() {
         const espera = Math.min(60_000, 2_000 * 2 ** intento) // 2 s, 4 s, 8 s … hasta 1 min
         reintentoPerfil.current = setTimeout(() => { void cargarPerfil(userId, intento + 1) }, espera)
       } else {
-        setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Volvé a abrir la app cuando tengas señal.')
+        setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Se reintenta solo cuando vuelva la conexión.')
+        // NetInfo avisa enseguida el estado actual: sólo se reintenta en un
+        // cambio de "sin red" a "con red", así no se arma un bucle.
+        let habiaRed: boolean | null = null
+        esperaRedPerfil.current = NetInfo.addEventListener(estado => {
+          const hayRed = !!estado.isConnected && estado.isInternetReachable !== false
+          const volvio = habiaRed === false && hayRed
+          habiaRed = hayRed
+          if (volvio) void cargarPerfil(userId, 0)
+        })
       }
       return false
     }

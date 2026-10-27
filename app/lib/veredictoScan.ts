@@ -56,6 +56,12 @@ export function resolverReintento(
   return { valido: true, reintentoRegistrado: true }
 }
 
+// Un escaneo cortado vale para un solo reintento: usado, se olvida (si no, una
+// captura reenviada del mismo QR pasaría durante toda la ventana).
+export function cortadoTrasResultado(r: ScanResult, cortado: EscaneoCortado | null): EscaneoCortado | null {
+  return r.reintentoRegistrado ? null : cortado
+}
+
 export type Veredicto = 'pasa' | 'pasa_aviso' | 'no_pasa' | 'sin_conexion'
 
 // Mismo criterio que el carnet del socio: 'activo' con semáforo 'rojo'

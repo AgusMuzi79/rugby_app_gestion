@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/veredictoScan.check.ts
 
 import assert from 'node:assert/strict'
-import { resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type ScanResult } from './veredictoScan'
+import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, tituloVeredicto, veredicto, motivoVeredicto, type EscaneoCortado, type ScanResult } from './veredictoScan'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -70,6 +70,17 @@ caso('"ya se usó" sin timeout previo de esta tablet (captura reenviada) sigue s
   assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', null, ahora)), 'no_pasa')
   assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', { raw: '999:111111', en: ahora }, ahora)), 'no_pasa')
   assert.equal(veredicto(resolverReintento(yaUsado, '123:456789', { raw: '123:456789', en: ahora - 400_000 }, ahora)), 'no_pasa')
+})
+
+caso('el escaneo cortado sirve para UN reintento: la siguiente reutilización del mismo QR no pasa', () => {
+  const yaUsado: ScanResult = { valido: false, codigo_ya_usado: true, motivo: 'Este código ya se usó.' }
+  const ahora = 1_000_000
+  let cortado: EscaneoCortado | null = { raw: '123:456789', en: ahora - 10_000 }
+  const primero = resolverReintento(yaUsado, '123:456789', cortado, ahora)
+  cortado = cortadoTrasResultado(primero, cortado)
+  assert.equal(veredicto(primero), 'pasa_aviso')
+  const segundo = resolverReintento(yaUsado, '123:456789', cortado, ahora + 5_000)
+  assert.equal(veredicto(segundo), 'no_pasa')
 })
 
 console.log(`\n${casos} casos ok`)
