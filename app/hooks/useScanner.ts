@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react'
 import { useCameraPermissions } from 'expo-camera'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
+import { parsearQR } from '@/lib/qrCarnet'
 import { cortadoTrasResultado, resolverReintento, resultadoErrorRed, type EscaneoCortado, type ScanResult } from '@/lib/veredictoScan'
 
 export type { ScanResult, TurnoActual } from '@/lib/veredictoScan'
@@ -93,15 +94,16 @@ export function useScanner() {
     if (candado.current || !scanning || validando) return
     candado.current = true
 
-    // Formato esperado: "{numero_socio}:{6-digit-code}"
-    const parts = rawData.split(':')
-    if (parts.length !== 2 || !/^\d{6}$/.test(parts[1])) {
+    // Formato esperado: "{numero_socio}:{6-digit-code}" (lib/qrCarnet). Llega
+    // igual desde la cámara o desde el modo "Ingresar código".
+    const qr = parsearQR(rawData)
+    if (!qr) {
       setResult({ valido: false, motivo: 'Formato de QR no reconocido' })
       setScanning(false)
       return
     }
 
-    const [numero_socio, code] = parts
+    const { numero_socio, code } = qr
     rawEnCurso.current = rawData
     await validar({ action: 'validate', numero_socio, code }, rawData)
     rawEnCurso.current = null

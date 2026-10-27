@@ -354,11 +354,11 @@ export default function CarnetScreen() {
           {/* ── CÓDIGO MANUAL ── */}
           <View style={s.sectionCodigo}>
             <View style={s.secRow}>
-              <Text style={s.secTitle}>CÓDIGO DE HOY</Text>
+              <Text style={s.secTitle}>CÓDIGO MANUAL · CAMBIA CADA MINUTO</Text>
               <View style={s.secLine} />
             </View>
             <Text style={s.codigoHint}>
-              Si la cámara no puede leer tu QR, dictá este código.
+              Si la cámara no lee tu QR, en el lector elegí «Ingresar código» y escribí (o dictá) tu Nº de socio y este código.
             </Text>
             <Text style={s.codigoValue}>
               {formatCodigo(data.code)}

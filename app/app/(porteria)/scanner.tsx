@@ -8,6 +8,7 @@ import { Feather } from '@expo/vector-icons'
 import { useScanner, UMBRAL_INVITADO_REPETIDO, type InvitadoResult } from '@/hooks/useScanner'
 import { estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
 import { accionDni, normalizarDni, volverAlFormularioDni, PAUSA_DNI_7_MS } from '@/lib/entradaDni'
+import { codigoManualAQR, normalizarCodigo, normalizarNumeroSocio } from '@/lib/qrCarnet'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
@@ -62,6 +63,14 @@ export default function ScannerScreen() {
   const timerDni = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nombreInvitadoRef = useRef<TextInput>(null)
 
+  // Ingresar código: Nº de socio + el código manual del carnet (cambia cada
+  // minuto), para cuando la cámara no lee el QR. Va por el mismo camino que
+  // un QR escaneado (handleQR), con el mismo código TOTP de un solo uso.
+  const [modoCodigo, setModoCodigo]   = useState(false)
+  const [numeroInput, setNumeroInput] = useState('')
+  const [codigoInput, setCodigoInput] = useState('')
+  const codigoRef = useRef<TextInput>(null)
+
   // Invitados (no-socios): sólo en Gimnasio (rol porteria), es una función del gimnasio.
   const [modoInvitado, setModoInvitado]         = useState(false)
   const [invitadoDni, setInvitadoDni]           = useState('')
@@ -92,13 +101,16 @@ export default function ScannerScreen() {
   }, [result])
 
   // Autoservicio: vuelve sola a la cámara, sin esperar que alguien la toque.
-  // Siempre limpia el DNI: en la tablet sin atender no queda el de otro.
+  // Siempre limpia el DNI y el código: en la tablet sin atender no queda el de otro.
   useEffect(() => {
     if (!result) return
     const t = setTimeout(() => {
       reset()
       setModoDni(false)
       setDniInput('')
+      setModoCodigo(false)
+      setNumeroInput('')
+      setCodigoInput('')
     }, AUTO_RESET_MS)
     return () => clearTimeout(t)
   }, [result, reset])
@@ -161,12 +173,34 @@ export default function ScannerScreen() {
     setDniInput('')
   }
 
-  // ESCANEAR OTRO: vuelve a la cámara, salvo una consulta por DNI que falló
-  // por la red, que vuelve al formulario con el DNI para reintentar.
-  const volverADni = modoDni && !!result && volverAlFormularioDni(result)
+  // El código se consulta solo al completar los 6 dígitos (el teclado
+  // numérico de iOS no tiene Enter).
+  const consultarCodigo = (numero: string = numeroInput, codigo: string = codigoInput) => {
+    const raw = codigoManualAQR(numero, codigo)
+    if (raw) handleQR(raw)
+  }
+
+  const cambiarCodigo = (texto: string) => {
+    const codigo = normalizarCodigo(texto)
+    setCodigoInput(codigo)
+    if (codigo.length === 6) consultarCodigo(numeroInput, codigo)
+  }
+
+  const salirDeCodigo = () => {
+    setModoCodigo(false)
+    setNumeroInput('')
+    setCodigoInput('')
+  }
+
+  // ESCANEAR OTRO: vuelve a la cámara, salvo una consulta por DNI o por
+  // código que falló por la red, que vuelve al formulario para reintentar.
+  const volverAlFormulario = (modoDni || modoCodigo) && !!result && volverAlFormularioDni(result)
   const despuesDelResultado = () => {
     reset()
-    if (!volverADni) salirDeDni()
+    if (!volverAlFormulario) {
+      salirDeDni()
+      salirDeCodigo()
+    }
   }
 
   // ── Sin permiso ──────────────────────────────────────────────────────────
@@ -309,7 +343,7 @@ export default function ScannerScreen() {
               onPress={despuesDelResultado}
               activeOpacity={0.8}
             >
-              <Text style={[s.nuevoBtnText, esTablet && s.nuevoBtnTextTablet]}>{volverADni ? 'REINTENTAR CON EL DNI' : 'ESCANEAR OTRO'}</Text>
+              <Text style={[s.nuevoBtnText, esTablet && s.nuevoBtnTextTablet]}>{!volverAlFormulario ? 'ESCANEAR OTRO' : modoDni ? 'REINTENTAR CON EL DNI' : 'REINTENTAR CON EL CÓDIGO'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -406,6 +440,69 @@ export default function ScannerScreen() {
     )
   }
 
+  // ── La cámara no lee el QR: Nº de socio + código manual ──────────────────
+  if (modoCodigo) {
+    const listo = codigoManualAQR(numeroInput, codigoInput) !== null
+    return (
+      <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={s.permBar}>
+          <Text style={s.permBarLabel}>{tituloHeader}</Text>
+        </View>
+
+        <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={s.dniContainer} keyboardShouldPersistTaps="handled">
+            <Feather name="key" size={40} color={MUTED} />
+            <Text style={s.dniTitle}>{!esAutoservicio ? 'La cámara no lee el QR' : 'La cámara no lee tu QR'}</Text>
+            <Text style={s.dniSub}>
+              {!esAutoservicio
+                ? 'Pedile al socio su Nº de socio y el código manual del carnet (cambia cada minuto)'
+                : 'Ingresá tu Nº de socio y el código manual de tu carnet (cambia cada minuto)'}
+            </Text>
+
+            <TextInput
+              style={s.dniInput}
+              value={numeroInput}
+              onChangeText={t => setNumeroInput(normalizarNumeroSocio(t))}
+              keyboardType="number-pad"
+              placeholder="Nº de socio o de cliente"
+              placeholderTextColor={MUTED}
+              maxLength={12}
+              autoFocus
+              returnKeyType="next"
+              onSubmitEditing={() => codigoRef.current?.focus()}
+              accessibilityLabel="Número de socio o de cliente"
+            />
+            <TextInput
+              ref={codigoRef}
+              style={s.dniInput}
+              value={codigoInput}
+              onChangeText={cambiarCodigo}
+              keyboardType="number-pad"
+              placeholder="Código (6 dígitos)"
+              placeholderTextColor={MUTED}
+              maxLength={9}
+              onSubmitEditing={() => consultarCodigo()}
+              accessibilityLabel="Código manual del carnet, 6 dígitos"
+            />
+
+            <TouchableOpacity
+              style={[s.dniBtn, !listo && { opacity: 0.5 }]}
+              onPress={() => consultarCodigo()}
+              disabled={!listo}
+              activeOpacity={0.8}
+            >
+              <Text style={s.dniBtnText}>CONSULTAR</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={salirDeCodigo} activeOpacity={0.7}>
+              <Text style={s.dniVolver}>Volver a escanear QR</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    )
+  }
+
   // ── Sin QR, ingresar DNI ──────────────────────────────────────────────────
   if (modoDni) {
     return (
@@ -480,7 +577,7 @@ export default function ScannerScreen() {
           </View>
         </View>
 
-        <View style={[s.hint, esAutoservicio && { bottom: 100 }]}>
+        <View style={[s.hint, { bottom: esAutoservicio ? 140 : 100 }]}>
           <View style={s.hintChip}>
             <Text style={s.hintText}>
               {!esAutoservicio ? 'Acercá el carnet del socio a la cámara' : 'Acercá el QR de tu carnet a la cámara'}
@@ -489,6 +586,11 @@ export default function ScannerScreen() {
         </View>
 
         <View style={s.dniLink}>
+          <TouchableOpacity onPress={() => setModoCodigo(true)} activeOpacity={0.7}>
+            <View style={s.dniLinkChip}>
+              <Text style={s.dniLinkText}>¿No lee el QR? Ingresar código</Text>
+            </View>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => setModoDni(true)} activeOpacity={0.7}>
             <View style={s.dniLinkChip}>
               <Text style={s.dniLinkText}>{!esAutoservicio ? '¿No tiene el carnet? Ingresar DNI' : '¿No tenés el carnet? Ingresar DNI'}</Text>

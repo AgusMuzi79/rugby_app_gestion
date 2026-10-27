@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { generateTOTP } from '@/lib/totp-client'
+import { contenidoQR } from '@/lib/qrCarnet'
 import { esColumnaInexistente, nombreCarnet } from '@/lib/nombrePadron'
 
 const TOTP_STEP = 60
@@ -197,7 +198,7 @@ export function useCarnet(socioIdObjetivo?: string) {
     setData({
       numero_socio: socio.numero_socio,
       nombre,
-      qrContent:    `${socio.numero_socio}:${code}`,
+      qrContent:    contenidoQR(socio.numero_socio, code),
       code,
       estado:       socio.estado,
       semaforo:     socio.semaforo,
