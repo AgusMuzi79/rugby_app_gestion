@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Linking, StyleSheet, View } from 'react-native'
 import { Slot, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -15,7 +15,6 @@ import {
   BarlowSemiCondensed_700Bold,
 } from '@expo-google-fonts/barlow-semi-condensed'
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono'
-import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,6 +26,9 @@ import { useAccesoRestringido } from '@/hooks/useAccesoRestringido'
 import { useMailSintetico } from '@/hooks/useMailSintetico'
 
 SplashScreen.preventAutoHideAsync()
+
+// Reintentos del perfil sin red (2 s … 1 min, unos 2 minutos en total).
+const REINTENTOS_PERFIL = 6
 
 const ROL_RUTAS: Record<string, string> = {
   subcomision: '/(subcomision)/diario',
@@ -66,34 +68,50 @@ export default function RootLayout() {
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
   } = useAuthStore()
   // Perfil (rol) de la sesión. Si no carga, la persona quedaba en el login sin
-  // ninguna explicación. Sin red: se avisa y se reintenta solo al volver la
-  // conexión (no se cierra la sesión: el carnet tiene que poder abrirse sin
+  // ninguna explicación. Sin red: se avisa y se reintenta solo con espera
+  // creciente (no se cierra la sesión: el carnet tiene que poder abrirse sin
   // señal). Cualquier otro error: se cierra la sesión y se explica.
-  async function cargarPerfil(userId: string): Promise<{ rol: string | null; roles: string[] | null } | null> {
+  // Un único reintento pendiente a la vez, atado a la cuenta: se cancela si la
+  // sesión cambia, así nunca se aplica el rol de la cuenta anterior.
+  const reintentoPerfil = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function cancelarReintentoPerfil() {
+    if (reintentoPerfil.current) clearTimeout(reintentoPerfil.current)
+    reintentoPerfil.current = null
+  }
+
+  // Lee el perfil y aplica rol/roles. true = quedó cargado.
+  async function cargarPerfil(userId: string, intento = 0): Promise<boolean> {
+    cancelarReintentoPerfil()
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('rol, roles')
       .eq('id', userId)
       .single()
+    // La sesión cambió mientras se esperaba la respuesta: no es de esta cuenta.
+    if (useAuthStore.getState().session?.user.id !== userId) return false
     if (profile && !error) {
       setAvisoAuth(null)
-      return profile
+      setRol((profile.rol as Rol) ?? null)
+      setRoles((profile.roles as Rol[]) ?? [profile.rol as Rol].filter(Boolean))
+      // Cubre login fresco, login biométrico Y sesión restaurada al abrir la
+      // app — antes sólo se llamaba desde useLogin.ts, así que una sesión ya
+      // activa cuando se instala una build nueva nunca registraba el token nuevo.
+      void registerPushToken()
+      return true
     }
     if (esErrorDeRed(error)) {
-      setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Se reintenta solo cuando vuelva la conexión.')
-      const quitar = NetInfo.addEventListener(async estado => {
-        if (!estado.isConnected || estado.isInternetReachable === false) return
-        quitar()
-        const p = await cargarPerfil(userId)
-        if (!p) return
-        setRol((p.rol as Rol) ?? null)
-        setRoles((p.roles as Rol[]) ?? [p.rol as Rol].filter(Boolean))
-      })
-      return null
+      if (intento < REINTENTOS_PERFIL) {
+        setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Se reintenta solo.')
+        const espera = Math.min(60_000, 2_000 * 2 ** intento) // 2 s, 4 s, 8 s … hasta 1 min
+        reintentoPerfil.current = setTimeout(() => { void cargarPerfil(userId, intento + 1) }, espera)
+      } else {
+        setAvisoAuth('Sin conexión: no pudimos cargar tu perfil. Volvé a abrir la app cuando tengas señal.')
+      }
+      return false
     }
     await supabase.auth.signOut()
     setAvisoAuth('No pudimos cargar tu perfil. Volvé a iniciar sesión; si sigue pasando, avisá en Secretaría.')
-    return null
+    return false
   }
 
   const { pendiente: terminosPendiente, loading: terminosLoading } = useTerminos()
@@ -162,6 +180,7 @@ export default function RootLayout() {
           return
         }
         if (!newSession) {
+          cancelarReintentoPerfil()
           clearAuth()
           return
         }
@@ -177,15 +196,9 @@ export default function RootLayout() {
         // el callback ya terminó y el lock se liberó.
         // https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning-PGzXw0
         setTimeout(async () => {
-          const profile = await cargarPerfil(newSession.user.id)
-          if (!profile) return
-          setRol((profile.rol as Rol) ?? null)
-          setRoles((profile.roles as Rol[]) ?? [profile.rol as Rol].filter(Boolean))
-          // Cubre login fresco, login biométrico Y sesión restaurada al abrir
-          // la app — antes sólo se llamaba desde useLogin.ts, así que una
-          // sesión ya activa cuando se instala una build nueva nunca
-          // registraba el token nuevo.
-          void registerPushToken()
+          // cargarPerfil también registra el push token (ahí, para que un
+          // reintento que carga el perfil más tarde lo registre igual).
+          await cargarPerfil(newSession.user.id)
         }, 0)
       }
     )
