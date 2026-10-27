@@ -133,4 +133,5 @@ Still to confirm: T23 assumptions (colaborador created by Subcomisión/Admin, as
   - `0287dc4` auth — terms state shared by every screen (REINTENTAR releases the root gate); an account that accepted on this phone opens offline, the DB decides when online (terminos.check.ts 7 cases).
   - `5e8aea7` lesiones — `notifications` lesion pushes off unless `FEATURE_LESIONES=true`; entrenador shortcuts from one filtered list.
   - `6810e9a` db — the services RESTRICT migration drops the FK found by its columns and raises if any CASCADE remains (tested with a non-default FK name).
-  - Not done: the cobranzas $0 question (user decision pending); handler-level tests for `admin-usuarios` routing, `useCobranzas` guard paths and the single-use TOTP path (no Deno / RN test runner in the repo; covered by pure checks + the SQL scenario).
+  - Cobranzas $0: user decision 2026-10-27 — $0 counts as not paid; current behavior (rejected, player stays pending) kept, no code change.
+  - Not done: handler-level tests for `admin-usuarios` routing, `useCobranzas` guard paths and the single-use TOTP path (no Deno / RN test runner in the repo; covered by pure checks + the SQL scenario).
