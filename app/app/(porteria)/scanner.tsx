@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking, useWindowDimensions } from 'react-native'
+import { useEffect, useRef, useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Linking, useWindowDimensions, KeyboardAvoidingView, ScrollView, Platform } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CameraView } from 'expo-camera'
 import { useAudioPlayer } from 'expo-audio'
@@ -7,6 +7,7 @@ import { useNetInfo } from '@react-native-community/netinfo'
 import { Feather } from '@expo/vector-icons'
 import { useScanner, UMBRAL_INVITADO_REPETIDO, type InvitadoResult } from '@/hooks/useScanner'
 import { estadoVisual, motivoVeredicto, tituloVeredicto, veredicto, type Veredicto } from '@/lib/veredictoScan'
+import { accionDni, normalizarDni, volverAlFormularioDni, PAUSA_DNI_7_MS } from '@/lib/entradaDni'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
@@ -57,6 +58,9 @@ export default function ScannerScreen() {
   // Fallback sin QR — el socio no llevaba el celular encima.
   const [modoDni, setModoDni] = useState(false)
   const [dniInput, setDniInput] = useState('')
+  // Envío automático de un DNI de 7 dígitos tras la pausa (ver lib/entradaDni).
+  const timerDni = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nombreInvitadoRef = useRef<TextInput>(null)
 
   // Invitados (no-socios): sólo en Gimnasio (rol porteria), es una función del gimnasio.
   const [modoInvitado, setModoInvitado]         = useState(false)
@@ -88,6 +92,7 @@ export default function ScannerScreen() {
   }, [result])
 
   // Autoservicio: vuelve sola a la cámara, sin esperar que alguien la toque.
+  // Siempre limpia el DNI: en la tablet sin atender no queda el de otro.
   useEffect(() => {
     if (!result) return
     const t = setTimeout(() => {
@@ -98,6 +103,9 @@ export default function ScannerScreen() {
     return () => clearTimeout(t)
   }, [result, reset])
 
+  // Al desmontar no queda un envío de DNI pendiente.
+  useEffect(() => () => { if (timerDni.current) clearTimeout(timerDni.current) }, [])
+
   // Tras la confirmación, vuelve sola a la cámara (mismo criterio que el resultado de un escaneo).
   useEffect(() => {
     if (!invitadoResultado?.ok) return
@@ -105,8 +113,16 @@ export default function ScannerScreen() {
     return () => clearTimeout(t)
   }, [invitadoResultado])
 
+  // DNI del invitado: sólo dígitos; completo (8) pasa al nombre, que tiene
+  // tecla Enter (el teclado numérico de iOS no).
+  const cambiarInvitadoDni = (texto: string) => {
+    const dni = normalizarDni(texto)
+    setInvitadoDni(dni)
+    if (accionDni(dni) === 'enviar') nombreInvitadoRef.current?.focus()
+  }
+
   const enviarInvitado = async () => {
-    const dni = invitadoDni.trim()
+    const dni = normalizarDni(invitadoDni)
     if (!dni || invitadoEnviando) return
     setInvitadoEnviando(true)
     try {
@@ -117,11 +133,40 @@ export default function ScannerScreen() {
     }
   }
 
-  const consultarDni = () => {
-    const dni = dniInput.trim()
+  const cancelarEnvioDni = () => {
+    if (timerDni.current) clearTimeout(timerDni.current)
+    timerDni.current = null
+  }
+
+  // El input no se limpia acá: si la consulta falla por la red se vuelve al
+  // formulario con el DNI cargado (ver despuesDelResultado).
+  const consultarDni = (dni: string = dniInput) => {
+    cancelarEnvioDni()
     if (!dni) return
-    setDniInput('')
     handleDNI(dni)
+  }
+
+  const cambiarDni = (texto: string) => {
+    const dni = normalizarDni(texto)
+    setDniInput(dni)
+    cancelarEnvioDni()
+    const accion = accionDni(dni)
+    if (accion === 'enviar') consultarDni(dni)
+    else if (accion === 'esperar') timerDni.current = setTimeout(() => consultarDni(dni), PAUSA_DNI_7_MS)
+  }
+
+  const salirDeDni = () => {
+    cancelarEnvioDni()
+    setModoDni(false)
+    setDniInput('')
+  }
+
+  // ESCANEAR OTRO: vuelve a la cámara, salvo una consulta por DNI que falló
+  // por la red, que vuelve al formulario con el DNI para reintentar.
+  const volverADni = modoDni && !!result && volverAlFormularioDni(result)
+  const despuesDelResultado = () => {
+    reset()
+    if (!volverADni) salirDeDni()
   }
 
   // ── Sin permiso ──────────────────────────────────────────────────────────
@@ -261,10 +306,10 @@ export default function ScannerScreen() {
 
             <TouchableOpacity
               style={[s.nuevoBtn, esTablet && s.nuevoBtnTablet]}
-              onPress={() => { reset(); setModoDni(false); setDniInput('') }}
+              onPress={despuesDelResultado}
               activeOpacity={0.8}
             >
-              <Text style={[s.nuevoBtnText, esTablet && s.nuevoBtnTextTablet]}>ESCANEAR OTRO</Text>
+              <Text style={[s.nuevoBtnText, esTablet && s.nuevoBtnTextTablet]}>{volverADni ? 'REINTENTAR CON EL DNI' : 'ESCANEAR OTRO'}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -284,76 +329,79 @@ export default function ScannerScreen() {
           <Text style={s.permBarLabel}>{tituloHeader}</Text>
         </View>
 
-        <View style={s.dniContainer}>
-          {confirmado ? (
-            <>
-              <Feather name={repetido ? 'alert-triangle' : 'check-circle'} size={48} color={repetido ? colors.rojoUrgente : colors.oro} />
-              <Text style={s.dniTitle}>Invitado registrado</Text>
-              <Text style={s.dniSub}>
-                DNI {invitadoResultado?.dni}{invitadoResultado?.nombre ? ` · ${invitadoResultado.nombre}` : ''}
-                {'\n'}
-                {sinConteo
-                  ? 'No se pudo calcular cuántas veces vino.'
-                  : `${invitadoResultado?.veces} ${invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días`}
-              </Text>
-              {repetido && (
-                <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
-                  Derivar a Secretaría para que se haga socio.
+        <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={s.dniContainer} keyboardShouldPersistTaps="handled">
+            {confirmado ? (
+              <>
+                <Feather name={repetido ? 'alert-triangle' : 'check-circle'} size={48} color={repetido ? colors.rojoUrgente : colors.oro} />
+                <Text style={s.dniTitle}>Invitado registrado</Text>
+                <Text style={s.dniSub}>
+                  DNI {invitadoResultado?.dni}{invitadoResultado?.nombre ? ` · ${invitadoResultado.nombre}` : ''}
+                  {'\n'}
+                  {sinConteo
+                    ? 'No se pudo calcular cuántas veces vino.'
+                    : `${invitadoResultado?.veces} ${invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días`}
                 </Text>
-              )}
-              <TouchableOpacity style={s.dniBtn} onPress={cerrarInvitado} activeOpacity={0.8}>
-                <Text style={s.dniBtnText}>LISTO</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Feather name="user-plus" size={40} color={MUTED} />
-              <Text style={s.dniTitle}>Registrar invitado</Text>
-              <Text style={s.dniSub}>DNI obligatorio, nombre opcional</Text>
+                {repetido && (
+                  <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
+                    Derivar a Secretaría para que se haga socio.
+                  </Text>
+                )}
+                <TouchableOpacity style={s.dniBtn} onPress={cerrarInvitado} activeOpacity={0.8}>
+                  <Text style={s.dniBtnText}>LISTO</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Feather name="user-plus" size={40} color={MUTED} />
+                <Text style={s.dniTitle}>Registrar invitado</Text>
+                <Text style={s.dniSub}>DNI obligatorio, nombre opcional</Text>
 
-              <TextInput
-                style={s.dniInput}
-                value={invitadoDni}
-                onChangeText={setInvitadoDni}
-                keyboardType="number-pad"
-                placeholder="DNI"
-                placeholderTextColor={MUTED}
-                maxLength={9}
-                autoFocus
-              />
-              <TextInput
-                style={s.dniInput}
-                value={invitadoNombre}
-                onChangeText={setInvitadoNombre}
-                placeholder="Nombre (opcional)"
-                placeholderTextColor={MUTED}
-                maxLength={80}
-                onSubmitEditing={enviarInvitado}
-              />
+                <TextInput
+                  style={s.dniInput}
+                  value={invitadoDni}
+                  onChangeText={cambiarInvitadoDni}
+                  keyboardType="number-pad"
+                  placeholder="DNI"
+                  placeholderTextColor={MUTED}
+                  maxLength={12}
+                  autoFocus
+                />
+                <TextInput
+                  ref={nombreInvitadoRef}
+                  style={s.dniInput}
+                  value={invitadoNombre}
+                  onChangeText={setInvitadoNombre}
+                  placeholder="Nombre (opcional)"
+                  placeholderTextColor={MUTED}
+                  maxLength={80}
+                  onSubmitEditing={enviarInvitado}
+                />
 
-              {invitadoResultado && !invitadoResultado.ok && (
-                <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
-                  {invitadoResultado.motivo ?? 'No se pudo registrar el invitado'}
-                </Text>
-              )}
+                {invitadoResultado && !invitadoResultado.ok && (
+                  <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
+                    {invitadoResultado.motivo ?? 'No se pudo registrar el invitado'}
+                  </Text>
+                )}
 
-              <TouchableOpacity
-                style={[s.dniBtn, (!invitadoDni.trim() || invitadoEnviando) && { opacity: 0.5 }]}
-                onPress={enviarInvitado}
-                disabled={!invitadoDni.trim() || invitadoEnviando}
-                activeOpacity={0.8}
-              >
-                {invitadoEnviando
-                  ? <ActivityIndicator color={colors.papel} />
-                  : <Text style={s.dniBtnText}>REGISTRAR</Text>}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.dniBtn, (!invitadoDni.trim() || invitadoEnviando) && { opacity: 0.5 }]}
+                  onPress={enviarInvitado}
+                  disabled={!invitadoDni.trim() || invitadoEnviando}
+                  activeOpacity={0.8}
+                >
+                  {invitadoEnviando
+                    ? <ActivityIndicator color={colors.papel} />
+                    : <Text style={s.dniBtnText}>REGISTRAR</Text>}
+                </TouchableOpacity>
 
-              <TouchableOpacity onPress={cerrarInvitado} activeOpacity={0.7}>
-                <Text style={s.dniVolver}>Volver a escanear QR</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
+                <TouchableOpacity onPress={cerrarInvitado} activeOpacity={0.7}>
+                  <Text style={s.dniVolver}>Volver a escanear QR</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     )
   }
@@ -366,31 +414,34 @@ export default function ScannerScreen() {
           <Text style={s.permBarLabel}>{tituloHeader}</Text>
         </View>
 
-        <View style={s.dniContainer}>
-          <Feather name="hash" size={40} color={MUTED} />
-          <Text style={s.dniTitle}>{!esAutoservicio ? 'El socio no tiene el carnet a mano' : 'No tenés el carnet a mano'}</Text>
-          <Text style={s.dniSub}>{!esAutoservicio ? 'Ingresá su DNI para consultar su estado' : 'Ingresá tu DNI para consultar tu estado'}</Text>
+        <KeyboardAvoidingView style={s.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView contentContainerStyle={s.dniContainer} keyboardShouldPersistTaps="handled">
+            <Feather name="hash" size={40} color={MUTED} />
+            <Text style={s.dniTitle}>{!esAutoservicio ? 'El socio no tiene el carnet a mano' : 'No tenés el carnet a mano'}</Text>
+            <Text style={s.dniSub}>{!esAutoservicio ? 'Ingresá su DNI para consultar su estado' : 'Ingresá tu DNI para consultar tu estado'}</Text>
 
-          <TextInput
-            style={s.dniInput}
-            value={dniInput}
-            onChangeText={setDniInput}
-            keyboardType="number-pad"
-            placeholder="12345678"
-            placeholderTextColor={MUTED}
-            maxLength={9}
-            autoFocus
-            onSubmitEditing={consultarDni}
-          />
+            {/* Se consulta solo al completar el DNI: el teclado numérico de iOS no tiene Enter. */}
+            <TextInput
+              style={s.dniInput}
+              value={dniInput}
+              onChangeText={cambiarDni}
+              keyboardType="number-pad"
+              placeholder="12345678"
+              placeholderTextColor={MUTED}
+              maxLength={12}
+              autoFocus
+              onSubmitEditing={() => consultarDni()}
+            />
 
-          <TouchableOpacity style={s.dniBtn} onPress={consultarDni} activeOpacity={0.8}>
-            <Text style={s.dniBtnText}>CONSULTAR</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={s.dniBtn} onPress={() => consultarDni()} activeOpacity={0.8}>
+              <Text style={s.dniBtnText}>CONSULTAR</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => { setModoDni(false); setDniInput('') }} activeOpacity={0.7}>
-            <Text style={s.dniVolver}>Volver a escanear QR</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity onPress={salirDeDni} activeOpacity={0.7}>
+              <Text style={s.dniVolver}>Volver a escanear QR</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     )
   }
@@ -535,9 +586,11 @@ const s = StyleSheet.create({
     textDecorationLine: 'underline',
   },
 
-  // Ingresar DNI (fallback sin QR)
+  // Ingresar DNI (fallback sin QR). flexGrow (no flex): es el contenido de un
+  // ScrollView, centrado mientras entra y scrolleable cuando sube el teclado.
+  kav: { flex: 1 },
   dniContainer: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40,
+    flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40, paddingVertical: 24,
   },
   dniTitle: {
     fontFamily: fonts.titulo, fontSize: 23, color: colors.texto, textAlign: 'center',
