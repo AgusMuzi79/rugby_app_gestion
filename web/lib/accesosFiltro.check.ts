@@ -8,7 +8,10 @@ import {
   FILTROS_VACIOS,
   MAX_DIAS_RANGO,
   accesosACsv,
+  contarAccesos,
   crearSecuenciador,
+  esRechazo,
+  etiquetaRechazo,
   filtrarAccesos,
   respuestaCubreRango,
   validarRango,
@@ -28,6 +31,8 @@ function acceso(parcial: Partial<Acceso>): Acceso {
     semaforo: 'verde',
     sin_servicio: false,
     sin_reserva: false,
+    denegado: false,
+    motivo_rechazo: null,
     es_invitado: false,
     invitado_dni: null,
     veces_invitado: null,
@@ -132,6 +137,32 @@ caso('cada secuenciador es independiente', () => {
   const pedidoA = a.nuevo()
   b.nuevo()
   assert.equal(pedidoA(), true)
+})
+
+// ─── Ingresos y rechazos ──────────────────────────────────────────────────────
+
+const rechazadoTurno = acceso({ numero_socio: '400', nombre: 'Eva Sosa', sin_reserva: true, denegado: true, motivo_rechazo: 'Sin reserva' })
+
+caso('un rechazo (denegado) no es un ingreso; uno sin reserva que pasó, sí', () => {
+  assert.equal(esRechazo(rechazadoTurno), true)
+  assert.equal(esRechazo(carla), false)
+  assert.equal(esRechazo(ana), false)
+})
+caso('filas viejas con sin_servicio (antes de la columna denegado) son rechazos', () => {
+  assert.equal(esRechazo(beto), true)
+})
+caso('cuenta ingresos y rechazados por separado (antes todo era INGRESOS)', () => {
+  assert.deepEqual(contarAccesos([...todos, rechazadoTurno]), { ingresos: 3, rechazados: 2 })
+})
+caso('etiqueta RECHAZADO · <motivo>, con el motivo deducido en filas viejas', () => {
+  assert.equal(etiquetaRechazo(rechazadoTurno), 'RECHAZADO · SIN RESERVA')
+  assert.equal(etiquetaRechazo(beto), 'RECHAZADO · SIN SERVICIO')
+  assert.equal(etiquetaRechazo(ana), null)
+})
+caso('el CSV de ingresos deja afuera los rechazos', () => {
+  const filas = accesosACsv([ana, beto, rechazadoTurno, carla]).replace(/^\uFEFF/, '').split('\r\n')
+  assert.equal(filas.length, 3, 'encabezado + Ana + Carla')
+  assert.ok(!filas.some(f => f.includes('Beto') || f.includes('Eva')))
 })
 
 // ─── CSV ──────────────────────────────────────────────────────────────────────

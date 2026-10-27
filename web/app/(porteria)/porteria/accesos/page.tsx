@@ -10,7 +10,9 @@ import {
   FILTROS_VACIOS,
   SEMAFORO_LABEL,
   accesosACsv,
+  contarAccesos,
   crearSecuenciador,
+  etiquetaRechazo,
   filtrarAccesos,
   formatFecha,
   formatHora,
@@ -109,6 +111,8 @@ export default function AccesosPage() {
 
   const visibles = useMemo(() => filtrarAccesos(accesos, filtros), [accesos, filtros])
   const hayFiltros = JSON.stringify(filtros) !== JSON.stringify(FILTROS_VACIOS)
+  // Los rechazos se listan pero no son ingresos (ni van al CSV).
+  const conteo = useMemo(() => contarAccesos(visibles), [visibles])
 
   const setFiltro = <K extends keyof FiltrosAccesos>(clave: K, valor: FiltrosAccesos[K]) =>
     setFiltros(f => ({ ...f, [clave]: valor }))
@@ -177,10 +181,10 @@ export default function AccesosPage() {
         </div>
         <button
           onClick={handleExportar}
-          disabled={visibles.length === 0 || loading || !!errorRango}
+          disabled={conteo.ingresos === 0 || loading || !!errorRango}
           className="font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
         >
-          EXPORTAR CSV ({visibles.length})
+          EXPORTAR CSV ({conteo.ingresos} INGRESOS)
         </button>
       </div>
 
@@ -278,7 +282,8 @@ export default function AccesosPage() {
       ) : (
         <>
           <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">
-            {hayFiltros ? `${visibles.length} DE ${accesos.length} INGRESOS` : `${accesos.length} INGRESOS`}
+            {`${conteo.ingresos} INGRESOS · ${conteo.rechazados} RECHAZADOS`}
+            {hayFiltros && ` (${visibles.length} DE ${accesos.length} REGISTROS)`}
           </p>
           <table className="w-full border-collapse">
             <thead>
@@ -293,7 +298,9 @@ export default function AccesosPage() {
               </tr>
             </thead>
             <tbody>
-              {visibles.map((a, i) => (
+              {visibles.map((a, i) => {
+                const rechazo = etiquetaRechazo(a)
+                return (
                 <tr key={i} className="border-b border-gris-claro">
                   {!esUnDia && (
                     <td className="font-lora text-sm text-tinta/60 py-4 pr-4">{formatFecha(a.creado_en)}</td>
@@ -302,12 +309,12 @@ export default function AccesosPage() {
                   <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{a.numero_socio}</td>
                   <td className="font-lora text-sm text-tinta py-4 pr-4">
                     {a.nombre}
-                    {a.sin_servicio && (
-                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo">
-                        SIN SERVICIO
+                    {rechazo && (
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo bg-rojo/10">
+                        {rechazo}
                       </span>
                     )}
-                    {a.sin_reserva && (
+                    {a.sin_reserva && !rechazo && (
                       <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-sky-400 border-sky-400">
                         SIN RESERVA
                       </span>
@@ -336,7 +343,8 @@ export default function AccesosPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </>

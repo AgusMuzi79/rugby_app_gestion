@@ -340,15 +340,21 @@ function enSegundoPlano(tarea: Promise<unknown>): Promise<void> {
 
 // `sinServicio` marca el escaneo de un socio sin Gimnasio contratado (el
 // Lector igual le muestra el aviso, pero el intento queda visible en el panel).
-// `sinReserva` marca el escaneo dentro de una franja vigente sin reserva (turnero). La
-// columna sólo se escribe cuando es true: así un ingreso normal no depende de que la
-// migración 20261008000000 ya esté aplicada.
+// `sinReserva` marca el escaneo dentro de una franja vigente sin reserva (turnero).
+// `motivoRechazo` (texto corto) = el escaneo NO pasó: se guarda con denegado = true
+// para que el panel no lo cuente como ingreso (migración 20261029000000). Las
+// columnas opcionales sólo se escriben cuando hacen falta.
+interface MarcasAcceso {
+  sinServicio?:   boolean
+  sinReserva?:    boolean
+  motivoRechazo?: string | null
+}
+
 async function registrarAcceso(
   socioId: string,
   semaforo: string | null,
   callerRol: string,
-  sinServicio = false,
-  sinReserva = false,
+  marcas: MarcasAcceso = {},
 ): Promise<void> {
   const punto = PUNTO_POR_ROL[callerRol]
   if (!punto) return
@@ -358,8 +364,9 @@ async function registrarAcceso(
       socio_id: socioId,
       semaforo,
       punto,
-      sin_servicio: sinServicio,
-      ...(sinReserva ? { sin_reserva: true } : {}),
+      sin_servicio: marcas.sinServicio ?? false,
+      ...(marcas.sinReserva ? { sin_reserva: true } : {}),
+      ...(marcas.motivoRechazo ? { denegado: true, motivo_rechazo: marcas.motivoRechazo } : {}),
     })
   if (error) console.error('registrarAcceso:', error.message)
 }
@@ -438,13 +445,13 @@ async function decidirIngreso(row: SocioRow, callerRol: string, paso: number | n
 
   if (tieneGimnasio === null) return jsonError(500, 'No se pudo verificar el servicio de Gimnasio. Probá de nuevo.')
   if (!tieneGimnasio) {
-    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, true))
+    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinServicio: true, motivoRechazo: 'Sin servicio' }))
     return jsonOk({ valido: false, motivo: MOTIVO_SIN_SERVICIO })
   }
 
   // Turnero: sólo después del gate de servicio (que conserva la prioridad).
   if (turno?.bloquear) {
-    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, false, true))
+    await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinReserva: true, motivoRechazo: 'Sin reserva' }))
     return jsonOk({
       valido: false,
       motivo: turno.mensaje || 'No tenés una reserva para este horario. Reservá desde la app.',
@@ -475,7 +482,7 @@ async function decidirIngreso(row: SocioRow, callerRol: string, paso: number | n
   }
 
   // registrarAcceso ignora a secretaria/admin/subcomision (sin punto).
-  await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, false, turno?.estado === 'sin_reserva'))
+  await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinReserva: turno?.estado === 'sin_reserva' }))
 
   return jsonOk({ ...socioResponse(row), foto_url: fotoUrl, turno })
 }
@@ -666,6 +673,8 @@ async function handleListarAccesos(
         semaforo,
         sin_servicio,
         sin_reserva,
+        denegado,
+        motivo_rechazo,
         es_invitado,
         invitado_dni,
         invitado_nombre,
@@ -685,6 +694,8 @@ async function handleListarAccesos(
     semaforo: string | null
     sin_servicio: boolean
     sin_reserva: boolean
+    denegado: boolean
+    motivo_rechazo: string | null
     es_invitado: boolean
     invitado_dni: string | null
     invitado_nombre: string | null
@@ -741,6 +752,8 @@ async function handleListarAccesos(
     semaforo:        a.semaforo,
     sin_servicio:    a.sin_servicio,
     sin_reserva:     a.sin_reserva,
+    denegado:        a.denegado,
+    motivo_rechazo:  a.motivo_rechazo,
     es_invitado:     a.es_invitado,
     invitado_dni:    a.invitado_dni,
     veces_invitado:  vecesPorFila[i],
