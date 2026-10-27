@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
+import { filtrarDeudas, mensajeVacioDeudas, nombresSocio, SEMAFORO_LABEL, type Semaforo } from '@/lib/busquedaSocios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'exento'
 
 interface SocioSemaforo {
   id: string
   numero_socio: string
+  dni: string
+  /** Nombre del padrón de NUVIX; si falta, el de la app. */
   nombre: string
+  /** Nombre que el socio puso en la app; también se busca por este. */
+  nombreApp: string
   semaforo: Semaforo | null
   deuda_vencida: number
   meses_impagos: number
@@ -26,10 +29,6 @@ type FiltroSemaforo = 'todos' | Semaforo
 const FILTROS: FiltroSemaforo[] = ['todos', 'rojo', 'amarillo', 'verde', 'exento']
 
 const FILTRO_SERVICIO_TODOS = 'todos'
-
-const SEMAFORO_LABEL: Record<Semaforo, string> = {
-  verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento',
-}
 
 const SEMAFORO_COLOR: Record<Semaforo, string> = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
@@ -113,7 +112,7 @@ export default function DeudasPage() {
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .select('id, numero_socio, dni, nombre_padron, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
             .in('estado', ['activo', 'pendiente'])
             .not('semaforo', 'is', null)
             .range(from, to)
@@ -153,11 +152,12 @@ export default function DeudasPage() {
         return {
           id: s.id as string,
           numero_socio: s.numero_socio as string,
+          dni: (s.dni as string | null) ?? '',
           semaforo: s.semaforo as Semaforo | null,
           deuda_vencida: Number(s.deuda_vencida ?? 0),
           meses_impagos: Number(s.meses_impagos ?? 0),
           mora_max_dias: Number(s.mora_max_dias ?? 0),
-          nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+          ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
           categoria,
           serviciosOpcionales,
           servicios: [
@@ -178,14 +178,7 @@ export default function DeudasPage() {
 
   const opcionesServicio = [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es'))
 
-  const sociosFiltrados = socios
-    .filter(s => filtro === 'todos' || s.semaforo === filtro)
-    .filter(s => filtroServicio === FILTRO_SERVICIO_TODOS || s.serviciosOpcionales.includes(filtroServicio))
-    .filter(s => {
-      if (!busqueda.trim()) return true
-      const q = busqueda.toLowerCase()
-      return s.nombre.toLowerCase().includes(q) || s.numero_socio.includes(q)
-    })
+  const sociosFiltrados = filtrarDeudas(socios, { filtro, filtroServicio, busqueda })
     .sort((a, b) => {
       const cmp = compareSocios(a, b, sortColumn)
       return sortDirection === 'asc' ? cmp : -cmp
@@ -244,7 +237,8 @@ export default function DeudasPage() {
           type="text"
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o Nº socio…"
+          placeholder="Buscar por nombre, DNI o Nº socio (en todos los colores)…"
+          aria-label="Buscar socio por nombre, DNI o Nº, en todos los colores"
           className="flex-1 font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-oro transition-colors"
         />
         <div className="flex gap-1">
@@ -252,8 +246,10 @@ export default function DeudasPage() {
             <button
               key={f}
               onClick={() => setFiltro(f)}
+              // Con búsqueda el semáforo no se aplica: el botón deja de verse activo.
+              aria-pressed={filtro === f && !busqueda.trim()}
               className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
-                filtro === f
+                filtro === f && !busqueda.trim()
                   ? 'bg-oro border-oro text-papel'
                   : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
               }`}
@@ -304,7 +300,7 @@ export default function DeudasPage() {
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">
-            {busqueda ? 'SIN RESULTADOS' : 'NO HAY SOCIOS EN ESTA VISTA'}
+            {mensajeVacioDeudas({ filtro, filtroServicio, busqueda })}
           </p>
         </div>
       ) : (

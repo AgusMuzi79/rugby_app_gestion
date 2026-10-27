@@ -5,6 +5,7 @@ import { supabase, selectAllRows } from '@/lib/supabase'
 import { callEdgeFunction } from '@/lib/edgeFunction'
 import SolicitudesBaja from '@/components/secretaria/SolicitudesBaja'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
+import { coincideBusqueda, nombresSocio, resumenDeudaNuvix, type Semaforo } from '@/lib/busquedaSocios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,13 @@ interface SocioItem {
   foto_path: string | null
   foto_validada: boolean
   created_at: string
+  /** Nombre del padrón de NUVIX (el que conoce la secretaria); si falta, el de la app. */
   nombre: string
+  /** Nombre que el socio puso en la app (Mi perfil); también se busca por este. */
+  nombreApp: string
+  semaforo: Semaforo | null
+  deuda_vencida: number
+  meses_impagos: number
   categoria: string
   categoria_id: string
 }
@@ -65,6 +72,7 @@ function DetalleSocio({
   categorias,
   servicios,
   serviciosSocio,
+  fechaCorteDeuda,
   onClose,
   onRefresh,
 }: {
@@ -72,6 +80,7 @@ function DetalleSocio({
   categorias: CategoriaSocio[]
   servicios: ServicioOpcional[]
   serviciosSocio: VinculoServicio[]
+  fechaCorteDeuda: string | null
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -166,6 +175,9 @@ function DetalleSocio({
           <div>
             <h2 className="font-playfair italic text-3xl text-tinta mb-1">{socio.nombre}</h2>
             <p className="font-lora text-xs tracking-widest text-oro-hondo">Nº {socio.numero_socio}</p>
+            {socio.nombreApp && socio.nombreApp !== socio.nombre && (
+              <p className="font-lora text-xs text-texto-2 mt-1">En la app: {socio.nombreApp}</p>
+            )}
           </div>
 
           <table className="w-full border-collapse">
@@ -175,6 +187,7 @@ function DetalleSocio({
                 { label: 'CATEGORÍA', value: categoria?.nombre ?? socio.categoria },
                 { label: 'ESTADO',    value: ESTADO_LABEL[socio.estado] ?? socio.estado },
                 { label: 'FOTO',      value: socio.foto_validada ? 'Validada ✓' : 'Sin validar' },
+                { label: 'DEUDA NUVIX', value: resumenDeudaNuvix(socio, fechaCorteDeuda) },
               ].map(row => (
                 <tr key={row.label} className="border-b border-gris-claro">
                   <td className="font-lora text-xs tracking-widest text-tinta/50 py-3 pr-6 w-32">{row.label}</td>
@@ -289,6 +302,7 @@ export default function SociosPage() {
   const [categorias,   setCategorias]   = useState<CategoriaSocio[]>([])
   const [servicios,    setServicios]    = useState<ServicioOpcional[]>([])
   const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
+  const [fechaCorteDeuda, setFechaCorteDeuda] = useState<string | null>(null)
   const [loading,      setLoading]      = useState(true)
   const [filtro,       setFiltro]       = useState<FiltroEstado>('todos')
   const [busqueda,     setBusqueda]     = useState('')
@@ -307,17 +321,19 @@ export default function SociosPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [sociosData, { data: catsData }, { data: srvsData }] = await Promise.all([
+      const [sociosData, { data: catsData }, { data: srvsData }, { data: ultimaDeuda }] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .select('id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, nombre_padron, semaforo, deuda_vencida, meses_impagos, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
             .order('numero_socio')
             .range(from, to)
         ),
         supabase.from('categorias_socio').select('id, nombre, monto_mensual, activa').order('nombre'),
         supabase.from('servicios_opcionales').select('id, nombre, monto_mensual, activo').order('nombre'),
+        // El semáforo de cada socio lo dejó la última importación aplicada (no la de fecha de corte más nueva).
+        supabase.from('importaciones_deuda').select('fecha_corte').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       ])
 
       const normalized: SocioItem[] = (sociosData ?? []).map((s: Record<string, unknown>) => ({
@@ -329,13 +345,17 @@ export default function SociosPage() {
         foto_validada:    s.foto_validada as boolean,
         created_at:       s.created_at as string,
         categoria_id:     s.categoria_id as string,
-        nombre:           (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+        ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
+        semaforo:         (s.semaforo as Semaforo | null) ?? null,
+        deuda_vencida:    Number(s.deuda_vencida ?? 0),
+        meses_impagos:    Number(s.meses_impagos ?? 0),
         categoria:        (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
       }))
 
       setSocios(normalized)
       setCategorias(catsData ?? [])
       setServicios(srvsData ?? [])
+      setFechaCorteDeuda((ultimaDeuda as { fecha_corte: string } | null)?.fecha_corte ?? null)
     } finally {
       setLoading(false)
     }
@@ -363,11 +383,7 @@ export default function SociosPage() {
 
   const sociosFiltrados = socios
     .filter(s => filtro === 'todos' || s.estado === filtro)
-    .filter(s => {
-      if (!busqueda.trim()) return true
-      const q = busqueda.toLowerCase()
-      return s.nombre.toLowerCase().includes(q) || s.dni.includes(q) || s.numero_socio.includes(q)
-    })
+    .filter(s => coincideBusqueda(busqueda, s))
     .sort((a, b) => {
       const cmp = compareSocios(a, b, sortColumn)
       return sortDirection === 'asc' ? cmp : -cmp
@@ -382,6 +398,7 @@ export default function SociosPage() {
         categorias={categorias}
         servicios={servicios}
         serviciosSocio={serviciosSocio}
+        fechaCorteDeuda={fechaCorteDeuda}
         onClose={() => setDetalle(null)}
         onRefresh={handleRefreshDetalle}
       />
