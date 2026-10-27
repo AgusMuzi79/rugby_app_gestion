@@ -20,12 +20,42 @@ export interface PuertoSync {
   buscarEntrenamiento(divisionId: string, fecha: string): Promise<string | null>
   crearEntrenamiento(divisionId: string, fecha: string, creadoPor: string): Promise<string>
   upsertAsistencias(filas: FilaAsistencia[]): Promise<void>
+  // Igual que el guardado online de un entrenamiento: alerta de 4 faltas.
+  // Si falla, la asistencia igual cuenta como enviada.
+  alSincronizarEntrenamiento?(divisionId: string, jugadorIds: string[]): Promise<void>
 }
 
+export interface Fallido { id: string; error: string; red: boolean }
+
 export interface ResultadoSync {
-  enviados: string[]                         // ids a sacar de la cola
-  fallidos: { id: string; error: string }[]  // quedan en la cola para el próximo intento
-  omitidos: string[]                         // quedan en la cola sin intentar (lesiones ocultas)
+  enviados: string[]   // ids a sacar de la cola
+  fallidos: Fallido[]  // ver particionarFallidos
+  omitidos: string[]   // quedan en la cola sin intentar (lesiones ocultas)
+}
+
+// Fallas permanentes (RLS, jugador borrado, payload roto) toleradas antes de
+// sacar el ítem de la cola: si no, se reintentaba para siempre y la pantalla
+// quedaba en "pendiente" sin salida.
+export const MAX_INTENTOS = 5
+
+// Las fallas de red se reintentan siempre (sin sumar); las permanentes suman
+// un intento y al llegar al tope pasan a la lista de no enviadas.
+export function particionarFallidos(
+  items: ItemCola[],
+  fallidos: Fallido[],
+): { reintentar: ItemCola[]; descartar: ItemCola[] } {
+  const porId = new Map(items.map(i => [i.id, i]))
+  const reintentar: ItemCola[] = []
+  const descartar: ItemCola[] = []
+  for (const f of fallidos) {
+    const item = porId.get(f.id)
+    if (!item) continue
+    if (f.red) { reintentar.push(item); continue }
+    const intentos = (item.intentos ?? 0) + 1
+    if (intentos >= MAX_INTENTOS) descartar.push({ ...item, intentos, ultimoError: f.error })
+    else reintentar.push({ ...item, intentos, ultimoError: f.error })
+  }
+  return { reintentar, descartar }
 }
 
 interface PayloadAsistencia {
@@ -63,6 +93,13 @@ async function enviarAsistencia(item: ItemCola, db: PuertoSync): Promise<void> {
     estado:         j.estado,
     registrado_por: p.registrado_por,
   })))
+  if (!p.evento_id && db.alSincronizarEntrenamiento) {
+    try {
+      await db.alSincronizarEntrenamiento(p.division_id, p.jugadores.map(j => j.jugador_id))
+    } catch {
+      // La asistencia ya está en la base; la alerta no la devuelve a la cola.
+    }
+  }
 }
 
 export async function sincronizarItems(items: ItemCola[], db: PuertoSync): Promise<ResultadoSync> {
@@ -75,7 +112,7 @@ export async function sincronizarItems(items: ItemCola[], db: PuertoSync): Promi
       await enviarAsistencia(item, db)
       r.enviados.push(item.id)
     } catch (e) {
-      r.fallidos.push({ id: item.id, error: e instanceof Error ? e.message : String(e) })
+      r.fallidos.push({ id: item.id, error: e instanceof Error ? e.message : String(e), red: esErrorDeRed(e) })
     }
   }
   return r

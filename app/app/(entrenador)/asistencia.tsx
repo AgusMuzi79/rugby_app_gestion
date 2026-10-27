@@ -133,6 +133,7 @@ export default function AsistenciaScreen() {
   useScrollToTop(scrollRef)
   // Si la cola ya se vació (volvió la señal), la asistencia llegó: "guardada".
   const pendientesCola = useColaOffline(st => st.pendientes)
+  const noEnviadas = useColaOffline(st => st.noEnviadas)
   const {
     jugadores,
     loading,
@@ -236,6 +237,16 @@ export default function AsistenciaScreen() {
             contentContainerStyle={s.listContent}
           />
         </>
+      )}
+
+      {/* Guardadas sin señal que fallaron varias veces por un error que no es de
+          red: no se reintentan más (siguen guardadas en el teléfono). */}
+      {noEnviadas > 0 && (
+        <View style={s.statusBar} accessibilityRole="alert">
+          <Text style={s.statusError}>
+            ✕ {noEnviadas === 1 ? 'Una asistencia guardada sin señal no se pudo enviar' : `${noEnviadas} asistencias guardadas sin señal no se pudieron enviar`}. Volvé a tomarla y guardala con conexión.
+          </Text>
+        </View>
       )}
 
       {/* ── Estado ─────────────────────────────────────────────────────────── */}

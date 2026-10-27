@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/offlineSync.check.ts
 
 import assert from 'node:assert/strict'
-import { esErrorDeRed, nuevoIdCola, sincronizarItems, type FilaAsistencia, type PuertoSync } from './offlineSync'
+import { MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sincronizarItems, type FilaAsistencia, type PuertoSync } from './offlineSync'
 import type { ItemCola } from './offlineQueue'
 
 let casos = 0
@@ -101,6 +101,45 @@ async function main() {
     assert.equal(esErrorDeRed({ message: 'TypeError: Failed to fetch' }), true)
     assert.equal(esErrorDeRed({ message: 'new row violates row-level security policy', code: '42501' }), false)
     assert.equal(esErrorDeRed(null), false)
+  })
+
+  await caso('después de mandar un entrenamiento se corre la alerta de 4 faltas (partido no)', async () => {
+    const db = baseFalsa()
+    const llamadas: [string, string[]][] = []
+    db.puerto.alSincronizarEntrenamiento = async (div, ids) => { llamadas.push([div, ids]) }
+    const partido: ItemCola = {
+      id: 'p', tipo: 'asistencia', creadoEn: 1,
+      payload: { evento_id: 'partido-9', division_id: 'div-1', registrado_por: 'coach', jugadores: [{ jugador_id: 'j1', estado: 'ausente' }] },
+    }
+    await sincronizarItems([entrenamiento('a'), partido], db.puerto)
+    assert.deepEqual(llamadas, [['div-1', ['j1', 'j2']]])
+  })
+
+  await caso('una falla de la alerta no deja la asistencia en la cola', async () => {
+    const db = baseFalsa()
+    db.puerto.alSincronizarEntrenamiento = async () => { throw new Error('push caído') }
+    const r = await sincronizarItems([entrenamiento('a')], db.puerto)
+    assert.deepEqual(r.enviados, ['a'])
+  })
+
+  await caso('fallas: la de red se reintenta siempre; la permanente suma intentos y al tope sale de la cola', () => {
+    const items: ItemCola[] = [
+      { ...entrenamiento('red'), intentos: 9 },
+      { ...entrenamiento('rls'), intentos: 1 },
+      { ...entrenamiento('fk'), intentos: MAX_INTENTOS - 1 },
+    ]
+    const p = particionarFallidos(items, [
+      { id: 'red', error: 'Network request failed', red: true },
+      { id: 'rls', error: 'new row violates row-level security policy', red: false },
+      { id: 'fk', error: 'violates foreign key constraint', red: false },
+    ])
+    assert.deepEqual(p.reintentar.map(i => [i.id, i.intentos]), [['red', 9], ['rls', 2]])
+    assert.deepEqual(p.descartar.map(i => i.id), ['fk'])
+  })
+
+  await caso('el resultado marca qué fallas fueron de red', async () => {
+    const r = await sincronizarItems([entrenamiento('a')], baseFalsa({ caida: true }).puerto)
+    assert.equal(r.fallidos[0].red, true)
   })
 
   await caso('ids de cola distintos sin crypto.randomUUID', () => {
