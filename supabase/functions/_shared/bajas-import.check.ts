@@ -20,6 +20,8 @@ caso('una baja por ausencia muestra el nombre del padrón guardado (antes "—")
   assert.equal(nombreBaja(undefined, 'GOMEZ, ANA'), 'GOMEZ, ANA')
   assert.equal(nombreBaja('PEREZ, JUAN', 'otro'), 'PEREZ, JUAN')
   assert.equal(nombreBaja(undefined, null), '')
+  // Fila con nombre vacío en el archivo: también usa el guardado.
+  assert.equal(nombreBaja('  ', 'GOMEZ, ANA'), 'GOMEZ, ANA')
 })
 
 caso('umbral: el mayor entre 20 y el 3 % de los activos', () => {

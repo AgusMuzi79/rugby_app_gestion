@@ -61,7 +61,7 @@ async function callImportarSocios(
   archivo: File,
   modo: 'preview' | 'confirmar',
   confirmarBajas?: string,
-): Promise<DiffResultado & { error?: string }> {
+): Promise<DiffResultado & { error?: string; status: number }> {
   const { data: { session } } = await supabase.auth.getSession()
   const formData = new FormData()
   formData.append('archivo', archivo)
@@ -75,7 +75,7 @@ async function callImportarSocios(
       body: formData,
     }
   )
-  return res.json()
+  return { ...(await res.json()), status: res.status }
 }
 
 function formatFecha(iso: string | null | undefined): string {
@@ -144,6 +144,11 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
     setError(null)
     const json = await callImportarSocios(archivo, 'confirmar', preview?.baja_masiva ? confirmacionBajas.trim() : undefined)
     setAplicando(false)
+    // El padrón cambió entre el cálculo y la confirmación y ahora supera el
+    // umbral de bajas: mostrar el campo BAJAS (el cálculo había dicho que no).
+    if (json.status === 409 && preview && !preview.baja_masiva) {
+      setPreview({ ...preview, baja_masiva: true })
+    }
     if (json.error) { setError(json.error); return }
     setAplicadoResultado(json)
     setPreview(null)

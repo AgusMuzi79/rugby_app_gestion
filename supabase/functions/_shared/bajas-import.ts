@@ -16,7 +16,7 @@ export function etiquetaMotivoBaja(motivo: MotivoBaja): string {
 // El socio que ya no está en el archivo no tiene fila: se usa el nombre del
 // padrón que quedó guardado.
 export function nombreBaja(nombreArchivo: string | undefined, nombrePadronGuardado: string | null): string {
-  return nombreArchivo ?? nombrePadronGuardado ?? ''
+  return nombreArchivo?.trim() || nombrePadronGuardado || ''
 }
 
 export function umbralBajaMasiva(activos: number): number {
