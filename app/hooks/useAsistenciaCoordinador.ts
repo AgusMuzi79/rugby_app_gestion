@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -51,7 +51,13 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     if (divisionSeleccionada) fetchJugadores(divisionSeleccionada)
   })
 
+  // Sólo la última lectura escribe: si una lectura vieja (otra división, o la
+  // relectura al volver a la pestaña) termina después de la nueva, dejaba
+  // divisionCargada en la división equivocada y el spinner no se iba más.
+  const ultimaLectura = useRef(0)
+
   const fetchJugadores = useCallback(async (divisionId: string) => {
+    const lectura = ++ultimaLectura.current
     empezar()
 
     const hoy = fechaLocal()
@@ -128,6 +134,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
       }
     })
 
+    if (lectura !== ultimaLectura.current) return
     setJugadores(jugadoresConStats)
     setDivisionCargada(divisionId)
     terminar()
