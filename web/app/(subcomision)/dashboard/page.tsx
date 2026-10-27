@@ -81,7 +81,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="font-lora text-tinta/40 tracking-widest text-sm">CARGANDO…</p>
+        <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
       </div>
     )
   }
@@ -116,7 +116,7 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="mb-10">
-        <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">SUBCOMISIÓN · TABLERO</p>
+        <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · TABLERO</p>
         <h1 className="font-playfair italic text-4xl font-black text-tinta">Resumen General</h1>
       </div>
 
@@ -126,13 +126,13 @@ export default function DashboardPage() {
             key={card.label}
             className={`p-6 border ${card.accent ? 'bg-card border-oro' : 'bg-card border-gris-claro'}`}
           >
-            <p className={`font-lora text-xs tracking-widest mb-3 ${card.accent ? 'text-oro' : 'text-tinta/40'}`}>
+            <p className={`font-lora text-xs tracking-widest mb-3 ${card.accent ? 'text-oro' : 'text-texto-2'}`}>
               {card.label}
             </p>
             <p className={`font-playfair text-5xl font-black leading-none mb-2 ${card.accent ? 'text-oro' : 'text-tinta'}`}>
               {card.value}
             </p>
-            <p className={`font-lora text-xs ${card.accent ? 'text-tinta/50' : 'text-tinta/40'}`}>
+            <p className={`font-lora text-xs ${card.accent ? 'text-tinta/50' : 'text-texto-2'}`}>
               {card.sub}
             </p>
           </div>

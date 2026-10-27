@@ -24,13 +24,13 @@ import { fechaLocal } from '@/lib/fecha'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 const ROJO    = colors.rojoUrgente
-const VERDE   = '#22C55E'
+const VERDE   = colors.confirmacion
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancel
   return (
     <View style={[styles.fila, pasado && styles.filaPasada]}>
       <View style={[styles.tipoBadge, badge]}>
-        <Text style={[styles.tipoBadgeTexto, evento.tipo === 'actividad' && styles.tipoBadgeTextoActividad]}>
+        <Text style={[styles.tipoBadgeTexto, evento.tipo === 'actividad' && styles.tipoBadgeTextoActividad, evento.tipo === 'partido' && styles.tipoBadgeTextoPartido]}>
           {letraEvento(evento.tipo)}
         </Text>
       </View>
@@ -289,7 +289,7 @@ function ModalNuevoEvento({
               activeOpacity={0.85}
             >
               {guardando
-                ? <ActivityIndicator color={colors.oro} size="small" />
+                ? <ActivityIndicator color={colors.sobreOro} size="small" />
                 : <Text style={styles.botonGuardarTexto}>
                     {form.division_ids.length > 1 ? `GUARDAR ${form.division_ids.length} EVENTOS` : 'GUARDAR EVENTO'}
                   </Text>
@@ -500,8 +500,8 @@ const styles = StyleSheet.create({
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO },
   subtitulo:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 4, letterSpacing: 0.3 },
-  botonNuevo:  { backgroundColor: TEXTO, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
-  botonNuevoTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
+  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
 
   divider:     { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   listaVacia:  { flex: 1 },
@@ -517,12 +517,13 @@ const styles = StyleSheet.create({
   badgeActividad: { backgroundColor: colors.oro },
   tipoBadgeTexto: { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', color: colors.oro },
   tipoBadgeTextoActividad: { color: colors.sobreOro },
+  tipoBadgeTextoPartido: { color: colors.oroSobreClaro },
   eventoTitulo:   { fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, fontWeight: '500', flex: 1 },
   eventoTituloPasado: { color: MUTED },
   eventoMeta:     { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 2 },
   eventoDiv:      { fontFamily: fonts.label, fontSize: 13, color: colors.oro, marginTop: 2, letterSpacing: 0.5 },
   hoyBadge:       { backgroundColor: VERDE, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 1 },
-  hoyTexto:       { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: '#fff', letterSpacing: 0.5 },
+  hoyTexto:       { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: colors.sobreOro, letterSpacing: 0.5 },
 
   emptyWrap:        { alignItems: 'center', paddingVertical: 48 },
   crearPrimeroBtn:  { marginTop: 16 },
@@ -543,25 +544,25 @@ const styles = StyleSheet.create({
   input:           { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, backgroundColor: CARD, marginBottom: 20 },
   tipoRow:         { flexDirection: 'row', gap: 10, marginBottom: 20 },
   tipoBoton:       { flex: 1, paddingVertical: 12, borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
-  tipoBotonActivo: { backgroundColor: TEXTO, borderColor: TEXTO },
+  tipoBotonActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   tipoBotonTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, fontWeight: '500' },
-  tipoBotonTextoActivo: { color: colors.oro },
+  tipoBotonTextoActivo: { color: colors.sobreOro },
   divPill:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  divPillActiva:   { backgroundColor: TEXTO, borderColor: TEXTO },
+  divPillActiva:   { backgroundColor: colors.oro, borderColor: colors.oro },
   divPillTexto:    { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
-  divPillTextoActivo: { color: colors.oro },
+  divPillTextoActivo: { color: colors.sobreOro },
   errorBanner:     { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12, marginTop: 4 },
   errorTexto:      { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
-  botonGuardar:    { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
+  botonGuardar:    { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonGuardandoOff: { opacity: 0.6 },
-  botonGuardarTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
+  botonGuardarTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
 
   // Cancelar evento
   cancelarBtn:      { padding: 8, marginLeft: 4 },
-  cancelarBtnTexto: { fontFamily: fonts.label, fontSize: 16, color: ROJO, fontWeight: '700' },
+  cancelarBtnTexto: { fontFamily: fonts.label, fontSize: 16, color: colors.rojoTexto, fontWeight: '700' },
   cancelarInfo:     { fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO, marginBottom: 4 },
   cancelarAviso:    { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 12, lineHeight: 18 },
   inputMultiline:   { height: 90, textAlignVertical: 'top', paddingTop: 12 },
   botonCancelarConfirmar:      { borderWidth: 1.5, borderColor: ROJO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
-  botonCancelarConfirmarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
+  botonCancelarConfirmarTexto: { fontFamily: fonts.label, color: colors.rojoTexto, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
 })

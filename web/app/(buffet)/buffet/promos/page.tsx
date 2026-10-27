@@ -143,10 +143,10 @@ export default function BuffetPromosPage() {
       </div>
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : promos.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN PROMOCIONES TODAVÍA</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN PROMOCIONES TODAVÍA</p>
         </div>
       ) : (
         <div className="flex flex-col gap-0">
@@ -159,11 +159,11 @@ export default function BuffetPromosPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-lora text-sm text-tinta leading-snug mb-1">{p.titulo}</p>
                 <p className="font-lora text-xs text-tinta/50 mb-1 line-clamp-2">{p.cuerpo}</p>
-                <p className="font-lora text-xs text-tinta/40">{fechaCorta(p.created_at)}</p>
+                <p className="font-lora text-xs text-texto-2">{fechaCorta(p.created_at)}</p>
               </div>
               <button
                 onClick={() => handleEliminar(p)}
-                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo/60 hover:border-rojo hover:text-rojo transition-colors shrink-0"
+                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
               >
                 ELIMINAR
               </button>
@@ -178,7 +178,7 @@ export default function BuffetPromosPage() {
           <div className="bg-card w-full max-w-xl p-8">
             <div className="flex justify-between items-center mb-6">
               <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVA PROMOCIÓN</p>
-              <button onClick={closeModal} className="text-tinta/40 hover:text-tinta text-xl leading-none">×</button>
+              <button onClick={closeModal} className="text-texto-2 hover:text-tinta text-xl leading-none">×</button>
             </div>
 
             <div className="flex flex-col gap-5">
@@ -188,7 +188,7 @@ export default function BuffetPromosPage() {
                   type="text"
                   value={titulo}
                   onChange={e => setTitulo(e.target.value)}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                   placeholder="Ej: 2x1 en hamburguesas"
                 />
               </div>
@@ -199,7 +199,7 @@ export default function BuffetPromosPage() {
                   value={cuerpo}
                   onChange={e => setCuerpo(e.target.value)}
                   rows={4}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border border-gris-claro p-3 outline-none focus:border-oro transition-colors resize-none"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
                   placeholder="Contá la promo, vigencia, condiciones…"
                 />
               </div>
@@ -213,7 +213,7 @@ export default function BuffetPromosPage() {
                     <button
                       type="button"
                       onClick={quitarImagen}
-                      className="font-lora text-xs tracking-widest text-rojo/70 hover:text-rojo mt-2"
+                      className="font-lora text-xs tracking-widest text-rojo-texto hover:text-rojo-texto mt-2"
                     >
                       QUITAR
                     </button>
@@ -233,9 +233,9 @@ export default function BuffetPromosPage() {
               </div>
             </div>
 
-            {formError && <p className="font-lora text-rojo text-sm mt-4">{formError}</p>}
+            {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
-            <p className="font-lora text-xs text-tinta/40 italic mt-4">Se publica de una para todos los socios del club.</p>
+            <p className="font-lora text-xs text-texto-2 italic mt-4">Se publica de una para todos los socios del club.</p>
 
             <div className="flex gap-3 mt-6">
               <button

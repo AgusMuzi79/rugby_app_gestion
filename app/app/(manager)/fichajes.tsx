@@ -23,11 +23,11 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO     = '#15110A'
-const CARD      = '#1C1710'
-const TEXTO     = '#F3EFE4'
-const MUTED     = '#8E8574'
-const DIVIDER   = '#2C2418'
+const FONDO     = colors.fondo
+const CARD      = colors.card
+const TEXTO     = colors.texto
+const MUTED     = colors.muted
+const DIVIDER   = colors.borde
 const ORO       = colors.oro
 const ORO_HONDO = colors.oroHondo
 const ROJO      = colors.rojoUrgente
@@ -41,7 +41,7 @@ const TIPO_LABEL: Record<TipoDocumento, string> = {
 
 const TIPO_COLOR: Record<TipoDocumento, string> = {
   dni:          ORO,
-  ficha_medica: VERDE,
+  ficha_medica: colors.estadoActivo,
   otro:         MUTED,
 }
 
@@ -419,7 +419,7 @@ export default function FichajesScreen() {
                   activeOpacity={0.85}
                 >
                   {guardandoFichaje
-                    ? <ActivityIndicator color={ORO} size="small" />
+                    ? <ActivityIndicator color={colors.sobreOro} size="small" />
                     : <Text style={s.botonPrincipalTexto}>FICHAR JUGADOR</Text>
                   }
                 </TouchableOpacity>
@@ -474,12 +474,12 @@ const s = StyleSheet.create({
 
   // Badge OK
   okBadge:     { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-end' },
-  okBadgeTexto:{ fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: FONDO, letterSpacing: 1 },
+  okBadgeTexto:{ fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: colors.sobreOro, letterSpacing: 1 },
 
   // FAB
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ fontFamily: fonts.label, color: FONDO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  fabTexto:{ fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Volver
   volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
@@ -524,8 +524,8 @@ const s = StyleSheet.create({
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
   bannerOk:         { backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: ORO, fontWeight: '700', letterSpacing: 2 },
-  bannerOkSub:      { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: colors.oroSobreClaro, fontWeight: '700', letterSpacing: 2 },
+  bannerOkSub:      { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.sobreOro },
 
   // Modal
   kavFlex:        { flex: 1 },
@@ -540,9 +540,9 @@ const s = StyleSheet.create({
   inputLinea:     { borderBottomWidth: 1.5, borderBottomColor: ORO, paddingVertical: 10, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO },
 
   // Botones
-  botonPrincipal:       { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:       { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:    { opacity: 0.6 },
-  botonPrincipalTexto:  { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto:  { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
   botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
   botonSecundarioTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

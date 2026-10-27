@@ -21,11 +21,11 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const CARD    = '#1C1710'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const CARD    = colors.card
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -150,7 +150,7 @@ function ModalNuevaPromo({ visible, onClose, onPublicar, publicando }: ModalNuev
               activeOpacity={0.85}
             >
               {publicando
-                ? <ActivityIndicator color={colors.oro} size="small" />
+                ? <ActivityIndicator color={colors.sobreOro} size="small" />
                 : <Text style={s.botonGuardarTexto}>PUBLICAR PROMOCIÓN</Text>
               }
             </TouchableOpacity>
@@ -232,8 +232,8 @@ const s = StyleSheet.create({
   labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO },
-  botonNuevo:  { backgroundColor: TEXTO, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
-  botonNuevoTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
+  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
 
   divider:     { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   listaVacia:  { flex: 1 },
@@ -269,7 +269,7 @@ const s = StyleSheet.create({
   preview:          { width: '100%', aspectRatio: 4 / 3, borderRadius: 6, backgroundColor: DIVIDER },
   previewQuitar:    { alignSelf: 'flex-start', marginTop: 8 },
   previewQuitarTexto: { fontFamily: fonts.label, color: colors.rojoUrgente, fontSize: 12, letterSpacing: 1.5, fontWeight: '600' },
-  botonGuardar:   { backgroundColor: TEXTO, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
+  botonGuardar:   { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:       { opacity: 0.5 },
-  botonGuardarTexto: { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
+  botonGuardarTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
 })

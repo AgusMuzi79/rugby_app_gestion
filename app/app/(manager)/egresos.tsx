@@ -160,9 +160,9 @@ const s = StyleSheet.create({
   chip:             { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: CARD, maxWidth: 220 },
   chipActivo:       { backgroundColor: TEXTO, borderColor: TEXTO },
   chipNombre:       { fontFamily: fonts.cuerpo, fontSize: 15, fontWeight: '700', color: TEXTO },
-  chipNombreActivo: { color: FONDO },
+  chipNombreActivo: { color: colors.sobreOro },
   chipMeta:         { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED, marginTop: 2 },
-  chipMetaActivo:   { color: colors.oroHondo },
+  chipMetaActivo:   { color: colors.oroSobreClaro },
 
   // Evento elegido
   eventoResumen: { gap: 4 },

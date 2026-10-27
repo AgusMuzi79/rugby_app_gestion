@@ -16,10 +16,10 @@ type BadgeStyle = { bg: string; text: string; border?: string }
 
 const TIPO_BADGE: Record<FeedTipo, BadgeStyle> = {
   'LESIÓN':     { bg: '#C0392B',         text: '#FFFFFF' },
-  'FICHAJE':    { bg: colors.tinta,      text: colors.oro },
-  'RESULTADO':  { bg: colors.oroHondo,   text: colors.tinta },
-  'ASISTENCIA': { bg: colors.oro,        text: colors.tinta },
-  'INFO':       { bg: 'transparent',     text: colors.tinta, border: colors.tinta },
+  'FICHAJE':    { bg: colors.tinta,      text: colors.oroSobreClaro },
+  'RESULTADO':  { bg: colors.oroHondo,   text: colors.sobreOro },
+  'ASISTENCIA': { bg: colors.oro,        text: colors.sobreOro },
+  'INFO':       { bg: 'transparent',     text: colors.texto, border: colors.texto },
 }
 
 function tiempoRelativo(iso: string): string {
@@ -57,20 +57,20 @@ function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
     >
       <View style={s.feedMeta}>
         <TipoBadge tipo={item.tipo} />
-        <Text style={[s.feedTiempo, urgente && { color: colors.oro }]}>
+        <Text style={[s.feedTiempo, urgente && { color: colors.oroSobreClaro }]}>
           {tiempoRelativo(item.createdAt)}
         </Text>
-        {onPress ? <Text style={[s.feedArrow, urgente && { color: colors.oro }]}>→</Text> : null}
+        {onPress ? <Text style={[s.feedArrow, urgente && { color: colors.oroSobreClaro }]}>→</Text> : null}
       </View>
-      <Text style={[s.feedTitulo, { color: tc.texto }, urgente && { color: colors.oro }]} numberOfLines={2}>
+      <Text style={[s.feedTitulo, { color: tc.texto }, urgente && { color: colors.oroSobreClaro }]} numberOfLines={2}>
         {item.titulo}
       </Text>
       {item.desc ? (
-        <Text style={[s.feedDesc, urgente && { color: '#C9B98A' }]} numberOfLines={3}>
+        <Text style={[s.feedDesc, urgente && { color: colors.mutedSobreClaro }]} numberOfLines={3}>
           {item.desc}
         </Text>
       ) : null}
-      <Text style={[s.feedAutor, urgente && { color: '#7A6D50' }]}>{item.autor}</Text>
+      <Text style={[s.feedAutor, urgente && { color: colors.mutedSobreClaro }]}>{item.autor}</Text>
     </Wrapper>
   )
 }
@@ -191,7 +191,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionMeta: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
@@ -201,7 +201,7 @@ const s = StyleSheet.create({
 
   tituloContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
   tituloTexto: {
-    fontFamily: fonts.titulo, fontSize: 28, color: colors.tinta,
+    fontFamily: fonts.titulo, fontSize: 28, color: colors.texto,
     marginBottom: 14, lineHeight: 34,
   },
   tituloDivider: { height: 1, backgroundColor: colors.grisClaro },
@@ -213,7 +213,7 @@ const s = StyleSheet.create({
   },
   nuevaBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
+    textTransform: 'uppercase', color: colors.sobreOro, fontWeight: '700',
   },
 
   feedList: { paddingHorizontal: 20, paddingTop: 16 },
@@ -245,12 +245,12 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 14, color: colors.oroHondo,
   },
   feedTitulo: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto,
     fontWeight: '600', lineHeight: 20,
   },
   feedDesc: {
     fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic',
-    color: '#7C7267', lineHeight: 18,
+    color: colors.muted, lineHeight: 18,
   },
   feedAutor: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5,
@@ -271,7 +271,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18,
   },
   modalTitulo: {
-    fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, lineHeight: 30,
+    fontFamily: fonts.titulo, fontSize: 25, color: colors.texto, lineHeight: 30,
   },
   modalCerrar: {
     fontFamily: fonts.label, fontSize: 16, color: '#9B9183', letterSpacing: 1,

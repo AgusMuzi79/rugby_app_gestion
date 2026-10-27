@@ -20,12 +20,12 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO   = '#15110A'
-const TEXTO   = '#F3EFE4'
-const MUTED   = '#8E8574'
-const DIVIDER = '#2C2418'
+const FONDO   = colors.fondo
+const TEXTO   = colors.texto
+const MUTED   = colors.muted
+const DIVIDER = colors.borde
 const ROJO    = colors.rojoUrgente
-const VERDE   = '#22C55E'
+const VERDE   = colors.confirmacion
 
 // ─── FilaJugador ─────────────────────────────────────────────────────────────
 
@@ -244,9 +244,9 @@ const s = StyleSheet.create({
   selectorScroll:  { flexGrow: 0, marginBottom: 12 },
   selectorContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row', alignItems: 'center' },
   pill:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
-  pillActiva:      { backgroundColor: TEXTO, borderColor: TEXTO },
+  pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
-  pillTextoActivo: { color: colors.oro },
+  pillTextoActivo: { color: colors.sobreOro },
 
   divider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
 

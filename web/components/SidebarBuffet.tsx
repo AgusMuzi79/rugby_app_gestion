@@ -64,7 +64,7 @@ export default function SidebarBuffet({ nombre }: Props) {
         )}
         <button
           onClick={handleSignOut}
-          className="text-xs font-lora tracking-widest text-gris hover:text-rojo transition-colors"
+          className="text-xs font-lora tracking-widest text-gris hover:text-rojo-texto transition-colors"
         >
           CERRAR SESIÓN
         </button>

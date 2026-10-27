@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { fonts } from '@/constants/theme'
 import type { CobroJugador, FormaDePago } from '@/lib/cobrosPorDivision'
 import type { CambioCobro, CobrosSubcomisionState } from '@/hooks/useCobrosSubcomision'
-import { CARD, DIVIDER, FONDO, MUTED, ORO, ROJO, TEXTO, VERDE, formatMonto } from './estilo'
+import { CARD, DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, SOBRE_ORO, TEXTO, VERDE, formatMonto } from './estilo'
 
 // Cobros de una recaudación de Subcomisión agrupados por división: resumen por
 // división y, en cada una, sus jugadores. Tocar un jugador abre el modal para
@@ -135,7 +135,7 @@ function ModalCobro({
             activeOpacity={0.85}
           >
             {guardando
-              ? <ActivityIndicator color={ORO} size="small" />
+              ? <ActivityIndicator color={SOBRE_ORO} size="small" />
               : <Text style={s.botonPrincipalTexto}>GUARDAR</Text>
             }
           </TouchableOpacity>
@@ -294,8 +294,8 @@ const s = StyleSheet.create({
   selectorBtnPagado:      { backgroundColor: ORO, borderColor: ORO },
   selectorBtnPendiente:   { borderColor: ROJO },
   selectorTexto:          { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
-  selectorTextoPagado:    { color: FONDO },
-  selectorTextoPendiente: { color: ROJO },
+  selectorTextoPagado:    { color: SOBRE_ORO },
+  selectorTextoPendiente: { color: ROJO_TEXTO },
   iconMr:                 { marginRight: 6 },
 
   montoWrap:    { flexDirection: 'row', alignItems: 'flex-end', borderBottomWidth: 1.5, borderBottomColor: ORO, paddingBottom: 8 },
@@ -303,11 +303,11 @@ const s = StyleSheet.create({
   montoInput:   { flex: 1, fontFamily: fonts.cuerpo, fontSize: 32, fontWeight: '700', color: TEXTO, padding: 0 },
 
   formaBtn:         { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
-  formaBtnActivo:   { backgroundColor: TEXTO, borderColor: TEXTO },
+  formaBtnActivo:   { backgroundColor: ORO, borderColor: ORO },
   formaTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
-  formaTextoActivo: { color: ORO },
+  formaTextoActivo: { color: SOBRE_ORO },
 
-  botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:      { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: SOBRE_ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

@@ -20,7 +20,7 @@ import { useCobrosSubcomision } from '@/hooks/useCobrosSubcomision'
 import { ResumenBalance } from './ResumenBalance'
 import { CobrosPanel } from './CobrosPanel'
 import { EgresosPanel } from './EgresosPanel'
-import { DIVIDER, FONDO, MUTED, ORO, ROJO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
+import { DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
 
 // Detalle de una recaudación de Subcomisión: resumen Cobrado / Egresos / Neto
 // y un selector "Cobros | Egresos". Cobros = quién pagó, por división;
@@ -148,5 +148,5 @@ const s = StyleSheet.create({
 
   botonCerrar:      { marginTop: 16, borderWidth: 1.5, borderColor: ROJO, borderRadius: 3, paddingVertical: 14, alignItems: 'center' },
   botonCerrarOff:   { opacity: 0.6 },
-  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonCerrarTexto: { fontFamily: fonts.label, color: ROJO_TEXTO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

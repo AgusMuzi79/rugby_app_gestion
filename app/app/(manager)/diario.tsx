@@ -231,12 +231,12 @@ export default function DiarioManagerScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 48 },
   activityIndicator: { marginTop: 40 },
 
   sinDivWrap: {
-    flex: 1, backgroundColor: '#15110A',
+    flex: 1, backgroundColor: colors.fondo,
     justifyContent: 'center', alignItems: 'center',
   },
 
@@ -246,7 +246,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionMeta: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
@@ -256,7 +256,7 @@ const s = StyleSheet.create({
 
   tituloContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
   tituloTexto: {
-    fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta,
+    fontFamily: fonts.titulo, fontSize: 25, color: colors.texto,
     marginBottom: 14, lineHeight: 30,
   },
   tituloDivider: { height: 1, backgroundColor: colors.grisClaro },
@@ -270,7 +270,7 @@ const s = StyleSheet.create({
 
   // Cobranza card
   cobranzaCard: {
-    backgroundColor: '#1C1710', borderWidth: 1, borderColor: colors.grisClaro,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.grisClaro,
     borderRadius: 4, padding: 14, gap: 10,
   },
   cobranzaHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -280,9 +280,9 @@ const s = StyleSheet.create({
   },
   tipoBadgeText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: colors.tinta,
+    textTransform: 'uppercase', color: colors.texto,
   },
-  cobranzaNombre: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  cobranzaNombre: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
   cobranzaPct:    { fontFamily: fonts.titulo, fontSize: 19, color: colors.oroHondo, lineHeight: 22 },
   barraFondo: {
     flexDirection: 'row', height: 4,
@@ -294,7 +294,7 @@ const s = StyleSheet.create({
 
   // Pedido de subcomisión
   pedidoCard: {
-    backgroundColor: '#15110A',
+    backgroundColor: colors.fondo,
     borderWidth: 1, borderColor: colors.grisClaro,
     borderLeftWidth: 3, borderLeftColor: colors.oroHondo,
     borderRadius: 4, padding: 16, gap: 6,
@@ -308,16 +308,16 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.oroHondo,
   },
-  pedidoNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta },
-  pedidoDetalle:{ fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: '#7C7267', lineHeight: 18 },
+  pedidoNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto },
+  pedidoDetalle:{ fontFamily: fonts.cuerpo, fontSize: 14, fontStyle: 'italic', color: colors.muted, lineHeight: 18 },
   pedidoProgreso:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183', marginTop: 2 },
   confirmarBtn: {
-    marginTop: 6, backgroundColor: colors.tinta,
+    marginTop: 6, backgroundColor: colors.oro,
     paddingVertical: 12, alignItems: 'center', borderRadius: 4,
   },
   confirmarBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.sobreOro,
   },
 
   // Fichajes
@@ -327,7 +327,7 @@ const s = StyleSheet.create({
     paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: colors.grisClaro,
   },
   fichajeInfo:  { flex: 1 },
-  fichajeNombre:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta, marginBottom: 3 },
+  fichajeNombre:{ fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto, marginBottom: 3 },
   fichajeMeta:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#9B9183' },
   okBadge: {
     backgroundColor: colors.oro,
@@ -335,19 +335,19 @@ const s = StyleSheet.create({
   },
   okBadgeText: {
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta, fontWeight: '700',
+    textTransform: 'uppercase', color: colors.sobreOro, fontWeight: '700',
   },
 
   verTodosBtn: {
-    marginTop: 16, borderWidth: 1, borderColor: colors.tinta,
+    marginTop: 16, borderWidth: 1, borderColor: colors.texto,
     paddingVertical: 14, alignItems: 'center', borderRadius: 4,
   },
   verTodosBtnText: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.tinta,
+    textTransform: 'uppercase', color: colors.texto,
   },
 
   emptyText:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
-  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, marginBottom: 8 },
+  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.texto, marginBottom: 8 },
   sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

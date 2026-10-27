@@ -38,11 +38,12 @@ function nombreEvento(ev: EventoSemana): string {
   return ev.divisionNombre
 }
 
+// Color del % (texto) y de la barra: tonos que llegan a 4.5:1 sobre el fondo.
 function barColor(pct: number | null): string {
-  if (pct === null)  return colors.grisClaro
-  if (pct >= 85)     return '#4A7C59'
+  if (pct === null)  return colors.muted
+  if (pct >= 85)     return colors.estadoActivo
   if (pct >= 70)     return colors.oro
-  return colors.rojoUrgente
+  return colors.rojoTexto
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -227,12 +228,12 @@ export default function DiarioCoordinadorScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:          { flex: 1, backgroundColor: '#15110A' },
+  root:          { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { paddingBottom: 48 },
   activityIndicator: { marginTop: 40 },
 
   sinDivWrap: {
-    flex: 1, backgroundColor: '#15110A',
+    flex: 1, backgroundColor: colors.fondo,
     justifyContent: 'center', alignItems: 'center',
   },
 
@@ -242,7 +243,7 @@ const s = StyleSheet.create({
   },
   edicionLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.oro,
+    textTransform: 'uppercase', color: colors.oroSobreClaro,
   },
   edicionMeta: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1,
@@ -251,7 +252,7 @@ const s = StyleSheet.create({
   },
 
   tituloContainer: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 4 },
-  tituloTexto:     { fontFamily: fonts.titulo, fontSize: 28, color: colors.tinta, marginBottom: 14, lineHeight: 34 },
+  tituloTexto:     { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto, marginBottom: 14, lineHeight: 34 },
   tituloDivider:   { height: 1, backgroundColor: colors.grisClaro },
 
   section:  { paddingHorizontal: 20, paddingTop: 22 },
@@ -271,9 +272,9 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', color: colors.oroHondo,
   },
   eventoFechaSlash:{ fontFamily: fonts.label, fontSize: 11, color: colors.grisClaro },
-  eventoFechaNum: { fontFamily: fonts.titulo, fontSize: 19, color: colors.tinta, lineHeight: 22 },
+  eventoFechaNum: { fontFamily: fonts.titulo, fontSize: 19, color: colors.texto, lineHeight: 22 },
   eventoBody:     { flex: 1, gap: 3 },
-  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  eventoNombre:   { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
   eventoDetalle:  { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: '#9B9183', textTransform: 'uppercase' },
   cobranzaBadge: {
     alignSelf: 'flex-start', marginTop: 3,
@@ -281,14 +282,14 @@ const s = StyleSheet.create({
   },
   cobranzaBadgeText: {
     fontFamily: fonts.label, fontSize: 10, letterSpacing: 1.5,
-    textTransform: 'uppercase', color: colors.tinta,
+    textTransform: 'uppercase', color: colors.sobreOro,
   },
   eventoArrow: { fontFamily: fonts.label, fontSize: 15, color: colors.oroHondo },
 
   // Alertas
   alertasList: { gap: 10 },
   alertaCard: {
-    backgroundColor: '#15110A',
+    backgroundColor: colors.fondo,
     borderWidth: 1, borderColor: colors.oro,
     borderRadius: 4, padding: 16, gap: 4,
   },
@@ -296,9 +297,9 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 11, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oroHondo, marginBottom: 4,
   },
-  alertaNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta, fontWeight: '600' },
+  alertaNombre: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto, fontWeight: '600' },
   alertaDiv:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: '#9B9183', textTransform: 'uppercase', marginBottom: 6 },
-  alertaDesc:   { fontFamily: fonts.cuerpo, fontSize: 14, color: '#7C7267', fontStyle: 'italic', lineHeight: 18 },
+  alertaDesc:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, fontStyle: 'italic', lineHeight: 18 },
   verMasText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
     textTransform: 'uppercase', color: colors.oroHondo, paddingTop: 4,
@@ -308,7 +309,7 @@ const s = StyleSheet.create({
   barrasList:    { gap: 18 },
   barraContainer:{ gap: 7 },
   barraNombreRow:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  barraNombre:   { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.tinta },
+  barraNombre:   { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
   barraPct:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1 },
   barraFondo: {
     flexDirection: 'row', height: 4,
@@ -316,6 +317,6 @@ const s = StyleSheet.create({
   },
 
   emptyText:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
-  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.tinta, marginBottom: 8 },
+  sinDivTitle:{ fontFamily: fonts.titulo, fontSize: 25, color: colors.texto, marginBottom: 8 },
   sinDivSub:  { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: '#9B9183' },
 })

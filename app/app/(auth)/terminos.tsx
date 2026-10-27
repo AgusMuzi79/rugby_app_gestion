@@ -82,7 +82,7 @@ export default function TerminosScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.checkbox, leido && styles.checkboxChecked]}>
-              {leido && <Ionicons name="checkmark" size={14} color={colors.tinta} />}
+              {leido && <Ionicons name="checkmark" size={14} color={colors.sobreOro} />}
             </View>
             <Text style={styles.checkLabel}>Leí y acepto los Términos y Condiciones</Text>
           </TouchableOpacity>
@@ -105,7 +105,7 @@ export default function TerminosScreen() {
             activeOpacity={0.85}
           >
             {aceptando
-              ? <ActivityIndicator color={colors.oro} size="small" />
+              ? <ActivityIndicator color={colors.sobreOro} size="small" />
               : <Text style={styles.buttonText}>ACEPTO →</Text>
             }
           </TouchableOpacity>
@@ -128,8 +128,8 @@ export default function TerminosScreen() {
 }
 
 const styles = StyleSheet.create({
-  kav:           { flex: 1, backgroundColor: '#15110A' },
-  loadingWrap:   { flex: 1, backgroundColor: '#15110A', alignItems: 'center', justifyContent: 'center' },
+  kav:           { flex: 1, backgroundColor: colors.fondo },
+  loadingWrap:   { flex: 1, backgroundColor: colors.fondo, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { flexGrow: 1 },
   container: {
     flex: 1,
@@ -149,13 +149,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 36,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 16,
     lineHeight: 42,
   },
   divider: {
     height: 1,
-    backgroundColor: '#2C2418',
+    backgroundColor: colors.borde,
     marginBottom: 24,
   },
   subtitle: {
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
     fontSize: 15,
-    color: '#7C7267',
+    color: colors.textoSecundario,
     lineHeight: 20,
     marginBottom: 32,
   },
@@ -206,16 +206,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.cuerpo,
     fontSize: 16,
-    color: colors.tinta,
+    color: colors.texto,
   },
   button: {
-    backgroundColor: colors.tinta,
+    backgroundColor: colors.oro,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
   },
   buttonDisabled: {
-    backgroundColor: '#333',
+    opacity: 0.4,
   },
   pdfDisabled: { opacity: 0.5 },
   linkBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
@@ -225,18 +225,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     color: colors.oro,
   },
-  // REINTENTAR dentro del banner claro.
-  linkTextBanner: { color: colors.oroSobreClaro },
+  // REINTENTAR dentro del banner de error (card).
+  linkTextBanner: { color: colors.oro },
   buttonText: {
     fontFamily: fonts.label,
     fontSize: 14,
     letterSpacing: 2.5,
-    color: colors.oro,
+    color: colors.sobreOro,
   },
   errorBanner: {
-    backgroundColor: '#FEF8EC',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.oro,
+    borderColor: colors.rojoTexto,
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 15,
     textAlign: 'center',
-    color: colors.tinta,
+    color: colors.texto,
   },
   footer: {
     fontFamily: fonts.label,

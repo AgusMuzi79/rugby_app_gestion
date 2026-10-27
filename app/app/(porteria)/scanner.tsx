@@ -25,7 +25,7 @@ const VEREDICTO_UI: Record<Veredicto, { bg: string; fg: string; icon: 'check-cir
 // Color de la línea del turnero bajo los datos del socio: verde con reserva, ámbar sin
 // reserva (modo informativo), apagado si la franja está cerrada.
 function colorTurno(estado: string): string {
-  if (estado === 'con_reserva') return '#5DBB63'
+  if (estado === 'con_reserva') return colors.estadoActivo
   if (estado === 'sin_reserva') return colors.oro
   return MUTED
 }
@@ -231,7 +231,7 @@ export default function ScannerScreen() {
                     <Text style={[
                       s.resultValor,
                       esTablet && s.resultValorTablet,
-                      estadoVisual(result) === 'moroso' && { color: colors.rojoUrgente },
+                      estadoVisual(result) === 'moroso' && { color: colors.rojoTexto },
                     ]}>
                       {estadoVisual(result).toUpperCase()}
                     </Text>
@@ -252,7 +252,7 @@ export default function ScannerScreen() {
                 <Text style={[
                   s.motivoText,
                   esTablet && s.motivoTextTablet,
-                  result.turno?.bloquear === true && { color: colors.rojoUrgente },
+                  result.turno?.bloquear === true && { color: colors.rojoTexto },
                 ]}>
                   {motivo}
                 </Text>
@@ -297,7 +297,7 @@ export default function ScannerScreen() {
                   : `${invitadoResultado?.veces} ${invitadoResultado?.veces === 1 ? 'vez' : 'veces'} en los últimos 30 días`}
               </Text>
               {repetido && (
-                <Text style={[s.dniSub, { color: colors.rojoUrgente }]}>
+                <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
                   Derivar a Secretaría para que se haga socio.
                 </Text>
               )}
@@ -332,7 +332,7 @@ export default function ScannerScreen() {
               />
 
               {invitadoResultado && !invitadoResultado.ok && (
-                <Text style={[s.dniSub, { color: colors.rojoUrgente }]}>
+                <Text style={[s.dniSub, { color: colors.rojoTexto }]}>
                   {invitadoResultado.motivo ?? 'No se pudo registrar el invitado'}
                 </Text>
               )}
@@ -458,7 +458,7 @@ export default function ScannerScreen() {
 
 const VISOR_SIZE = 240
 
-const MUTED = '#8E8574'
+const MUTED = colors.muted
 
 const s = StyleSheet.create({
   root:   { flex: 1, backgroundColor: colors.papel },
@@ -466,7 +466,7 @@ const s = StyleSheet.create({
 
   permBar: {
     paddingHorizontal: 20, paddingVertical: 10, backgroundColor: colors.papel,
-    borderBottomWidth: 1, borderBottomColor: '#2C2418',
+    borderBottomWidth: 1, borderBottomColor: colors.borde,
   },
   permBarLabel: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 2,
@@ -474,7 +474,7 @@ const s = StyleSheet.create({
   },
 
   permTitle: {
-    fontFamily: fonts.titulo, fontSize: 26, color: colors.tinta, textAlign: 'center',
+    fontFamily: fonts.titulo, fontSize: 26, color: colors.texto, textAlign: 'center',
   },
   permSub: {
     fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED,
@@ -538,7 +538,7 @@ const s = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40,
   },
   dniTitle: {
-    fontFamily: fonts.titulo, fontSize: 23, color: colors.tinta, textAlign: 'center',
+    fontFamily: fonts.titulo, fontSize: 23, color: colors.texto, textAlign: 'center',
   },
   dniSub: {
     fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, textAlign: 'center', marginBottom: 8,
@@ -546,7 +546,7 @@ const s = StyleSheet.create({
   dniInput: {
     width: '100%', maxWidth: 320, fontFamily: fonts.cuerpo, fontSize: 21, textAlign: 'center',
     paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.oro,
-    backgroundColor: 'transparent', color: colors.tinta, letterSpacing: 2,
+    backgroundColor: 'transparent', color: colors.texto, letterSpacing: 2,
   },
   dniBtn: {
     marginTop: 12, width: '100%', maxWidth: 320, borderRadius: 4,
@@ -606,12 +606,12 @@ const s = StyleSheet.create({
   },
   fotoSocioTablet: { width: 240, height: 288 },
   fotoPlaceholder: {
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#2C2418',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.borde,
   },
   resultInfo: { flex: 1, gap: 10 },
   resultInfoTablet: { flex: 0, maxWidth: 460, gap: 28 },
   resultNombre: {
-    fontFamily: fonts.titulo, fontSize: 23, color: colors.tinta, marginBottom: 6,
+    fontFamily: fonts.titulo, fontSize: 23, color: colors.texto, marginBottom: 6,
   },
   resultNombreTablet: { fontSize: 44, marginBottom: 14 },
   resultRow:   { gap: 2 },
@@ -621,7 +621,7 @@ const s = StyleSheet.create({
   },
   resultLabelTablet: { fontSize: 17 },
   resultValor: {
-    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.tinta,
+    fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto,
   },
   resultValorTablet: { fontSize: 32 },
   turnoLinea: {

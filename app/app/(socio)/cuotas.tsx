@@ -621,8 +621,8 @@ export default function CuotasScreen() {
                   onPress={() => setDeudaModal(true)}
                   activeOpacity={0.8}
                 >
-                  <Feather name="info" size={14} color={colors.tinta} />
-                  <Text style={[s.bannerText, { color: colors.tinta }]}>
+                  <Feather name="info" size={14} color={colors.texto} />
+                  <Text style={[s.bannerText, { color: colors.texto }]}>
                     Según los registros del club, tenés pagos pendientes
                     {deudaActualizadaAt ? ` (datos al ${fechaCorta(deudaActualizadaAt)})` : ''}. Tocá para ver el detalle.
                   </Text>

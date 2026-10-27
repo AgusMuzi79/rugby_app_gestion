@@ -56,7 +56,7 @@ export default function RegistrarMailScreen() {
             value={email}
             onChangeText={setEmail}
             placeholder="tu-mail@ejemplo.com"
-            placeholderTextColor="#7C7267"
+            placeholderTextColor={colors.muted}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
@@ -75,7 +75,7 @@ export default function RegistrarMailScreen() {
             activeOpacity={0.85}
           >
             {guardando
-              ? <ActivityIndicator color={colors.oro} size="small" />
+              ? <ActivityIndicator color={colors.sobreOro} size="small" />
               : <Text style={styles.buttonText}>GUARDAR →</Text>
             }
           </TouchableOpacity>
@@ -87,7 +87,7 @@ export default function RegistrarMailScreen() {
             activeOpacity={0.7}
           >
             {omitiendo
-              ? <ActivityIndicator color="#7C7267" size="small" />
+              ? <ActivityIndicator color={colors.textoSecundario} size="small" />
               : <Text style={styles.skipButtonText}>Ahora no</Text>
             }
           </TouchableOpacity>
@@ -101,7 +101,7 @@ export default function RegistrarMailScreen() {
 }
 
 const styles = StyleSheet.create({
-  kav:           { flex: 1, backgroundColor: '#15110A' },
+  kav:           { flex: 1, backgroundColor: colors.fondo },
   scrollContent: { flexGrow: 1 },
   container: {
     flex: 1,
@@ -121,13 +121,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: fonts.titulo,
     fontSize: 36,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 16,
     lineHeight: 42,
   },
   divider: {
     height: 1,
-    backgroundColor: '#2C2418',
+    backgroundColor: colors.borde,
     marginBottom: 24,
   },
   subtitle: {
@@ -135,35 +135,35 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
     fontSize: 15,
-    color: '#7C7267',
+    color: colors.textoSecundario,
     lineHeight: 20,
     marginBottom: 32,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#2C2418',
+    borderColor: colors.borde,
     borderRadius: 4,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontFamily: fonts.cuerpo,
     fontSize: 17,
-    color: colors.tinta,
+    color: colors.texto,
     marginBottom: 20,
   },
   button: {
-    backgroundColor: colors.tinta,
+    backgroundColor: colors.oro,
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
   },
   buttonDisabled: {
-    backgroundColor: '#333',
+    opacity: 0.4,
   },
   buttonText: {
     fontFamily: fonts.label,
     fontSize: 14,
     letterSpacing: 2.5,
-    color: colors.oro,
+    color: colors.sobreOro,
   },
   skipButton: {
     marginTop: 20,
@@ -173,13 +173,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 15,
     fontStyle: 'italic',
-    color: '#7C7267',
+    color: colors.textoSecundario,
     textDecorationLine: 'underline',
   },
   errorBanner: {
-    backgroundColor: '#FEF8EC',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.oro,
+    borderColor: colors.rojoTexto,
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.cuerpo,
     fontSize: 15,
     textAlign: 'center',
-    color: colors.tinta,
+    color: colors.texto,
   },
   footer: {
     fontFamily: fonts.label,

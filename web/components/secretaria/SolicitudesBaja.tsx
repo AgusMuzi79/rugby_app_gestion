@@ -70,14 +70,14 @@ export default function SolicitudesBaja() {
 
   return (
     <div className="mb-6 border border-rojo/40 bg-card p-5">
-      <p className="font-lora text-xs tracking-widest text-rojo mb-1">
+      <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">
         SOLICITUDES DE BAJA PENDIENTES ({items.length})
       </p>
       <p className="font-lora text-tinta/50 text-sm mb-4">
         Pedidas desde la app. Contactá a la persona para confirmar antes de darla de baja.
       </p>
 
-      {error && <p className="font-lora text-rojo text-sm mb-3">{error}</p>}
+      {error && <p className="font-lora text-rojo-texto text-sm mb-3">{error}</p>}
 
       <div className="flex flex-col gap-2">
         {items.map(item => (

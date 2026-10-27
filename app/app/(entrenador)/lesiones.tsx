@@ -22,19 +22,20 @@ import { Redirect } from 'expo-router'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
-const FONDO     = '#15110A'
-const CARD      = '#1C1710'
-const TEXTO     = '#F3EFE4'
-const MUTED     = '#8E8574'
-const DIVIDER   = '#2C2418'
+const FONDO     = colors.fondo
+const CARD      = colors.card
+const TEXTO     = colors.texto
+const MUTED     = colors.muted
+const DIVIDER   = colors.borde
 const ORO       = colors.oro
 const ORO_HONDO = colors.oroHondo
 const ROJO      = colors.rojoUrgente
 
 // Escala progresiva de grado 1→5
-const GRADO: Record<number, { bg: string; borde?: string }> = {
+// `texto`: color del rótulo cuando el blanco no llega (G2 blanco = 2.72:1).
+const GRADO: Record<number, { bg: string; borde?: string; texto?: string }> = {
   1: { bg: '#4A7C59' },
-  2: { bg: '#C4960A' },
+  2: { bg: '#C4960A', texto: colors.sobreOro },
   3: { bg: '#C06008' },
   4: { bg: '#C0392B' },
   5: { bg: '#7F1D1D', borde: '#C0392B' },
@@ -64,7 +65,7 @@ function GradoBadge({ grado, small }: { grado: number; small?: boolean }) {
       cfg.borde ? { borderWidth: 1.5, borderColor: cfg.borde } : null,
       small && s.gradoBadgeSmall,
     ]}>
-      <Text style={[s.gradoBadgeTexto, small && s.gradoBadgeTextoSmall]}>G{grado}</Text>
+      <Text style={[s.gradoBadgeTexto, small && s.gradoBadgeTextoSmall, cfg.texto ? { color: cfg.texto } : null]}>G{grado}</Text>
     </View>
   )
 }
@@ -106,7 +107,7 @@ function FilaLesion({
           <Ionicons
             name={expanded ? 'chevron-up' : 'chevron-down'}
             size={13}
-            color={urgente ? ORO : MUTED}
+            color={urgente ? colors.oroSobreClaro : MUTED}
           />
         </View>
       </View>
@@ -122,8 +123,8 @@ function FilaLesion({
             onPress={onVerHistorial}
             activeOpacity={0.7}
           >
-            <Text style={s.historialLinkTexto}>VER HISTORIAL DEL JUGADOR</Text>
-            <Ionicons name="arrow-forward" size={11} color={ORO} />
+            <Text style={[s.historialLinkTexto, urgente && s.historialLinkTextoUrgente]}>VER HISTORIAL DEL JUGADOR</Text>
+            <Ionicons name="arrow-forward" size={11} color={urgente ? colors.oroSobreClaro : ORO} />
           </TouchableOpacity>
         </View>
       )}
@@ -675,7 +676,7 @@ function LesionesScreen() {
                   activeOpacity={0.85}
                 >
                   {guardando
-                    ? <ActivityIndicator color={ORO} size="small" />
+                    ? <ActivityIndicator color={colors.sobreOro} size="small" />
                     : <Text style={s.botonPrincipalTexto}>REGISTRAR LESIÓN</Text>
                   }
                 </TouchableOpacity>
@@ -727,14 +728,14 @@ const s = StyleSheet.create({
   divisionChipTexto: {
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED,
   },
-  divisionChipTextoActivo: { color: FONDO, fontWeight: '700' },
+  divisionChipTextoActivo: { color: colors.sobreOro, fontWeight: '700' },
 
   // Tabs
   tabSwitcher:       { flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
   tabBtn:            { flex: 1, paddingVertical: 9, borderRadius: 2, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   tabBtnActivo:      { backgroundColor: TEXTO, borderColor: TEXTO },
   tabBtnTexto:       { fontSize: 13, letterSpacing: 1.5, color: MUTED, fontFamily: fonts.label, fontWeight: '700' },
-  tabBtnTextoActivo: { color: ORO },
+  tabBtnTextoActivo: { color: colors.oroSobreClaro },
 
   // Lista lesiones
   lista:         { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 120, gap: 10 },
@@ -757,19 +758,20 @@ const s = StyleSheet.create({
   lesionBadgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
   lesionNombre:       { fontSize: 17, fontWeight: '700', fontFamily: fonts.cuerpo },
   lesionNombreNormal: { color: TEXTO },
-  lesionNombreUrgente:{ color: ORO },
+  lesionNombreUrgente:{ color: colors.oroSobreClaro },
   lesionFecha:        { fontSize: 13, color: MUTED, fontFamily: fonts.label, letterSpacing: 0.5 },
-  lesionFechaUrgente: { color: '#9A8870' },
+  lesionFechaUrgente: { color: colors.mutedSobreClaro },
   lesionDesc:         { fontSize: 15, color: TEXTO, lineHeight: 20, fontFamily: fonts.cuerpo },
-  lesionDescUrgente:  { color: '#0E0E0E' },
+  lesionDescUrgente:  { color: colors.sobreOro },
 
   // Expansión
   lesionExpand:       { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: DIVIDER, gap: 6 },
   lesionExpandUrgente:{ borderTopColor: '#2A2A2A' },
   expandLabel:        { fontSize: 12, letterSpacing: 2, color: ORO_HONDO, fontFamily: fonts.label },
-  expandLabelUrgente: { color: ORO },
+  expandLabelUrgente: { color: colors.oroSobreClaro },
   historialLink:      { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
   historialLinkTexto: { fontSize: 12, letterSpacing: 2, color: ORO, fontFamily: fonts.label },
+  historialLinkTextoUrgente: { color: colors.oroSobreClaro },
 
   // Badge de grado
   gradoBadge:          { borderRadius: 3, paddingHorizontal: 8, paddingVertical: 3 },
@@ -780,7 +782,7 @@ const s = StyleSheet.create({
   // FAB dorado
   fabWrap: { position: 'absolute', bottom: 24, left: 16, right: 16 },
   fab:     { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
-  fabTexto:{ color: FONDO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  fabTexto:{ color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 
   // Protocolo — ícono de documento
   docIconWrap: { width: 30, height: 30, borderRadius: 2, borderWidth: 1, borderColor: ORO, alignItems: 'center', justifyContent: 'center' },
@@ -805,7 +807,7 @@ const s = StyleSheet.create({
   gradoBtnActivo:        { backgroundColor: TEXTO, borderColor: TEXTO },
   gradoBtnInactivo:      { backgroundColor: 'transparent', borderColor: DIVIDER },
   gradoBtnTexto:         { fontSize: 18, fontWeight: '700', fontFamily: fonts.label },
-  gradoBtnTextoActivo:   { color: ORO },
+  gradoBtnTextoActivo:   { color: colors.oroSobreClaro },
   gradoBtnTextoInactivo: { color: MUTED },
 
   // Modal
@@ -837,13 +839,13 @@ const s = StyleSheet.create({
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontSize: 15, color: '#FFAAAA', fontFamily: fonts.cuerpo },
   bannerOk:         { backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14, gap: 4 },
-  bannerOkTexto:    { fontSize: 15, color: ORO, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
-  bannerOkSub:      { fontSize: 14, color: '#9A8870', fontFamily: fonts.cuerpo },
+  bannerOkTexto:    { fontSize: 15, color: colors.oroSobreClaro, fontWeight: '700', fontFamily: fonts.label, letterSpacing: 1.5 },
+  bannerOkSub:      { fontSize: 14, color: colors.mutedSobreClaro, fontFamily: fonts.cuerpo },
 
   // Botones
-  botonPrincipal:       { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:       { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:    { opacity: 0.6 },
-  botonPrincipalTexto:  { color: ORO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
+  botonPrincipalTexto:  { color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
   botonSecundario:      { borderWidth: 1.5, borderColor: ORO, paddingVertical: 12, borderRadius: 3, alignItems: 'center' },
   botonSecundarioTexto: { color: ORO, fontSize: 13, letterSpacing: 2.5, fontFamily: fonts.label, fontWeight: '700' },
 })

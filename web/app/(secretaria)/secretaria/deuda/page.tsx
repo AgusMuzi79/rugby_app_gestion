@@ -50,8 +50,8 @@ const SEMAFORO_LABEL ={ verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exen
 const SEMAFORO_COLOR = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
   amarillo: 'text-[#E67E22] border-[#E67E22]',
-  rojo: 'text-rojo border-rojo',
-  exento: 'text-tinta/30 border-gris-claro',
+  rojo: 'text-rojo-texto border-rojo',
+  exento: 'text-texto-2 border-gris-claro',
 } as const
 
 function formatMoney(n: number | null | undefined): string {
@@ -117,7 +117,7 @@ function SeccionImportar({
 
       {error && (
         <div className="mt-4 p-4 border border-rojo bg-rojo/5">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-1">EL ARCHIVO NO SE IMPORTÓ</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">EL ARCHIVO NO SE IMPORTÓ</p>
           <p className="font-lora text-sm text-tinta/70 whitespace-pre-wrap">{error}</p>
         </div>
       )}
@@ -146,7 +146,7 @@ function SeccionImportar({
               </span>
             ))}
           </div>
-          <p className="font-lora text-xs text-tinta/30 italic mt-3">
+          <p className="font-lora text-xs text-texto-2 italic mt-3">
             Vé el detalle por socio en la sección "Deudas" del menú.
           </p>
         </div>
@@ -161,7 +161,7 @@ const ESTADO_ENVIO = {
   enviando: { label: 'EN CURSO', color: 'text-tinta/60 border-gris-claro' },
   enviado: { label: 'ENVIADO', color: 'text-[#2ECC71] border-[#2ECC71]' },
   salteado: { label: 'SALTEADO', color: 'text-[#E67E22] border-[#E67E22]' },
-  error: { label: 'ERROR', color: 'text-rojo border-rojo' },
+  error: { label: 'ERROR', color: 'text-rojo-texto border-rojo' },
 } as const
 
 function formatFechaHora(iso: string): string {
@@ -182,11 +182,11 @@ function SeccionAvisoDeuda({ envio, error }: { envio: EnvioRecordatorio | null; 
 
       {error ? (
         <div className="p-4 border border-rojo bg-rojo/5">
-          <p className="font-lora text-xs tracking-widest text-rojo mb-1">NO SE PUDO LEER EL ÚLTIMO ENVÍO</p>
+          <p className="font-lora text-xs tracking-widest text-rojo-texto mb-1">NO SE PUDO LEER EL ÚLTIMO ENVÍO</p>
           <p className="font-lora text-sm text-tinta/70">{error}</p>
         </div>
       ) : !envio || !estado ? (
-        <p className="font-lora text-sm text-tinta/40 tracking-widest">TODAVÍA NO SE ENVIÓ NINGÚN AVISO</p>
+        <p className="font-lora text-sm text-texto-2 tracking-widest">TODAVÍA NO SE ENVIÓ NINGÚN AVISO</p>
       ) : (
         <div className="flex flex-wrap gap-x-6 gap-y-2 items-center">
           <span className={`font-lora text-xs tracking-widest px-3 py-1 border ${estado.color}`}>{estado.label}</span>
@@ -219,7 +219,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES</p>
       {historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
       ) : (
         <ListaColapsable items={historial} render={visibles => (
@@ -244,7 +244,7 @@ function SeccionHistorial({ historial }: { historial: ImportacionDeuda[] }) {
                 <td className="font-lora text-sm text-tinta/60 text-right py-3 pr-4">{imp.comprobantes ?? '—'}</td>
                 <td className="text-center py-3">
                   <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${
-                    imp.reconcilia ? 'text-[#2ECC71] border-[#2ECC71]' : 'text-rojo border-rojo'
+                    imp.reconcilia ? 'text-[#2ECC71] border-[#2ECC71]' : 'text-rojo-texto border-rojo'
                   }`}>
                     {imp.reconcilia ? 'SÍ' : 'NO'}
                   </span>
@@ -326,7 +326,7 @@ export default function ImportarDeudaPage() {
       <SeccionAvisoDeuda envio={ultimoEnvio} error={errorEnvio} />
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : (
         <SeccionHistorial historial={historial} />
       )}

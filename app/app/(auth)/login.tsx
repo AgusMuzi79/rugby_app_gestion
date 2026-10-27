@@ -184,7 +184,7 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   kbView: {
     flex: 1,
-    backgroundColor: '#15110A',
+    backgroundColor: colors.fondo,
   },
   scrollContent: {
     flexGrow: 1,
@@ -217,19 +217,19 @@ const s = StyleSheet.create({
     fontSize: 52,
     marginBottom: 16,
     lineHeight: 58,
-    color: '#F3EFE4',
+    color: colors.texto,
   },
   divider: {
     height: 1,
     marginBottom: 14,
-    backgroundColor: '#2C2418',
+    backgroundColor: colors.borde,
   },
   subtitle: {
     textAlign: 'center',
     fontFamily: fonts.cuerpo,
     fontStyle: 'italic',
     fontSize: 15,
-    color: '#7C7267',
+    color: colors.textoSecundario,
     marginBottom: 40,
     lineHeight: 20,
   },
@@ -250,7 +250,7 @@ const s = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 2,
     marginBottom: 8,
-    color: '#F3EFE4',
+    color: colors.texto,
   },
   input: {
     fontFamily: fonts.cuerpo,
@@ -259,7 +259,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
-    color: '#F3EFE4',
+    color: colors.texto,
   },
   passwordRow: {
     flexDirection: 'row',
@@ -273,7 +273,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
-    color: '#F3EFE4',
+    color: colors.texto,
   },
   eyeButton: {
     paddingBottom: 4,
@@ -283,7 +283,7 @@ const s = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     borderRadius: 4,
-    backgroundColor: '#F3EFE4',
+    backgroundColor: colors.oro,
   },
   buttonLoading: {
     paddingVertical: 16,
@@ -295,7 +295,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.label,
     fontSize: 14,
     letterSpacing: 2.5,
-    color: colors.oro,
+    color: colors.sobreOro,
   },
   biometriaButton: {
     flexDirection: 'row',
@@ -318,18 +318,18 @@ const s = StyleSheet.create({
   },
   errorBanner: {
     borderWidth: 1,
-    borderColor: colors.oro,
+    borderColor: colors.rojoTexto,
     borderRadius: 6,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 16,
-    backgroundColor: '#1C1710',
+    backgroundColor: colors.card,
   },
   errorText: {
     fontFamily: fonts.cuerpo,
     fontSize: 15,
     textAlign: 'center',
-    color: '#F3EFE4',
+    color: colors.texto,
   },
   successBanner: {
     backgroundColor: '#F0F9EC',

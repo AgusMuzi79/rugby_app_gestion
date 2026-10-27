@@ -87,7 +87,7 @@ export default function LoginPage() {
                 onChange={e => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="font-lora text-tinta bg-transparent border-b border-tinta/30 py-2 text-sm outline-none focus:border-oro transition-colors"
+                className="font-lora text-tinta bg-transparent border-b border-borde-control py-2 text-sm outline-none focus:border-oro transition-colors"
                 placeholder="nombre@uncas.club"
               />
             </div>
@@ -103,13 +103,13 @@ export default function LoginPage() {
                   onChange={e => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="w-full font-lora text-tinta bg-transparent border-b border-tinta/30 py-2 text-sm outline-none focus:border-oro transition-colors pr-16"
+                  className="w-full font-lora text-tinta bg-transparent border-b border-borde-control py-2 text-sm outline-none focus:border-oro transition-colors pr-16"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 font-lora text-xs tracking-widest text-tinta/40 hover:text-tinta transition-colors"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 font-lora text-xs tracking-widest text-texto-2 hover:text-tinta transition-colors"
                 >
                   {showPassword ? 'OCULTAR' : 'VER'}
                 </button>
@@ -117,7 +117,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="font-lora text-rojo text-sm">{error}</p>
+              <p className="font-lora text-rojo-texto text-sm">{error}</p>
             )}
 
             <button

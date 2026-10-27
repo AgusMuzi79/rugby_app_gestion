@@ -23,8 +23,8 @@ import {
 const SEMAFORO_COLOR: Record<Semaforo, string> = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
   amarillo: 'text-[#E67E22] border-[#E67E22]',
-  rojo: 'text-rojo border-rojo',
-  exento: 'text-tinta/30 border-gris-claro',
+  rojo: 'text-rojo-texto border-rojo',
+  exento: 'text-texto-2 border-gris-claro',
 }
 
 // Desde cuántas visitas en 30 días se le sugiere al invitado hacerse socio.
@@ -61,7 +61,7 @@ const ATAJOS: { label: string; desde: () => string }[] = [
   { label: 'ÚLTIMOS 30 DÍAS', desde: () => haceDiasISO(29) },
 ]
 
-const inputClass = 'font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 outline-none focus:border-oro transition-colors'
+const inputClass = 'font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-oro transition-colors'
 const labelClass = 'font-lora text-xs tracking-widest text-tinta/50'
 
 // ─── Página ───────────────────────────────────────────────────────────────────
@@ -259,17 +259,17 @@ export default function AccesosPage() {
 
       {errorRango ? (
         <div className="border border-rojo p-8 text-center">
-          <p className="font-lora text-rojo text-sm tracking-widest">{errorRango}</p>
+          <p className="font-lora text-rojo-texto text-sm tracking-widest">{errorRango}</p>
         </div>
       ) : loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : error ? (
         <div className="border border-rojo p-8 text-center">
-          <p className="font-lora text-rojo text-sm tracking-widest">{error}</p>
+          <p className="font-lora text-rojo-texto text-sm tracking-widest">{error}</p>
         </div>
       ) : visibles.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">
+          <p className="font-lora text-texto-2 text-sm tracking-widest">
             {accesos.length > 0
               ? 'NINGÚN INGRESO COINCIDE CON LOS FILTROS'
               : esUnDia ? 'SIN INGRESOS ESTE DÍA' : 'SIN INGRESOS EN ESTE RANGO'}
@@ -277,7 +277,7 @@ export default function AccesosPage() {
         </div>
       ) : (
         <>
-          <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">
+          <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">
             {hayFiltros ? `${visibles.length} DE ${accesos.length} INGRESOS` : `${accesos.length} INGRESOS`}
           </p>
           <table className="w-full border-collapse">
@@ -303,7 +303,7 @@ export default function AccesosPage() {
                   <td className="font-lora text-sm text-tinta py-4 pr-4">
                     {a.nombre}
                     {a.sin_servicio && (
-                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo">
+                      <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo">
                         SIN SERVICIO
                       </span>
                     )}
@@ -321,7 +321,7 @@ export default function AccesosPage() {
                           <span className="ml-2 font-lora text-xs text-tinta/50">DNI {a.invitado_dni}</span>
                         )}
                         {a.veces_invitado != null && a.veces_invitado >= UMBRAL_INVITADO_REPETIDO && (
-                          <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo border-rojo bg-rojo/10">
+                          <span className="ml-2 font-lora text-xs tracking-widest px-2 py-0.5 border text-rojo-texto border-rojo bg-rojo/10">
                             {a.veces_invitado} VECES · DERIVAR A SECRETARÍA
                           </span>
                         )}
@@ -330,7 +330,7 @@ export default function AccesosPage() {
                   </td>
                   <td className="text-center py-4 pl-4">
                     <span className={`font-lora text-xs tracking-widest px-2 py-0.5 border ${
-                      a.semaforo ? SEMAFORO_COLOR[a.semaforo] : 'border-gris-claro text-tinta/40'
+                      a.semaforo ? SEMAFORO_COLOR[a.semaforo] : 'border-gris-claro text-texto-2'
                     }`}>
                       {a.semaforo ? SEMAFORO_LABEL[a.semaforo].toUpperCase() : '—'}
                     </span>

@@ -24,11 +24,11 @@ import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
-const FONDO     = '#15110A'
-const CARD      = '#1C1710'
-const TEXTO     = '#F3EFE4'
-const MUTED     = '#8E8574'
-const DIVIDER   = '#2C2418'
+const FONDO     = colors.fondo
+const CARD      = colors.card
+const TEXTO     = colors.texto
+const MUTED     = colors.muted
+const DIVIDER   = colors.borde
 const ORO       = colors.oro
 const ORO_HONDO = colors.oroHondo
 const ROJO      = colors.rojoUrgente
@@ -205,7 +205,7 @@ function ModalPago({
                 onPress={() => !pagado && onToggle(jugador.jugadorId)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="checkmark-circle" size={18} color={pagado ? FONDO : MUTED} style={s.estadoIconMr} />
+                <Ionicons name="checkmark-circle" size={18} color={pagado ? colors.sobreOro : MUTED} style={s.estadoIconMr} />
                 <Text style={[s.estadoSelectorTexto, pagado && s.estadoSelectorTextoActivo]}>
                   PAGADO
                 </Text>
@@ -277,7 +277,7 @@ function ModalPago({
             activeOpacity={0.85}
           >
             {guardando
-              ? <ActivityIndicator color={ORO} size="small" />
+              ? <ActivityIndicator color={colors.sobreOro} size="small" />
               : <Text style={s.botonPrincipalTexto}>GUARDAR</Text>
             }
           </TouchableOpacity>
@@ -448,7 +448,7 @@ export default function CobranzasScreen() {
                 activeOpacity={0.85}
               >
                 {guardando
-                  ? <ActivityIndicator color={ORO} size="small" />
+                  ? <ActivityIndicator color={colors.sobreOro} size="small" />
                   : <Text style={s.botonPrincipalTexto}>GUARDAR TODOS</Text>
                 }
               </TouchableOpacity>
@@ -514,7 +514,7 @@ const s = StyleSheet.create({
 
   // % badge
   pctBadge:      { backgroundColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
-  pctBadgeTexto: { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', color: FONDO },
+  pctBadgeTexto: { fontFamily: fonts.label, fontSize: 14, fontWeight: '700', color: colors.sobreOro },
 
   // Barra de progreso
   progWrap: { height: 4, backgroundColor: DIVIDER, borderRadius: 2, overflow: 'hidden' },
@@ -536,8 +536,8 @@ const s = StyleSheet.create({
   resumenLabel:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: MUTED },
   resumenVal:  { fontFamily: fonts.cuerpo, fontSize: 18, fontWeight: '700' },
   resumenValTexto:{ color: TEXTO },
-  resumenValVerde:{ color: VERDE },
-  resumenValRojo: { color: ROJO },
+  resumenValVerde:{ color: colors.estadoActivo },
+  resumenValRojo: { color: colors.rojoTexto },
   resumenValMuted:{ color: MUTED },
 
   // Lista jugadores
@@ -564,7 +564,7 @@ const s = StyleSheet.create({
   bannerError:      { marginTop: 12, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
   bannerOk:         { marginTop: 12, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14 },
-  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: ORO, fontWeight: '700', letterSpacing: 2 },
+  bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: colors.oroSobreClaro, fontWeight: '700', letterSpacing: 2 },
 
   // Modal
   kavFlex:        { flex: 1 },
@@ -583,8 +583,8 @@ const s = StyleSheet.create({
   estadoSelectorBtnActivo:   { backgroundColor: ORO, borderColor: ORO },
   estadoPendienteSelector:   { borderColor: ROJO },
   estadoSelectorTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, fontWeight: '700' },
-  estadoSelectorTextoActivo: { color: FONDO },
-  estadoSelectorTextoPendiente: { color: ROJO },
+  estadoSelectorTextoActivo: { color: colors.sobreOro },
+  estadoSelectorTextoPendiente: { color: colors.rojoTexto },
   estadoIconMr:              { marginRight: 6 },
 
   // Monto
@@ -595,12 +595,12 @@ const s = StyleSheet.create({
   // Forma de pago
   formaRow:           { flexDirection: 'row', gap: 8 },
   formaBtn:           { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
-  formaBtnActivo:     { backgroundColor: TEXTO, borderColor: TEXTO },
+  formaBtnActivo:     { backgroundColor: ORO, borderColor: ORO },
   formaBtnTexto:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
-  formaBtnTextoActivo:{ color: ORO },
+  formaBtnTextoActivo:{ color: colors.sobreOro },
 
   // Botón principal
-  botonPrincipal:      { backgroundColor: TEXTO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
+  botonPrincipal:      { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },
-  botonPrincipalTexto: { fontFamily: fonts.label, color: ORO, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
+  botonPrincipalTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 })

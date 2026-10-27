@@ -193,17 +193,17 @@ export default function SubcomisionNoticiasPage() {
         </button>
       </div>
 
-      {aviso && <p className="font-lora text-rojo text-sm mb-4">{aviso}</p>}
+      {aviso && <p className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : listError ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-rojo text-sm">No se pudieron cargar las noticias: {listError}</p>
+          <p className="font-lora text-rojo-texto text-sm">No se pudieron cargar las noticias: {listError}</p>
         </div>
       ) : noticias.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN NOTICIAS TODAVÍA</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN NOTICIAS TODAVÍA</p>
         </div>
       ) : (
         <div className="flex flex-col gap-0">
@@ -216,14 +216,14 @@ export default function SubcomisionNoticiasPage() {
               <div className="flex-1 min-w-0">
                 <p className="font-lora text-sm text-tinta leading-snug mb-1">{n.titulo}</p>
                 {n.cuerpo && <p className="font-lora text-xs text-tinta/50 mb-1 line-clamp-2">{n.cuerpo}</p>}
-                <p className="font-lora text-xs text-tinta/40">
+                <p className="font-lora text-xs text-texto-2">
                   {fechaCorta(n.created_at)}
                   {n.etiquetas.length > 0 && ` · ${n.etiquetas.join(', ').toUpperCase()}`}
                 </p>
               </div>
               <button
                 onClick={() => handleEliminar(n)}
-                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo/60 hover:border-rojo hover:text-rojo transition-colors shrink-0"
+                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
               >
                 ELIMINAR
               </button>
@@ -238,7 +238,7 @@ export default function SubcomisionNoticiasPage() {
           <div className="bg-card w-full max-w-xl p-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVA NOTICIA</p>
-              <button onClick={closeModal} className="text-tinta/40 hover:text-tinta text-xl leading-none">×</button>
+              <button onClick={closeModal} className="text-texto-2 hover:text-tinta text-xl leading-none">×</button>
             </div>
 
             <div className="flex flex-col gap-5">
@@ -249,7 +249,7 @@ export default function SubcomisionNoticiasPage() {
                   value={titulo}
                   onChange={e => setTitulo(e.target.value)}
                   maxLength={120}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                   placeholder="Ej: Se suspende el entrenamiento del sábado"
                 />
               </div>
@@ -260,7 +260,7 @@ export default function SubcomisionNoticiasPage() {
                   value={descripcion}
                   onChange={e => setDescripcion(e.target.value)}
                   rows={5}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border border-gris-claro p-3 outline-none focus:border-oro transition-colors resize-none"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
                   placeholder="Contá los detalles…"
                 />
               </div>
@@ -274,7 +274,7 @@ export default function SubcomisionNoticiasPage() {
                     <button
                       type="button"
                       onClick={quitarImagen}
-                      className="font-lora text-xs tracking-widest text-rojo/70 hover:text-rojo mt-2"
+                      className="font-lora text-xs tracking-widest text-rojo-texto hover:text-rojo-texto mt-2"
                     >
                       QUITAR
                     </button>
@@ -294,9 +294,9 @@ export default function SubcomisionNoticiasPage() {
               </div>
             </div>
 
-            {formError && <p className="font-lora text-rojo text-sm mt-4">{formError}</p>}
+            {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
-            <p className="font-lora text-xs text-tinta/40 italic mt-4">
+            <p className="font-lora text-xs text-texto-2 italic mt-4">
               Se publica en el momento para todos los socios
               {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''} y les llega una
               notificación con el título. Si sólo completás el título, funciona como un aviso rápido.

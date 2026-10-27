@@ -101,7 +101,7 @@ export default function DebitoAutomaticoPage() {
               min={hoyISO()}
               onChange={e => setNuevaFecha(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAgregar() }}
-              className="font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+              className="font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
             />
           </div>
           <button
@@ -121,7 +121,7 @@ export default function DebitoAutomaticoPage() {
                 className="font-lora text-xs tracking-widest px-3 py-1.5 border border-oro/50 text-oro flex items-center gap-2"
               >
                 {formatFecha(fecha)}
-                <button onClick={() => handleQuitarPendiente(fecha)} className="text-oro/60 hover:text-rojo transition-colors">
+                <button onClick={() => handleQuitarPendiente(fecha)} className="text-oro/60 hover:text-rojo-texto transition-colors">
                   ×
                 </button>
               </span>
@@ -129,7 +129,7 @@ export default function DebitoAutomaticoPage() {
           </div>
         )}
 
-        {error && <p className="font-lora text-rojo text-sm mb-4">{error}</p>}
+        {error && <p className="font-lora text-rojo-texto text-sm mb-4">{error}</p>}
 
         {pendientes.length > 0 && (
           <button
@@ -141,7 +141,7 @@ export default function DebitoAutomaticoPage() {
           </button>
         )}
 
-        <p className="font-lora text-xs text-tinta/30 italic mt-5">
+        <p className="font-lora text-xs text-texto-2 italic mt-5">
           Agregá todas las fechas que tengas (hasta 6 meses de una) y guardalas juntas al final —
           no hace falta guardar una por una.
         </p>
@@ -150,10 +150,10 @@ export default function DebitoAutomaticoPage() {
       <div>
         <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">FECHAS CARGADAS</p>
         {loading ? (
-          <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
         ) : fechas.length === 0 ? (
           <div className="border border-gris-claro p-8 text-center">
-            <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN FECHAS CARGADAS TODAVÍA</p>
+            <p className="font-lora text-texto-2 text-sm tracking-widest">SIN FECHAS CARGADAS TODAVÍA</p>
           </div>
         ) : (
           <table className="w-full border-collapse">
@@ -170,7 +170,7 @@ export default function DebitoAutomaticoPage() {
                   <td className="font-playfair text-base text-tinta py-4 pr-6">{formatFecha(f.fecha)}</td>
                   <td className="text-center py-4 pr-6">
                     <span className={`font-lora text-xs tracking-widest px-3 py-1 border ${
-                      f.aviso_enviado ? 'border-oro text-oro' : 'border-gris-claro text-tinta/40'
+                      f.aviso_enviado ? 'border-oro text-oro' : 'border-gris-claro text-texto-2'
                     }`}>
                       {f.aviso_enviado ? 'AVISADO' : 'PENDIENTE'}
                     </span>
@@ -178,7 +178,7 @@ export default function DebitoAutomaticoPage() {
                   <td className="py-4 text-right">
                     <button
                       onClick={() => handleEliminar(f.id)}
-                      className="font-lora text-xs tracking-widest text-tinta/40 hover:text-rojo transition-colors"
+                      className="font-lora text-xs tracking-widest text-texto-2 hover:text-rojo-texto transition-colors"
                     >
                       ELIMINAR
                     </button>

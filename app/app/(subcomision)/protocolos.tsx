@@ -33,7 +33,13 @@ function gradoLabel(g: number | null): string {
 }
 
 function gradoColor(g: number | null): string {
-  return g === null ? colors.oro : (GRADO_COLOR[g] ?? '#8E8574')
+  return g === null ? colors.oro : (GRADO_COLOR[g] ?? colors.muted)
+}
+
+// Grado 5 (#7F1D1D) no se lee como texto sobre fondo oscuro (1.78:1) ni con
+// sobreOro encima: su texto usa rojoTexto / blanco.
+function gradoTextoColor(g: number | null): string {
+  return g === 5 ? colors.rojoTexto : gradoColor(g)
 }
 
 function formatFecha(iso: string): string {
@@ -150,7 +156,7 @@ function ModalSubirProtocolo({
             <TextInput
               style={s.input}
               placeholder="ej. Protocolo de lesión de hombro"
-              placeholderTextColor={'#8E8574'}
+              placeholderTextColor={colors.muted}
               value={form.titulo}
               onChangeText={v => setForm({ ...form, titulo: v })}
               returnKeyType="done"
@@ -177,13 +183,13 @@ function ModalSubirProtocolo({
                   onPress={() => setForm({ ...form, grado: g })}
                   activeOpacity={0.8}
                 >
-                  <Text style={[s.gradoBtnTexto, form.grado === g && s.gradoBtnTextoActivo]}>{g}</Text>
+                  <Text style={[s.gradoBtnTexto, form.grado === g && (g === 5 ? s.gradoBtnTextoClaro : s.gradoBtnTextoActivo)]}>{g}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={s.archivoInfo}>
-              <Ionicons name="document-attach-outline" size={18} color={'#8E8574'} />
+              <Ionicons name="document-attach-outline" size={18} color={colors.muted} />
               <Text style={s.archivoInfoTexto}>
                 Al guardar se abrirá el selector de archivos.{'\n'}PDF o imagen (máx. 50 MB).
               </Text>
@@ -204,10 +210,10 @@ function ModalSubirProtocolo({
               activeOpacity={0.85}
             >
               {subiendo ? (
-                <ActivityIndicator color={colors.oro} size="small" />
+                <ActivityIndicator color={colors.sobreOro} size="small" />
               ) : (
                 <View style={s.btnGuardarInner}>
-                  <Ionicons name="cloud-upload-outline" size={14} color={colors.oro} />
+                  <Ionicons name="cloud-upload-outline" size={14} color={colors.sobreOro} />
                   <Text style={s.btnGuardarTexto}>SELECCIONAR ARCHIVO Y SUBIR</Text>
                 </View>
               )}
@@ -273,7 +279,7 @@ function ProtocolosScreen() {
         </View>
       ) : protocolos.length === 0 ? (
         <View style={s.centrado}>
-          <Ionicons name="document-text-outline" size={40} color={'#8E8574'} />
+          <Ionicons name="document-text-outline" size={40} color={colors.muted} />
           <Text style={s.vacioTexto}>Sin protocolos cargados.</Text>
           <Text style={s.vacioSub}>Usá "+ Subir" para agregar el primero.</Text>
         </View>
@@ -287,7 +293,7 @@ function ProtocolosScreen() {
             <View key={String(grado)}>
               <View style={s.grupoHeader}>
                 <View style={[s.gradoBadge, { borderColor: gradoColor(grado) }]}>
-                  <Text style={[s.gradoBadgeTexto, { color: gradoColor(grado) }]}>
+                  <Text style={[s.gradoBadgeTexto, { color: gradoTextoColor(grado) }]}>
                     {gradoLabel(grado).toUpperCase()}
                   </Text>
                 </View>
@@ -323,68 +329,69 @@ function ProtocolosScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: '#15110A' },
+  root:    { flex: 1, backgroundColor: colors.fondo },
   centrado: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
   scroll:   { flex: 1 },
 
   header:          { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.tinta },
-  headerLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
+  headerLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oroSobreClaro, marginBottom: 4 },
   headerFila:      { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  headerTitulo:    { fontFamily: fonts.titulo, fontSize: 28, color: colors.blanco },
-  headerSub:       { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginTop: 4 },
+  headerTitulo:    { fontFamily: fonts.titulo, fontSize: 28, color: colors.sobreOro },
+  headerSub:       { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.sobreOro, marginTop: 4 },
   botonNuevo:      { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
-  botonNuevoTexto: { fontFamily: fonts.label, color: colors.tinta, fontSize: 14, letterSpacing: 1.5, fontWeight: '700' },
+  botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '700' },
 
   listaContent: { padding: 16, paddingBottom: 40, gap: 12 },
 
-  vacioTexto: { fontFamily: fonts.cuerpo, fontSize: 17, color: '#8E8574', fontWeight: '600' },
-  vacioSub:   { fontFamily: fonts.cuerpo, fontSize: 15, color: '#8E8574', fontStyle: 'italic' },
+  vacioTexto: { fontFamily: fonts.cuerpo, fontSize: 17, color: colors.muted, fontWeight: '600' },
+  vacioSub:   { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted, fontStyle: 'italic' },
 
   grupoHeader:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   gradoBadge:     { borderWidth: 1.5, borderRadius: 4, paddingHorizontal: 10, paddingVertical: 3 },
   gradoBadgeTexto:{ fontFamily: fonts.label, fontSize: 13, fontWeight: '700', letterSpacing: 1 },
-  grupoConteo:    { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574' },
+  grupoConteo:    { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted },
 
-  card:     { backgroundColor: '#1C1710', borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2C2418' },
+  card:     { backgroundColor: colors.card, borderRadius: 10, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.borde },
   cardFila: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   cardInfoCol: { flex: 1, gap: 2 },
-  cardTitulo:  { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: colors.tinta },
-  cardArchivo: { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574' },
-  cardFecha:   { fontFamily: fonts.cuerpo, fontSize: 13, color: '#8E8574', marginTop: 2 },
+  cardTitulo:  { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: colors.texto },
+  cardArchivo: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted },
+  cardFecha:   { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, marginTop: 2 },
   cardBtns:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  btnAbrir:    { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: '#2C2418' },
+  btnAbrir:    { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: colors.borde },
   btnAbrindo:  { opacity: 0.6 },
   btnEliminar: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: '#2C1010' },
 
   // Modal
   modalKav:       { flex: 1 },
-  modalContainer: { flex: 1, backgroundColor: '#15110A' },
-  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#2C2418' },
-  modalTitulo:    { fontFamily: fonts.titulo, fontSize: 19, color: colors.tinta },
-  modalCerrar:    { fontFamily: fonts.cuerpo, fontSize: 16, color: '#8E8574' },
+  modalContainer: { flex: 1, backgroundColor: colors.fondo },
+  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.borde },
+  modalTitulo:    { fontFamily: fonts.titulo, fontSize: 19, color: colors.texto },
+  modalCerrar:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted },
   modalScroll:    { flex: 1 },
   modalBody:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
-  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#2C2418' },
+  modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borde },
 
   inputLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro, marginBottom: 6 },
-  inputSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: '#8E8574', marginBottom: 10, marginTop: -2 },
-  input:      { borderWidth: 1.5, borderColor: '#2C2418', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.tinta, backgroundColor: '#1C1710', marginBottom: 20 },
+  inputSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginBottom: 10, marginTop: -2 },
+  input:      { borderWidth: 1.5, borderColor: colors.borde, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.texto, backgroundColor: colors.card, marginBottom: 20 },
 
   gradoRow:            { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  gradoBtn:            { flex: 1, paddingVertical: 10, borderRadius: 4, borderWidth: 1.5, borderColor: '#2C2418', alignItems: 'center' },
-  gradoBtnActivo:      { backgroundColor: colors.tinta, borderColor: colors.tinta },
-  gradoBtnTexto:       { fontFamily: fonts.label, fontSize: 14, color: '#8E8574', fontWeight: '700' },
-  gradoBtnTextoActivo: { color: colors.oro },
+  gradoBtn:            { flex: 1, paddingVertical: 10, borderRadius: 4, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
+  gradoBtnActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },
+  gradoBtnTexto:       { fontFamily: fonts.label, fontSize: 14, color: colors.muted, fontWeight: '700' },
+  gradoBtnTextoActivo: { color: colors.sobreOro },
+  gradoBtnTextoClaro:  { color: colors.blanco },
 
-  archivoInfo:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#1C1710', borderRadius: 8, padding: 14, marginBottom: 20 },
-  archivoInfoTexto: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: '#8E8574', lineHeight: 20 },
+  archivoInfo:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: colors.card, borderRadius: 8, padding: 14, marginBottom: 20 },
+  archivoInfoTexto: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 15, color: colors.muted, lineHeight: 20 },
 
   errorBanner: { backgroundColor: '#3A1010', borderLeftWidth: 3, borderLeftColor: colors.rojoUrgente, borderRadius: 4, padding: 12 },
   errorTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
 
-  btnGuardar:        { backgroundColor: colors.tinta, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
+  btnGuardar:        { backgroundColor: colors.oro, paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   btnGuardarDisabled:{ opacity: 0.6 },
   btnGuardarInner:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btnGuardarTexto:   { fontFamily: fonts.label, color: colors.oro, fontSize: 14, letterSpacing: 2, fontWeight: '600' },
+  btnGuardarTexto:   { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 2, fontWeight: '600' },
 })

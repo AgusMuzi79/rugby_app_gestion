@@ -71,23 +71,23 @@ export default function TutorLayout() {
 
 const s = StyleSheet.create({
   centro: {
-    flex: 1, backgroundColor: '#15110A',
+    flex: 1, backgroundColor: colors.fondo,
     justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32,
   },
   icono:  { marginBottom: 20 },
   titulo: {
     fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32,
-    color: colors.tinta, textAlign: 'center', marginBottom: 14,
+    color: colors.texto, textAlign: 'center', marginBottom: 14,
   },
   texto: {
     fontFamily: fonts.cuerpo, fontStyle: 'italic', fontSize: 15, lineHeight: 20,
-    color: '#7C7267', textAlign: 'center', marginBottom: 32,
+    color: colors.textoSecundario, textAlign: 'center', marginBottom: 32,
   },
   boton: {
-    backgroundColor: colors.tinta, paddingVertical: 16, paddingHorizontal: 32,
+    backgroundColor: colors.oro, paddingVertical: 16, paddingHorizontal: 32,
     alignItems: 'center', borderRadius: 4, marginTop: 12,
   },
-  botonTexto: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 2.5, color: colors.oro },
+  botonTexto: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 2.5, color: colors.sobreOro },
   botonSecundario: {
     borderWidth: 1, borderColor: colors.oro, paddingVertical: 14, paddingHorizontal: 32,
     alignItems: 'center', borderRadius: 4,

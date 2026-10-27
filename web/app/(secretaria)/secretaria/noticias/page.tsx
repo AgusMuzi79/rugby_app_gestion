@@ -148,7 +148,7 @@ export default function NoticiasPage() {
             className={`font-lora text-xs tracking-widest px-4 py-2 border-b-2 transition-colors -mb-px ${
               filtro === f.value
                 ? 'border-oro text-tinta'
-                : 'border-transparent text-tinta/40 hover:text-tinta'
+                : 'border-transparent text-texto-2 hover:text-tinta'
             }`}
           >
             {f.label}
@@ -157,10 +157,10 @@ export default function NoticiasPage() {
       </div>
 
       {loading ? (
-        <p className="font-lora text-tinta/40 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : noticiasVisibles.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-tinta/40 text-sm tracking-widest">SIN NOTICIAS</p>
+          <p className="font-lora text-texto-2 text-sm tracking-widest">SIN NOTICIAS</p>
         </div>
       ) : (
         <div className="flex flex-col gap-0">
@@ -174,13 +174,13 @@ export default function NoticiasPage() {
                     {n.publicada ? 'PUBLICADA' : 'BORRADOR'}
                   </span>
                   {n.etiquetas.length > 0 && (
-                    <span className="font-lora text-xs tracking-widest text-tinta/40 border border-gris-claro px-2 py-0.5">
+                    <span className="font-lora text-xs tracking-widest text-texto-2 border border-gris-claro px-2 py-0.5">
                       {n.etiquetas[0].toUpperCase()}
                     </span>
                   )}
                 </div>
                 <p className="font-lora text-sm text-tinta leading-snug mb-1 truncate">{n.titulo}</p>
-                <p className="font-lora text-xs text-tinta/40">
+                <p className="font-lora text-xs text-texto-2">
                   {n.autor} · {tiempoRelativo(n.created_at)}
                 </p>
               </div>
@@ -193,7 +193,7 @@ export default function NoticiasPage() {
                 </button>
                 <button
                   onClick={() => handleEliminar(n.id)}
-                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo/60 hover:border-rojo hover:text-rojo transition-colors"
+                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors"
                 >
                   ELIMINAR
                 </button>
@@ -209,7 +209,7 @@ export default function NoticiasPage() {
           <div className="bg-card w-full max-w-xl p-8">
             <div className="flex justify-between items-center mb-6">
               <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVA NOTICIA</p>
-              <button onClick={closeModal} className="text-tinta/40 hover:text-tinta text-xl leading-none">×</button>
+              <button onClick={closeModal} className="text-texto-2 hover:text-tinta text-xl leading-none">×</button>
             </div>
 
             <div className="flex flex-col gap-5">
@@ -219,7 +219,7 @@ export default function NoticiasPage() {
                   type="text"
                   value={titulo}
                   onChange={e => setTitulo(e.target.value)}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                   placeholder="Título de la noticia"
                 />
               </div>
@@ -230,7 +230,7 @@ export default function NoticiasPage() {
                   value={cuerpo}
                   onChange={e => setCuerpo(e.target.value)}
                   rows={5}
-                  className="w-full font-lora text-sm text-tinta bg-transparent border border-gris-claro p-3 outline-none focus:border-oro transition-colors resize-none"
+                  className="w-full font-lora text-sm text-tinta bg-transparent border border-borde-control p-3 outline-none focus:border-oro transition-colors resize-none"
                   placeholder="Escribí el contenido aquí…"
                 />
               </div>
@@ -256,9 +256,9 @@ export default function NoticiasPage() {
               </div>
             </div>
 
-            {formError && <p className="font-lora text-rojo text-sm mt-4">{formError}</p>}
+            {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
-            <p className="font-lora text-xs text-tinta/40 italic mt-4">Se guardará como borrador. Podés publicarla luego.</p>
+            <p className="font-lora text-xs text-texto-2 italic mt-4">Se guardará como borrador. Podés publicarla luego.</p>
 
             <div className="flex gap-3 mt-6">
               <button

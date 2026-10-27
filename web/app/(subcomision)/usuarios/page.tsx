@@ -58,7 +58,7 @@ function DivisionesPillSelector({
     <div className="flex flex-col gap-3">
       {agruparPorDeporte(divisiones).map(([deporte, items]) => (
         <div key={deporte}>
-          <p className="font-lora text-[11px] tracking-widest text-tinta/40 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
+          <p className="font-lora text-[11px] tracking-widest text-texto-2 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
           <div className="flex flex-wrap gap-2">
             {items.map(d => {
               const sel = seleccionadas.includes(d.id)
@@ -67,7 +67,7 @@ function DivisionesPillSelector({
                   key={d.id}
                   onClick={() => onToggle(d.id)}
                   className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                    sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                    sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
                   }`}
                 >
                   {d.nombre}
@@ -208,7 +208,7 @@ export default function UsuariosPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <p className="font-lora text-tinta/40 tracking-widest text-sm">CARGANDO…</p>
+      <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
     </div>
   )
 
@@ -217,7 +217,7 @@ export default function UsuariosPage() {
       {/* Header */}
       <div className="mb-8 flex items-end justify-between">
         <div>
-          <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">SUBCOMISIÓN · USUARIOS</p>
+          <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · USUARIOS</p>
           <h1 className="font-playfair italic text-4xl text-tinta">Gestión de Usuarios</h1>
         </div>
         <button
@@ -234,7 +234,7 @@ export default function UsuariosPage() {
         placeholder="Buscar por nombre o rol…"
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
-        className="font-lora text-sm text-tinta bg-card border border-gris-claro px-4 py-2 w-full max-w-sm outline-none focus:border-tinta transition-colors mb-6"
+        className="font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 w-full max-w-sm outline-none focus:border-tinta transition-colors mb-6"
       />
 
       {/* Lista */}
@@ -251,29 +251,29 @@ export default function UsuariosPage() {
                   {ROL_LABEL[p.rol] ?? p.rol}
                 </span>
               </div>
-              <span className="font-lora text-xs text-tinta/30">{p.expanded ? '▲' : '▼'}</span>
+              <span className="font-lora text-xs text-texto-2">{p.expanded ? '▲' : '▼'}</span>
             </button>
 
             {p.expanded && (
               <div className="px-6 pb-6 border-t border-gris-claro">
                 <div className="pt-4 grid grid-cols-2 gap-6">
                   <div>
-                    <p className="font-lora text-xs tracking-widest text-tinta/40 mb-1">EMAIL</p>
+                    <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">EMAIL</p>
                     <p className="font-lora text-sm text-tinta">{p.loadingEmail ? 'Cargando…' : (p.email ?? '—')}</p>
                   </div>
                   <div>
-                    <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">ROL</p>
+                    <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</p>
                     {p.editingRol ? (
                       <div className="flex items-center gap-2">
                         <select
                           value={p.tempRol ?? p.rol}
                           onChange={e => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, tempRol: e.target.value } : r))}
-                          className="font-lora text-sm text-tinta bg-papel border border-tinta/30 px-2 py-1 outline-none"
+                          className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 outline-none"
                         >
                           {rolesDisponibles.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
                         </select>
                         <button onClick={() => saveRol(p)} className="font-lora text-xs bg-oro text-papel px-3 py-1 tracking-widest">GUARDAR</button>
-                        <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: false } : r))} className="font-lora text-xs text-tinta/40 px-2 py-1">CANCELAR</button>
+                        <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: false } : r))} className="font-lora text-xs text-texto-2 px-2 py-1">CANCELAR</button>
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
@@ -284,14 +284,14 @@ export default function UsuariosPage() {
                   </div>
                   {isAdmin && p.rol === 'subcomision' && (
                     <div className="col-span-2">
-                      <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">DISCIPLINA</p>
+                      <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">DISCIPLINA</p>
                       <div className="flex flex-wrap gap-2">
                         {DEPORTE_SUBCO_OPCIONES.map(o => (
                           <button
                             key={o.label}
                             onClick={() => saveDeporte(p, o.value)}
                             className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                              (p.deporte ?? null) === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                              (p.deporte ?? null) === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
                             }`}
                           >
                             {o.label}
@@ -301,13 +301,13 @@ export default function UsuariosPage() {
                     </div>
                   )}
                   <div className="col-span-2">
-                    <p className="font-lora text-xs tracking-widest text-tinta/40 mb-2">DIVISIONES</p>
+                    <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">DIVISIONES</p>
                     {p.editingDiv ? (
                       <div>
                         <div className="flex flex-col gap-3 mb-3">
                           {agruparPorDeporte(divisiones).map(([deporte, items]) => (
                             <div key={deporte}>
-                              <p className="font-lora text-[11px] tracking-widest text-tinta/40 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
+                              <p className="font-lora text-[11px] tracking-widest text-texto-2 uppercase mb-1.5">{DEPORTE_LABEL[deporte] ?? deporte}</p>
                               <div className="grid grid-cols-3 gap-2">
                                 {items.map(d => {
                                   const selected = (p.tempDiv ?? p.divisiones ?? []).includes(d.id)
@@ -324,13 +324,13 @@ export default function UsuariosPage() {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => saveDiv(p)} className="font-lora text-xs bg-oro text-papel px-3 py-1 tracking-widest">GUARDAR</button>
-                          <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingDiv: false } : r))} className="font-lora text-xs text-tinta/40 px-2 py-1">CANCELAR</button>
+                          <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingDiv: false } : r))} className="font-lora text-xs text-texto-2 px-2 py-1">CANCELAR</button>
                         </div>
                       </div>
                     ) : (
                       <div className="flex items-center gap-3 flex-wrap">
                         {(p.divisiones ?? []).length === 0
-                          ? <span className="font-lora text-sm text-tinta/40">Sin divisiones</span>
+                          ? <span className="font-lora text-sm text-texto-2">Sin divisiones</span>
                           : (p.divisiones ?? []).map(id => (
                               <span key={id} className="font-lora text-xs bg-gris-claro text-tinta px-2 py-1">{getNombreDivision(id)}</span>
                             ))
@@ -340,12 +340,12 @@ export default function UsuariosPage() {
                     )}
                   </div>
                   <div className="col-span-2 flex gap-3 pt-2 border-t border-gris-claro">
-                    <button onClick={() => desactivar(p.id)} className="font-lora text-xs tracking-widest text-rojo border border-rojo px-4 py-2 hover:bg-rojo hover:text-papel transition-colors">DESACTIVAR</button>
+                    <button onClick={() => desactivar(p.id)} className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-4 py-2 hover:bg-rojo hover:text-white transition-colors">DESACTIVAR</button>
                     <button onClick={() => reactivar(p.id)} className="font-lora text-xs tracking-widest text-tinta/50 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">REACTIVAR</button>
                     {(p.roles ?? []).includes('socio') ? (
                       <button onClick={() => quitarRol(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">QUITAR ROL DE STAFF</button>
                     ) : isAdmin && (
-                      <button onClick={() => eliminar(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-rojo border border-rojo px-4 py-2 hover:bg-rojo hover:text-papel transition-colors">ELIMINAR</button>
+                      <button onClick={() => eliminar(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-4 py-2 hover:bg-rojo hover:text-white transition-colors">ELIMINAR</button>
                     )}
                   </div>
                 </div>
@@ -354,7 +354,7 @@ export default function UsuariosPage() {
           </div>
         ))}
         {filtrados.length === 0 && (
-          <p className="font-lora text-tinta/40 text-sm text-center py-12">Sin resultados.</p>
+          <p className="font-lora text-texto-2 text-sm text-center py-12">Sin resultados.</p>
         )}
       </div>
 
@@ -480,7 +480,7 @@ function ModalNuevoUsuario({
         {/* Header modal */}
         <div className="flex justify-between items-center px-8 py-6 border-b border-gris-claro">
           <p className="font-lora text-xs tracking-widest text-tinta/60">NUEVO USUARIO STAFF</p>
-          <button onClick={onClose} className="text-tinta/40 hover:text-tinta text-xl">×</button>
+          <button onClick={onClose} className="text-texto-2 hover:text-tinta text-xl">×</button>
         </div>
 
         {/* Tabs — solo admin puede crear usuarios nuevos */}
@@ -493,7 +493,7 @@ function ModalNuevoUsuario({
                 className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
                   modo === m
                     ? 'text-oro border-b-2 border-oro'
-                    : 'text-tinta/40 hover:text-tinta/60'
+                    : 'text-texto-2 hover:text-tinta/60'
                 }`}
               >
                 {m === 'asignar' ? 'DESDE SOCIO EXISTENTE' : 'NUEVO USUARIO'}
@@ -523,7 +523,7 @@ function ModalNuevoUsuario({
                       onChange={e => setBusqueda(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && buscarSocio()}
                       placeholder="12345678 o Juan Pérez"
-                      className="flex-1 font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                      className="flex-1 font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                     />
                     <button
                       onClick={buscarSocio}
@@ -535,7 +535,7 @@ function ModalNuevoUsuario({
                   </div>
                 </div>
 
-                {errorBusqueda && <p className="font-lora text-rojo text-sm">{errorBusqueda}</p>}
+                {errorBusqueda && <p className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
 
                 {/* Lista de resultados */}
                 {resultados.length > 0 && (
@@ -547,7 +547,7 @@ function ModalNuevoUsuario({
                         className="w-full text-left px-4 py-3 font-lora text-sm text-tinta hover:bg-gris-claro/30 transition-colors flex justify-between items-center"
                       >
                         {r.nombre}
-                        <span className="text-tinta/30">›</span>
+                        <span className="text-texto-2">›</span>
                       </button>
                     ))}
                   </div>
@@ -586,7 +586,7 @@ function ModalNuevoUsuario({
                               key={o.label}
                               onClick={() => setDeporteAsignacion(o.value)}
                               className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                                deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                                deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
                               }`}
                             >
                               {o.label}
@@ -605,7 +605,7 @@ function ModalNuevoUsuario({
                       />
                     </div>
 
-                    {errorAsignacion && <p className="font-lora text-rojo text-sm">{errorAsignacion}</p>}
+                    {errorAsignacion && <p className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
 
                     <button
                       onClick={asignarRol}
@@ -638,7 +638,7 @@ function ModalNuevoUsuario({
                       value={f.value}
                       onChange={e => f.set(e.target.value)}
                       placeholder={f.placeholder}
-                      className="w-full font-lora text-sm text-tinta bg-transparent border-b border-tinta/30 py-2 outline-none focus:border-oro transition-colors"
+                      className="w-full font-lora text-sm text-tinta bg-transparent border-b border-borde-control py-2 outline-none focus:border-oro transition-colors"
                     />
                   </div>
                 ))}
@@ -669,7 +669,7 @@ function ModalNuevoUsuario({
                           key={o.label}
                           onClick={() => setDeporteNuevo(o.value)}
                           className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
-                            deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-tinta/40 hover:border-tinta/30'
+                            deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
                           }`}
                         >
                           {o.label}
@@ -688,7 +688,7 @@ function ModalNuevoUsuario({
                   />
                 </div>
 
-                {errorCrear && <p className="font-lora text-rojo text-sm">{errorCrear}</p>}
+                {errorCrear && <p className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
 
                 <button
                   onClick={crearUsuario}
