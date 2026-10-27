@@ -17,6 +17,7 @@ import {
   Equipo,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -669,10 +670,13 @@ export default function PartidoScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <View style={s.header}>
-        <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
-        <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
-        <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
+      <View style={[s.header, s.headerFila]}>
+        <View style={s.headerTextos}>
+          <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
+          <Text style={s.titulo}>{pasoTitulo[paso]}</Text>
+          <Text style={s.headerMeta}>{divisionNombre.toUpperCase()}</Text>
+        </View>
+        <AvatarPerfil />
       </View>
       <View style={s.divider} />
 
@@ -749,6 +753,8 @@ const s = StyleSheet.create({
 
   // Header
   header:    { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 14 },
+  headerFila:   { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerTextos: { flex: 1 },
   seccion:   { fontFamily: fonts.label, fontSize: 12, letterSpacing: 3, color: colors.oro, marginBottom: 6 },
   titulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, lineHeight: 32 },
   headerMeta:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED, marginTop: 4 },

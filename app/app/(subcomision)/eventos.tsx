@@ -26,6 +26,7 @@ import {
   type DivisionRef,
 } from '@/hooks/useEventos'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
 
@@ -606,11 +607,14 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
-      <View style={s.header}>
-        <Text style={s.labelHeader}>
-          {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
-        </Text>
-        <Text style={s.titulo}>Eventos</Text>
+      <View style={[s.header, s.headerFila]}>
+        <View style={s.headerTextos}>
+          <Text style={s.labelHeader}>
+            {esManager ? `MANAGER · ${divisionesLabel.toUpperCase()}` : 'SECCIÓN · DIRECTIVA'}
+          </Text>
+          <Text style={s.titulo}>Eventos</Text>
+        </View>
+        <AvatarPerfil />
       </View>
       <View style={s.separador} />
 
@@ -684,6 +688,8 @@ const s = StyleSheet.create({
 
   // Header
   header:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16 },
+  headerFila:  { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerTextos: { flex: 1 },
   labelHeader: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO, lineHeight: 38 },
   separador:   { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },

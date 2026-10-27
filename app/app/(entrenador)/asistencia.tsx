@@ -13,6 +13,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,7 @@ export default function AsistenciaScreen() {
               : <Text style={s.guardarTexto}>GUARDAR</Text>
             }
           </TouchableOpacity>
+          <AvatarPerfil />
         </View>
         <Text style={s.headerMeta}>
           {divisionNombre.toUpperCase()} · {fechaFormateada(fecha).toUpperCase()} · CANCHA PRINCIPAL
@@ -291,6 +293,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 8,
   },
   headerLeft: { flex: 1 },

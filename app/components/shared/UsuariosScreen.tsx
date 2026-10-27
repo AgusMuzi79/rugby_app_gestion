@@ -18,6 +18,7 @@ import { useUsuarios, rolLabel, DEPORTE_SUBCO_OPCIONES } from '@/hooks/useUsuari
 import type { Usuario, RolCreable, DivisionOpcion } from '@/hooks/useUsuarios'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
+import { AvatarPerfil } from '@/components/shared/Header'
 import { ROL_LABELS } from '@/constants/roles'
 
 const MUTED = colors.muted
@@ -92,7 +93,10 @@ function VistaLista({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   return (
     <View style={s.root}>
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
+        <View style={s.labelFila}>
+          <Text style={s.headerLabel}>{rol ? ROL_LABELS[rol]?.toUpperCase() ?? '' : ''}</Text>
+          <AvatarPerfil />
+        </View>
         <Text style={s.headerTitle}>Usuarios</Text>
         <Text style={s.headerSub}>{activos.length} activos · {inactivos.length} inactivos</Text>
       </View>
@@ -701,6 +705,7 @@ const s = StyleSheet.create({
 
   // Header
   header:      { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: colors.fondo },
+  labelFila:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },
