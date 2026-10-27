@@ -7,6 +7,7 @@ import {
   divisionesDeEvento,
   type EventoDivisionesRow,
 } from './useEventos'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface EventoSemana {
   id:             string
@@ -43,9 +44,9 @@ export interface DiarioCoordinadorData {
   sinDivisiones: boolean
 }
 
-function hoy()       { return new Date().toISOString().split('T')[0] }
-function en7Dias()   { const d = new Date(); d.setDate(d.getDate() + 7);  return d.toISOString().split('T')[0] }
-function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()       { return fechaLocal() }
+function en7Dias()   { const d = new Date(); d.setDate(d.getDate() + 7);  return fechaLocal(d) }
+function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 const DEFAULT: DiarioCoordinadorData = {
   nombre: '', divisiones: [], eventosSemana: [],

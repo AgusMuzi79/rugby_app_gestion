@@ -11,11 +11,12 @@ import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
 import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
+import { fechaLocal } from '@/lib/fecha'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function esHoy(fecha: string): boolean {
-  return fecha === new Date().toISOString().split('T')[0]
+  return fecha === fechaLocal()
 }
 
 function formatBadgeEvento(ev: ProximoEvento): string {

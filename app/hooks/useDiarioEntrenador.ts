@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 import { FEATURES } from '@/constants/features'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface ProximoEvento {
   id:    string
@@ -31,9 +32,9 @@ export interface DiarioEntrenadorData {
   sinDivision:    boolean
 }
 
-function hoy()      { return new Date().toISOString().split('T')[0] }
-function hace3Dias()  { const d = new Date(); d.setDate(d.getDate() - 3);  return d.toISOString().split('T')[0] }
-function hace30Dias() { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()      { return fechaLocal() }
+function hace3Dias()  { const d = new Date(); d.setDate(d.getDate() - 3);  return fechaLocal(d) }
+function hace30Dias() { const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 const DEFAULT: DiarioEntrenadorData = {
   nombre: '', divisionNombre: '', divisionId: null, totalJugadores: 0,

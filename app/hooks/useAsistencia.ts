@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { fechaLocal } from '@/lib/fecha'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
 
@@ -51,7 +52,7 @@ export function useAsistencia(): UseAsistenciaReturn {
   const [sinDivision, setSinDivision] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
 
-  const fecha = new Date().toISOString().split('T')[0]
+  const fecha = fechaLocal()
   const marcados = jugadores.filter(j => j.estado !== null).length
   const divisionNombre = divisiones.find(d => d.id === divisionId)?.nombre ?? ''
 

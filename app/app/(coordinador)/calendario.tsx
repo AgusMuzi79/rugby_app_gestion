@@ -20,6 +20,7 @@ import {
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { etiquetaEvento, letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
+import { fechaLocal } from '@/lib/fecha'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -41,11 +42,11 @@ function fechaCorta(iso: string) {
 }
 
 function esHoy(iso: string) {
-  return iso === new Date().toISOString().split('T')[0]
+  return iso === fechaLocal()
 }
 
 function esPasado(iso: string) {
-  return iso < new Date().toISOString().split('T')[0]
+  return iso < fechaLocal()
 }
 
 function tituloEvento(evento: EventoCalendario, prefijoPartido = '') {

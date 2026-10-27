@@ -8,6 +8,7 @@ import {
   type EventoDivisionesRow,
 } from './useEventos'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorAsistencia {
   jugadorId:            string
@@ -110,7 +111,7 @@ export function useInformes() {
   async function fetchAsistencias() {
     const hace60    = new Date()
     hace60.setDate(hace60.getDate() - 60)
-    const hace60Str = hace60.toISOString().split('T')[0]
+    const hace60Str = fechaLocal(hace60)
 
     const [eventosRes, jugadoresRes, divsRes] = await Promise.all([
       supabase

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface JugadorAsistencia {
   id: string
@@ -41,11 +42,11 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
   const fetchJugadores = useCallback(async (divisionId: string) => {
     setLoading(true)
 
-    const hoy = new Date().toISOString().split('T')[0]
+    const hoy = fechaLocal()
 
     const hace30 = new Date()
     hace30.setDate(hace30.getDate() - 30)
-    const hace30Str = hace30.toISOString().split('T')[0]
+    const hace30Str = fechaLocal(hace30)
 
     const hace60 = new Date()
     hace60.setDate(hace60.getDate() - 60)

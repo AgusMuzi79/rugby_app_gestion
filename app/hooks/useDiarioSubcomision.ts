@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { FEATURES } from '@/constants/features'
+import { fechaLocal } from '@/lib/fecha'
 
 export type CronicaTipo = 'urgente' | 'alerta' | 'info'
 
@@ -27,10 +28,10 @@ export interface DiarioSubcomisionData {
   cronica:            CronicaItem[]
 }
 
-function hoy()       { return new Date().toISOString().split('T')[0] }
-function hace7Dias() { const d = new Date(); d.setDate(d.getDate() - 7);  return d.toISOString().split('T')[0] }
-function hace14Dias(){ const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().split('T')[0] }
-function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0] }
+function hoy()       { return fechaLocal() }
+function hace7Dias() { const d = new Date(); d.setDate(d.getDate() - 7);  return fechaLocal(d) }
+function hace14Dias(){ const d = new Date(); d.setDate(d.getDate() - 14); return fechaLocal(d) }
+function hace30Dias(){ const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
 
 function notifTipo(tipo: string): CronicaTipo {
   if (tipo === 'lesion')                return 'urgente'

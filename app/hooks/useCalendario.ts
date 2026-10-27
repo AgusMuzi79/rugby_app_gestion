@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { tituloActividadValido, tituloCancelacion, type TipoEventoCalendario } from '@/lib/tipoEvento'
+import { fechaLocal } from '@/lib/fecha'
 
 export type TipoEvento = TipoEventoCalendario
 export type ModalidadPartido = 'singles' | 'dobles'
@@ -133,8 +134,8 @@ export function useCalendario(): UseCalendarioReturn {
     const en60 = new Date()
     en60.setDate(en60.getDate() + 60)
 
-    const desde = hace30.toISOString().split('T')[0]
-    const hasta = en60.toISOString().split('T')[0]
+    const desde = fechaLocal(hace30)
+    const hasta = fechaLocal(en60)
 
     console.log('[calendario] Fetching eventos:', { divIds, desde, hasta })
 

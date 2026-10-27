@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { encolar } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { fechaLocal, fechaLocalMasDias } from '@/lib/fecha'
 
 export type RolEnMesa = 'titular' | 'suplente'
 export type Paso = 'equipo' | 'asistencia' | 'mesa' | 'resultado'
@@ -191,8 +192,8 @@ export function usePartido() {
     if (!divId) { setSinDivision(true); setLoading(false); return }
     setDivisionId(divId)
 
-    const hoy = new Date().toISOString().split('T')[0]
-    const en14dias = new Date(Date.now() + 14 * 86_400_000).toISOString().split('T')[0]
+    const hoy = fechaLocal()
+    const en14dias = fechaLocalMasDias(14)
 
     const [divRes, jgsRes, partidosRes] = await Promise.all([
       supabase.from('divisiones').select('nombre, categoria').eq('id', divId).single(),

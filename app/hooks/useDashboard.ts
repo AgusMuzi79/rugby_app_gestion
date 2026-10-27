@@ -7,6 +7,7 @@ import {
   etiquetaDivisiones,
   type EventoDivisionesRow,
 } from './useEventos'
+import { fechaLocal } from '@/lib/fecha'
 
 export interface DivisionOpcion {
   id:        string
@@ -116,7 +117,7 @@ export function useDashboard() {
   async function fetchAsistencias() {
     const fechaLimite = new Date()
     fechaLimite.setDate(fechaLimite.getDate() - 60)
-    const fechaLimiteStr = fechaLimite.toISOString().split('T')[0]
+    const fechaLimiteStr = fechaLocal(fechaLimite)
 
     const { data: eventos } = await supabase
       .from('eventos')

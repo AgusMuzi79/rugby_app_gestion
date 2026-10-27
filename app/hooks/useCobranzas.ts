@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { montoInicialCobranza } from '@/lib/montoSugerido'
 import { filasAGuardar, parseMontoCobranza, type OriginalCobranza } from '@/lib/cobranzasGuardado'
+import { fechaLocal } from '@/lib/fecha'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -45,12 +46,6 @@ export interface Resumen {
   cobrado:    number
   pagados:    number
   pendientes: number
-}
-
-// Fecha local (no UTC: después de las 21 h de Argentina toISOString ya es mañana).
-function fechaHoy(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 export function useCobranzas() {
@@ -312,7 +307,7 @@ export function useCobranzas() {
     const { filas, errores } = filasAGuardar(jugadores, originales.current, {
       eventoId: eventoSeleccionado.id,
       userId:   session.user.id,
-      hoy:      fechaHoy(),
+      hoy:      fechaLocal(),
       soloJugadorId,
     })
     if (errores.length > 0) { setError(errores.join('\n')); return false }
