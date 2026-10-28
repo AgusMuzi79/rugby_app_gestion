@@ -21,6 +21,7 @@ import {
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import type { DivisionOpcion } from '@/lib/fichajes'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -195,7 +196,7 @@ export default function FichajesScreen() {
   const {
     loading, divisionNombre, misDivisiones, sinDivision, errorCarga, recargar,
     filtroDivision, setFiltroDivision,
-    jugadores, paso, jugadorDetalle, cargandoDetalle,
+    jugadores, paso, jugadorDetalle, cargandoDetalle, errorDocumentos, recargarDocumentos,
     seleccionarJugador, volverALista,
     modalVisible, abrirModal, cerrarModal,
     nombre, setNombre, dni, setDni,
@@ -338,6 +339,8 @@ export default function FichajesScreen() {
 
             {cargandoDetalle ? (
               <ActivityIndicator color={ORO} style={s.activityMt} />
+            ) : errorDocumentos ? (
+              <ErrorCarga mensaje={errorDocumentos} onReintentar={recargarDocumentos} />
             ) : jugadorDetalle.documentos.length === 0 ? (
               <Text style={s.emptyTexto}>Sin documentos cargados.</Text>
             ) : (

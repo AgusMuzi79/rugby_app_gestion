@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { pctCobrado, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -52,6 +53,8 @@ export function useDiarioManager() {
   const { session } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioManagerData>(DEFAULT)
+  // Error de red / RLS: no es "sin división" ni "sin cobranzas" (T4).
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
   useRefreshOnFocus(fetchTodo)
@@ -61,14 +64,16 @@ export function useDiarioManager() {
     empezar()
 
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: errorProfile } = await supabase
         .from('profiles').select('nombre, divisiones').eq('id', session.user.id).single()
+      if (errorProfile) throw errorProfile
 
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       const divId = divIds[0] ?? null
 
       if (!divId) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
+        setErrorCarga(null)
         terminar()
         return
       }
@@ -86,6 +91,8 @@ export function useDiarioManager() {
           .order('created_at', { ascending: false })
           .limit(3),
       ])
+      const errorLectura = primerError(divRes.error, eventosRes.error, fichajesRes.error)
+      if (errorLectura) throw errorLectura
 
       type Fila = EventoDivisionesRow & {
         id: string; nombre: string; tipo: string; descripcion: string | null
@@ -140,10 +147,13 @@ export function useDiarioManager() {
         fichajes,
         sinDivision:    false,
       })
-    } catch { /* keep defaults */ }
+      setErrorCarga(null)
+    } catch (err) {
+      setErrorCarga(mensajeErrorCarga('las cobranzas y fichajes', err))
+    }
 
     terminar()
   }
 
-  return { loading, refrescando, data, refetch: fetchTodo }
+  return { loading, refrescando, data, errorCarga, refetch: fetchTodo }
 }

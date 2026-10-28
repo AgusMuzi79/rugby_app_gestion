@@ -10,6 +10,7 @@ import {
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { fechaLocal } from '@/lib/fecha'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { pctCobrado, pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
 
 export interface JugadorAsistencia {
@@ -83,30 +84,39 @@ export function useInformes() {
   const [fichajesPorDiv, setFichajesPorDiv]       = useState<DivisionFichajesResumen[]>([])
   const [fichajesRecientes, setFichajesRecientes] = useState<FichajeReciente[]>([])
   const [financiero, setFinanciero]               = useState<EventoFinancieroInforme[]>([])
+  const [errorCarga, setErrorCarga]               = useState<string | null>(null)
 
   useEffect(() => {
     if (session) fetchTodo()
   }, [session])
   useRefreshOnFocus(fetchTodo)
 
+  // Cada lectura lanza su error: un fallo de red se muestra con REINTENTAR en
+  // vez de "Sin datos de asistencia" o "Sin eventos financieros activos" (T4).
   async function fetchTodo() {
     empezar()
-    await Promise.all([
-      fetchDivisiones(),
-      fetchAsistencias(),
-      fetchResultados(),
-      fetchFichajes(),
-      fetchFinanciero(),
-    ])
+    try {
+      await Promise.all([
+        fetchDivisiones(),
+        fetchAsistencias(),
+        fetchResultados(),
+        fetchFichajes(),
+        fetchFinanciero(),
+      ])
+      setErrorCarga(null)
+    } catch (err) {
+      setErrorCarga(mensajeErrorCarga('los informes', err))
+    }
     terminar()
   }
 
   async function fetchDivisiones() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('divisiones')
       .select('id, nombre')
       .eq('activa', true)
       .order('nombre')
+    if (error) throw error
     setDivisiones(data ?? [])
   }
 
@@ -133,6 +143,8 @@ export function useInformes() {
         .select('id, nombre')
         .eq('activa', true),
     ])
+    const errorLectura = primerError(eventosRes.error, jugadoresRes.error, divsRes.error)
+    if (errorLectura) throw errorLectura
 
     const eventos   = eventosRes.data   ?? []
     const jugadores = jugadoresRes.data ?? []
@@ -162,10 +174,11 @@ export function useInformes() {
       arr.push(ev)
     }
 
-    const { data: asistRows } = await supabase
+    const { data: asistRows, error: errorAsist } = await supabase
       .from('asistencias')
       .select('evento_id, jugador_id, estado')
       .in('evento_id', eventos.map(e => e.id))
+    if (errorAsist) throw errorAsist
 
     // Índice: jugador_id → (evento_id → estado)
     const asistIdx = new Map<string, Map<string, string>>()
@@ -200,11 +213,12 @@ export function useInformes() {
   }
 
   async function fetchResultados() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('resultados')
       .select('id, puntos_propios, puntos_rival, rival, eventos(id, fecha, division_id, divisiones(id, nombre, categoria))')
       .order('created_at', { ascending: false })
       .limit(100)
+    if (error) throw error
 
     type DivJoin    = { id: string; nombre: string; categoria: string } | null
     type EventoJoin = { id: string; fecha: string; division_id: string; divisiones: DivJoin } | null
@@ -245,6 +259,8 @@ export function useInformes() {
         .order('fecha_fichaje', { ascending: false })
         .limit(20),
     ])
+    const errorLectura = primerError(jugsRes.error, fichajesRes.error)
+    if (errorLectura) throw errorLectura
 
     type DivJoin = { nombre: string } | null
     const cntMap = new Map<string, { nombre: string; count: number }>()
@@ -287,11 +303,12 @@ export function useInformes() {
   }
 
   async function fetchFinanciero() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('eventos_financieros')
       .select(`id, nombre, tipo, ${SELECT_DIVISIONES_EVENTO}, cobranzas(estado, monto, forma_de_pago)`)
       .eq('estado', 'activo')
       .order('fecha', { ascending: false, nullsFirst: false })
+    if (error) throw error
 
     type CobranzaJoin = Array<{ estado: string; monto: number | null; forma_de_pago: string | null }>
     type FilaFinanciero = EventoDivisionesRow & {
@@ -359,6 +376,7 @@ export function useInformes() {
   return {
     loading,
     refrescando,
+    errorCarga,
     refetch: fetchTodo,
     divisiones,
     divisionFiltro,

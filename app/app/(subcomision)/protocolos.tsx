@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useProtocolos, type Protocolo, type FormProtocolo } from '@/hooks/useProtocolos'
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { Redirect } from 'expo-router'
 
 const GRADO_COLOR: Record<number, string> = {
@@ -238,6 +239,8 @@ function ProtocolosScreen() {
   const insets = useSafeAreaInsets()
   const {
     loading,
+    errorCarga,
+    recargar,
     protocolos,
     modalVisible,
     abrirModal,
@@ -278,6 +281,8 @@ function ProtocolosScreen() {
         <View style={s.centrado}>
           <ActivityIndicator size="large" color={colors.oro} />
         </View>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
       ) : protocolos.length === 0 ? (
         <View style={s.centrado}>
           <Ionicons name="document-text-outline" size={40} color={colors.muted} />

@@ -6,6 +6,9 @@ import { useEstadoCarga } from './useEstadoCarga'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { SIN_CONEXION } from '@/lib/errorFunction'
+import { esErrorDeRed } from '@/lib/offlineSync'
 
 export interface Protocolo {
   id:             string
@@ -51,17 +54,24 @@ export function useProtocolos() {
   const [subiendo,     setSubiendo]     = useState(false)
   const [errorSubida,  setErrorSubida]  = useState<string | null>(null)
   const [abriendo,     setAbriendo]     = useState<string | null>(null)
+  const [errorCarga,   setErrorCarga]   = useState<string | null>(null)
 
   useEffect(() => { cargarProtocolos() }, [])
   useRefreshOnFocus(cargarProtocolos)
 
+  // Un error de lectura se muestra con REINTENTAR, no como lista vacía (T4).
   async function cargarProtocolos() {
     empezar()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('protocolos')
       .select('id, titulo, grado_asociado, storage_path, nombre_archivo, created_at')
       .order('grado_asociado', { ascending: true, nullsFirst: true })
-    setProtocolos(data ?? [])
+    if (error) {
+      setErrorCarga(mensajeErrorCarga('los protocolos', error))
+    } else {
+      setErrorCarga(null)
+      setProtocolos(data ?? [])
+    }
     terminar()
   }
 
@@ -140,15 +150,27 @@ export function useProtocolos() {
     }
   }
 
-  async function eliminarProtocolo(p: Protocolo): Promise<void> {
-    await supabase.from('protocolos').delete().eq('id', p.id)
+  // Sólo se saca de la lista (y se borra el archivo) si la fila se borró de
+  // verdad: la RLS puede dejar el delete en 0 filas sin error.
+  async function eliminarProtocolo(p: Protocolo): Promise<boolean> {
+    const { data, error } = await supabase.from('protocolos').delete().eq('id', p.id).select('id')
+    if (error || !data?.length) {
+      Alert.alert(
+        'No se pudo eliminar',
+        error && esErrorDeRed(error) ? SIN_CONEXION : 'No se pudo eliminar el protocolo. Probá de nuevo.',
+      )
+      return false
+    }
     void supabase.storage.from('protocolos').remove([p.storage_path])
     setProtocolos(prev => prev.filter(x => x.id !== p.id))
+    return true
   }
 
   return {
     loading,
     refrescando,
+    errorCarga,
+    recargar: cargarProtocolos,
     protocolos,
     modalVisible,
     abrirModal,

@@ -7,6 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useDiarioSubcomision, type CronicaItem } from '@/hooks/useDiarioSubcomision'
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
@@ -113,7 +114,7 @@ export default function DiarioSubcomisionScreen() {
   useScrollToTop(scrollRef)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioSubcomision()
+  const { loading, refrescando, data, errorCarga, refetch } = useDiarioSubcomision()
 
   const primerNombre = data.nombre.split(' ')[0] || '—'
 
@@ -141,6 +142,8 @@ export default function DiarioSubcomisionScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />
       ) : (
         <>
           {/* ── PORTADA · HOY ── */}

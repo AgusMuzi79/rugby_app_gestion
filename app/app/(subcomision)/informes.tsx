@@ -17,6 +17,7 @@ import {
   type EventoFinancieroInforme,
 } from '@/hooks/useInformes'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 export default function InformesScreen() {
   const insets = useSafeAreaInsets()
   const {
-    loading, refrescando, refetch, divisiones, divisionFiltro, setDivisionFiltro,
+    loading, refrescando, errorCarga, refetch, divisiones, divisionFiltro, setDivisionFiltro,
     asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
   } = useInformes()
 
@@ -315,10 +316,17 @@ export default function InformesScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
-        <SeccionAsistencia datos={asistencias} />
-        <SeccionResultados datos={resultados} />
-        <SeccionFichajes porDiv={fichajesPorDiv} recientes={fichajesRecientes} />
-        <SeccionFinanciero datos={financiero} />
+        {/* Error de red / permisos: no se muestran secciones "Sin datos". */}
+        {errorCarga ? (
+          <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />
+        ) : (
+          <>
+            <SeccionAsistencia datos={asistencias} />
+            <SeccionResultados datos={resultados} />
+            <SeccionFichajes porDiv={fichajesPorDiv} recientes={fichajesRecientes} />
+            <SeccionFinanciero datos={financiero} />
+          </>
+        )}
       </ScrollView>
     </View>
   )

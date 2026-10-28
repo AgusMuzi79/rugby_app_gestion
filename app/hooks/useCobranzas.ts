@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { montoInicialCobranza } from '@/lib/montoSugerido'
 import { filasAGuardar, parseMontoCobranza, type OriginalCobranza } from '@/lib/cobranzasGuardado'
 import { fechaLocal } from '@/lib/fecha'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
   divisionesDeEvento,
@@ -69,6 +70,9 @@ export function useCobranzas() {
   // La lectura de pagos del evento falló: no se puede guardar (se pisarían los
   // pagos registrados con PENDIENTE).
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  // Falló la lectura del perfil o de la lista de eventos: no es "sin división"
+  // ni "sin eventos activos".
+  const [errorLista, setErrorLista] = useState<string | null>(null)
   // Estado en la base al abrir el evento, para guardar sólo lo que cambió.
   const originales = useRef(new Map<string, OriginalCobranza>())
 
@@ -96,37 +100,53 @@ export function useCobranzas() {
   async function fetchDatos() {
     if (!session) return
     setLoading(true)
+    setErrorLista(null)
 
-    const { data: profile } = await supabase
+    const { data: profile, error: errorProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
       .single()
 
+    // Un error al leer el perfil no es "sin división": se informa con reintento.
+    if (errorProfile) {
+      setErrorLista(mensajeErrorCarga('las divisiones asignadas',errorProfile))
+      setLoading(false)
+      return
+    }
+
     const ids = (profile?.divisiones as string[] | null) ?? []
     if (ids.length === 0) { setSinDivision(true); setLoading(false); return }
+    setSinDivision(false)
 
     const [divRes] = await Promise.all([
       supabase.from('divisiones').select('id, nombre').in('id', ids),
       cargarEventos(ids),
     ])
-    setMisDivisiones(
-      (divRes.data ?? [])
-        .map(d => ({ id: d.id, nombre: d.nombre }))
-        .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })),
-    )
+    if (divRes.error) {
+      setErrorLista(mensajeErrorCarga('las divisiones asignadas',divRes.error))
+    } else {
+      setMisDivisiones(
+        (divRes.data ?? [])
+          .map(d => ({ id: d.id, nombre: d.nombre }))
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })),
+      )
+    }
     setLoading(false)
   }
 
   // Eventos activos de todo el club o que incluyen alguna división del manager.
   // La RLS ya acota la lista; acá además se descartan los que el manager creó
   // sólo para divisiones ajenas (no tiene jugadores a quienes cobrarles).
+  // Un error de lectura se muestra como error, no como "Sin eventos activos".
   async function cargarEventos(misIds: string[]) {
-    const { data: eventosData } = await supabase
+    const { data: eventosData, error: errorEventos } = await supabase
       .from('eventos_financieros')
       .select(`id, tipo, nombre, descripcion, fecha, ${SELECT_DIVISIONES_EVENTO}`)
       .eq('estado', 'activo')
       .order('fecha', { ascending: false, nullsFirst: false })
+
+    if (errorEventos) { setErrorLista(mensajeErrorCarga('los eventos', errorEventos)); return }
 
     type Fila = EventoDivisionesRow & {
       id: string; tipo: string; nombre: string; descripcion: string | null; fecha: string | null
@@ -144,6 +164,7 @@ export function useCobranzas() {
 
     if (candidatos.length === 0) {
       setEventos([])
+      setErrorLista(null)
       return
     }
 
@@ -160,6 +181,10 @@ export function useCobranzas() {
         .in('division_id', misIds)
         .eq('activo', true),
     ])
+
+    const errorLectura = primerError(cobranzasRes.error, jugadoresRes.error)
+    if (errorLectura) { setErrorLista(mensajeErrorCarga('los eventos', errorLectura)); return }
+    setErrorLista(null)
 
     const divisionDeJugador = new Map((jugadoresRes.data ?? []).map(j => [j.id, j.division_id]))
     const cobranzas = cobranzasRes.data ?? []
@@ -352,6 +377,8 @@ export function useCobranzas() {
     guardadoOk,
     error,
     errorCarga,
+    errorLista,
+    recargar: fetchDatos,
     reintentarCarga,
     seleccionarEvento,
     volverAEventos,

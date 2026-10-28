@@ -29,6 +29,7 @@ import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -178,9 +179,12 @@ function EventoCard({
 // ─── Vista detalle ────────────────────────────────────────────────────────────
 
 function EventoDetalleContent({
-  ev, cargando, cerrando, onCerrar, onVolver,
+  ev, cargando, errorCarga, onReintentar, cerrando, errorCierre, onCerrar, onVolver,
 }: {
-  ev: EventoDetalle; cargando: boolean; cerrando: boolean; onCerrar: () => void; onVolver: () => void
+  ev: EventoDetalle; cargando: boolean
+  errorCarga: string | null; onReintentar: () => void
+  cerrando: boolean; errorCierre: string | null
+  onCerrar: () => void; onVolver: () => void
 }) {
   // color is truly dynamic (per tipo) — keep inline
   const color    = TIPO_COLOR[ev.tipo]
@@ -236,6 +240,8 @@ function EventoDetalleContent({
         <View style={s.centrado}>
           <ActivityIndicator color={ORO} size="large" />
         </View>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={onReintentar} />
       ) : (
         <ScrollView contentContainerStyle={s.detalleScroll} showsVerticalScrollIndicator={false}>
           {hayRes && (
@@ -311,6 +317,12 @@ function EventoDetalleContent({
               </View>
             )}
           </View>
+
+          {errorCierre && (
+            <View style={[s.bannerError, s.bannerCierre]}>
+              <Text style={s.bannerErrorTexto}>{errorCierre}</Text>
+            </View>
+          )}
 
           {ev.estado === 'activo' && (
             <TouchableOpacity
@@ -533,7 +545,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
   const {
     loading, refrescando, recargar, divisionesLabel, divisionesElegibles, sinDivision, errorCarga,
     eventosActivos, eventosHistorial,
-    paso, eventoDetalle, cargandoDetalle, cerrando, cerrarEvento,
+    paso, eventoDetalle, cargandoDetalle, errorDetalle, cerrando, errorCierre, cerrarEvento,
     abrirDetalle, volverALista,
     modalVisible, abrirModal, cerrarModal,
     form, setForm, toggleDivisionForm, guardando, errorGuardado, crearEvento,
@@ -571,6 +583,7 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
       <DetalleRecaudacion
         ev={eventoDetalle}
         cerrando={cerrando}
+        errorCierre={errorCierre}
         onCerrar={cerrarEvento}
         onVolver={volverALista}
       />
@@ -582,7 +595,10 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
       <EventoDetalleContent
         ev={eventoDetalle}
         cargando={cargandoDetalle}
+        errorCarga={errorDetalle}
+        onReintentar={() => abrirDetalle(eventoDetalle)}
         cerrando={cerrando}
+        errorCierre={errorCierre}
         onCerrar={cerrarEvento}
         onVolver={volverALista}
       />
@@ -824,6 +840,7 @@ const s = StyleSheet.create({
 
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
+  bannerCierre:     { marginTop: 24 },
 
   botonPrincipal:      { backgroundColor: ORO, paddingVertical: 15, borderRadius: 3, alignItems: 'center' },
   botonPrincipalOff:   { opacity: 0.6 },

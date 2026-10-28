@@ -5,6 +5,7 @@ import {
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useDiarioManager, type EventoProgreso, type UltimoFichaje } from '@/hooks/useDiarioManager'
 import { colors, fonts } from '@/constants/theme'
 
@@ -121,9 +122,9 @@ function FilaFichaje({ fichaje }: { fichaje: UltimoFichaje }) {
 export default function DiarioManagerScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioManager()
+  const { loading, refrescando, data, errorCarga, refetch } = useDiarioManager()
 
-  if (data.sinDivision && !loading) {
+  if (data.sinDivision && !loading && !errorCarga) {
     return (
       <View style={s.sinDivWrap}>
         <Text style={s.sinDivTitle}>Sin división asignada.</Text>
@@ -163,6 +164,8 @@ export default function DiarioManagerScreen() {
 
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />
       ) : (
         <>
           {/* ── COBRANZAS ACTIVAS ── */}

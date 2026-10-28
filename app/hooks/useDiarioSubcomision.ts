@@ -6,6 +6,7 @@ import { useEstadoCarga } from './useEstadoCarga'
 import { FEATURES } from '@/constants/features'
 import { fechaLocal } from '@/lib/fecha'
 import { pctCobrado as pctDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export type CronicaTipo = 'urgente' | 'alerta' | 'info'
 
@@ -58,6 +59,8 @@ export function useDiarioSubcomision() {
   const { session } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioSubcomisionData>(DEFAULT)
+  // Error de red / RLS: no se muestran "0 FICHADOS" ni "Sin novedades" (T4).
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
   useRefreshOnFocus(fetchTodo)
@@ -81,7 +84,7 @@ export function useDiarioSubcomision() {
           // Lesiones últimos 30 días con grado (módulo oculto: ni se consulta la tabla)
           FEATURES.lesiones
             ? supabase.from('lesiones').select('id, grado').gte('fecha', hace30Dias())
-            : Promise.resolve({ data: [] as { id: string; grado: number }[] }),
+            : Promise.resolve({ data: [] as { id: string; grado: number }[], error: null }),
           // Último evento financiero activo
           supabase.from('eventos_financieros')
             .select('id, nombre')
@@ -94,6 +97,11 @@ export function useDiarioSubcomision() {
             .order('created_at', { ascending: false })
             .limit(5),
         ])
+      const errorLectura = primerError(
+        profileRes.error, eventos7DRes.error, eventosPrev7DRes.error, fichadosRes.error,
+        lesionesRes.error, financieroRes.error, notifRes.error,
+      )
+      if (errorLectura) throw errorLectura
 
       // Asistencia 7D actual + semana anterior en paralelo
       const eventoIds     = (eventos7DRes.data     ?? []).map(e => e.id)
@@ -107,6 +115,8 @@ export function useDiarioSubcomision() {
           ? supabase.from('asistencias').select('estado').in('evento_id', prevEventoIds)
           : Promise.resolve({ data: [] as { estado: string }[], error: null }),
       ])
+      const errorAsistencias = primerError(asists7D.error, asistsPrev.error)
+      if (errorAsistencias) throw errorAsistencias
 
       let asistencia7D: number | null = null
       let variacion7D:  number | null = null
@@ -159,10 +169,13 @@ export function useDiarioSubcomision() {
         ultimoEventoNombre,
         cronica,
       })
-    } catch { /* keep defaults */ }
+      setErrorCarga(null)
+    } catch (err) {
+      setErrorCarga(mensajeErrorCarga('los datos del inicio', err))
+    }
 
     terminar()
   }
 
-  return { loading, refrescando, data, refetch: fetchTodo }
+  return { loading, refrescando, data, errorCarga, refetch: fetchTodo }
 }

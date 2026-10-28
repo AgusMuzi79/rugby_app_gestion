@@ -4,6 +4,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { SIN_CONEXION } from '@/lib/errorFunction'
+import { esErrorDeRed } from '@/lib/offlineSync'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -135,6 +138,8 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   const [eventoDetalle, setEventoDetalle]     = useState<EventoDetalle | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [cerrando, setCerrando]               = useState(false)
+  const [errorDetalle, setErrorDetalle]       = useState<string | null>(null)
+  const [errorCierre, setErrorCierre]         = useState<string | null>(null)
 
   // Modal nuevo evento
   const [modalVisible, setModalVisible]   = useState(false)
@@ -296,6 +301,8 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   async function abrirDetalle(ev: EventoItem) {
     setPaso('detalle')
     setCargandoDetalle(true)
+    setErrorDetalle(null)
+    setErrorCierre(null)
     setEventoDetalle({
       ...ev,
       resumenTotal:  { pagados: 0, pendientes: 0, cobrado: 0 },
@@ -314,6 +321,14 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
         .eq('evento_financiero_id', ev.id)
         .order('created_at', { ascending: false }),
     ])
+
+    // Un error de lectura no es "Sin pedidos registrados" ni un resumen en 0.
+    const errorLectura = primerError(cobranzasRes.error, pedidosRes.error)
+    if (errorLectura) {
+      setErrorDetalle(mensajeErrorCarga('el detalle del evento', errorLectura))
+      setCargandoDetalle(false)
+      return
+    }
 
     // Procesar cobranzas con desglose por división
     type DivJoin2    = { nombre: string } | null
@@ -369,22 +384,32 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   function volverALista() {
     setPaso('lista')
     setEventoDetalle(null)
+    setErrorDetalle(null)
+    setErrorCierre(null)
   }
 
   // ─── Cerrar evento ────────────────────────────────────────────────────────────
 
+  // La RLS puede dejar el update en 0 filas sin error: se pide el id de vuelta
+  // y, si no vuelve ninguno, se avisa en vez de dejar el evento activo en silencio.
   async function cerrarEvento() {
     if (!eventoDetalle) return
     setCerrando(true)
-    const { error } = await supabase
+    setErrorCierre(null)
+    const { data, error } = await supabase
       .from('eventos_financieros')
       .update({ estado: 'cerrado' })
       .eq('id', eventoDetalle.id)
+      .select('id')
     setCerrando(false)
-    if (!error) {
-      await fetchEventos(misDivisiones.map(d => d.id))
-      volverALista()
+    if (error || !data?.length) {
+      setErrorCierre(
+        error && esErrorDeRed(error) ? SIN_CONEXION : 'No se pudo cerrar el evento. Probá de nuevo.',
+      )
+      return
     }
+    await fetchEventos(misDivisiones.map(d => d.id))
+    volverALista()
   }
 
   // ─── Modal nuevo evento ───────────────────────────────────────────────────────
@@ -472,9 +497,11 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     paso,
     eventoDetalle,
     cargandoDetalle,
+    errorDetalle,
     abrirDetalle,
     volverALista,
     cerrando,
+    errorCierre,
     cerrarEvento,
     modalVisible,
     abrirModal,

@@ -12,6 +12,9 @@ import {
   validarFichaje,
   type DivisionOpcion,
 } from '@/lib/fichajes'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { SIN_CONEXION } from '@/lib/errorFunction'
+import { esErrorDeRed } from '@/lib/offlineSync'
 
 export type TipoDocumento = 'dni' | 'ficha_medica' | 'otro'
 export type PasoFichajes  = 'lista' | 'detalle'
@@ -74,6 +77,7 @@ export function useFichajes() {
   const [paso, setPaso]                     = useState<PasoFichajes>('lista')
   const [jugadorDetalle, setJugadorDetalle] = useState<JugadorDetalle | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
+  const [errorDocumentos, setErrorDocumentos] = useState<string | null>(null)
 
   // Modal nuevo fichaje
   const [modalVisible, setModalVisible]           = useState(false)
@@ -174,13 +178,16 @@ export function useFichajes() {
     )
   }
 
+  // Un error de lectura no es "Sin documentos cargados" (T4).
   async function cargarDocumentos(fichajeId: string) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('documentos_fichaje')
       .select('id, tipo, storage_path, nombre_archivo, created_at')
       .eq('fichaje_id', fichajeId)
       .order('created_at', { ascending: false })
 
+    if (error) { setErrorDocumentos(mensajeErrorCarga('los documentos', error)); return }
+    setErrorDocumentos(null)
     setJugadorDetalle(prev =>
       prev ? { ...prev, documentos: (data ?? []) as DocumentoFichaje[] } : prev,
     )
@@ -193,6 +200,7 @@ export function useFichajes() {
     setTipoSeleccionado(null)
     setSubiendoOk(false)
     setErrorUpload(null)
+    setErrorDocumentos(null)
     setPaso('detalle')
     setCargandoDetalle(true)
     await cargarDocumentos(j.fichajeId)
@@ -337,12 +345,19 @@ export function useFichajes() {
     setSubiendo(false)
   }
 
+  // Antes fallaba en silencio: ahora un error queda en el banner del detalle.
   async function abrirDocumento(storagePath: string) {
     setAbriendoDoc(storagePath)
-    const { data } = await supabase.storage
-      .from('fichajes')
-      .createSignedUrl(storagePath, 60)
-    if (data?.signedUrl) await Linking.openURL(data.signedUrl)
+    setErrorUpload(null)
+    try {
+      const { data, error } = await supabase.storage
+        .from('fichajes')
+        .createSignedUrl(storagePath, 60)
+      if (error || !data?.signedUrl) throw error ?? new Error('sin url')
+      await Linking.openURL(data.signedUrl)
+    } catch (err) {
+      setErrorUpload(esErrorDeRed(err) ? SIN_CONEXION : 'No se pudo abrir el documento. Probá de nuevo.')
+    }
     setAbriendoDoc(null)
   }
 
@@ -361,6 +376,8 @@ export function useFichajes() {
     paso,
     jugadorDetalle,
     cargandoDetalle,
+    errorDocumentos,
+    recargarDocumentos: () => { if (jugadorDetalle) void cargarDocumentos(jugadorDetalle.fichajeId) },
     seleccionarJugador,
     volverALista,
     modalVisible,

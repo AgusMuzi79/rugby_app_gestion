@@ -21,6 +21,7 @@ import {
   FormaDePago,
 } from '@/hooks/useCobranzas'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -294,7 +295,7 @@ export default function CobranzasScreen() {
     loading, divisionNombre, sinDivision,
     eventos, eventoSeleccionado, paso,
     cargandoJugadores, jugadores, resumen,
-    guardando, guardadoOk, error, errorCarga, reintentarCarga,
+    guardando, guardadoOk, error, errorCarga, errorLista, recargar, reintentarCarga,
     seleccionarEvento, volverAEventos,
     toggleEstado, actualizarMonto, actualizarFormaDePago,
     guardarCobranzas,
@@ -346,7 +347,10 @@ export default function CobranzasScreen() {
             <Text style={s.seccionConteo}>{eventos.length}</Text>
           </View>
 
-          {eventos.length === 0 ? (
+          {/* Error de red / permisos: no es "sin división" ni "sin eventos". */}
+          {errorLista ? (
+            <ErrorCarga mensaje={errorLista} onReintentar={recargar} />
+          ) : eventos.length === 0 ? (
             <View style={s.emptyWrap}>
               <Text style={s.emptyTexto}>Sin eventos activos.</Text>
               <Text style={s.emptySubtexto}>

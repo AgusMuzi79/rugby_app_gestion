@@ -20,7 +20,7 @@ import { useCobrosSubcomision } from '@/hooks/useCobrosSubcomision'
 import { ResumenBalance } from './ResumenBalance'
 import { CobrosPanel } from './CobrosPanel'
 import { EgresosPanel } from './EgresosPanel'
-import { DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
+import { CARD, DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
 
 // Detalle de una recaudación de Subcomisión: resumen Cobrado / Egresos / Neto
 // y un selector "Cobros | Egresos". Cobros = quién pagó, por división;
@@ -30,9 +30,10 @@ import { DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, 
 type Pestana = 'cobros' | 'egresos'
 
 export function DetalleRecaudacion({
-  ev, cerrando, onCerrar, onVolver,
+  ev, cerrando, errorCierre, onCerrar, onVolver,
 }: {
-  ev: EventoItem; cerrando: boolean; onCerrar: () => void; onVolver: () => void
+  ev: EventoItem; cerrando: boolean; errorCierre: string | null
+  onCerrar: () => void; onVolver: () => void
 }) {
   const [pestana, setPestana] = useState<Pestana>('cobros')
   const egresos  = useEgresosEvento(ev)
@@ -104,6 +105,12 @@ export function DetalleRecaudacion({
             : <EgresosPanel estado={egresos} />
           }
 
+          {errorCierre && (
+            <View style={s.bannerError}>
+              <Text style={s.bannerErrorTexto}>{errorCierre}</Text>
+            </View>
+          )}
+
           {activo && (
             <TouchableOpacity
               style={[s.botonCerrar, cerrando && s.botonCerrarOff]}
@@ -145,6 +152,9 @@ const s = StyleSheet.create({
   tabBtnActivo:   { borderBottomColor: ORO },
   tabTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED, fontWeight: '700' },
   tabTextoActivo: { color: TEXTO },
+
+  bannerError:      { marginTop: 16, backgroundColor: CARD, borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: ROJO_TEXTO },
 
   botonCerrar:      { marginTop: 16, borderWidth: 1.5, borderColor: ROJO, borderRadius: 3, paddingVertical: 14, alignItems: 'center' },
   botonCerrarOff:   { opacity: 0.6 },
