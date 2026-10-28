@@ -75,6 +75,11 @@ caso('JWT vencido o inválido al leer el perfil (PGRST30x) va al login: reintent
   }
 })
 
+caso('PGRST300 (al server le falta la config del JWT) es falla del server: error, no login (evita un loop)', () => {
+  const d = decidirSesion({ user, perfil: null, perfilError: { code: 'PGRST300', message: 'Server lacks JWT secret' }, rolesPermitidos: roles })
+  assert.deepEqual(d, { tipo: 'error' })
+})
+
 caso('si la lectura tiró una excepción, muestra error', () => {
   const d = decidirSesion({ user: null, excepcion: new TypeError('Failed to fetch'), rolesPermitidos: roles })
   assert.equal(d.tipo, 'error')

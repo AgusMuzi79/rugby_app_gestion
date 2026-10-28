@@ -11,6 +11,8 @@ export type DecisionSesion =
   | { tipo: 'cerrar' }  // sin perfil o rol no permitido: cerrar sesión e ir al login
   | { tipo: 'error' }   // no se pudo verificar: mostrar error con REINTENTAR
 
+const JWT_INVALIDO = new Set(['PGRST301', 'PGRST302', 'PGRST303'])
+
 interface ErrorAuth { name?: string; status?: number }
 interface ErrorPerfil { code?: string; message?: string }
 
@@ -35,9 +37,10 @@ export function decidirSesion({ user, userError, perfil, perfilError, excepcion,
   if (perfilError) {
     // PGRST116 = .single() no encontró la fila: la persona no tiene perfil visible.
     if (perfilError.code === 'PGRST116') return { tipo: 'cerrar' }
-    // PGRST30x = el JWT venció o es inválido: reintentar no lo arregla, al login
-    // (sin cerrar nada, igual que un 4xx de Auth).
-    if (perfilError.code?.startsWith('PGRST30')) return { tipo: 'login' }
+    // PGRST301-303 = el JWT venció o es inválido: reintentar no lo arregla, al
+    // login (sin cerrar nada, igual que un 4xx de Auth). PGRST300 no: es el
+    // server sin la config del JWT, y mandar al login sería un loop.
+    if (perfilError.code && JWT_INVALIDO.has(perfilError.code)) return { tipo: 'login' }
     return { tipo: 'error' }
   }
   if (!perfil || !rolesPermitidos.includes(perfil.rol)) return { tipo: 'cerrar' }

@@ -225,9 +225,17 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen
 // salido y un nuevo publicar no reintenta: se prueba dos veces antes de rendirse.
 async function liberarAvisoNoticia(noticiaId: string): Promise<void> {
   for (let intento = 1; intento <= 2; intento++) {
-    const { error } = await supabaseAdmin.rpc('liberar_aviso_noticia', { p_noticia_id: noticiaId })
-    if (!error) return
-    console.error(`No se pudo liberar el aviso de la noticia ${noticiaId} (intento ${intento}):`, error.message)
+    let motivo: string
+    try {
+      const { error } = await supabaseAdmin.rpc('liberar_aviso_noticia', { p_noticia_id: noticiaId })
+      if (!error) return
+      motivo = error.message
+    } catch (e) {
+      // Un corte de red tira en vez de devolver error: también se reintenta.
+      motivo = e instanceof Error ? e.message : String(e)
+    }
+    console.error(`No se pudo liberar el aviso de la noticia ${noticiaId} (intento ${intento}):`, motivo)
+    if (intento === 1) await new Promise(r => setTimeout(r, 500))
   }
 }
 
