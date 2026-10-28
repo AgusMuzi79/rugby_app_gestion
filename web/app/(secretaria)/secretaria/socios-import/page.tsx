@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
 import SeccionServicios from './seccion-servicios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -251,11 +253,17 @@ function SeccionImportar({ onAplicado }: { onAplicado: () => void }) {
 
 // ─── Sección: historial de importaciones ────────────────────────────────────
 
-function SeccionHistorial({ historial }: { historial: ImportacionSocios[] }) {
+function SeccionHistorial({ historial, error, onReintentar }: {
+  historial: ImportacionSocios[]
+  error: string | null
+  onReintentar: () => void
+}) {
   return (
     <div>
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">HISTORIAL DE IMPORTACIONES</p>
-      {historial.length === 0 ? (
+      {error ? (
+        <ErrorCarga mensaje={error} onReintentar={onReintentar} />
+      ) : historial.length === 0 ? (
         <div className="border border-gris-claro p-6 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">TODAVÍA NO SE IMPORTÓ NINGÚN ARCHIVO</p>
         </div>
@@ -298,13 +306,15 @@ function SeccionHistorial({ historial }: { historial: ImportacionSocios[] }) {
 export default function ImportarSociosPage() {
   const [historial, setHistorial] = useState<ImportacionSocios[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorHistorial, setErrorHistorial] = useState<string | null>(null)
 
   const fetchHistorial = useCallback(async () => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('importaciones_socios')
         .select('id, archivo_nombre, altas, bajas, actualizados, sin_cambio, errores, created_at, profiles!importaciones_socios_importado_por_fkey(nombre)')
         .order('created_at', { ascending: false })
+      if (error) { setErrorHistorial(mensajeErrorCarga('el historial de importaciones', error)); return }
 
       const normalized: ImportacionSocios[] = (data ?? []).map((h: Record<string, unknown>) => ({
         id: h.id as string,
@@ -318,7 +328,10 @@ export default function ImportarSociosPage() {
         importado_por_nombre: (h.profiles as { nombre: string } | null)?.nombre ?? null,
       }))
 
+      setErrorHistorial(null)
       setHistorial(normalized)
+    } catch (e) {
+      setErrorHistorial(mensajeErrorCarga('el historial de importaciones', e))
     } finally {
       setLoading(false)
     }
@@ -340,7 +353,11 @@ export default function ImportarSociosPage() {
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : (
-        <SeccionHistorial historial={historial} />
+        <SeccionHistorial
+          historial={historial}
+          error={errorHistorial}
+          onReintentar={() => { setLoading(true); void fetchHistorial() }}
+        />
       )}
 
       <SeccionServicios />

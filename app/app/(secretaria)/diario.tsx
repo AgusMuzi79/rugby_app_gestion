@@ -5,7 +5,9 @@ import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
 import { useDiarioSecretaria } from '@/hooks/useDiarioSecretaria'
+import { textoUltimoReporte } from '@/lib/secretariaNuvix'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -17,19 +19,6 @@ function fechaEdicion(): string {
   const mm   = String(d.getMonth() + 1).padStart(2, '0')
   const yy   = String(d.getFullYear()).slice(2)
   return `${dias[d.getDay()]} ${dd}.${mm}.${yy}`
-}
-
-function periodoLabel(periodo: string): string {
-  const [anio, mes] = periodo.split('-')
-  const meses = [
-    '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
-  ]
-  return `${meses[Number(mes)]} ${anio}`
-}
-
-function montoLabel(monto: number): string {
-  return `$${monto.toLocaleString('es-AR', { minimumFractionDigits: 0 })}`
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -61,7 +50,7 @@ export default function DiarioSecretariaScreen() {
   const scrollRef = useRef<ScrollView>(null)
   useScrollToTop(scrollRef)
   const insets = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioSecretaria()
+  const { loading, refrescando, data, cargado, error, refetch } = useDiarioSecretaria()
 
   return (
     <ScrollView
@@ -83,9 +72,11 @@ export default function DiarioSecretariaScreen() {
         <View style={s.divider} />
       </View>
 
+      {error ? <ErrorCarga mensaje={error} onReintentar={() => { void refetch() }} /> : null}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
-      ) : (
+      ) : !cargado ? null : (
         <>
           {/* ── RESUMEN DE SOCIOS ── */}
           <View style={s.section}>
@@ -98,10 +89,10 @@ export default function DiarioSecretariaScreen() {
                 accent={colors.oro}
               />
               <StatCard
-                label="MOROSOS"
-                value={String(data.estados.morosos)}
-                sub="con cuota vencida"
-                accent={data.estados.morosos > 0 ? colors.oroHondo : undefined}
+                label="EN ROJO"
+                value={String(data.estados.enRojo)}
+                sub="2+ meses impagos (NUVIX)"
+                accent={data.estados.enRojo > 0 ? colors.rojoUrgente : undefined}
               />
             </View>
             <View style={s.gridRowMt}>
@@ -119,35 +110,15 @@ export default function DiarioSecretariaScreen() {
             </View>
           </View>
 
-          {/* ── ÚLTIMOS PAGOS ── */}
-          <View style={s.sectionUltimosPagos}>
-            <SectionHeader title="ÚLTIMOS PAGOS APROBADOS" />
-            {data.pagosRecientes.length === 0 ? (
-              <Text style={s.emptyText}>Sin pagos recientes.</Text>
-            ) : (
-              <View>
-                {data.pagosRecientes.map(p => (
-                  <View key={p.id} style={s.pagoRow}>
-                    <View style={s.pagoLeft}>
-                      <Text style={s.pagoNombre} numberOfLines={1}>
-                        {p.nombre}
-                      </Text>
-                      <Text style={s.pagoPeriodo}>
-                        {periodoLabel(p.periodo)} · Nº {p.numero_socio}
-                      </Text>
-                    </View>
-                    <View style={s.pagoRight}>
-                      <Text style={s.pagoMonto}>
-                        {montoLabel(p.monto)}
-                      </Text>
-                      <Text style={s.pagoForma}>
-                        {p.forma_pago.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
+          {/* ── ÚLTIMO REPORTE DE DEUDA (NUVIX) ── */}
+          <View style={s.sectionReporte}>
+            <SectionHeader title="ÚLTIMO REPORTE DE DEUDA" />
+            <Text style={data.ultimoReporte ? s.reporteTexto : s.emptyText}>
+              {textoUltimoReporte(data.ultimoReporte)}
+            </Text>
+            <Text style={s.reporteNota}>
+              Los pagos se registran en NUVIX; el semáforo se actualiza al importar el reporte desde el panel web.
+            </Text>
           </View>
         </>
       )}
@@ -180,7 +151,7 @@ const s = StyleSheet.create({
   divider:         { height: 1, backgroundColor: colors.borde },
 
   section:      { paddingHorizontal: 20, paddingTop: 22 },
-  sectionUltimosPagos: { paddingHorizontal: 20, paddingTop: 22, marginTop: 22 },
+  sectionReporte: { paddingHorizontal: 20, paddingTop: 22, marginTop: 22 },
   secRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 10 },
   secTitle: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.oroHondo },
   secLine:  { flex: 1, height: 1, backgroundColor: colors.borde },
@@ -197,16 +168,8 @@ const s = StyleSheet.create({
   statValue: { fontFamily: fonts.titulo, fontSize: 32, lineHeight: 36, color: colors.texto },
   statSub:   { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted, marginTop: 2 },
 
-  pagoRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borde,
-  },
-  pagoLeft:   { flex: 1 },
-  pagoNombre: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto, marginBottom: 2 },
-  pagoPeriodo:{ fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: colors.muted },
-  pagoRight:  { alignItems: 'flex-end', gap: 2 },
-  pagoMonto:  { fontFamily: fonts.titulo, fontSize: 19, color: colors.texto },
-  pagoForma:  { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.muted },
+  reporteTexto: { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.texto },
+  reporteNota:  { fontFamily: fonts.cuerpo, fontSize: 13, fontStyle: 'italic', color: colors.muted, marginTop: 6 },
 
   emptyText: { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted },
 })

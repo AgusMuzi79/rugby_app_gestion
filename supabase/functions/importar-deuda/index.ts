@@ -15,7 +15,9 @@
 //   1. Verificar rol del caller
 //   2. Leer el .xls del FormData, parsear con SheetJS (parseDeudaNuvix)
 //   3. Si no reconcilia contra el Total General del propio archivo: abortar,
-//      no tocar la base, devolver el detalle del desbalance
+//      no tocar la base, devolver el detalle del desbalance (en castellano)
+//   3b. Si la fecha de corte es más vieja que la última importada: 409, salvo
+//      que el FormData traiga forzar=1 (botón "IMPORTAR IGUAL" del panel)
 //   4. Resolver cod_cliente → socio_id vía socios.numero_socio (en lotes)
 //   5. Persistir todo + recalcular el semáforo en una sola transacción de
 //      Postgres (RPC importar_deuda_nuvix, SECURITY DEFINER)
@@ -29,6 +31,7 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { parseDeudaNuvix } from '../_shared/parse-deuda-nuvix.ts'
 import { buscarSociosPorNumero } from '../_shared/recordatorio-deuda.ts'
+import { decidirFechaCorte, leerForzar, mensajeDesbalance } from '../_shared/importar-deuda-decision.ts'
 // xlsx es un paquete CJS — Deno lo importa por default export (module.exports),
 // mismo paquete y misma forma de leerlo que scripts/import-socios-masivo.mjs.
 import XLSX from 'npm:xlsx@0.18.5'
@@ -92,10 +95,33 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!parsed.reconcilia) {
-    return jsonError(400,
-      'El archivo no reconcilia: la suma de subtotales por cuenta no coincide con el Total General. ' +
-      'No se importó nada. Detalle: ' + JSON.stringify(parsed.desbalance)
-    )
+    return jsonError(400, mensajeDesbalance(parsed.desbalance))
+  }
+
+  // ─── Reporte más viejo que el último importado ──────────────────────────────
+  // El RPC recalcula el semáforo de todos con lo que entra: un archivo viejo
+  // lo vuelve atrás. Se rechaza salvo forzar=1 (el panel lo pide después de
+  // mostrar el aviso).
+  const { data: ultima, error: ultimaErr } = await supabaseAdmin
+    .from('importaciones_deuda')
+    .select('fecha_corte')
+    .order('fecha_corte', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (ultimaErr) return jsonError(500, `No se pudo leer la última importación: ${ultimaErr.message}`)
+
+  const decision = decidirFechaCorte({
+    fechaCorte: parsed.fechaCorte,
+    ultimaFechaCorte: (ultima?.fecha_corte as string | undefined) ?? null,
+    forzar: leerForzar(formData.get('forzar')),
+  })
+  if (!decision.ok) {
+    return new Response(JSON.stringify({
+      error: decision.mensaje,
+      conflicto: 'reporte_mas_viejo',
+      fecha_corte: parsed.fechaCorte,
+      ultima_fecha_corte: decision.ultimaFechaCorte,
+    }), { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
   // ─── Resolver cod_cliente → socio_id vía socios.numero_socio ────────────────

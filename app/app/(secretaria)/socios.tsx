@@ -1,13 +1,15 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Alert, ScrollView, Image, RefreshControl,
+  TouchableOpacity, Alert, ScrollView, Image, RefreshControl, TextInput, Platform,
 } from 'react-native'
 import { useState, useCallback, useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
 import { useSociosSecretaria, type SocioItem, type CategoriaSocio, type ServicioOpcional } from '@/hooks/useSociosSecretaria'
+import { montoServicio, montoServiciosSocio, type VinculoServicio } from '@/lib/secretariaNuvix'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -28,7 +30,8 @@ const ESTADO_COLOR: Record<string, string> = {
 const ESTADO_LABEL: Record<string, string> = {
   activo: 'ACTIVO', moroso: 'MOROSO', pendiente: 'PENDIENTE', inactivo: 'INACTIVO',
 }
-const FILTROS = ['todos', 'activo', 'moroso', 'pendiente', 'inactivo'] as const
+// Sin MOROSO: ese estado no lo setea nadie; la deuda real es el semáforo de NUVIX.
+const FILTROS = ['todos', 'activo', 'pendiente', 'inactivo'] as const
 type Filtro = typeof FILTROS[number]
 
 // ─── Detalle Socio ────────────────────────────────────────────────────────────
@@ -43,37 +46,48 @@ function DetalleSocio({
   onReactivate,
   onValidarFoto,
   onToggleServicio,
+  errorDetalle,
+  onReintentar,
   onClose,
 }: {
   socio:            SocioItem
   categorias:       CategoriaSocio[]
   servicios:        ServicioOpcional[]
-  serviciosSocio:   string[]
+  serviciosSocio:   VinculoServicio[]
   fotoSignedUrl:    (path: string) => Promise<string | null>
   onDeactivate:      (id: string) => void
   onReactivate:      (id: string) => void
   onValidarFoto:     (id: string) => void
   onToggleServicio:  (servicioId: string, agregar: boolean) => void
+  errorDetalle:      string | null
+  onReintentar:      () => void
   onClose:           () => void
 }) {
   const [fotoUrl,              setFotoUrl]              = useState<string | null>(null)
   const categoria = categorias.find(c => c.id === socio.categoria_id)
 
-  const montoServicios = servicios
-    .filter(s => serviciosSocio.includes(s.id))
-    .reduce((sum, s) => sum + s.monto_mensual, 0)
+  // Importe real del vínculo (NUVIX) o, si no lo trae, el precio de catálogo.
+  const vinculoPorServicio = new Map(serviciosSocio.map(v => [v.servicio_id, v]))
+  const montoServicios = montoServiciosSocio(servicios, serviciosSocio)
   const montoTotal = (categoria?.monto_mensual ?? 0) + montoServicios
 
   const verFoto = async () => {
     if (!socio.foto_path) { Alert.alert('Sin foto', 'El socio no tiene foto cargada.'); return }
     const url = await fotoSignedUrl(socio.foto_path)
     if (url) setFotoUrl(url)
+    else Alert.alert('No se pudo abrir la foto', 'Revisá la conexión y probá de nuevo.')
   }
 
   return (
     <View style={ss.detalle}>
       <View style={ss.detalleBar}>
-        <TouchableOpacity onPress={onClose} style={ss.backBtn} activeOpacity={0.75}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={ss.backBtn}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a la lista de socios"
+        >
           <Feather name="arrow-left" size={18} color={TEXTO} />
           <Text style={ss.backText}>SOCIOS</Text>
         </TouchableOpacity>
@@ -87,6 +101,8 @@ function DetalleSocio({
             style={[ss.fotoDetalle, ss.fotoPlaceholder]}
             onPress={verFoto}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Ver foto del socio"
           >
             <Feather name="image" size={32} color={MUTED} />
             <Text style={ss.verFotoText}>VER FOTO</Text>
@@ -99,6 +115,10 @@ function DetalleSocio({
         </View>
 
         {[
+          // El nombre grande es el del padrón; si el socio se puso otro en la app, se muestra aparte.
+          ...(socio.nombreApp && socio.nombreApp !== socio.nombre
+            ? [{ label: 'NOMBRE EN LA APP', value: socio.nombreApp }]
+            : []),
           { label: 'DNI',       value: socio.dni },
           { label: 'CATEGORÍA', value: categoria?.nombre ?? socio.categoria },
           { label: 'ESTADO',    value: ESTADO_LABEL[socio.estado] ?? socio.estado.toUpperCase() },
@@ -111,23 +131,31 @@ function DetalleSocio({
         ))}
 
         {/* ── Servicios opcionales ─────────────────────────────────── */}
+        {/* Si falló la lectura, no se muestran servicios ni total (serían falsos). */}
+        {errorDetalle ? (
+          <ErrorCarga mensaje={errorDetalle} onReintentar={onReintentar} />
+        ) : (
         <View style={ss.serviciosSection}>
           <Text style={ss.serviciosTitulo}>SERVICIOS OPCIONALES</Text>
           <View style={ss.serviciosGrid}>
             {servicios.map(srv => {
-              const activo = serviciosSocio.includes(srv.id)
+              const vinculo = vinculoPorServicio.get(srv.id)
+              const activo = !!vinculo
               return (
                 <TouchableOpacity
                   key={srv.id}
                   style={[ss.servicioChip, activo ? ss.servicioChipActivo : ss.servicioChipInactivo]}
                   onPress={() => onToggleServicio(srv.id, !activo)}
                   activeOpacity={0.75}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={`${srv.nombre}, $${montoServicio(srv, vinculo)} por mes`}
+                  accessibilityState={{ checked: activo }}
                 >
                   <Text style={[ss.servicioChipNombre, activo ? ss.servicioChipNombreActivo : ss.servicioChipNombreInactivo]}>
                     {srv.nombre}
                   </Text>
                   <Text style={[ss.servicioChipMonto, activo ? ss.servicioChipMontoActivo : ss.servicioChipMontoInactivo]}>
-                    +${srv.monto_mensual}/mes
+                    +${montoServicio(srv, vinculo)}/mes
                   </Text>
                 </TouchableOpacity>
               )
@@ -140,6 +168,7 @@ function DetalleSocio({
             </Text>
           </View>
         </View>
+        )}
 
         <View style={ss.acciones}>
           {!socio.foto_validada && socio.foto_path && (
@@ -147,6 +176,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnOro]}
               onPress={() => onValidarFoto(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextOro]}>VALIDAR FOTO</Text>
             </TouchableOpacity>
@@ -156,6 +186,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnRojo]}
               onPress={() => onDeactivate(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextRojo]}>DESACTIVAR SOCIO</Text>
             </TouchableOpacity>
@@ -164,6 +195,7 @@ function DetalleSocio({
               style={[ss.accionBtn, ss.accionBtnVerde]}
               onPress={() => onReactivate(socio.id)}
               activeOpacity={0.8}
+              accessibilityRole="button"
             >
               <Text style={[ss.accionBtnText, ss.accionBtnTextVerde]}>REACTIVAR SOCIO</Text>
             </TouchableOpacity>
@@ -179,7 +211,15 @@ function DetalleSocio({
 
 function SocioRow({ socio, onPress }: { socio: SocioItem; onPress: () => void }) {
   return (
-    <TouchableOpacity style={ss.socioRow} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity
+      style={ss.socioRow}
+      onPress={onPress}
+      activeOpacity={0.75}
+      accessibilityRole="button"
+      // El badge muestra sólo la inicial del estado: el lector lo dice completo.
+      accessibilityLabel={`${socio.nombre}, socio Nº ${socio.numero_socio}, ${socio.categoria}, ${(ESTADO_LABEL[socio.estado] ?? socio.estado).toLowerCase()}`}
+      accessibilityHint="Abre el detalle del socio"
+    >
       <Text style={ss.socioNum}>{socio.numero_socio}</Text>
       <View style={ss.socioInfo}>
         <Text style={ss.socioNombre} numberOfLines={1}>{socio.nombre}</Text>
@@ -200,9 +240,10 @@ export default function SociosScreen() {
   const insets = useSafeAreaInsets()
   const {
     socios, categorias, servicios, serviciosSocio, loading, refrescando, refetch,
-    filtro, setFiltro,
+    filtro, setFiltro, busqueda, setBusqueda,
     desactivarSocio, reactivarSocio, validarFoto, fotoSignedUrl,
     fetchServiciosSocio, toggleServicio,
+    errorLista, errorDetalle, reintentarDetalle,
   } = useSociosSecretaria()
 
   const [detalle, setDetalle]       = useState<SocioItem | null>(null)
@@ -256,6 +297,8 @@ export default function SociosScreen() {
           onReactivate={handleReactivate}
           onValidarFoto={handleValidarFoto}
           onToggleServicio={handleToggleServicio}
+          errorDetalle={errorDetalle}
+          onReintentar={() => { void reintentarDetalle(actualizado.id) }}
           onClose={() => setDetalle(null)}
         />
       </View>
@@ -272,6 +315,32 @@ export default function SociosScreen() {
           <Text style={ss.edicionFecha}>{socios.length} EN VISTA</Text>
         </View>
 
+        <View style={ss.busquedaBar}>
+          <Feather name="search" size={16} color={MUTED} />
+          <TextInput
+            style={ss.busquedaInput}
+            value={busqueda}
+            onChangeText={setBusqueda}
+            placeholder="Nombre, DNI o Nº de socio"
+            placeholderTextColor={MUTED}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            accessibilityLabel="Buscar socio por nombre, DNI o número"
+          />
+          {busqueda && Platform.OS !== 'ios' ? (
+            <TouchableOpacity
+              onPress={() => setBusqueda('')}
+              style={ss.busquedaLimpiar}
+              accessibilityRole="button"
+              accessibilityLabel="Borrar búsqueda"
+            >
+              <Feather name="x" size={16} color={MUTED} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
         <ScrollView
           horizontal showsHorizontalScrollIndicator={false}
           contentContainerStyle={ss.filtrosContent}
@@ -283,6 +352,9 @@ export default function SociosScreen() {
               style={[ss.filtroBtn, filtro === f && ss.filtroBtnActive]}
               onPress={() => setFiltro(f as Filtro)}
               activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={`Filtrar: ${f === 'todos' ? 'todos' : ESTADO_LABEL[f]?.toLowerCase() ?? f}`}
+              accessibilityState={{ selected: filtro === f }}
             >
               <Text style={[ss.filtroBtnText, filtro === f && ss.filtroBtnTextActive]}>
                 {f === 'todos' ? 'TODOS' : ESTADO_LABEL[f] ?? f.toUpperCase()}
@@ -292,18 +364,26 @@ export default function SociosScreen() {
         </ScrollView>
       </View>
 
+      {errorLista ? <ErrorCarga mensaje={errorLista} onReintentar={() => { void refetch() }} /> : null}
+
+      {/* La lista queda montada mientras se escribe: el vacío va en ListEmptyComponent. */}
       {loading ? (
         <ActivityIndicator color={colors.oro} style={ss.activityIndicator} />
-      ) : socios.length === 0 ? (
-        <View style={ss.empty}>
-          <Text style={ss.emptyText}>No hay socios en esta vista.</Text>
-        </View>
       ) : (
         <FlatList
           ref={scrollRef}
           data={socios}
           keyExtractor={item => item.id}
           contentContainerStyle={ss.listContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          ListEmptyComponent={errorLista ? null : (
+            <View style={ss.empty}>
+              <Text style={ss.emptyText}>
+                {busqueda.trim() ? 'Ningún socio con ese nombre, DNI o Nº en esta vista.' : 'No hay socios en esta vista.'}
+              </Text>
+            </View>
+          )}
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
           renderItem={({ item }) => (
             <SocioRow socio={item} onPress={() => abrirDetalle(item)} />
@@ -335,9 +415,17 @@ const ss = StyleSheet.create({
     textTransform: 'uppercase', color: colors.grisClaro,
   },
 
-  filtrosBar:     { borderBottomWidth: 1, maxHeight: 46, backgroundColor: CARD, borderBottomColor: DIVIDER },
+  busquedaBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: DIVIDER,
+  },
+  busquedaInput:   { flex: 1, minHeight: 44, fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
+  busquedaLimpiar: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
+
+  filtrosBar:     { borderBottomWidth: 1, maxHeight: 48, backgroundColor: CARD, borderBottomColor: DIVIDER },
   filtrosContent: { paddingHorizontal: 16, gap: 8, alignItems: 'center' },
-  filtroBtn:      { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 2 },
+  // 44 pt de alto táctil (HIG / Material); el texto queda centrado.
+  filtroBtn:      { paddingHorizontal: 12, minHeight: 44, justifyContent: 'center', borderRadius: 2 },
   filtroBtnActive:{ borderBottomWidth: 2, borderBottomColor: colors.oro },
   filtroBtnText: {
     fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5,
@@ -421,8 +509,8 @@ const ss = StyleSheet.create({
 
   // Detalle
   detalle:            { flex: 1 },
-  detalleBar:         { paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  backBtn:            { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detalleBar:         { paddingHorizontal: 20, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: DIVIDER },
+  backBtn:            { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, alignSelf: 'flex-start' },
   backText:           { fontFamily: fonts.label, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', color: TEXTO },
   detalleScrollContent: { padding: 20, gap: 16 },
 
@@ -474,6 +562,6 @@ const ss = StyleSheet.create({
   accionBtnTextOro:  { color: colors.oro },
   accionBtnTextRojo: { color: colors.rojoTexto },
 
-  empty:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty:     { alignItems: 'center', paddingTop: 40 },
   emptyText: { fontFamily: fonts.cuerpo, fontSize: 16, fontStyle: 'italic', color: MUTED },
 })

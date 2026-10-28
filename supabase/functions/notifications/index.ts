@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import { tutorProfileIds } from '../_shared/tutores.ts'
+import { leerEstadoReclamo, pushFalloEntero } from '../_shared/aviso-noticia.ts'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const EXPO_PUSH_CHUNK_SIZE = 100
@@ -109,7 +110,25 @@ Deno.serve(async (req: Request) => {
       if (!np?.titulo || !np?.noticiaId) {
         return jsonError(400, 'Payload noticia incompleto')
       }
-      resumen = await notificarNoticiaPublicada(np)
+      // Un solo aviso por noticia (migración 20261030000000): se reclama la
+      // noticia antes de mandar. Despublicar y volver a publicar, o dos
+      // pedidos a la vez, no repiten el push.
+      const { data: estadoRaw, error: reclamoErr } = await supabaseAdmin
+        .rpc('reclamar_aviso_noticia', { p_noticia_id: np.noticiaId })
+      if (reclamoErr) return jsonError(500, `No se pudo registrar el aviso de la noticia: ${reclamoErr.message}`)
+      const estado = leerEstadoReclamo(estadoRaw)
+      if (estado !== 'reclamada') return jsonOk({ ok: true, omitido: estado ?? 'desconocido' })
+      try {
+        resumen = await notificarNoticiaPublicada(np)
+      } catch (e) {
+        await liberarAvisoNoticia(np.noticiaId)
+        throw e
+      }
+      if (pushFalloEntero(resumen)) {
+        // No le llegó a nadie: se libera para que publicar de nuevo reintente.
+        await liberarAvisoNoticia(np.noticiaId)
+        return jsonError(502, 'No se pudo mandar el aviso push: no salió ningún envío.')
+      }
     } else if (type === 'cancelacion_entrenamiento') {
       const cp = payload as CancelacionPayload
       if (!cp?.divisionId || !cp?.mensaje) {
@@ -200,6 +219,24 @@ async function notificarNoticiaPublicada(p: NoticiaPayload): Promise<PushResumen
     type: 'noticia_publicada',
     noticiaId: p.noticiaId,
   })
+}
+
+// Si no se libera, la noticia queda como "ya avisada" sin que el aviso haya
+// salido y un nuevo publicar no reintenta: se prueba dos veces antes de rendirse.
+async function liberarAvisoNoticia(noticiaId: string): Promise<void> {
+  for (let intento = 1; intento <= 2; intento++) {
+    let motivo: string
+    try {
+      const { error } = await supabaseAdmin.rpc('liberar_aviso_noticia', { p_noticia_id: noticiaId })
+      if (!error) return
+      motivo = error.message
+    } catch (e) {
+      // Un corte de red tira en vez de devolver error: también se reintenta.
+      motivo = e instanceof Error ? e.message : String(e)
+    }
+    console.error(`No se pudo liberar el aviso de la noticia ${noticiaId} (intento ${intento}):`, motivo)
+    if (intento === 1) await new Promise(r => setTimeout(r, 500))
+  }
 }
 
 // Same labels as app/lib/tipoEvento.ts etiquetaEvento / tituloCancelacion (Deno can't import app/).

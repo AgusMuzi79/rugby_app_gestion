@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { confirmacionPublicar, mensajeResultadoAviso } from '@/lib/avisoNoticia'
 
 interface Noticia {
   id: string
@@ -13,6 +16,8 @@ interface Noticia {
   created_at: string
   autor: string
   audiencia: 'todos' | 'cuerpo_tecnico'
+  // Cuándo salió el aviso push (null = nunca): se avisa una sola vez.
+  notificadaAt: string | null
 }
 
 type Filtro = 'todas' | 'rugby' | 'hockey' | 'tenis'
@@ -39,6 +44,11 @@ export default function NoticiasPage() {
   const [loading, setLoading]   = useState(true)
   const [filtro, setFiltro]     = useState<Filtro>('todas')
   const [showModal, setShowModal] = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [aviso, setAviso]       = useState('')
+  // Noticia a publicar, esperando la confirmación (el push no se deshace).
+  const [aConfirmar, setAConfirmar] = useState<Noticia | null>(null)
+  const [publicando, setPublicando] = useState(false)
 
   // form
   const [titulo, setTitulo]     = useState('')
@@ -49,10 +59,15 @@ export default function NoticiasPage() {
 
   const fetchNoticias = async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('noticias')
-      .select('id, titulo, cuerpo, publicada, etiquetas, audiencia, created_at, profiles!noticias_autor_id_fkey(nombre)')
+      .select('id, titulo, cuerpo, publicada, etiquetas, audiencia, notificada_at, created_at, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
+    if (error) {
+      setErrorCarga(mensajeErrorCarga('las noticias', error))
+      setLoading(false)
+      return
+    }
 
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => ({
       id:         n.id as string,
@@ -61,12 +76,16 @@ export default function NoticiasPage() {
       publicada:  n.publicada as boolean,
       etiquetas:  (n.etiquetas as string[]) ?? [],
       audiencia:  (n.audiencia as 'todos' | 'cuerpo_tecnico') ?? 'todos',
+      notificadaAt: (n.notificada_at as string | null) ?? null,
       created_at: n.created_at as string,
       autor:      (n.profiles as { nombre: string } | null)?.nombre ?? '—',
     }))
+    setErrorCarga(null)
     setNoticias(normalized)
     setLoading(false)
   }
+
+  const reintentar = () => { setLoading(true); void fetchNoticias() }
 
   useEffect(() => { fetchNoticias() }, [])
 
@@ -74,24 +93,41 @@ export default function NoticiasPage() {
     ? noticias
     : noticias.filter(n => n.etiquetas.includes(filtro))
 
-  const handleTogglePublicar = async (id: string, publicada: boolean) => {
-    const { error } = await supabase.from('noticias').update({ publicada }).eq('id', id)
-    if (error) return
-    setNoticias(ns => ns.map(n => n.id === id ? { ...n, publicada } : n))
-    if (publicada) {
-      const noticia = noticias.find(n => n.id === id)
-      if (noticia) {
-        supabase.functions.invoke('notifications', {
-          body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: id, audiencia: noticia.audiencia } },
-        }).catch(() => {})
-      }
+  const handleDespublicar = async (id: string) => {
+    setAviso('')
+    const { error } = await supabase.from('noticias').update({ publicada: false }).eq('id', id)
+    if (error) { setAviso(`No se pudo despublicar la noticia: ${error.message}`); return }
+    setNoticias(ns => ns.map(n => n.id === id ? { ...n, publicada: false } : n))
+  }
+
+  // Después de confirmar. El push lo manda `notifications` una sola vez por
+  // noticia (noticias.notificada_at): republicar no lo repite.
+  const handlePublicar = async (noticia: Noticia) => {
+    setAviso('')
+    setPublicando(true)
+    try {
+      const { error } = await supabase.from('noticias').update({ publicada: true }).eq('id', noticia.id)
+      if (error) { setAviso(`No se pudo publicar la noticia: ${error.message}`); return }
+      setNoticias(ns => ns.map(n => n.id === noticia.id ? { ...n, publicada: true } : n))
+      const resultado = await supabase.functions.invoke('notifications', {
+        body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: noticia.id, audiencia: noticia.audiencia } },
+      }).catch((e: unknown) => ({ error: e, data: null }))
+      const mensaje = mensajeResultadoAviso(resultado)
+      if (mensaje) setAviso(mensaje)
+      // Relee para tener notificada_at al día (la próxima confirmación lo usa).
+      await fetchNoticias()
+    } finally {
+      setPublicando(false)
+      setAConfirmar(null)
     }
   }
 
   const handleEliminar = async (id: string) => {
     if (!confirm('¿Eliminar esta noticia?')) return
+    setAviso('')
     const { error } = await supabase.from('noticias').delete().eq('id', id)
-    if (!error) setNoticias(ns => ns.filter(n => n.id !== id))
+    if (error) { setAviso(`No se pudo eliminar la noticia: ${error.message}`); return }
+    setNoticias(ns => ns.filter(n => n.id !== id))
   }
 
   const handleCrear = async () => {
@@ -129,7 +165,7 @@ export default function NoticiasPage() {
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Noticias</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
-            {noticias.filter(n => n.publicada).length} publicadas · {noticias.length} en total
+            {loading || errorCarga ? 'Noticias para los socios' : <>{noticias.filter(n => n.publicada).length} publicadas · {noticias.length} en total</>}
           </p>
         </div>
         <button
@@ -139,6 +175,10 @@ export default function NoticiasPage() {
           + NUEVA NOTICIA
         </button>
       </div>
+
+      {aviso && (
+        <p role="alert" className="font-lora text-sm text-tinta border border-rojo p-4 mb-6">{aviso}</p>
+      )}
 
       {/* Filtros */}
       <div className="flex gap-1 mb-6 border-b border-gris-claro">
@@ -159,6 +199,8 @@ export default function NoticiasPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
       ) : noticiasVisibles.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">SIN NOTICIAS</p>
@@ -187,7 +229,7 @@ export default function NoticiasPage() {
               </div>
               <div className="flex gap-2 shrink-0 pt-1">
                 <button
-                  onClick={() => handleTogglePublicar(n.id, !n.publicada)}
+                  onClick={() => { if (n.publicada) void handleDespublicar(n.id); else setAConfirmar(n) }}
                   className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-tinta/50 hover:border-tinta hover:text-tinta transition-colors"
                 >
                   {n.publicada ? 'DESPUBLICAR' : 'PUBLICAR'}
@@ -202,6 +244,30 @@ export default function NoticiasPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Confirmación de publicar: el aviso push no se puede deshacer */}
+      {aConfirmar && (
+        <Modal titulo="PUBLICAR NOTICIA" ancho="max-w-md" onClose={() => { if (!publicando) setAConfirmar(null) }}>
+          <p className="font-lora text-sm text-tinta mb-2">&ldquo;{aConfirmar.titulo}&rdquo;</p>
+          <p className="font-lora text-sm text-tinta/70">{confirmacionPublicar(aConfirmar)}</p>
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={() => { void handlePublicar(aConfirmar) }}
+              disabled={publicando}
+              className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors disabled:opacity-50"
+            >
+              {publicando ? 'PUBLICANDO…' : 'PUBLICAR'}
+            </button>
+            <button
+              onClick={() => setAConfirmar(null)}
+              disabled={publicando}
+              className="font-lora text-xs tracking-widest px-5 py-3 border border-gris-claro text-tinta/60 hover:text-tinta transition-colors disabled:opacity-50"
+            >
+              CANCELAR
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* Modal nueva noticia */}

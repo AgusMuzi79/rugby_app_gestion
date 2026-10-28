@@ -1,16 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { supabase, selectAllRows } from '@/lib/supabase'
+import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
+import VerMas from '@/components/secretaria/VerMas'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { PAGINA_LISTA, paginar, ordenarCon } from '@/lib/listaPaginada'
+import { filtrarDeudas, mensajeVacioDeudas, nombresSocio, SEMAFORO_LABEL, type Semaforo } from '@/lib/busquedaSocios'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'exento'
 
 interface SocioSemaforo {
   id: string
   numero_socio: string
+  dni: string
+  /** Nombre del padrón de NUVIX; si falta, el de la app. */
   nombre: string
+  /** Nombre que el socio puso en la app; también se busca por este. */
+  nombreApp: string
   semaforo: Semaforo | null
   deuda_vencida: number
   meses_impagos: number
@@ -25,10 +33,6 @@ type FiltroSemaforo = 'todos' | Semaforo
 const FILTROS: FiltroSemaforo[] = ['todos', 'rojo', 'amarillo', 'verde', 'exento']
 
 const FILTRO_SERVICIO_TODOS = 'todos'
-
-const SEMAFORO_LABEL: Record<Semaforo, string> = {
-  verde: 'Verde', amarillo: 'Amarillo', rojo: 'Rojo', exento: 'Exento',
-}
 
 const SEMAFORO_COLOR: Record<Semaforo, string> = {
   verde: 'text-[#2ECC71] border-[#2ECC71]',
@@ -53,7 +57,6 @@ function formatFecha(iso: string | null | undefined): string {
 // ─── Orden de columnas (tipo Explorador de Windows) ───────────────────────────
 
 type SortColumn = 'numero_socio' | 'nombre' | 'semaforo' | 'deuda_vencida' | 'meses_impagos' | 'mora_max_dias'
-type SortDirection = 'asc' | 'desc'
 
 const SORT_LABEL: Record<SortColumn, string> = {
   numero_socio: 'Nº', nombre: 'NOMBRE', semaforo: 'SEMÁFORO',
@@ -85,36 +88,13 @@ function compareSocios(a: SocioSemaforo, b: SocioSemaforo, column: SortColumn): 
   }
 }
 
-function SortableTh({
-  column, align, sortColumn, sortDirection, onSort, extraClass,
-}: {
-  column: SortColumn
-  align: 'left' | 'center' | 'right'
-  sortColumn: SortColumn
-  sortDirection: SortDirection
-  onSort: (c: SortColumn) => void
-  extraClass?: string
-}) {
-  const activo = sortColumn === column
-  const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
-  return (
-    <th
-      onClick={() => onSort(column)}
-      className={`font-lora text-xs tracking-widest text-tinta/50 py-3 pr-4 select-none cursor-pointer hover:text-tinta transition-colors ${alignClass} ${extraClass ?? ''}`}
-    >
-      <span className={activo ? 'text-oro' : ''}>
-        {SORT_LABEL[column]}{activo ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-      </span>
-    </th>
-  )
-}
-
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export default function DeudasPage() {
   const [socios, setSocios] = useState<SocioSemaforo[]>([])
   const [fechaCorte, setFechaCorte] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<FiltroSemaforo>('rojo')
   const [filtroServicio, setFiltroServicio] = useState<string>(FILTRO_SERVICIO_TODOS)
   const [busqueda, setBusqueda] = useState('')
@@ -132,12 +112,12 @@ export default function DeudasPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [sociosData, serviciosOpcionalesData, socioServiciosData, { data: ultimaImportacion }] = await Promise.all([
+      const [sociosData, serviciosOpcionalesData, socioServiciosData, { data: ultimaImportacion, error: errorUltima }] = await Promise.all([
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         selectAllRows<Record<string, unknown>>((from, to) =>
           (supabase as any)
             .from('socios')
-            .select('id, numero_socio, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
+            .select('id, numero_socio, dni, nombre_padron, semaforo, deuda_vencida, meses_impagos, mora_max_dias, profiles!socios_profile_id_fkey(nombre), categorias_socio!socios_categoria_id_fkey(nombre)')
             .in('estado', ['activo', 'pendiente'])
             .not('semaforo', 'is', null)
             .range(from, to)
@@ -153,10 +133,15 @@ export default function DeudasPage() {
         supabase
           .from('importaciones_deuda')
           .select('fecha_corte')
-          .order('fecha_corte', { ascending: false })
+          // La importación que generó el semáforo actual es la última que
+          // entró (created_at), no la de fecha de corte más nueva: si se
+          // importó un reporte viejo con "IMPORTAR IGUAL", el semáforo es ése.
+          .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
       ])
+      const err = primerError(serviciosOpcionalesData.error, errorUltima)
+      if (err) throw err
 
       const nombrePorServicioId = new Map<string, string>(
         (serviciosOpcionalesData.data ?? []).map((s) => [s.id as string, s.nombre as string])
@@ -177,11 +162,12 @@ export default function DeudasPage() {
         return {
           id: s.id as string,
           numero_socio: s.numero_socio as string,
+          dni: (s.dni as string | null) ?? '',
           semaforo: s.semaforo as Semaforo | null,
           deuda_vencida: Number(s.deuda_vencida ?? 0),
           meses_impagos: Number(s.meses_impagos ?? 0),
           mora_max_dias: Number(s.mora_max_dias ?? 0),
-          nombre: (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+          ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
           categoria,
           serviciosOpcionales,
           servicios: [
@@ -193,6 +179,9 @@ export default function DeudasPage() {
 
       setSocios(normalizedSocios)
       setFechaCorte((ultimaImportacion as { fecha_corte: string } | null)?.fecha_corte ?? null)
+      setErrorCarga(null)
+    } catch (e) {
+      setErrorCarga(mensajeErrorCarga('las deudas', e))
     } finally {
       setLoading(false)
     }
@@ -200,20 +189,31 @@ export default function DeudasPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const opcionesServicio = [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es'))
+  const opcionesServicio = useMemo(
+    () => [...new Set(socios.flatMap(s => s.serviciosOpcionales))].sort((a, b) => a.localeCompare(b, 'es')),
+    [socios],
+  )
 
-  const sociosFiltrados = socios
-    .filter(s => filtro === 'todos' || s.semaforo === filtro)
-    .filter(s => filtroServicio === FILTRO_SERVICIO_TODOS || s.serviciosOpcionales.includes(filtroServicio))
-    .filter(s => {
-      if (!busqueda.trim()) return true
-      const q = busqueda.toLowerCase()
-      return s.nombre.toLowerCase().includes(q) || s.numero_socio.includes(q)
-    })
-    .sort((a, b) => {
-      const cmp = compareSocios(a, b, sortColumn)
-      return sortDirection === 'asc' ? cmp : -cmp
-    })
+  // La búsqueda se difiere para que tipear no espere al filtro + orden de toda la lista.
+  const busquedaDiferida = useDeferredValue(busqueda)
+  const sociosFiltrados = useMemo(
+    () => ordenarCon(
+      filtrarDeudas(socios, { filtro, filtroServicio, busqueda: busquedaDiferida }),
+      (a, b) => compareSocios(a, b, sortColumn),
+      sortDirection,
+    ),
+    [socios, filtro, filtroServicio, busquedaDiferida, sortColumn, sortDirection],
+  )
+
+  // Se renderizan de a PAGINA_LISTA filas (el CSV exporta todas); al cambiar filtros u orden vuelve a la primera tanda.
+  const [limite, setLimite] = useState(PAGINA_LISTA)
+  const claveVista = `${filtro}|${filtroServicio}|${busquedaDiferida}|${sortColumn}|${sortDirection}`
+  const [claveLimite, setClaveLimite] = useState(claveVista)
+  if (claveLimite !== claveVista) {
+    setClaveLimite(claveVista)
+    setLimite(PAGINA_LISTA)
+  }
+  const { visibles, restantes } = paginar(sociosFiltrados, limite)
 
   const handleExportar = () => {
     const columnas = ['Nº Socio', 'Nombre', 'Semáforo', 'Deuda Vencida', 'Meses Impagos', 'Mora Máx (días)', 'Categoría', 'Servicios']
@@ -268,7 +268,8 @@ export default function DeudasPage() {
           type="text"
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o Nº socio…"
+          placeholder="Buscar por nombre, DNI o Nº socio (en todos los colores)…"
+          aria-label="Buscar socio por nombre, DNI o Nº, en todos los colores"
           className="flex-1 font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-oro transition-colors"
         />
         <div className="flex gap-1">
@@ -276,8 +277,10 @@ export default function DeudasPage() {
             <button
               key={f}
               onClick={() => setFiltro(f)}
+              // Con búsqueda el semáforo no se aplica: el botón deja de verse activo.
+              aria-pressed={filtro === f && !busqueda.trim()}
               className={`font-lora text-xs tracking-widest px-3 py-2 border transition-colors ${
-                filtro === f
+                filtro === f && !busqueda.trim()
                   ? 'bg-oro border-oro text-papel'
                   : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
               }`}
@@ -316,7 +319,7 @@ export default function DeudasPage() {
         </div>
         <button
           onClick={handleExportar}
-          disabled={sociosFiltrados.length === 0}
+          disabled={sociosFiltrados.length === 0 || !!errorCarga}
           className="font-lora text-xs tracking-widest px-5 py-2 border border-oro text-oro hover:bg-oro/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
         >
           EXPORTAR CSV ({sociosFiltrados.length})
@@ -325,27 +328,29 @@ export default function DeudasPage() {
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={() => { setLoading(true); void fetchAll() }} />
       ) : sociosFiltrados.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">
-            {busqueda ? 'SIN RESULTADOS' : 'NO HAY SOCIOS EN ESTA VISTA'}
+            {mensajeVacioDeudas({ filtro, filtroServicio, busqueda: busquedaDiferida })}
           </p>
         </div>
       ) : (
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b-2 border-gris-claro">
-              <SortableTh column="numero_socio"  align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="nombre"        align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="semaforo"      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="deuda_vencida" align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="meses_impagos" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
-              <SortableTh column="mora_max_dias" align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="numero_socio" label={SORT_LABEL.numero_socio}  align="left"   extraClass="w-16" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="nombre" label={SORT_LABEL.nombre}        align="left"   sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="semaforo" label={SORT_LABEL.semaforo}      align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="deuda_vencida" label={SORT_LABEL.deuda_vencida} align="right"  sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="meses_impagos" label={SORT_LABEL.meses_impagos} align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
+              <SortableTh column="mora_max_dias" label={SORT_LABEL.mora_max_dias} align="center" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSort} />
               <th className="font-lora text-xs tracking-widest text-tinta/50 py-3 pl-4 text-left">SERVICIOS</th>
             </tr>
           </thead>
           <tbody>
-            {sociosFiltrados.map(s => (
+            {visibles.map(s => (
               <tr key={s.id} className="border-b border-gris-claro">
                 <td className="font-playfair text-sm text-oro-hondo py-4 pr-4">{s.numero_socio}</td>
                 <td className="font-lora text-sm text-tinta py-4 pr-4">{s.nombre}</td>
@@ -374,6 +379,15 @@ export default function DeudasPage() {
             ))}
           </tbody>
         </table>
+      )}
+      {!loading && !errorCarga && (
+        <VerMas
+          mostrando={visibles.length}
+          total={sociosFiltrados.length}
+          restantes={restantes}
+          paso={PAGINA_LISTA}
+          onVerMas={() => setLimite(l => l + PAGINA_LISTA)}
+        />
       )}
     </div>
   )

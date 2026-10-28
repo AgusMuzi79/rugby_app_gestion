@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { useAuthStore } from '@/stores/authStore'
+import { confirmacionPublicar, mensajeResultadoAviso, type Audiencia } from '@/lib/avisoNoticia'
 
 export interface Noticia {
   id:          string
@@ -15,6 +16,10 @@ export interface Noticia {
   etiquetas:   string[]
   created_at:  string
   autor:       string
+  // Sólo en la lista de Secretaría (useNoticias(false)); en la del socio quedan
+  // en 'todos' / null porque no se piden.
+  audiencia:     Audiencia
+  notificada_at: string | null
 }
 
 interface NuevosDatos {
@@ -34,9 +39,12 @@ export function useNoticias(soloPublicadas: boolean) {
     empezar()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
+    // La consulta del socio no cambia; Secretaría además trae audiencia y
+    // notificada_at para confirmar el aviso push al publicar.
+    const columnas = 'id, titulo, cuerpo, imagen_path, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)'
     let q = db
       .from('noticias')
-      .select('id, titulo, cuerpo, imagen_path, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)')
+      .select(soloPublicadas ? columnas : `${columnas}, audiencia, notificada_at`)
       .order('created_at', { ascending: false })
 
     if (soloPublicadas) q = q.eq('publicada', true)
@@ -64,6 +72,8 @@ export function useNoticias(soloPublicadas: boolean) {
         etiquetas:   (n.etiquetas as string[]) ?? [],
         created_at:  n.created_at as string,
         autor:       (n.profiles as { nombre: string } | null)?.nombre ?? '—',
+        audiencia:     (n.audiencia as Audiencia | undefined) ?? 'todos',
+        notificada_at: (n.notificada_at as string | null | undefined) ?? null,
       }
     })
 
@@ -112,17 +122,43 @@ export function useNoticias(soloPublicadas: boolean) {
     return true
   }, [session, fetch])
 
-  const togglePublicar = useCallback(async (noticiaId: string, publicada: boolean) => {
+  const cambiarPublicada = useCallback(async (noticiaId: string, publicada: boolean): Promise<boolean> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from('noticias')
       .update({ publicada })
       .eq('id', noticiaId)
-    if (error) { Alert.alert('Error', error.message); return }
+    if (error) { Alert.alert('Error', error.message); return false }
     setNoticias(prev =>
       prev.map(n => n.id === noticiaId ? { ...n, publicada } : n)
     )
+    return true
   }, [])
+
+  // Publicar (sólo Secretaría): igual que el panel web, pide confirmación y
+  // manda el aviso push con `notifications`, que lo manda una sola vez por
+  // noticia (noticias.notificada_at): republicar no lo repite.
+  const publicarConAviso = useCallback(async (noticia: Noticia) => {
+    if (!(await cambiarPublicada(noticia.id, true))) return
+    const resultado = await supabase.functions.invoke('notifications', {
+      body: { type: 'noticia_publicada', payload: { titulo: noticia.titulo, noticiaId: noticia.id, audiencia: noticia.audiencia } },
+    }).catch((e: unknown) => ({ error: e, data: null }))
+    const mensaje = mensajeResultadoAviso(resultado)
+    if (mensaje) Alert.alert('Noticia publicada', mensaje)
+    // Relee para tener notificada_at al día (la próxima confirmación lo usa).
+    await fetch()
+  }, [cambiarPublicada, fetch])
+
+  const togglePublicar = useCallback(async (noticiaId: string, publicada: boolean) => {
+    if (!publicada) { await cambiarPublicada(noticiaId, false); return }
+    const noticia = noticias.find(n => n.id === noticiaId)
+    if (!noticia) return
+    const mensaje = confirmacionPublicar({ audiencia: noticia.audiencia, notificadaAt: noticia.notificada_at })
+    Alert.alert('Publicar noticia', `"${noticia.titulo}"\n\n${mensaje}`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Publicar', onPress: () => { void publicarConAviso(noticia) } },
+    ])
+  }, [noticias, cambiarPublicada, publicarConAviso])
 
   const eliminar = useCallback(async (noticiaId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

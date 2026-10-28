@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import ErrorCarga from '@/components/secretaria/ErrorCarga'
 
 interface FechaDebito {
   id: string
@@ -26,16 +28,25 @@ export default function DebitoAutomaticoPage() {
   const [pendientes, setPendientes] = useState<string[]>([])
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [errorLista, setErrorLista] = useState('')
 
   const fetchFechas = useCallback(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error: err } = await (supabase as any)
       .from('fechas_debito_automatico')
       .select('id, fecha, aviso_enviado, aviso_enviado_at')
       .order('fecha', { ascending: true })
-    setFechas(data ?? [])
+    if (err) {
+      setErrorCarga(mensajeErrorCarga('las fechas cargadas', err))
+    } else {
+      setErrorCarga(null)
+      setFechas(data ?? [])
+    }
     setLoading(false)
   }, [])
+
+  const reintentar = () => { setLoading(true); void fetchFechas() }
 
   useEffect(() => { fetchFechas() }, [fetchFechas])
 
@@ -73,10 +84,14 @@ export default function DebitoAutomaticoPage() {
     await fetchFechas()
   }
 
-  const handleEliminar = async (id: string) => {
+  const handleEliminar = async (f: FechaDebito) => {
+    setErrorLista('')
+    const aviso = f.aviso_enviado ? ' El aviso a los socios ya se mandó.' : ' Ya no se va a mandar el aviso a los socios.'
+    if (!confirm(`¿Eliminar el débito del ${formatFecha(f.fecha)}?${aviso}`)) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: err } = await (supabase as any).from('fechas_debito_automatico').delete().eq('id', id)
-    if (!err) setFechas(fs => fs.filter(f => f.id !== id))
+    const { error: err } = await (supabase as any).from('fechas_debito_automatico').delete().eq('id', f.id)
+    if (err) { setErrorLista(`No se pudo eliminar el débito del ${formatFecha(f.fecha)}: ${err.message}`); return }
+    setFechas(fs => fs.filter(x => x.id !== f.id))
   }
 
   return (
@@ -129,7 +144,7 @@ export default function DebitoAutomaticoPage() {
           </div>
         )}
 
-        {error && <p className="font-lora text-rojo-texto text-sm mb-4">{error}</p>}
+        {error && <p role="alert" className="font-lora text-rojo-texto text-sm mb-4">{error}</p>}
 
         {pendientes.length > 0 && (
           <button
@@ -149,8 +164,13 @@ export default function DebitoAutomaticoPage() {
 
       <div>
         <p className="font-lora text-xs tracking-widest text-tinta/50 mb-3">FECHAS CARGADAS</p>
+        {errorLista && (
+          <p role="alert" className="font-lora text-sm text-tinta border border-rojo p-4 mb-4">{errorLista}</p>
+        )}
         {loading ? (
           <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+        ) : errorCarga ? (
+          <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
         ) : fechas.length === 0 ? (
           <div className="border border-gris-claro p-8 text-center">
             <p className="font-lora text-texto-2 text-sm tracking-widest">SIN FECHAS CARGADAS TODAVÍA</p>
@@ -177,7 +197,7 @@ export default function DebitoAutomaticoPage() {
                   </td>
                   <td className="py-4 text-right">
                     <button
-                      onClick={() => handleEliminar(f.id)}
+                      onClick={() => handleEliminar(f)}
                       className="font-lora text-xs tracking-widest text-texto-2 hover:text-rojo-texto transition-colors"
                     >
                       ELIMINAR

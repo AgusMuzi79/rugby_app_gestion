@@ -1,6 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
 import { Alert } from 'react-native'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { filtrarSocios, nombresSocio } from '@/lib/busquedaSocios'
+import type { VinculoServicio } from '@/lib/secretariaNuvix'
 import { supabase, selectAllRows } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
@@ -32,49 +35,69 @@ export interface SocioItem {
   foto_path:        string | null
   foto_validada:    boolean
   created_at:       string
-  nombre:           string    // from profiles
+  nombre:           string    // padrón NUVIX (o el de la app si no hay)
+  nombreApp:        string    // profiles.nombre (lo edita el socio)
   email:            string    // fetched separately if needed
   categoria:        string
   categoria_id:     string
 }
 
-type FiltroEstado = 'todos' | 'activo' | 'moroso' | 'pendiente' | 'inactivo'
+// Sin filtro MOROSO: el estado 'moroso' no lo setea nadie (la deuda real es el
+// semáforo de NUVIX, que se ve en el panel web › Deudas).
+type FiltroEstado = 'todos' | 'activo' | 'pendiente' | 'inactivo'
 
 export function useSociosSecretaria() {
   const [socios, setSocios]             = useState<SocioItem[]>([])
   const [categorias, setCategorias]     = useState<CategoriaSocio[]>([])
   const [servicios, setServicios]       = useState<ServicioOpcional[]>([])
-  const [serviciosSocio, setServiciosSocio] = useState<string[]>([]) // servicio_id[]
+  // Vínculos del socio abierto: el importe real (NUVIX) manda sobre el catálogo.
+  const [serviciosSocio, setServiciosSocio] = useState<VinculoServicio[]>([])
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [filtro, setFiltro]             = useState<FiltroEstado>('todos')
+  const [busqueda, setBusqueda]         = useState('')
+  // Errores de lectura: un fallo no se muestra como "no hay socios" ni como
+  // "sin servicios" (auditoría UX secretaría, T12).
+  const [errorLista, setErrorLista]           = useState<string | null>(null)
+  const [errorCategorias, setErrorCategorias] = useState<string | null>(null)
+  const [errorServicios, setErrorServicios]   = useState<string | null>(null)
+  const [errorVinculos, setErrorVinculos]     = useState<string | null>(null)
 
   const fetchServicios = useCallback(async () => {
-    const { data } = await db
+    const { data, error } = await db
       .from('servicios_opcionales')
       .select('id, nombre, descripcion, monto_mensual, activo')
       .eq('activo', true)
       .order('nombre')
+    if (error) { setErrorServicios(mensajeErrorCarga('los servicios del club', error)); return }
+    setErrorServicios(null)
     setServicios((data ?? []) as ServicioOpcional[])
   }, [])
 
   const fetchServiciosSocio = useCallback(async (socioId: string) => {
-    const { data } = await db
+    const { data, error } = await db
       .from('socio_servicios')
-      .select('servicio_id')
+      .select('servicio_id, importe')
       .eq('socio_id', socioId)
-    setServiciosSocio((data ?? []).map((r: { servicio_id: string }) => r.servicio_id))
+    if (error) {
+      setServiciosSocio([])
+      setErrorVinculos(mensajeErrorCarga('los servicios del socio', error))
+      return
+    }
+    setErrorVinculos(null)
+    setServiciosSocio((data ?? []) as VinculoServicio[])
   }, [])
 
   const toggleServicio = useCallback(async (socioId: string, servicioId: string, agregar: boolean) => {
     if (agregar) {
       const { error } = await db.from('socio_servicios').insert({ socio_id: socioId, servicio_id: servicioId })
       if (error) { Alert.alert('Error', error.message); return }
-      setServiciosSocio(prev => [...prev, servicioId])
+      // Alta manual: sin importe propio, se toma el de catálogo hasta que lo liquide NUVIX.
+      setServiciosSocio(prev => [...prev, { servicio_id: servicioId, importe: null }])
     } else {
       const { error } = await db.from('socio_servicios').delete()
         .eq('socio_id', socioId).eq('servicio_id', servicioId)
       if (error) { Alert.alert('Error', error.message); return }
-      setServiciosSocio(prev => prev.filter(id => id !== servicioId))
+      setServiciosSocio(prev => prev.filter(v => v.servicio_id !== servicioId))
     }
   }, [])
 
@@ -85,8 +108,10 @@ export function useSociosSecretaria() {
       .order('nombre')
     if (error) {
       console.error('[useSociosSecretaria] fetchCategorias error:', error)
-      Alert.alert('Error', 'No se pudieron cargar las categorías: ' + error.message)
+      setErrorCategorias(mensajeErrorCarga('las categorías', error))
+      return
     }
+    setErrorCategorias(null)
     setCategorias((data ?? []) as CategoriaSocio[])
   }, [])
 
@@ -97,7 +122,7 @@ export function useSociosSecretaria() {
         db
           .from('socios')
           .select(`
-            id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id,
+            id, numero_socio, dni, estado, foto_path, foto_validada, created_at, categoria_id, nombre_padron,
             categorias_socio ( nombre ),
             profiles!socios_profile_id_fkey ( nombre )
           `)
@@ -113,13 +138,17 @@ export function useSociosSecretaria() {
         foto_path:     s.foto_path as string | null,
         foto_validada: s.foto_validada as boolean,
         created_at:    s.created_at as string,
-        nombre:            (s.profiles as { nombre: string } | null)?.nombre ?? '—',
+        ...nombresSocio(s.nombre_padron as string | null, s.profiles as { nombre: string | null } | null),
         email:             '',
         categoria:         (s.categorias_socio as { nombre: string } | null)?.nombre ?? '—',
         categoria_id:      s.categoria_id as string,
       }))
 
       setSocios(normalized)
+      setErrorLista(null)
+    } catch (err) {
+      // selectAllRows lanza el error de Supabase: se avisa y se mantiene lo cargado.
+      setErrorLista(mensajeErrorCarga('los socios', err))
     } finally {
       terminar()
     }
@@ -138,8 +167,15 @@ export function useSociosSecretaria() {
   }, [fetchCategorias, fetchServicios, fetchSocios])
   useRefreshOnFocus(refreshAll)
 
-  const sociosFiltrados = socios.filter(s =>
-    filtro === 'todos' ? true : s.estado === filtro
+  const reintentarDetalle = useCallback(async (socioId: string) => {
+    await Promise.all([fetchCategorias(), fetchServicios(), fetchServiciosSocio(socioId)])
+  }, [fetchCategorias, fetchServicios, fetchServiciosSocio])
+
+  // La búsqueda se difiere para que el TextInput no espere al filtrado de ~1.500 filas.
+  const busquedaDiferida = useDeferredValue(busqueda)
+  const sociosFiltrados = useMemo(
+    () => filtrarSocios(socios, filtro, busquedaDiferida),
+    [socios, filtro, busquedaDiferida],
   )
 
   const desactivarSocio = useCallback(async (socioId: string): Promise<boolean> => {
@@ -191,6 +227,10 @@ export function useSociosSecretaria() {
 
   return {
     socios: sociosFiltrados,
+    errorLista,
+    // Lo que usa el detalle: catálogo (categorías, servicios) y vínculos del socio.
+    errorDetalle: primerError(errorVinculos, errorServicios, errorCategorias),
+    reintentarDetalle,
     todosLosSocios: socios,
     categorias,
     servicios,
@@ -199,6 +239,8 @@ export function useSociosSecretaria() {
     refrescando,
     filtro,
     setFiltro,
+    busqueda,
+    setBusqueda,
     desactivarSocio,
     reactivarSocio,
     validarFoto,
