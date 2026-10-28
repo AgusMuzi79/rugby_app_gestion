@@ -207,6 +207,8 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
         datos.map(ef => {
           // color is truly dynamic (per tipo from runtime data) — keep inline
           const color = tipoColor(ef.tipo)
+          // null = sin resumen (error de carga) o evento sin jugadores: "—"
+          const pct = ef.porcentajeCobrado
           return (
             <View key={ef.id} style={s.cardGap}>
               <View style={s.fila}>
@@ -223,13 +225,15 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 
               {/* Barra de progreso — width is dynamic */}
               <View style={s.progressBar}>
-                <View style={[s.progressFill, { width: `${ef.porcentajeCobrado}%` }]} />
+                <View style={[s.progressFill, { width: `${pct ?? 0}%` }]} />
               </View>
 
               <View style={s.fila}>
-                <Text style={s.cobrado}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
+                <Text style={s.cobrado}>
+                  {ef.totalCobrado !== null ? `$${ef.totalCobrado.toLocaleString('es-AR')}` : '—'}
+                </Text>
                 <Text style={s.cardMuted}>
-                  {ef.porcentajeCobrado}% · {ef.countPagados}P · {ef.countPendientes}PN
+                  {pct !== null ? `${pct}%` : '—'} · {ef.countPagados ?? '—'}P · {ef.countPendientes ?? '—'}PN
                 </Text>
               </View>
 

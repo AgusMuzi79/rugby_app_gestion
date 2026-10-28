@@ -10,6 +10,7 @@ import {
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { fechaLocal } from '@/lib/fecha'
+import { pctCobrado, pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
 
 export interface JugadorAsistencia {
   jugadorId:            string
@@ -55,11 +56,11 @@ export interface EventoFinancieroInforme {
   divisionId:        string | null
   divisionNombre:    string | null
   divisionIds:       string[]  // divisiones del evento; vacío = todo el club
-  totalCobrado:      number
-  totalPendiente:    number
-  countPagados:      number
-  countPendientes:   number
-  porcentajeCobrado: number
+  // null = no se pudo cargar el resumen (o el evento no tiene jugadores, en el %)
+  totalCobrado:      number | null
+  countPagados:      number | null
+  countPendientes:   number | null
+  porcentajeCobrado: number | null
   formasDePago:      Record<string, number>
 }
 
@@ -297,20 +298,25 @@ export function useInformes() {
       id: string; nombre: string; tipo: string; cobranzas: CobranzaJoin | null
     }
 
+    const filas = (data ?? []) as unknown as FilaFinanciero[]
+
+    // % cobrado y pendientes sobre los jugadores del evento (T3), no sobre las
+    // filas de cobranzas. Si el resumen falla se muestra "—", nunca 100 % ni 0.
+    const resumenRes = filas.length > 0
+      ? await supabase.rpc('resumen_cobranzas_eventos', { p_ids: filas.map(ef => ef.id) })
+      : { data: [], error: null }
+    const resumenes = resumenRes.error ? null : resumenesPorEvento(resumenRes.data)
+
     setFinanciero(
-      ((data ?? []) as unknown as FilaFinanciero[]).map(ef => {
-        const divs       = divisionesDeEvento(ef)
-        const cobrs      = ef.cobranzas ?? []
-        const pagados    = cobrs.filter(c => c.estado === 'pagado')
-        const pendientes = cobrs.filter(c => c.estado === 'pendiente')
-        const totalCobrado   = pagados.reduce((s, c) => s + (c.monto ?? 0), 0)
-        const totalPendiente = pendientes.reduce((s, c) => s + (c.monto ?? 0), 0)
-        const total          = totalCobrado + totalPendiente
+      filas.map(ef => {
+        const divs    = divisionesDeEvento(ef)
+        const pagados = (ef.cobranzas ?? []).filter(c => c.estado === 'pagado')
         const formasDePago: Record<string, number> = {}
         for (const p of pagados) {
           const k = p.forma_de_pago ?? 'sin especificar'
           formasDePago[k] = (formasDePago[k] ?? 0) + (p.monto ?? 0)
         }
+        const r = resumenes ? resumenDe(resumenes, ef.id) : null
         return {
           id:                ef.id,
           nombre:            ef.nombre,
@@ -318,11 +324,10 @@ export function useInformes() {
           divisionId:        ef.division_id,
           divisionIds:       divs.map(d => d.id),
           divisionNombre:    etiquetaDivisiones(divs),
-          totalCobrado,
-          totalPendiente,
-          countPagados:      pagados.length,
-          countPendientes:   pendientes.length,
-          porcentajeCobrado: total > 0 ? Math.round((totalCobrado / total) * 100) : 0,
+          totalCobrado:      r ? r.cobrado : null,
+          countPagados:      r ? r.pagados : null,
+          countPendientes:   r ? pendientesDe(r) : null,
+          porcentajeCobrado: r ? pctCobrado(r) : null,
           formasDePago,
         }
       }),

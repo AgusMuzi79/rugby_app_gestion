@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
+import { pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -21,6 +22,7 @@ export interface EventoItem {
   divisionNombre:  string | null  // etiqueta "M15 · M16" (null = todo el club)
   estado:          string
   fecha:           string | null
+  // Sobre los jugadores del evento que ve el rol (RPC resumen_cobranzas_eventos)
   countPagados:    number
   countPendientes: number
   totalCobrado:    number
@@ -228,7 +230,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   async function fetchEventos(misIds: string[]) {
     let query = supabase
       .from('eventos_financieros')
-      .select(`id, nombre, tipo, descripcion, estado, fecha, creado_por, ${SELECT_DIVISIONES_EVENTO}, cobranzas(estado, monto)`)
+      .select(`id, nombre, tipo, descripcion, estado, fecha, creado_por, ${SELECT_DIVISIONES_EVENTO}`)
       .order('created_at', { ascending: false })
 
     if (modo === 'manager') {
@@ -241,24 +243,34 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
       setErrorCarga(ERROR_CARGA_EVENTOS)
       return
     }
-    setErrorCarga(null)
 
-    type CobranzaJoin = Array<{ estado: string; monto: number | null }>
     type Fila = EventoDivisionesRow & {
       id: string; nombre: string; tipo: string; descripcion: string | null
-      estado: string; fecha: string | null; creado_por: string; cobranzas: CobranzaJoin | null
+      estado: string; fecha: string | null; creado_por: string
     }
 
-    const items: EventoItem[] = []
-    for (const e of (data ?? []) as unknown as Fila[]) {
-      const divs = divisionesDeEvento(e)
-      // Manager: eventos que incluyen alguna división suya o que creó.
-      if (modo === 'manager'
-        && e.creado_por !== session?.user.id
-        && !divs.some(d => misIds.includes(d.id))) continue
+    // Manager: eventos que incluyen alguna división suya o que creó.
+    const visibles = ((data ?? []) as unknown as Fila[])
+      .map(e => ({ e, divs: divisionesDeEvento(e) }))
+      .filter(({ e, divs }) => modo !== 'manager'
+        || e.creado_por === session?.user.id
+        || divs.some(d => misIds.includes(d.id)))
 
-      const cobrs   = e.cobranzas ?? []
-      const pagados = cobrs.filter(c => c.estado === 'pagado')
+    // Pagados / pendientes sobre los jugadores del evento (T3), no sobre las
+    // filas de cobranzas. Si el resumen falla es un error de carga, no "0".
+    const resumenRes = visibles.length > 0
+      ? await supabase.rpc('resumen_cobranzas_eventos', { p_ids: visibles.map(({ e }) => e.id) })
+      : { data: [], error: null }
+    if (resumenRes.error) {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+      return
+    }
+    setErrorCarga(null)
+    const resumenes = resumenesPorEvento(resumenRes.data)
+
+    const items: EventoItem[] = []
+    for (const { e, divs } of visibles) {
+      const r = resumenDe(resumenes, e.id)
       items.push({
         id:              e.id,
         nombre:          e.nombre,
@@ -269,9 +281,9 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
         divisionNombre:  etiquetaDivisiones(divs),
         estado:          e.estado,
         fecha:           e.fecha,
-        countPagados:    pagados.length,
-        countPendientes: cobrs.filter(c => c.estado === 'pendiente').length,
-        totalCobrado:    pagados.reduce((s, c) => s + (c.monto ?? 0), 0),
+        countPagados:    r.pagados,
+        countPendientes: pendientesDe(r),
+        totalCobrado:    r.cobrado,
       })
     }
 

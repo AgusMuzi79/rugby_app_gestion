@@ -2661,6 +2661,15 @@ export type Database = {
         Args: { p_plataforma: string; p_token: string }
         Returns: undefined
       }
+      resumen_cobranzas_eventos: {
+        Args: { p_ids: string[] }
+        Returns: {
+          cobrado: number
+          evento_id: string
+          jugadores: number
+          pagados: number
+        }[]
+      }
       resumen_egresos_evento: {
         Args: { p_evento_id: string }
         Returns: {

@@ -44,7 +44,8 @@ function SectionHeader({ title }: { title: string }) {
 
 function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }) {
   const tipoLabel = TIPO_LABEL[ev.tipo] ?? ev.tipo.toUpperCase()
-  const pct       = ev.pct
+  // null = sin resumen o sin jugadores: "—" y barra vacía, nunca 100 %
+  const pct       = ev.pct ?? 0
 
   return (
     <TouchableOpacity style={s.cobranzaCard} onPress={onPress} activeOpacity={0.8}>
@@ -53,7 +54,7 @@ function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void
           <Text style={s.tipoBadgeText}>{tipoLabel}</Text>
         </View>
         <Text style={s.cobranzaNombre} numberOfLines={1}>{ev.nombre}</Text>
-        <Text style={s.cobranzaPct}>{pct}%</Text>
+        <Text style={s.cobranzaPct}>{ev.pct !== null ? `${ev.pct}%` : '—'}</Text>
       </View>
       <View style={s.barraFondo}>
         {/* flex: pct is truly dynamic — must remain inline */}
@@ -62,8 +63,10 @@ function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void
       </View>
       <View style={s.cobranzaFooter}>
         <Text style={s.cobranzaDetalle}>
-          {ev.pagados}/{ev.total} PAGADOS
-          {ev.montoTotal > 0 ? ` · ${formatMonto(ev.montoCobrado)} / ${formatMonto(ev.montoTotal)}` : ''}
+          {ev.pagados !== null && ev.total !== null
+            ? `${ev.pagados}/${ev.total} PAGADOS`
+            : 'No se pudo cargar el avance'}
+          {ev.montoCobrado ? ` · ${formatMonto(ev.montoCobrado)}` : ''}
         </Text>
         <Text style={s.cobranzaArrow}>→</Text>
       </View>
@@ -72,7 +75,7 @@ function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void
 }
 
 function CardPedido({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }) {
-  const pendiente = ev.pct < 100
+  const pendiente = ev.pct === null || ev.pct < 100
 
   return (
     <View style={s.pedidoCard}>
@@ -86,7 +89,7 @@ function CardPedido({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }
         <Text style={s.pedidoDetalle} numberOfLines={2}>{ev.descripcion}</Text>
       ) : null}
       <Text style={s.pedidoProgreso}>
-        {ev.pagados}/{ev.total} confirmados
+        {ev.pagados ?? '—'}/{ev.total ?? '—'} confirmados
       </Text>
       {pendiente && (
         <TouchableOpacity style={s.confirmarBtn} onPress={onPress} activeOpacity={0.8}>
