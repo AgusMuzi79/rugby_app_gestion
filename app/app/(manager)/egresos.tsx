@@ -37,6 +37,9 @@ function EventoChip({
       style={[s.chip, activo && s.chipActivo]}
       onPress={() => onPress(evento.id)}
       activeOpacity={0.8}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: activo }}
+      accessibilityLabel={`${evento.nombre}, ${TIPO_LABEL[evento.tipo] ?? evento.tipo}, ${cerrado ? 'cerrado' : 'activo'}`}
     >
       <Text style={[s.chipNombre, activo && s.chipNombreActivo]} numberOfLines={1}>{evento.nombre}</Text>
       <Text style={[s.chipMeta, activo && s.chipMetaActivo]} numberOfLines={1}>
@@ -78,7 +81,14 @@ export default function EgresosScreen() {
           refreshControl={<RefreshControl refreshing={refrescando} onRefresh={recargar} tintColor={ORO} />}
         >
           {errorCarga && (
-            <TouchableOpacity style={s.bannerError} onPress={recargar} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={s.bannerError}
+              onPress={recargar}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`${errorCarga} Reintentar`}
+            >
               <Text style={s.bannerErrorTexto}>{errorCarga} Tocá para reintentar.</Text>
             </TouchableOpacity>
           )}
@@ -106,6 +116,8 @@ export default function EgresosScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={s.chipsRow}
+                accessibilityRole="radiogroup"
+                accessibilityLabel="Evento"
               >
                 {eventos.map(ev => (
                   <EventoChip

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Linking } from 'react-native'
+import { AccessibilityInfo, Linking } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
@@ -264,6 +264,7 @@ export function useFichajes() {
     await cargarJugadores(misDivisiones.map(d => d.id))
     setGuardadoFichajeOk(true)
     setGuardandoFichaje(false)
+    AccessibilityInfo.announceForAccessibility('Fichaje registrado')
     void supabase.functions.invoke('notifications', {
       body: {
         type: 'fichaje',
@@ -338,6 +339,7 @@ export function useFichajes() {
       await cargarDocumentos(jugadorDetalle.fichajeId)
       setTipoSeleccionado(null)
       setSubiendoOk(true)
+      AccessibilityInfo.announceForAccessibility('Documento subido')
     } catch {
       setErrorUpload('Error inesperado. Verificá tu conexión.')
     }

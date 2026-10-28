@@ -12,6 +12,7 @@ import {
   Alert,
   StyleSheet,
   RefreshControl,
+  AccessibilityInfo,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -85,7 +86,7 @@ function TabSwitcher({
   countActivos: number; countHistorial: number
 }) {
   return (
-    <View style={s.tabRow}>
+    <View style={s.tabRow} accessibilityRole="tablist">
       {(['activos', 'historial'] as TabActivo[]).map(t => {
         const activo = tab === t
         const count  = t === 'activos' ? countActivos : countHistorial
@@ -95,6 +96,9 @@ function TabSwitcher({
             style={[s.tabBtn, activo && s.tabBtnActivo]}
             onPress={() => onChange(t)}
             activeOpacity={0.8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={`${t === 'activos' ? 'Activos' : 'Historial'}, ${count}`}
           >
             <Text style={[s.tabTexto, activo && s.tabTextoActivo]}>
               {t === 'activos' ? 'ACTIVOS' : 'HISTORIAL'}
@@ -138,6 +142,14 @@ function EventoCard({
       style={[s.eventoCard, muted && s.eventoCardMuted]}
       onPress={onPress}
       activeOpacity={onPress ? 0.8 : 1}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={[
+        TIPO_LABEL[ev.tipo],
+        ev.nombre,
+        ev.divisionNombre,
+        hayPagos ? `${ev.countPagados} pagados, ${ev.countPendientes} pendientes` : null,
+      ].filter(Boolean).join(', ')}
     >
       <View style={s.eventoCardHead}>
         <View style={s.eventoCardHeadLeft}>
@@ -205,7 +217,13 @@ function EventoDetalleContent({
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.detalleTopBar}>
-        <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={onVolver}
+          style={s.backBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a eventos"
+        >
           <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
         <Text style={s.detalleLabelHeader}>EVENTO · {TIPO_LABEL[ev.tipo]}</Text>
@@ -319,7 +337,7 @@ function EventoDetalleContent({
           </View>
 
           {errorCierre && (
-            <View style={[s.bannerError, s.bannerCierre]}>
+            <View style={[s.bannerError, s.bannerCierre]} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{errorCierre}</Text>
             </View>
           )}
@@ -330,6 +348,9 @@ function EventoDetalleContent({
               onPress={confirmarCierre}
               disabled={cerrando}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar evento"
+              accessibilityState={{ disabled: cerrando, busy: cerrando }}
             >
               {cerrando
                 ? <ActivityIndicator color={ROJO} size="small" />
@@ -355,7 +376,8 @@ function SelectorDivisiones({
     return <Text style={s.modalAyuda}>No hay divisiones activas para elegir.</Text>
   }
   return (
-    <View style={s.divRow}>
+    // Selección múltiple: cada pill es un checkbox (no radio).
+    <View style={s.divRow} accessibilityLabel="Divisiones">
       {divisiones.map(d => {
         const activa = seleccionadas.includes(d.id)
         return (
@@ -364,6 +386,9 @@ function SelectorDivisiones({
             style={[s.divPill, activa && s.divPillActiva]}
             onPress={() => onToggle(d.id)}
             activeOpacity={0.8}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: activa }}
+            accessibilityLabel={d.nombre}
           >
             <Text style={[s.divPillTexto, activa && s.divPillTextoActivo]}>{d.nombre}</Text>
           </TouchableOpacity>
@@ -396,7 +421,13 @@ function ModalNuevoEvento({
               <Text style={s.modalSuper}>{esManager ? 'NUEVO' : 'NUEVA'}</Text>
               <Text style={s.modalTitulo}>{esManager ? 'Evento' : 'Recaudación'}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalCloseBtn}>
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={s.modalCloseBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar"
+            >
               <Ionicons name="close" size={20} color={MUTED} />
             </TouchableOpacity>
           </View>
@@ -407,7 +438,7 @@ function ModalNuevoEvento({
               <>
                 <View style={s.campo}>
                   <Text style={s.campoLabel}>TIPO</Text>
-                  <View style={s.tipoRow}>
+                  <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Tipo de evento">
                     {TIPOS_MANAGER.map(t => {
                       const activo = form.tipo === t
                       return (
@@ -416,6 +447,9 @@ function ModalNuevoEvento({
                           style={[s.tipoBtn, activo && s.tipoBtnActivo]}
                           onPress={() => setForm({ ...form, tipo: t })}
                           activeOpacity={0.8}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: activo }}
+                          accessibilityLabel={t === 'viaje' ? 'Viaje' : 'Tercer tiempo'}
                         >
                           <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
                             {TIPO_MODAL_LABEL[t]}
@@ -442,7 +476,7 @@ function ModalNuevoEvento({
               <>
                 <View style={s.campo}>
                   <Text style={s.campoLabel}>ALCANCE</Text>
-                  <View style={s.tipoRow}>
+                  <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Alcance">
                     {(['club', 'divisiones'] as const).map(a => {
                       const activo = form.alcance === a
                       return (
@@ -451,6 +485,9 @@ function ModalNuevoEvento({
                           style={[s.tipoBtn, activo && s.tipoBtnActivo]}
                           onPress={() => setForm({ ...form, alcance: a })}
                           activeOpacity={0.8}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: activo }}
+                          accessibilityLabel={a === 'club' ? 'Todo el club' : 'Elegir divisiones'}
                         >
                           <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
                             {a === 'club' ? 'TODO EL\nCLUB' : 'ELEGIR\nDIVISIONES'}
@@ -511,7 +548,7 @@ function ModalNuevoEvento({
             </View>
 
             {error && (
-              <View style={s.bannerError}>
+              <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 <Text style={s.bannerErrorTexto}>{error}</Text>
               </View>
             )}
@@ -523,6 +560,8 @@ function ModalNuevoEvento({
               onPress={onGuardar}
               disabled={guardando}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: guardando, busy: guardando }}
             >
               {guardando
                 ? <ActivityIndicator color={colors.sobreOro} size="small" />
@@ -616,7 +655,10 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
 
   async function handleGuardar() {
     const ok = await crearEvento()
-    if (ok) cerrarModal()
+    if (ok) {
+      cerrarModal()
+      AccessibilityInfo.announceForAccessibility(esManager ? 'Evento creado' : 'Recaudación creada')
+    }
   }
 
   const listaActual = tabActivo === 'activos' ? eventosActivos : eventosHistorial

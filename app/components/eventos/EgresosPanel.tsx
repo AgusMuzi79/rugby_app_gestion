@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  AccessibilityInfo,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { fonts } from '@/constants/theme'
@@ -37,6 +38,7 @@ function FilaEgreso({
               onPress={() => onBorrar(egreso)}
               activeOpacity={0.7}
               style={s.filaAccion}
+              accessibilityRole="button"
               accessibilityLabel={`Borrar egreso ${egreso.concepto}`}
             >
               <Ionicons name="trash-outline" size={18} color={MUTED} />
@@ -103,16 +105,20 @@ export function EgresosPanel({ estado }: { estado: EgresosEventoState }) {
           />
 
           {errorGuardado && (
-            <View style={s.bannerError}>
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{errorGuardado}</Text>
             </View>
           )}
 
           <TouchableOpacity
             style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
-            onPress={() => { agregarEgreso() }}
+            onPress={async () => {
+              if (await agregarEgreso()) AccessibilityInfo.announceForAccessibility('Egreso agregado')
+            }}
             disabled={guardando}
             activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: guardando, busy: guardando }}
           >
             {guardando
               ? <ActivityIndicator color={SOBRE_ORO} size="small" />
@@ -125,7 +131,11 @@ export function EgresosPanel({ estado }: { estado: EgresosEventoState }) {
           <Text style={s.bannerInfoTexto}>
             Evento cerrado: los egresos quedan sólo para consulta.
           </Text>
-          {errorGuardado && <Text style={s.bannerErrorTexto}>{errorGuardado}</Text>}
+          {errorGuardado && (
+            <Text style={s.bannerErrorTexto} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              {errorGuardado}
+            </Text>
+          )}
         </View>
       )}
 

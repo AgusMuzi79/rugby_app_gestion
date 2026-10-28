@@ -46,7 +46,13 @@ function FilaNoticia({ noticia, onEliminar }: { noticia: NoticiaSubco; onElimina
           {noticia.etiquetas.length > 0 ? ` · ${noticia.etiquetas.join(', ').toUpperCase()}` : ''}
         </Text>
       </View>
-      <TouchableOpacity onPress={() => onEliminar(noticia)} activeOpacity={0.7} style={s.eliminarBtn}>
+      <TouchableOpacity
+        onPress={() => onEliminar(noticia)}
+        activeOpacity={0.7}
+        style={s.eliminarBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Borrar noticia ${noticia.titulo}`}
+      >
         <Text style={[s.eliminarBtnTexto, { color: tc.rojoUrgente }]}>✕</Text>
       </TouchableOpacity>
     </View>
@@ -108,7 +114,12 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
       >
         <View style={[s.modalHeader, { borderBottomColor: tc.grisClaro, paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 16 }]}>
           <Text style={[s.modalTitulo, { color: tc.texto }]}>Nueva noticia</Text>
-          <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={handleClose}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar"
+          >
             <Text style={[s.modalCerrar, { color: tc.muted }]}>Cancelar</Text>
           </TouchableOpacity>
         </View>

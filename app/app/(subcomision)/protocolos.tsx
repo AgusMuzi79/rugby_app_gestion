@@ -106,6 +106,9 @@ function ProtocoloCard({
             onPress={() => onAbrir(p)}
             disabled={esAbriendo}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`Abrir ${p.titulo}`}
+            accessibilityState={{ disabled: esAbriendo, busy: esAbriendo }}
           >
             {esAbriendo
               ? <ActivityIndicator size="small" color={colors.oro} />
@@ -113,7 +116,13 @@ function ProtocoloCard({
             }
           </TouchableOpacity>
 
-          <TouchableOpacity style={s.btnEliminar} onPress={confirmarEliminar} activeOpacity={0.75}>
+          <TouchableOpacity
+            style={s.btnEliminar}
+            onPress={confirmarEliminar}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`Eliminar ${p.titulo}`}
+          >
             <Ionicons name="trash-outline" size={18} color={colors.rojoUrgente} />
           </TouchableOpacity>
         </View>
@@ -147,7 +156,13 @@ function ModalSubirProtocolo({
         <SafeAreaView style={s.modalContainer}>
           <View style={s.modalHeader}>
             <Text style={s.modalTitulo}>Subir protocolo</Text>
-            <TouchableOpacity onPress={onClose} disabled={subiendo} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={onClose}
+              disabled={subiendo}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+            >
               <Text style={s.modalCerrar}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -166,11 +181,14 @@ function ModalSubirProtocolo({
 
             <Text style={s.inputLabel}>GRADO ASOCIADO (opcional)</Text>
             <Text style={s.inputSub}>Dejá vacío para un protocolo general.</Text>
-            <View style={s.gradoRow}>
+            <View style={s.gradoRow} accessibilityRole="radiogroup" accessibilityLabel="Grado asociado">
               <TouchableOpacity
                 style={[s.gradoBtn, form.grado === null && s.gradoBtnActivo]}
                 onPress={() => setForm({ ...form, grado: null })}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: form.grado === null }}
+                accessibilityLabel="General"
               >
                 <Text style={[s.gradoBtnTexto, form.grado === null && s.gradoBtnTextoActivo]}>GEN</Text>
               </TouchableOpacity>
@@ -183,6 +201,9 @@ function ModalSubirProtocolo({
                   ]}
                   onPress={() => setForm({ ...form, grado: g })}
                   activeOpacity={0.8}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: form.grado === g }}
+                  accessibilityLabel={`Grado ${g}`}
                 >
                   <Text style={[s.gradoBtnTexto, form.grado === g && (g === 5 ? s.gradoBtnTextoClaro : s.gradoBtnTextoActivo)]}>{g}</Text>
                 </TouchableOpacity>
@@ -197,7 +218,7 @@ function ModalSubirProtocolo({
             </View>
 
             {error && (
-              <View style={s.errorBanner}>
+              <View style={s.errorBanner} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 <Text style={s.errorTexto}>{error}</Text>
               </View>
             )}

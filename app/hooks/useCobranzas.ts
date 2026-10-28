@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { AccessibilityInfo } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -376,6 +377,8 @@ export function useCobranzas() {
     }
     setGuardadoOk(true)
     setGuardando(false)
+    // iOS no anuncia las live regions: se avisa explícitamente (T7).
+    AccessibilityInfo.announceForAccessibility(soloJugadorId ? 'Pago guardado' : 'Cobranzas guardadas')
     return true
   }
 

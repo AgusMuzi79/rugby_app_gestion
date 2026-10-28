@@ -48,6 +48,13 @@ const FORMA_OPS: Array<{ key: FormaDePago; label: string }> = [
   { key: 'otro',          label: 'OTRO' },
 ]
 
+// Nombre completo para el lector de pantalla ("TRANSF." se leería mal).
+const FORMA_A11Y: Record<FormaDePago, string> = {
+  efectivo:      'Efectivo',
+  transferencia: 'Transferencia',
+  otro:          'Otro',
+}
+
 function formatFecha(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('es-AR', {
@@ -80,7 +87,13 @@ function EventoCard({
 }) {
   const { pctCobrado, countPagados, countJugadores, montoCobrado } = evento
   return (
-    <TouchableOpacity style={s.eventoCard} onPress={() => onSelect(evento)} activeOpacity={0.82}>
+    <TouchableOpacity
+      style={s.eventoCard}
+      onPress={() => onSelect(evento)}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${evento.nombre}, ${countPagados} de ${countJugadores} pagaron`}
+    >
       <View style={s.eventoCardHead}>
         <View style={s.tipoBadge}>
           <Text style={s.tipoBadgeTexto}>{TIPO_LABEL[evento.tipo] ?? evento.tipo}</Text>
@@ -123,7 +136,14 @@ function FilaJugador({
   const pagado = jugador.estado === 'pagado'
   const numero = String(index + 1).padStart(2, '0')
   return (
-    <TouchableOpacity style={s.filaJugador} onPress={() => onTap(jugador.jugadorId)} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={s.filaJugador}
+      onPress={() => onTap(jugador.jugadorId)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`${jugador.nombre}${jugador.divisionNombre ? `, ${jugador.divisionNombre}` : ''}, ${pagado ? 'pagado' : 'pendiente'}`}
+      accessibilityHint="Abre el pago del jugador"
+    >
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaNombreWrap}>
         <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
@@ -191,7 +211,14 @@ function ModalPago({
             <Text style={s.modalSuper}>PAGO · JUGADOR</Text>
             <Text style={s.modalTitulo} numberOfLines={2}>{jugador.nombre}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalClose} disabled={guardando}>
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            style={s.modalClose}
+            disabled={guardando}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar sin guardar"
+          >
             <Ionicons name="close" size={20} color={MUTED} />
           </TouchableOpacity>
         </View>
@@ -201,11 +228,14 @@ function ModalPago({
           {/* Estado selector */}
           <View style={s.campo}>
             <Text style={s.campoLabel}>ESTADO</Text>
-            <View style={s.estadoSelector}>
+            <View style={s.estadoSelector} accessibilityRole="radiogroup" accessibilityLabel="Estado del pago">
               <TouchableOpacity
                 style={[s.estadoSelectorBtn, pagado && s.estadoSelectorBtnActivo]}
                 onPress={() => !pagado && onToggle(jugador.jugadorId)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: pagado }}
+                accessibilityLabel="Pagado"
               >
                 <Ionicons name="checkmark-circle" size={18} color={pagado ? colors.sobreOro : MUTED} style={s.estadoIconMr} />
                 <Text style={[s.estadoSelectorTexto, pagado && s.estadoSelectorTextoActivo]}>
@@ -216,6 +246,9 @@ function ModalPago({
                 style={[s.estadoSelectorBtn, !pagado && s.estadoPendienteSelector]}
                 onPress={() => pagado && onToggle(jugador.jugadorId)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: !pagado }}
+                accessibilityLabel="Pendiente"
               >
                 <Ionicons name="time-outline" size={18} color={!pagado ? ROJO : MUTED} style={s.estadoIconMr} />
                 <Text style={[s.estadoSelectorTexto, !pagado && s.estadoSelectorTextoPendiente]}>
@@ -245,7 +278,7 @@ function ModalPago({
 
               <View style={s.campo}>
                 <Text style={s.campoLabel}>FORMA DE PAGO</Text>
-                <View style={s.formaRow}>
+                <View style={s.formaRow} accessibilityRole="radiogroup" accessibilityLabel="Forma de pago">
                   {FORMA_OPS.map(({ key, label }) => {
                     const activo = jugador.formaDePago === key
                     return (
@@ -254,6 +287,9 @@ function ModalPago({
                         style={[s.formaBtn, activo && s.formaBtnActivo]}
                         onPress={() => onForma(jugador.jugadorId, key)}
                         activeOpacity={0.75}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: activo }}
+                        accessibilityLabel={FORMA_A11Y[key]}
                       >
                         <Text style={[s.formaBtnTexto, activo && s.formaBtnTextoActivo]}>
                           {label}
@@ -267,7 +303,7 @@ function ModalPago({
           )}
 
           {error && (
-            <View style={s.bannerError}>
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{error}</Text>
             </View>
           )}
@@ -275,6 +311,8 @@ function ModalPago({
           <TouchableOpacity
             style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
             onPress={onGuardar}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: guardando, busy: guardando }}
             disabled={guardando}
             activeOpacity={0.85}
           >
@@ -399,7 +437,13 @@ export default function CobranzasScreen() {
 
       {paso === 'jugadores' && (
         <View style={s.jugadoresFlex}>
-          <TouchableOpacity style={s.volverBtn} onPress={pedirVolverAEventos} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={s.volverBtn}
+            onPress={pedirVolverAEventos}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a eventos"
+          >
             <Ionicons name="chevron-back" size={16} color={ORO} />
             <Text style={s.volverTexto}>Eventos</Text>
           </TouchableOpacity>
@@ -457,12 +501,12 @@ export default function CobranzasScreen() {
             <View style={s.bottomBar}>
               {/* Resultado del guardado junto al botón, no al final de la lista. */}
               {error && !errorCarga && modalJugadorId === null && (
-                <View style={s.bannerErrorBarra}>
+                <View style={s.bannerErrorBarra} accessibilityRole="alert" accessibilityLiveRegion="polite">
                   <Text style={s.bannerErrorTexto}>{error}</Text>
                 </View>
               )}
               {guardadoOk && (
-                <View style={s.bannerOkBarra}>
+                <View style={s.bannerOkBarra} accessibilityLiveRegion="polite">
                   <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
                 </View>
               )}

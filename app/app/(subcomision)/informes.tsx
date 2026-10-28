@@ -287,11 +287,16 @@ export default function InformesScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.selectorContent}
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Filtrar por división"
         >
           <TouchableOpacity
             style={[s.pill, divisionFiltro === null && s.pillActiva]}
             onPress={() => setDivisionFiltro(null)}
             activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: divisionFiltro === null }}
+            accessibilityLabel="Todas las divisiones"
           >
             <Text style={[s.pillTexto, divisionFiltro === null && s.pillTextoActiva]}>Todas</Text>
           </TouchableOpacity>
@@ -301,6 +306,9 @@ export default function InformesScreen() {
               style={[s.pill, divisionFiltro === d.id && s.pillActiva]}
               onPress={() => setDivisionFiltro(d.id)}
               activeOpacity={0.7}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: divisionFiltro === d.id }}
+              accessibilityLabel={d.nombre}
             >
               <Text style={[s.pillTexto, divisionFiltro === d.id && s.pillTextoActiva]}>
                 {d.nombre}

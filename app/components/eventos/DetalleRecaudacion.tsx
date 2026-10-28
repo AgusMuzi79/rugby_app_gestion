@@ -55,7 +55,13 @@ export function DetalleRecaudacion({
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.topBar}>
-        <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={onVolver}
+          style={s.backBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a eventos"
+        >
           <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
         <Text style={s.topLabel}>EVENTO · RECAUDACIÓN</Text>
@@ -82,7 +88,7 @@ export function DetalleRecaudacion({
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <ResumenBalance balance={egresos.balance} />
 
-          <View style={s.tabRow}>
+          <View style={s.tabRow} accessibilityRole="tablist">
             {(['cobros', 'egresos'] as Pestana[]).map(p => {
               const sel = pestana === p
               return (
@@ -91,6 +97,9 @@ export function DetalleRecaudacion({
                   style={[s.tabBtn, sel && s.tabBtnActivo]}
                   onPress={() => setPestana(p)}
                   activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: sel }}
+                  accessibilityLabel={p === 'cobros' ? 'Cobros' : 'Egresos'}
                 >
                   <Text style={[s.tabTexto, sel && s.tabTextoActivo]}>
                     {p === 'cobros' ? 'COBROS' : 'EGRESOS'}
@@ -106,7 +115,7 @@ export function DetalleRecaudacion({
           }
 
           {errorCierre && (
-            <View style={s.bannerError}>
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{errorCierre}</Text>
             </View>
           )}
@@ -117,6 +126,9 @@ export function DetalleRecaudacion({
               onPress={confirmarCierre}
               disabled={cerrando}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar evento"
+              accessibilityState={{ disabled: cerrando, busy: cerrando }}
             >
               {cerrando
                 ? <ActivityIndicator color={ROJO} size="small" />

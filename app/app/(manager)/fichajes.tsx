@@ -41,6 +41,13 @@ const TIPO_LABEL: Record<TipoDocumento, string> = {
   otro:         'OTRO',
 }
 
+// Nombre completo para el lector de pantalla ("FICHA MÉD." se leería mal).
+const TIPO_A11Y: Record<TipoDocumento, string> = {
+  dni:          'DNI',
+  ficha_medica: 'Ficha médica',
+  otro:         'Otro',
+}
+
 const TIPO_COLOR: Record<TipoDocumento, string> = {
   dni:          ORO,
   ficha_medica: colors.estadoActivo,
@@ -65,7 +72,13 @@ function FilaJugador({
   const numero = String(index + 1).padStart(2, '0')
   const meta   = [divisionNombre, jugador.posicion?.toUpperCase()].filter(Boolean).join(' · ')
   return (
-    <TouchableOpacity style={s.fila} onPress={() => onPress(jugador)} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={s.fila}
+      onPress={() => onPress(jugador)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={[jugador.nombre_completo, meta, `fichado el ${formatFecha(jugador.fecha_fichaje)}`].filter(Boolean).join(', ')}
+    >
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaInfo}>
         <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
@@ -112,6 +125,9 @@ function DocumentoFila({
         onPress={() => onAbrir(doc.storage_path)}
         disabled={abriendo}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir ${TIPO_LABEL[tipo] ?? doc.tipo}, ${doc.nombre_archivo ?? 'archivo'}`}
+        accessibilityState={{ disabled: abriendo, busy: abriendo }}
       >
         {abriendo
           ? <ActivityIndicator size="small" color={ORO} />
@@ -136,7 +152,7 @@ function SelectorTipo({
 }) {
   const tipos: TipoDocumento[] = ['dni', 'ficha_medica', 'otro']
   return (
-    <View style={s.tipoRow}>
+    <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Tipo de documento">
       {tipos.map(t => {
         const activo = seleccionado === t
         return (
@@ -145,6 +161,9 @@ function SelectorTipo({
             style={[s.tipoBtn, activo && s.tipoBtnActivo]}
             onPress={() => onSelect(t)}
             activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={TIPO_A11Y[t]}
           >
             <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
               {TIPO_LABEL[t]}
@@ -307,7 +326,13 @@ export default function FichajesScreen() {
       {/* ── Paso: Detalle jugador ── */}
       {paso === 'detalle' && jugadorDetalle && (
         <ScrollView contentContainerStyle={s.detalleScroll}>
-          <TouchableOpacity style={s.volverBtn} onPress={volverALista} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={s.volverBtn}
+            onPress={volverALista}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a fichajes"
+          >
             <Ionicons name="chevron-back" size={16} color={ORO} />
             <Text style={s.volverTexto}>Fichajes</Text>
           </TouchableOpacity>
@@ -385,13 +410,13 @@ export default function FichajesScreen() {
             )}
 
             {errorUpload && (
-              <View style={s.bannerError}>
+              <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 <Text style={s.bannerErrorTexto}>{errorUpload}</Text>
               </View>
             )}
 
             {subiendoOk && (
-              <View style={s.bannerOk}>
+              <View style={s.bannerOk} accessibilityLiveRegion="polite">
                 <Text style={s.bannerOkTexto}>DOCUMENTO SUBIDO</Text>
               </View>
             )}
@@ -422,6 +447,8 @@ export default function FichajesScreen() {
                 disabled={guardandoFichaje}
                 activeOpacity={0.7}
                 style={s.modalClose}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar"
               >
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
@@ -489,13 +516,13 @@ export default function FichajesScreen() {
               </View>
 
               {errorForm && (
-                <View style={s.bannerError}>
+                <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                   <Text style={s.bannerErrorTexto}>{errorForm}</Text>
                 </View>
               )}
 
               {guardadoFichajeOk && (
-                <View style={s.bannerOk}>
+                <View style={s.bannerOk} accessibilityLiveRegion="polite">
                   <Text style={s.bannerOkTexto}>FICHAJE REGISTRADO</Text>
                   <Text style={s.bannerOkSub}>Se notificará a la Subcomisión</Text>
                 </View>
@@ -507,6 +534,8 @@ export default function FichajesScreen() {
                   onPress={guardarFichaje}
                   disabled={guardandoFichaje}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: guardandoFichaje, busy: guardandoFichaje }}
                 >
                   {guardandoFichaje
                     ? <ActivityIndicator color={colors.sobreOro} size="small" />
