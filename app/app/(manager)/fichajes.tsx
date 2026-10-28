@@ -214,7 +214,7 @@ function SelectorDivision({
 
 export default function FichajesScreen() {
   const {
-    loading, divisionNombre, misDivisiones, sinDivision, errorCarga, recargar,
+    loading, divisionNombre, misDivisiones, sinDivision, errorCarga, listaCargada, recargar,
     filtroDivision, setFiltroDivision,
     jugadores, paso, jugadorDetalle, cargandoDetalle, errorDocumentos, recargarDocumentos,
     seleccionarJugador, volverALista,
@@ -240,8 +240,10 @@ export default function FichajesScreen() {
     )
   }
 
-  // Error de carga (red / RLS): no es "sin división" ni "sin fichajes".
-  if (errorCarga && paso === 'lista') {
+  // Error de carga (red / RLS): no es "sin división" ni "sin fichajes". Pantalla
+  // completa sólo si nunca hubo lista; si ya la hay, va como aviso arriba de la
+  // lista (un fichaje recién guardado y su confirmación no desaparecen).
+  if (errorCarga && paso === 'lista' && !listaCargada) {
     return (
       <SafeAreaView style={s.centrado} edges={['top']}>
         <View style={[s.bannerError, s.errorCargaWrap]}>
@@ -283,6 +285,19 @@ export default function FichajesScreen() {
       {paso === 'lista' && (
         <>
           <ScrollView contentContainerStyle={s.lista}>
+            {errorCarga && (
+              <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+                <TouchableOpacity
+                  style={s.botonSecundario}
+                  onPress={recargar}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                >
+                  <Text style={[s.botonSecundarioTexto, s.reintentarTexto]}>REINTENTAR</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {variasDivisiones && (
               <View style={s.filtroWrap}>
                 <SelectorDivision

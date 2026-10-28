@@ -69,6 +69,8 @@ export function useFichajes() {
   const [sinDivision, setSinDivision]       = useState(false)
   // Error de red / RLS al cargar: distinto de "sin división" o "sin fichajes"
   const [errorCarga, setErrorCarga]         = useState<string | null>(null)
+  // Ya hubo una lista en pantalla: un error posterior va como aviso, sin taparla.
+  const [listaCargada, setListaCargada]     = useState(false)
 
   // Lista (de todas sus divisiones) y filtro: null = todas
   const [todos, setTodos]                   = useState<JugadorFichado[]>([])
@@ -163,6 +165,10 @@ export function useFichajes() {
       .order('nombre_completo')
 
     if (error) { setErrorCarga(ERROR_CARGA); return }
+    // Una lectura que anda borra el error de una anterior (p. ej. el foco con
+    // la red cortada): si no, quedaba la pantalla de error con datos al día.
+    setErrorCarga(null)
+    setListaCargada(true)
 
     type FichajeRow = { id: string; fecha_fichaje: string }
 
@@ -380,6 +386,7 @@ export function useFichajes() {
     misDivisiones,
     sinDivision,
     errorCarga,
+    listaCargada,
     recargar:       fetchDatos,
     filtroDivision, setFiltroDivision,
     jugadores,
