@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AccessibilityInfo, Linking } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import * as DocumentPicker from 'expo-document-picker'
@@ -15,6 +15,7 @@ import {
 import { mensajeErrorCarga } from '@/lib/errorCarga'
 import { SIN_CONEXION } from '@/lib/errorFunction'
 import { esErrorDeRed } from '@/lib/offlineSync'
+import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 
 export type TipoDocumento = 'dni' | 'ficha_medica' | 'otro'
 export type PasoFichajes  = 'lista' | 'detalle'
@@ -98,6 +99,13 @@ export function useFichajes() {
 
   // Apertura de documentos
   const [abriendoDoc, setAbriendoDoc] = useState<string | null>(null)
+
+  // Guardas síncronas contra el doble toque (T15): FICHAR dos veces antes del
+  // re-render choca con "ya existe ese DNI"; SELECCIONAR abriría dos selectores.
+  const guardaFichar = useRef(crearGuardaEnVuelo()).current
+  const guardaSubir  = useRef(crearGuardaEnVuelo()).current
+  const guardarFichaje = () => guardaFichar(guardarFichajeUnaVez, undefined)
+  const subirDocumento = (tipo: TipoDocumento) => guardaSubir(() => subirDocumentoUnaVez(tipo), undefined)
 
   const misIdsKey = misDivisiones.map(d => d.id).join(',')
 
@@ -234,7 +242,7 @@ export function useFichajes() {
   // Alta atómica (RPC fichar_jugador): jugador + vínculo con socio + fichaje en
   // una transacción. Si algo falla no queda un jugador a medias, así que el
   // reintento no choca con "ya existe ese DNI".
-  async function guardarFichaje() {
+  async function guardarFichajeUnaVez() {
     if (!session) return
 
     const invalido = validarFichaje({ nombre, dni, fechaNacimiento, divisionId: divisionForm })
@@ -280,7 +288,7 @@ export function useFichajes() {
 
   // ─── Upload de documentos ─────────────────────────────────────────────────
 
-  async function subirDocumento(tipo: TipoDocumento) {
+  async function subirDocumentoUnaVez(tipo: TipoDocumento) {
     if (!session || !jugadorDetalle) return
 
     let result: DocumentPicker.DocumentPickerResult

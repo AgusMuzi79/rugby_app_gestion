@@ -12,6 +12,7 @@ import {
   type OriginalCobranza,
 } from '@/lib/cobranzasGuardado'
 import { fechaLocal } from '@/lib/fecha'
+import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import {
   SELECT_DIVISIONES_EVENTO,
@@ -340,7 +341,12 @@ export function useCobranzas() {
 
   // Guarda sólo las filas que cambiaron desde que se abrió el evento (o sólo
   // un jugador, desde el modal). Devuelve true si quedó todo guardado.
-  async function guardarCobranzas(soloJugadorId?: string): Promise<boolean> {
+  // Guarda síncrona contra el doble toque en GUARDAR / GUARDAR TODOS (T15).
+  const guardaGuardar = useRef(crearGuardaEnVuelo()).current
+  const guardarCobranzas = (soloJugadorId?: string) =>
+    guardaGuardar(() => guardarCobranzasUnaVez(soloJugadorId), false)
+
+  async function guardarCobranzasUnaVez(soloJugadorId?: string): Promise<boolean> {
     if (!session || !eventoSeleccionado) return false
     if (errorCarga) { setError(errorCarga); return false }
     setGuardadoOk(false)

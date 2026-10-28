@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -7,6 +7,7 @@ import { pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobran
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { SIN_CONEXION } from '@/lib/errorFunction'
 import { esErrorDeRed } from '@/lib/offlineSync'
+import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -146,6 +147,13 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   const [form, setForm]                   = useState<NuevoEventoForm>(formVacio(modo, []))
   const [guardando, setGuardando]         = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+
+  // Guardas síncronas contra el doble toque (T15): `disabled={guardando}`
+  // llega tarde si el segundo toque entra antes del re-render.
+  const guardaCrear  = useRef(crearGuardaEnVuelo()).current
+  const guardaCerrar = useRef(crearGuardaEnVuelo()).current
+  const crearEvento  = () => guardaCrear(crearEventoUnaVez, false)
+  const cerrarEvento = () => guardaCerrar(cerrarEventoUnaVez, undefined)
 
   useEffect(() => {
     if (session) fetchTodo()
@@ -392,7 +400,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
 
   // La RLS puede dejar el update en 0 filas sin error: se pide el id de vuelta
   // y, si no vuelve ninguno, se avisa en vez de dejar el evento activo en silencio.
-  async function cerrarEvento() {
+  async function cerrarEventoUnaVez() {
     if (!eventoDetalle) return
     setCerrando(true)
     setErrorCierre(null)
@@ -436,7 +444,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     }))
   }
 
-  async function crearEvento(): Promise<boolean> {
+  async function crearEventoUnaVez(): Promise<boolean> {
     if (!session) return false
 
     const nombreTrim = form.nombre.trim()
