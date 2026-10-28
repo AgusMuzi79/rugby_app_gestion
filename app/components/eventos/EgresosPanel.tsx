@@ -192,7 +192,7 @@ const s = StyleSheet.create({
   filaConcepto: { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
   filaFecha:    { fontFamily: fonts.label, fontSize: 12, color: MUTED, letterSpacing: 0.5, marginTop: 2 },
   filaMonto:    { fontFamily: fonts.cuerpo, fontSize: 16, fontWeight: '700', color: TEXTO },
-  filaAccion:   { padding: 4, width: 28, alignItems: 'center' },
+  filaAccion:   { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
 
   // Banners
   bannerError:      { backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },

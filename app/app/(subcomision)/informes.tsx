@@ -354,7 +354,7 @@ const s = StyleSheet.create({
 
   selectorWrap:    { backgroundColor: TEXTO, paddingBottom: 12 },
   selectorContent: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
+  pill:            { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 22, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.label, color: colors.textoSecundario, fontSize: 14, fontWeight: '500' },
   pillTextoActiva: { color: colors.sobreOro },

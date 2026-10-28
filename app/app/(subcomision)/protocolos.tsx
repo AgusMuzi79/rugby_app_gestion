@@ -160,6 +160,7 @@ function ModalSubirProtocolo({
               onPress={onClose}
               disabled={subiendo}
               activeOpacity={0.7}
+              style={s.cancelarBtn}
               accessibilityRole="button"
               accessibilityLabel="Cancelar"
             >
@@ -365,7 +366,7 @@ const s = StyleSheet.create({
   headerFila:      { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   headerTitulo:    { fontFamily: fonts.titulo, fontSize: 28, color: colors.sobreOro },
   headerSub:       { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.sobreOro, marginTop: 4 },
-  botonNuevo:      { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevo:      { minHeight: 44, justifyContent: 'center', backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
   botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '700' },
 
   listaContent: { padding: 16, paddingBottom: 40, gap: 12 },
@@ -386,9 +387,9 @@ const s = StyleSheet.create({
   cardFecha:   { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted, marginTop: 2 },
   cardBtns:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  btnAbrir:    { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: colors.borde },
+  btnAbrir:    { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: colors.borde },
   btnAbrindo:  { opacity: 0.6 },
-  btnEliminar: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: '#2C1010' },
+  btnEliminar: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center', borderRadius: 6, backgroundColor: '#2C1010' },
 
   // Modal
   modalKav:       { flex: 1 },
@@ -396,6 +397,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.borde },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 19, color: colors.texto },
   modalCerrar:    { fontFamily: fonts.cuerpo, fontSize: 16, color: colors.muted },
+  cancelarBtn:    { minHeight: 44, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 8, marginRight: -8 },
   modalScroll:    { flex: 1 },
   modalBody:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borde },
@@ -405,7 +407,7 @@ const s = StyleSheet.create({
   input:      { borderWidth: 1.5, borderColor: colors.borde, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.texto, backgroundColor: colors.card, marginBottom: 20 },
 
   gradoRow:            { flexDirection: 'row', gap: 8, marginBottom: 24 },
-  gradoBtn:            { flex: 1, paddingVertical: 10, borderRadius: 4, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
+  gradoBtn:            { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: 4, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
   gradoBtnActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },
   gradoBtnTexto:       { fontFamily: fonts.label, fontSize: 14, color: colors.muted, fontWeight: '700' },
   gradoBtnTextoActivo: { color: colors.sobreOro },

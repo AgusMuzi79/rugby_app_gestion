@@ -757,7 +757,7 @@ const s = StyleSheet.create({
 
   // Tabs
   tabRow:         { flexDirection: 'row', paddingHorizontal: 20, gap: 24 },
-  tabBtn:         { paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:         { minHeight: 44, justifyContent: 'center', paddingVertical: 14, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActivo:   { borderBottomColor: ORO },
   tabTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED, fontWeight: '700' },
   tabTextoActivo: { color: TEXTO },
@@ -802,7 +802,7 @@ const s = StyleSheet.create({
 
   // Detalle
   detalleTopBar:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
-  backBtn:            { padding: 4 },
+  backBtn:            { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
   detalleLabelHeader: { flex: 1, fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   cerradoBadge:       { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
   cerradoTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1 },
@@ -853,7 +853,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
-  modalCloseBtn:  { padding: 4, marginTop: 4 },
+  modalCloseBtn:  { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 20, gap: 24 },
   modalFooter:    { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER, backgroundColor: FONDO },
 
@@ -878,7 +878,7 @@ const s = StyleSheet.create({
   tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1, textAlign: 'center', lineHeight: 14 },
   tipoBtnTextoActivo: { color: colors.sobreOro },
 
-  divPill:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
+  divPill:            { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 22, borderWidth: 1.5, borderColor: DIVIDER },
   divPillActiva:      { backgroundColor: ORO, borderColor: ORO },
   divPillTexto:       { fontFamily: fonts.label, fontSize: 14, color: MUTED },
   divPillTextoActivo: { color: colors.sobreOro },

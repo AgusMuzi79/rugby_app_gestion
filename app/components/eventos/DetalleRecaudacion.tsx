@@ -147,7 +147,7 @@ const s = StyleSheet.create({
   flex:      { flex: 1 },
 
   topBar:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
-  backBtn:      { padding: 4 },
+  backBtn:      { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
   topLabel:     { flex: 1, fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   cerradoBadge: { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
   cerradoTexto: { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1 },
@@ -160,7 +160,7 @@ const s = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 48, gap: 14 },
 
   tabRow:         { flexDirection: 'row', gap: 24, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  tabBtn:         { paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:         { minHeight: 44, justifyContent: 'center', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActivo:   { borderBottomColor: ORO },
   tabTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED, fontWeight: '700' },
   tabTextoActivo: { color: TEXTO },

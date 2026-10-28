@@ -608,7 +608,7 @@ const s = StyleSheet.create({
   fabTexto:{ fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Volver
-  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
   volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Detalle
@@ -631,12 +631,12 @@ const s = StyleSheet.create({
   docTipo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '700' },
   docNombre:   { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, fontWeight: '600' },
   docFecha:    { fontFamily: fonts.label, fontSize: 13, color: MUTED },
-  abrirBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, justifyContent: 'center' },
+  abrirBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, minHeight: 44, justifyContent: 'center' },
   abrirBtnTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: ORO, fontWeight: '700' },
 
   // Selector tipo
   tipoRow:            { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  tipoBtn:            { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
+  tipoBtn:            { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
   tipoBtnActivo:      { borderColor: ORO, backgroundColor: CARD },
   tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   tipoBtnTextoActivo: { color: ORO_HONDO },
@@ -659,7 +659,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
-  modalClose:     { padding: 4, marginTop: 4 },
+  modalClose:     { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
   campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },

@@ -598,7 +598,7 @@ const s = StyleSheet.create({
   progFill: { height: 4, backgroundColor: ORO, borderRadius: 2 },
 
   // Volver
-  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
   volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Paso jugadores
@@ -650,7 +650,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, maxWidth: '85%' },
-  modalClose:     { padding: 4, marginTop: 4 },
+  modalClose:     { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
   campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
@@ -672,7 +672,7 @@ const s = StyleSheet.create({
 
   // Forma de pago
   formaRow:           { flexDirection: 'row', gap: 8 },
-  formaBtn:           { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  formaBtn:           { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   formaBtnActivo:     { backgroundColor: ORO, borderColor: ORO },
   formaBtnTexto:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   formaBtnTextoActivo:{ color: colors.sobreOro },
