@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -296,7 +297,7 @@ export default function CobranzasScreen() {
     eventos, eventoSeleccionado, paso,
     cargandoJugadores, jugadores, resumen,
     guardando, guardadoOk, error, errorCarga, errorLista, recargar, reintentarCarga,
-    seleccionarEvento, volverAEventos,
+    seleccionarEvento, volverAEventos, hayCambios, descartarCambiosJugador,
     toggleEstado, actualizarMonto, actualizarFormaDePago,
     guardarCobranzas,
   } = useCobranzas()
@@ -309,6 +310,27 @@ export default function CobranzasScreen() {
   async function handleGuardarModal() {
     if (!modalJugadorId) return
     if (await guardarCobranzas(modalJugadorId)) setModalJugadorId(null)
+  }
+
+  // X, Back de Android o swipe del sheet: lo que no se guardó de ese jugador
+  // se descarta (antes quedaba un PAGADO en pantalla sin estar guardado).
+  function cerrarModalSinGuardar() {
+    if (guardando) return
+    if (modalJugadorId) descartarCambiosJugador(modalJugadorId)
+    setModalJugadorId(null)
+  }
+
+  // Salir del evento con filas sin guardar pide confirmación.
+  function pedirVolverAEventos() {
+    if (!hayCambios) { volverAEventos(); return }
+    Alert.alert(
+      'Cambios sin guardar',
+      'Hay pagos que todavía no guardaste. Si volvés, se pierden.',
+      [
+        { text: 'Seguir editando', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: volverAEventos },
+      ],
+    )
   }
 
   if (loading) {
@@ -377,7 +399,7 @@ export default function CobranzasScreen() {
 
       {paso === 'jugadores' && (
         <View style={s.jugadoresFlex}>
-          <TouchableOpacity style={s.volverBtn} onPress={volverAEventos} activeOpacity={0.7}>
+          <TouchableOpacity style={s.volverBtn} onPress={pedirVolverAEventos} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={16} color={ORO} />
             <Text style={s.volverTexto}>Eventos</Text>
           </TouchableOpacity>
@@ -428,23 +450,22 @@ export default function CobranzasScreen() {
                   </View>
                 ))
               )}
-
-              {error && !errorCarga && (
-                <View style={s.bannerError}>
-                  <Text style={s.bannerErrorTexto}>{error}</Text>
-                </View>
-              )}
-
-              {guardadoOk && (
-                <View style={s.bannerOk}>
-                  <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
-                </View>
-              )}
             </ScrollView>
           )}
 
           {!cargandoJugadores && jugadores.length > 0 && (
             <View style={s.bottomBar}>
+              {/* Resultado del guardado junto al botón, no al final de la lista. */}
+              {error && !errorCarga && modalJugadorId === null && (
+                <View style={s.bannerErrorBarra}>
+                  <Text style={s.bannerErrorTexto}>{error}</Text>
+                </View>
+              )}
+              {guardadoOk && (
+                <View style={s.bannerOkBarra}>
+                  <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
                 onPress={() => guardarCobranzas()}
@@ -461,13 +482,18 @@ export default function CobranzasScreen() {
         </View>
       )}
 
-      <Modal visible={modalJugadorId !== null} animationType="slide" presentationStyle="pageSheet">
+      <Modal
+        visible={modalJugadorId !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={cerrarModalSinGuardar}
+      >
         {jugadorModal && (
           <ModalPago
             jugador={jugadorModal}
             guardando={guardando}
             error={error}
-            onClose={() => setModalJugadorId(null)}
+            onClose={cerrarModalSinGuardar}
             onGuardar={handleGuardarModal}
             onToggle={toggleEstado}
             onMonto={actualizarMonto}
@@ -567,8 +593,9 @@ const s = StyleSheet.create({
   // Banners
   bannerError:      { marginTop: 12, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
-  bannerOk:         { marginTop: 12, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14 },
   bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: colors.oroSobreClaro, fontWeight: '700', letterSpacing: 2 },
+  bannerErrorBarra: { marginBottom: 8, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerOkBarra:    { marginBottom: 8, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 12 },
 
   // Modal
   kavFlex:        { flex: 1 },

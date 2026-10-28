@@ -400,7 +400,13 @@ export default function FichajesScreen() {
       )}
 
       {/* ── Modal nuevo fichaje ── */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+      {/* onRequestClose: el Back de Android (y el swipe del sheet) cierran el modal. */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => { if (!guardandoFichaje) cerrarModal() }}
+      >
         <KeyboardAvoidingView
           style={s.kavFlex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

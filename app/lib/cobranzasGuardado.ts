@@ -50,6 +50,33 @@ function cambio(j: EstadoCobranza, o: OriginalCobranza): boolean {
   return parseMontoCobranza(j.monto) !== parseMontoCobranza(o.monto) || j.formaDePago !== o.formaDePago
 }
 
+const SIN_ORIGINAL: OriginalCobranza = {
+  estado: 'pendiente', monto: '', formaDePago: null, fechaPago: null, registradoPor: null,
+}
+
+// Hay alguna fila que se guardaría con "GUARDAR TODOS" (T5: salir del evento
+// con cambios pide confirmación).
+export function hayCambiosSinGuardar(
+  jugadores: EstadoCobranza[],
+  originales: Map<string, OriginalCobranza>,
+): boolean {
+  return jugadores.some(j => cambio(j, originales.get(j.jugadorId) ?? SIN_ORIGINAL))
+}
+
+// La X del modal: el jugador vuelve a lo que había en la base al abrir el
+// evento (o a pendiente si no había nada); el resto queda igual.
+export function restaurarJugador<T extends EstadoCobranza>(
+  jugadores: T[],
+  originales: Map<string, OriginalCobranza>,
+  jugadorId: string,
+): T[] {
+  const o = originales.get(jugadorId) ?? SIN_ORIGINAL
+  return jugadores.map(j =>
+    j.jugadorId !== jugadorId ? j
+      : { ...j, estado: o.estado, monto: o.monto, formaDePago: o.formaDePago },
+  )
+}
+
 export function filasAGuardar(
   jugadores: EstadoCobranza[],
   originales: Map<string, OriginalCobranza>,

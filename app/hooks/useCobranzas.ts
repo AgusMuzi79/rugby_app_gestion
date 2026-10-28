@@ -3,7 +3,13 @@ import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { montoInicialCobranza } from '@/lib/montoSugerido'
-import { filasAGuardar, parseMontoCobranza, type OriginalCobranza } from '@/lib/cobranzasGuardado'
+import {
+  filasAGuardar,
+  hayCambiosSinGuardar,
+  parseMontoCobranza,
+  restaurarJugador,
+  type OriginalCobranza,
+} from '@/lib/cobranzasGuardado'
 import { fechaLocal } from '@/lib/fecha'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import {
@@ -286,10 +292,20 @@ export function useCobranzas() {
     if (eventoSeleccionado) seleccionarEvento(eventoSeleccionado)
   }
 
+  // Lo no guardado se descarta (la pantalla pregunta antes si hay cambios; al
+  // volver a abrir el evento se relee de la base). Se relee la lista para que
+  // el % cobrado refleje lo recién guardado.
   function volverAEventos() {
     setPaso('eventos')
     setGuardadoOk(false)
     setError(null)
+    if (misIdsKey) void cargarEventos(misIdsKey.split(','))
+  }
+
+  // La X del modal: ese jugador vuelve a lo guardado (T5).
+  function descartarCambiosJugador(jugadorId: string) {
+    setError(null)
+    setJugadores(prev => restaurarJugador(prev, originales.current, jugadorId))
   }
 
   // ─── Edición inline ────────────────────────────────────────────────────────
@@ -382,6 +398,8 @@ export function useCobranzas() {
     reintentarCarga,
     seleccionarEvento,
     volverAEventos,
+    hayCambios: !errorCarga && hayCambiosSinGuardar(jugadores, originales.current),
+    descartarCambiosJugador,
     toggleEstado,
     actualizarMonto,
     actualizarFormaDePago,
