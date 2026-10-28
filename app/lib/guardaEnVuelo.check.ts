@@ -65,6 +65,12 @@ async function main() {
     assert.equal(await borrar('a'), true)
   })
 
+  await caso('por clave: si el envío falla, el id se libera y se puede reintentar', async () => {
+    const guarda = crearGuardaPorClave()
+    await assert.rejects(guarda('a', async () => { throw new Error('sin red') }, false))
+    assert.equal(await guarda('a', async () => true, false), true)
+  })
+
   console.log(`\n${casos} casos ok`)
 }
 
