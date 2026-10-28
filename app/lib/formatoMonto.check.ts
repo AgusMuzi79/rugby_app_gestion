@@ -39,4 +39,11 @@ caso('un número inválido no rompe la pantalla', () => {
   assert.equal(formatMonto(Number.NaN), '$ 0')
 })
 
+caso('numeric de Postgres llega como texto (supabase-js): se formatea igual', () => {
+  assert.equal(formatMonto('1500'), '$ 1.500')
+  assert.equal(formatMonto('12500.50'), '$ 12.500,50')
+  assert.equal(formatMonto(null), '$ 0')
+  assert.equal(formatMonto('abc'), '$ 0')
+})
+
 console.log(`\n${casos} casos ok`)

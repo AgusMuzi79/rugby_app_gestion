@@ -8,8 +8,11 @@ function conPuntos(entero: string): string {
   return entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 }
 
-export function formatMonto(n: number): string {
-  const valor = Number.isFinite(n) ? n : 0
+// Acepta texto: supabase-js devuelve las columnas `numeric` de Postgres como
+// string ("1500.00"). null / undefined / basura se muestran como $ 0.
+export function formatMonto(n: number | string | null | undefined): string {
+  const num   = typeof n === 'string' ? Number(n) : n ?? 0
+  const valor = Number.isFinite(num) ? num : 0
   const centavos = Math.round(Math.abs(valor) * 100)
   const entero   = Math.floor(centavos / 100)
   const resto    = centavos % 100
