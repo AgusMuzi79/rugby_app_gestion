@@ -3,7 +3,7 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { crearGuardaEnVuelo } from './guardaEnVuelo'
+import { crearGuardaEnVuelo, crearGuardaPorClave } from './guardaEnVuelo'
 
 let casos = 0
 async function caso(nombre: string, fn: () => Promise<void>) {
@@ -51,6 +51,18 @@ async function main() {
       cerrar(async () => { n++; await demora(5) }, undefined),
     ])
     assert.equal(n, 2)
+  })
+
+  await caso('por clave: el mismo id en vuelo no corre dos veces; otro id sí corre', async () => {
+    const guarda = crearGuardaPorClave()
+    let borrados: string[] = []
+    const borrar = (id: string) => guarda(id, async () => { await demora(5); borrados.push(id); return true }, false)
+    const [a1, a2, b] = await Promise.all([borrar('a'), borrar('a'), borrar('b')])
+    assert.deepEqual([a1, a2, b], [true, false, true])
+    assert.deepEqual(borrados.sort(), ['a', 'b'])
+    // Liberada: el mismo id puede volver a correr.
+    borrados = []
+    assert.equal(await borrar('a'), true)
   })
 
   console.log(`\n${casos} casos ok`)

@@ -20,3 +20,20 @@ export function crearGuardaEnVuelo(): GuardaEnVuelo {
     }
   }
 }
+
+// Igual, pero una guarda por clave (p. ej. el id del egreso a borrar): el
+// mismo id no se manda dos veces, y otro id no queda bloqueado por el primero.
+export type GuardaPorClave = <T>(clave: string, envio: () => Promise<T>, siOcupado: T) => Promise<T>
+
+export function crearGuardaPorClave(): GuardaPorClave {
+  const enVuelo = new Set<string>()
+  return async function guarda<T>(clave: string, envio: () => Promise<T>, siOcupado: T): Promise<T> {
+    if (enVuelo.has(clave)) return siOcupado
+    enVuelo.add(clave)
+    try {
+      return await envio()
+    } finally {
+      enVuelo.delete(clave)
+    }
+  }
+}
