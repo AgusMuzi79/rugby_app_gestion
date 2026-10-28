@@ -2550,6 +2550,19 @@ export type Database = {
         Args: { p_evento_id: string }
         Returns: boolean
       }
+      fichar_jugador: {
+        Args: {
+          p_division_id: string
+          p_dni: string
+          p_fecha_nacimiento: string
+          p_nombre: string
+          p_posicion?: string | null
+        }
+        Returns: {
+          nuevo_fichaje_id: string
+          nuevo_jugador_id: string
+        }[]
+      }
       get_deporte_subcomision: { Args: never; Returns: string }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }

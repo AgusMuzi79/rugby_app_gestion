@@ -19,6 +19,7 @@ import {
   TipoDocumento,
 } from '@/hooks/useFichajes'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import type { DivisionOpcion } from '@/lib/fichajes'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -55,19 +56,19 @@ function formatFecha(iso: string) {
 // ─── FilaJugador ─────────────────────────────────────────────────────────────
 
 function FilaJugador({
-  jugador, index, onPress,
+  jugador, index, divisionNombre, onPress,
 }: {
-  jugador: JugadorFichado; index: number; onPress: (j: JugadorFichado) => void
+  jugador: JugadorFichado; index: number; divisionNombre: string | null
+  onPress: (j: JugadorFichado) => void
 }) {
   const numero = String(index + 1).padStart(2, '0')
+  const meta   = [divisionNombre, jugador.posicion?.toUpperCase()].filter(Boolean).join(' · ')
   return (
     <TouchableOpacity style={s.fila} onPress={() => onPress(jugador)} activeOpacity={0.8}>
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaInfo}>
         <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
-        {jugador.posicion ? (
-          <Text style={s.filaPosicion}>{jugador.posicion.toUpperCase()}</Text>
-        ) : null}
+        {meta ? <Text style={s.filaPosicion}>{meta}</Text> : null}
       </View>
       <View style={s.filaRight}>
         <Text style={s.filaFecha}>{formatFecha(jugador.fecha_fichaje)}</Text>
@@ -154,17 +155,53 @@ function SelectorTipo({
   )
 }
 
+// ─── SelectorDivision ────────────────────────────────────────────────────────
+// conTodas: agrega "TODAS" (valor null) para el filtro de la lista.
+
+function SelectorDivision({
+  divisiones, seleccionada, onSelect, conTodas = false, etiqueta,
+}: {
+  divisiones: DivisionOpcion[]; seleccionada: string | null
+  onSelect: (id: string | null) => void; conTodas?: boolean; etiqueta: string
+}) {
+  const opciones: Array<{ id: string | null; nombre: string }> = conTodas
+    ? [{ id: null, nombre: 'TODAS' }, ...divisiones]
+    : divisiones
+  return (
+    <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel={etiqueta}>
+      {opciones.map(d => {
+        const activo = seleccionada === d.id
+        return (
+          <TouchableOpacity
+            key={d.id ?? 'todas'}
+            style={[s.tipoBtn, activo && s.tipoBtnActivo]}
+            onPress={() => onSelect(d.id)}
+            activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={d.id === null ? 'Todas las divisiones' : d.nombre}
+          >
+            <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>{d.nombre}</Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function FichajesScreen() {
   const {
-    loading, divisionNombre, sinDivision,
+    loading, divisionNombre, misDivisiones, sinDivision, errorCarga, recargar,
+    filtroDivision, setFiltroDivision,
     jugadores, paso, jugadorDetalle, cargandoDetalle,
     seleccionarJugador, volverALista,
     modalVisible, abrirModal, cerrarModal,
     nombre, setNombre, dni, setDni,
     fechaNacimiento, setFechaNacimiento,
     posicion, setPosicion,
+    divisionForm, setDivisionForm,
     guardandoFichaje, guardadoFichajeOk, errorForm, guardarFichaje,
     tipoSeleccionado, setTipoSeleccionado,
     subiendo, subiendoOk, errorUpload, subirDocumento,
@@ -179,6 +216,20 @@ export default function FichajesScreen() {
     )
   }
 
+  // Error de carga (red / RLS): no es "sin división" ni "sin fichajes".
+  if (errorCarga && paso === 'lista') {
+    return (
+      <SafeAreaView style={s.centrado} edges={['top']}>
+        <View style={[s.bannerError, s.errorCargaWrap]}>
+          <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+        </View>
+        <TouchableOpacity style={s.botonSecundario} onPress={recargar} activeOpacity={0.85}>
+          <Text style={[s.botonSecundarioTexto, s.reintentarTexto]}>REINTENTAR</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    )
+  }
+
   if (sinDivision) {
     return (
       <SafeAreaView style={s.centrado} edges={['top']}>
@@ -187,6 +238,9 @@ export default function FichajesScreen() {
       </SafeAreaView>
     )
   }
+
+  const variasDivisiones = misDivisiones.length > 1
+  const nombreDivision   = new Map(misDivisiones.map(d => [d.id, d.nombre]))
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -205,6 +259,18 @@ export default function FichajesScreen() {
       {paso === 'lista' && (
         <>
           <ScrollView contentContainerStyle={s.lista}>
+            {variasDivisiones && (
+              <View style={s.filtroWrap}>
+                <SelectorDivision
+                  divisiones={misDivisiones}
+                  seleccionada={filtroDivision}
+                  onSelect={setFiltroDivision}
+                  conTodas
+                  etiqueta="Filtrar por división"
+                />
+              </View>
+            )}
+
             <View style={s.seccionHeader}>
               <Text style={s.seccionLabel}>JUGADORES FICHADOS</Text>
               <Text style={s.seccionConteo}>{jugadores.length}</Text>
@@ -217,7 +283,12 @@ export default function FichajesScreen() {
                 {jugadores.map((j, i) => (
                   <View key={j.id}>
                     {i > 0 && <View style={s.filaDiv} />}
-                    <FilaJugador jugador={j} index={i} onPress={seleccionarJugador} />
+                    <FilaJugador
+                      jugador={j}
+                      index={i}
+                      divisionNombre={variasDivisiones && !filtroDivision ? nombreDivision.get(j.divisionId) ?? null : null}
+                      onPress={seleccionarJugador}
+                    />
                   </View>
                 ))}
               </View>
@@ -353,6 +424,16 @@ export default function FichajesScreen() {
               keyboardShouldPersistTaps="handled"
             >
               <View style={s.campo}>
+                <Text style={s.campoLabel}>DIVISIÓN</Text>
+                <SelectorDivision
+                  divisiones={misDivisiones}
+                  seleccionada={divisionForm}
+                  onSelect={setDivisionForm}
+                  etiqueta="División del fichaje"
+                />
+              </View>
+
+              <View style={s.campo}>
                 <Text style={s.campoLabel}>NOMBRE COMPLETO</Text>
                 <TextInput
                   style={s.inputLinea}
@@ -461,6 +542,9 @@ const s = StyleSheet.create({
   emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic', marginTop: 12 },
   filaDiv:       { height: 1, backgroundColor: DIVIDER },
   jugadoresWrap: { marginTop: 8 },
+  filtroWrap:    { marginBottom: 16 },
+  errorCargaWrap:  { marginHorizontal: 20, alignSelf: 'stretch' },
+  reintentarTexto: { paddingHorizontal: 24 },
 
   // Fila de jugador
   fila:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
