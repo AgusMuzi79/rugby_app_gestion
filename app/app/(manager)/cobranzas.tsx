@@ -23,6 +23,7 @@ import {
 } from '@/hooks/useCobranzas'
 import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { formatMonto } from '@/components/eventos/estilo'
 import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -63,9 +64,6 @@ function formatFecha(iso: string) {
   })
 }
 
-function formatMonto(n: number) {
-  return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-}
 
 // ─── Barra de progreso ────────────────────────────────────────────────────────
 

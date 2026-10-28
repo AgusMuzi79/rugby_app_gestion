@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { formatMonto } from '@/components/eventos/estilo'
+import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { useDiarioManager, type EventoProgreso, type UltimoFichaje } from '@/hooks/useDiarioManager'
 import { colors, fonts } from '@/constants/theme'
 
@@ -15,12 +17,6 @@ const TIPO_LABEL: Record<string, string> = {
   viaje:         'VIAJE',
   tercer_tiempo: '3ER TIEMPO',
   recaudacion:   'RECAUDACIÓN',
-}
-
-function formatMonto(n: number): string {
-  if (n === 0)   return '$0'
-  if (n >= 1000) return `$${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`
-  return `$${n}`
 }
 
 function tiempoRelativo(iso: string): string {
@@ -75,26 +71,37 @@ function CardCobranza({ ev, onPress }: { ev: EventoProgreso; onPress: () => void
   )
 }
 
-function CardPedido({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }) {
-  const pendiente = ev.pct === null || ev.pct < 100
+// Evento de todo el club (recaudación de la Subcomisión) que el manager cobra
+// a sus jugadores. `descripcion` guarda el monto sugerido por jugador.
+function CardCobranzaClub({ ev, onPress }: { ev: EventoProgreso; onPress: () => void }) {
+  const pendiente      = ev.pct === null || ev.pct < 100
+  const montoPorJugador = montoSugeridoDe(ev.descripcion)
 
   return (
     <View style={s.pedidoCard}>
       <View style={s.pedidoHeaderRow}>
         <View style={s.pedidoBadge}>
-          <Text style={s.pedidoBadgeText}>PEDIDO ABIERTO</Text>
+          <Text style={s.pedidoBadgeText}>COBRANZA DEL CLUB</Text>
         </View>
       </View>
       <Text style={s.pedidoNombre}>{ev.nombre}</Text>
-      {ev.descripcion ? (
-        <Text style={s.pedidoDetalle} numberOfLines={2}>{ev.descripcion}</Text>
-      ) : null}
+      {montoPorJugador !== null && (
+        <Text style={s.pedidoDetalle}>{formatMonto(montoPorJugador)} por jugador</Text>
+      )}
       <Text style={s.pedidoProgreso}>
-        {ev.pagados ?? '—'}/{ev.total ?? '—'} confirmados
+        {ev.pagados !== null && ev.total !== null
+          ? `${ev.pagados}/${ev.total} pagaron`
+          : 'No se pudo cargar el avance'}
       </Text>
       {pendiente && (
-        <TouchableOpacity style={s.confirmarBtn} onPress={onPress} activeOpacity={0.8}>
-          <Text style={s.confirmarBtnText}>CONFIRMAR COMPROBANTE →</Text>
+        <TouchableOpacity
+          style={s.confirmarBtn}
+          onPress={onPress}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`Cobrar ${ev.nombre}`}
+        >
+          <Text style={s.confirmarBtnText}>COBRAR →</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -193,13 +200,13 @@ export default function DiarioManagerScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ── PEDIDO DE SUBCOMISIÓN ── */}
+          {/* ── COBRANZAS DEL CLUB (recaudaciones de Subcomisión) ── */}
           {eventosGlobales.length > 0 && (
             <View style={s.section}>
-              <SectionHeader title="PEDIDO DE SUBCOMISIÓN" />
+              <SectionHeader title="COBRANZAS DEL CLUB" />
               <View style={s.lista}>
                 {eventosGlobales.map(ev => (
-                  <CardPedido
+                  <CardCobranzaClub
                     key={ev.id}
                     ev={ev}
                     onPress={() => router.navigate('/(manager)/cobranzas')}

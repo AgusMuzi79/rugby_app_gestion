@@ -18,6 +18,7 @@ import {
 } from '@/hooks/useInformes'
 import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { formatMonto } from '@/components/eventos/estilo'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -231,7 +232,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 
               <View style={s.fila}>
                 <Text style={s.cobrado}>
-                  {ef.totalCobrado !== null ? `$${ef.totalCobrado.toLocaleString('es-AR')}` : '—'}
+                  {ef.totalCobrado !== null ? formatMonto(ef.totalCobrado) : '—'}
                 </Text>
                 <Text style={s.cardMuted}>
                   {pct !== null ? `${pct}%` : '—'} · {ef.countPagados ?? '—'}P · {ef.countPendientes ?? '—'}PN
@@ -243,7 +244,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
                   {Object.entries(ef.formasDePago).map(([forma, monto]) => (
                     <View key={forma} style={s.formaPill}>
                       <Text style={s.formaTexto}>
-                        {forma}: ${monto.toLocaleString('es-AR')}
+                        {forma}: {formatMonto(monto)}
                       </Text>
                     </View>
                   ))}

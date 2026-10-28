@@ -30,6 +30,7 @@ import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
+import { formatMonto } from '@/components/eventos/estilo'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
@@ -72,9 +73,6 @@ function formatFecha(fecha: string | null): string {
   return `${d}/${m}/${y.slice(2)}`
 }
 
-function formatPesos(n: number): string {
-  return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-}
 
 // ─── Tab switcher ─────────────────────────────────────────────────────────────
 
@@ -174,14 +172,14 @@ function EventoCard({
       </Text>
 
       {montoSug !== null && (
-        <Text style={s.eventoMontoSug}>{formatPesos(montoSug)} por jugador</Text>
+        <Text style={s.eventoMontoSug}>{formatMonto(montoSug)} por jugador</Text>
       )}
 
       {hayPagos && (
         <>
           <BarraProgreso pagados={ev.countPagados} total={totalPagos} />
           <Text style={s.eventoStats}>
-            {ev.countPagados} PAGADOS · {ev.countPendientes} PEND. · {formatPesos(ev.totalCobrado)}
+            {ev.countPagados} PAGADOS · {ev.countPendientes} PEND. · {formatMonto(ev.totalCobrado)}
           </Text>
         </>
       )}
@@ -251,7 +249,7 @@ function EventoDetalleContent({
         {ev.fecha && <Text style={s.eventoFecha}>{formatFecha(ev.fecha)}</Text>}
       </View>
       {montoSug !== null && (
-        <Text style={s.montoSugTexto}>{formatPesos(montoSug)} por jugador</Text>
+        <Text style={s.montoSugTexto}>{formatMonto(montoSug)} por jugador</Text>
       )}
       <View style={s.separador} />
 
@@ -281,7 +279,7 @@ function EventoDetalleContent({
                 <View style={s.resumenDiv} />
                 <View style={s.resumenItem}>
                   <Text style={s.resumenValCobrado}>
-                    {formatPesos(ev.resumenTotal.cobrado)}
+                    {formatMonto(ev.resumenTotal.cobrado)}
                   </Text>
                   <Text style={s.resumenLabel}>COBRADO</Text>
                 </View>
@@ -296,7 +294,7 @@ function EventoDetalleContent({
                       <View style={s.divFila}>
                         <Text style={s.divFilaNombre} numberOfLines={1}>{d.divisionNombre}</Text>
                         <Text style={s.divFilaDetalle}>
-                          {d.pagados}P · {d.pendientes}PN · {formatPesos(d.cobrado)}
+                          {d.pagados}P · {d.pendientes}PN · {formatMonto(d.cobrado)}
                         </Text>
                       </View>
                     </View>

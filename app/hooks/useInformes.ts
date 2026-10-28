@@ -331,7 +331,8 @@ export function useInformes() {
         const formasDePago: Record<string, number> = {}
         for (const p of pagados) {
           const k = p.forma_de_pago ?? 'sin especificar'
-          formasDePago[k] = (formasDePago[k] ?? 0) + (p.monto ?? 0)
+          // Number(): un numeric que llegue como texto no se concatena.
+          formasDePago[k] = (formasDePago[k] ?? 0) + Number(p.monto ?? 0)
         }
         const r = resumenes ? resumenDe(resumenes, ef.id) : null
         return {

@@ -26,8 +26,6 @@ export function formatFechaLarga(iso: string) {
   })
 }
 
-// "$ 1.500" / "− $ 200" (neto negativo).
-export function formatMonto(n: number) {
-  const abs = '$ ' + Math.abs(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-  return n < 0 ? '− ' + abs : abs
-}
+// "$ 1.500" / "$ 1.500,50" / "− $ 200" (neto negativo). Lógica pura en
+// lib/formatoMonto.ts; se re-exporta acá para las pantallas de eventos.
+export { formatMonto } from '@/lib/formatoMonto'
