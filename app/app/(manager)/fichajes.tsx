@@ -22,6 +22,7 @@ import { DatePickerField } from '@/components/ui/DatePickerField'
 import type { DivisionOpcion } from '@/lib/fichajes'
 import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -227,6 +228,9 @@ export default function FichajesScreen() {
     subiendo, subiendoOk, errorUpload, subirDocumento,
     abriendoDoc, abrirDocumento,
   } = useFichajes()
+
+  // Back de Android en el detalle de un jugador: vuelve a la lista (T11, interino).
+  useBackDelDetalle(paso === 'detalle', volverALista)
 
   if (loading) {
     return (

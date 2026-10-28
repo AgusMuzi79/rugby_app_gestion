@@ -31,6 +31,7 @@ import { AvatarPerfil } from '@/components/shared/Header'
 import { montoSugeridoDe } from '@/lib/montoSugerido'
 import { DetalleRecaudacion } from '@/components/eventos/DetalleRecaudacion'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
@@ -592,6 +593,10 @@ export function EventosPantalla({ modo }: { modo: ModoEventos }) {
 
   const [tabActivo, setTabActivo] = useState<TabActivo>('activos')
   const esManager = modo === 'manager'
+
+  // Back de Android con un evento abierto: vuelve a la lista en vez de salir
+  // de la pestaña (T11, interino). Vale para Subcomisión y Manager.
+  useBackDelDetalle(paso === 'detalle', volverALista)
 
   // Error de carga (red / permisos): no es lo mismo que "sin división".
   if (errorCarga && !loading && paso === 'lista') {

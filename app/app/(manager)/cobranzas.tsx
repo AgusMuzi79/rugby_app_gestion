@@ -23,6 +23,7 @@ import {
 } from '@/hooks/useCobranzas'
 import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -370,6 +371,10 @@ export default function CobranzasScreen() {
       ],
     )
   }
+
+  // Back de Android con un evento abierto: vuelve a la lista (con la misma
+  // confirmación si hay cambios), no sale de la pestaña (T11, interino).
+  useBackDelDetalle(paso === 'jugadores', pedirVolverAEventos)
 
   if (loading) {
     return (
