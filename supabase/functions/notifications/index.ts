@@ -51,7 +51,9 @@ interface CancelacionPayload {
 const ROLES_POR_TIPO: Record<NotificationType, string[]> = {
   lesion:                    ['entrenador'],
   fichaje:                   ['manager'],
-  ausencias_consecutivas:    ['entrenador'],
+  // El colaborador (T23) también guarda asistencia: su alerta llega a los
+  // mismos destinatarios (coordinadores de la división), nunca a él.
+  ausencias_consecutivas:    ['entrenador', 'colaborador'],
   cancelacion_entrenamiento: ['coordinador'],
   noticia_publicada:         ['secretaria', 'buffet', 'subcomision'],
   manual:                    ['subcomision', 'manager', 'entrenador', 'coordinador'],

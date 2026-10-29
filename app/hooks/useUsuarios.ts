@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
 
-export type RolCreable = 'coordinador' | 'entrenador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
+export type RolCreable = 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
 
 export interface Usuario {
@@ -36,6 +36,7 @@ const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión',
   coordinador: 'Coordinador',
   entrenador:  'Entrenador',
+  colaborador: 'Colaborador',
   manager:     'Manager',
   secretaria:  'Secretaría',
   porteria:    'Gimnasio',
