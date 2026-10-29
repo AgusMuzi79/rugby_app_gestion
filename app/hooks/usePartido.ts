@@ -13,6 +13,7 @@ import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 import { sincronizarEquipos, type AccesoEquipos, type Equipo } from '@/lib/equiposPartido'
 import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { abrirPaso, type DestinoPartido } from '@/lib/cargaPartido'
 import { mensajeError } from '@/lib/mensajeError'
 
 export type { Equipo } from '@/lib/equiposPartido'
@@ -369,8 +370,7 @@ export function usePartido(pedido: PedidoPartido = {}) {
     const equipo = listaEquipos[0]
     if (pasoP !== 'resultado' || infantil || !equipo) return
     setEquipoSeleccionado(equipo)
-    const ok = await cargarPartido(partido, equipo, base)
-    if (ok) await irAResultado(partido, equipo)
+    await abrirPartido(partido, equipo, 'resultado', base)
   }
 
   // ─── Selección de equipo y partido ─────────────────────────────────────────
@@ -404,11 +404,28 @@ export function usePartido(pedido: PedidoPartido = {}) {
 
   // ─── Asistencia y mesa guardadas del partido ───────────────────────────────
 
-  // Carga lo guardado (asistencia del partido + mesa del equipo) en la lista.
-  // false si falló la lectura (queda el error con REINTENTAR).
-  async function cargarPartido(
-    partido: PartidoEvento, equipo: Equipo, base: JugadorPartido[] = jugadoresBase,
+  // Abre ASISTENCIA o RESULTADO cargando antes lo guardado. Si la lectura
+  // falla, REINTENTAR repite esta misma carga con estos datos (no con los
+  // elegidos en pantalla, que pueden no estar todavía) y abre el mismo paso
+  // (lib/cargaPartido.ts).
+  function abrirPartido(
+    partido: PartidoEvento, equipo: Equipo, destino: DestinoPartido, base: JugadorPartido[] = jugadoresBase,
   ): Promise<boolean> {
+    return abrirPaso({ partido, equipo, base, destino }, {
+      cargar: cargarPartido,
+      fallo: (err, repetir) => fallo('la asistencia y la mesa del partido', err, repetir),
+      irA: async (d, p, e) => {
+        if (d === 'resultado') await irAResultado(p, e)
+        else setPaso('asistencia')
+      },
+    })
+  }
+
+  // Carga lo guardado (asistencia del partido + mesa del equipo) en la lista.
+  // Devuelve el error de la lectura (o null): abrirPartido lo muestra.
+  async function cargarPartido(
+    partido: PartidoEvento, equipo: Equipo, base: JugadorPartido[],
+  ): Promise<unknown> {
     setCargandoTransicion(true)
     const reset = base.map(j => ({
       ...j,
@@ -431,9 +448,8 @@ export function usePartido(pedido: PedidoPartido = {}) {
 
     const err = primerError(asistRes.error, mesaRes.error)
     if (err) {
-      fallo('la asistencia y la mesa del partido', err, () => { void irAAsistencia() })
       setCargandoTransicion(false)
-      return false
+      return err
     }
     limpiarError()
 
@@ -459,12 +475,12 @@ export function usePartido(pedido: PedidoPartido = {}) {
 
     setJugadores(reset)
     setCargandoTransicion(false)
-    return true
+    return null
   }
 
   async function irAAsistencia() {
     if (!equipoSeleccionado || !partidoSeleccionado) return
-    if (await cargarPartido(partidoSeleccionado, equipoSeleccionado)) setPaso('asistencia')
+    await abrirPartido(partidoSeleccionado, equipoSeleccionado, 'asistencia')
   }
 
   function irAEquipo() { setPaso('equipo') }
