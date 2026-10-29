@@ -48,8 +48,8 @@ function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
         </View>
         <Text style={styles.detalle}>
           {totalEventos > 0
-            ? `${totalPresentes} de ${totalEventos} eventos (últimos 30 días)`
-            : 'Sin eventos registrados en últimos 30 días'}
+            ? `${totalPresentes} de ${totalEventos} con lista (últimos 30 días)`
+            : 'Sin listas tomadas en los últimos 30 días'}
         </Text>
       </View>
       <View style={styles.porcentajeContainer}>

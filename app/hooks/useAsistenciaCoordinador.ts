@@ -4,11 +4,13 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { fechaLocal } from '@/lib/fecha'
+import { estadisticaJugador, eventosQueCuentan } from '@/lib/porcentajeAsistencia'
 
 export interface JugadorAsistencia {
   id: string
   nombre_completo: string
   porcentaje: number | null
+  // Eventos pasados (30 días) con fila del jugador, sin contar justificados.
   totalEventos: number
   totalPresentes: number
   ausenciasConsecutivas: boolean
@@ -79,7 +81,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
         .order('nombre_completo'),
       supabase
         .from('eventos')
-        .select('id')
+        .select('id, fecha, tipo')
         .eq('division_id', divisionId)
         .eq('cancelado', false)
         .gte('fecha', hace30Str)
@@ -95,29 +97,24 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     ])
 
     const jugadoresData = jgsRes.data ?? []
-    const eventoIds30 = (eventosRes.data ?? []).map(e => e.id)
+    // Eventos ya pasados (hoy no) y no actividades; por jugador sólo cuentan
+    // los que tienen fila suya (lib/porcentajeAsistencia.ts).
+    const cuentan = eventosQueCuentan(eventosRes.data ?? [], hoy)
+    const eventoIds30 = [...cuentan]
     const asistencias60 = asistencias60Res.data ?? []
 
     // Fetch asistencias for the 30-day events in one batch
-    let asistencias30: { jugador_id: string; estado: string }[] = []
+    let asistencias30: { jugador_id: string; evento_id: string; estado: string }[] = []
     if (eventoIds30.length > 0) {
       const { data } = await supabase
         .from('asistencias')
-        .select('jugador_id, estado')
+        .select('jugador_id, evento_id, estado')
         .in('evento_id', eventoIds30)
       asistencias30 = data ?? []
     }
 
-    const totalEventos = eventoIds30.length
-
     const jugadoresConStats: JugadorAsistencia[] = jugadoresData.map(j => {
-      const presentes = asistencias30.filter(
-        a => a.jugador_id === j.id && a.estado === 'presente',
-      ).length
-
-      const porcentaje = totalEventos > 0
-        ? Math.round((presentes / totalEventos) * 100)
-        : null
+      const { presentes, total: totalEventos, porcentaje } = estadisticaJugador(j.id, asistencias30, cuentan)
 
       // Consecutive ausencias: last 4 registered asistencias in last 60 days
       const ultimas4 = asistencias60.filter(a => a.jugador_id === j.id).slice(0, 4)

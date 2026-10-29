@@ -9,6 +9,7 @@ import {
   type EventoDivisionesRow,
 } from './useEventos'
 import { fechaLocal } from '@/lib/fecha'
+import { eventosQueCuentan, porcentajeDivision } from '@/lib/porcentajeAsistencia'
 
 export interface EventoSemana {
   id:             string
@@ -89,7 +90,7 @@ export function useDiarioCoordinador() {
           .gte('fecha', hoy()).lte('fecha', en7Dias())
           .eq('cancelado', false).order('fecha').order('hora', { nullsFirst: false }),
         supabase.from('eventos')
-          .select('id, division_id')
+          .select('id, division_id, fecha, tipo')
           .in('division_id', divIds)
           .gte('fecha', hace30Dias()).lte('fecha', hoy())
           .eq('cancelado', false)
@@ -151,11 +152,12 @@ export function useDiarioCoordinador() {
           eventosPorDiv.set(ev.division_id, arr)
         }
 
+        // Mismo % que Asistencia del coordinador: sin hoy y sin justificados.
+        const cuentan = eventosQueCuentan(eventos30Res.data ?? [], hoy())
+
         asistencias = divs.map(div => {
           const divAsists = asists.filter(a => a.division_id === div.id)
-          const total     = divAsists.length
-          const presentes = divAsists.filter(a => a.estado === 'presente').length
-          const pct       = total > 0 ? Math.round((presentes / total) * 100) : null
+          const pct       = porcentajeDivision(divAsists, cuentan)
 
           const ultimos4Ids = eventosPorDiv.get(div.id) ?? []
           const divJugs     = jugs.filter(j => j.division_id === div.id)
