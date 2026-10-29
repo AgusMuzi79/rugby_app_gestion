@@ -44,6 +44,8 @@ caso('ruta: grupo de rol → su sobre', () => {
   assert.equal(rutaPerfil(['(tutor)', 'cuotas']), '/(tutor)/sobre')
   assert.equal(rutaPerfil(['(cliente-gimnasio)', 'turnos']), '/(cliente-gimnasio)/sobre')
   assert.equal(rutaPerfil(['(subcomision)']), '/(subcomision)/sobre')
+  // T23: el colaborador sólo tiene Asistencia; Mi perfil se abre desde el avatar.
+  assert.equal(rutaPerfil(['(colaborador)', 'asistencia']), '/(colaborador)/sobre')
 })
 
 caso('ruta: fuera de un grupo de rol → null (sin avatar)', () => {

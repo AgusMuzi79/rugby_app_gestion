@@ -5,7 +5,7 @@
 // Grupos de rol con pantalla "sobre" (Mi perfil). (auth) e index no tienen.
 const GRUPOS_CON_PERFIL = new Set([
   '(socio)', '(tutor)', '(cliente-gimnasio)', '(admin)', '(coordinador)',
-  '(entrenador)', '(manager)', '(porteria)', '(secretaria)', '(subcomision)',
+  '(entrenador)', '(colaborador)', '(manager)', '(porteria)', '(secretaria)', '(subcomision)',
 ])
 
 // La URL firmada de socios-fotos dura 3600 s; se renueva antes.

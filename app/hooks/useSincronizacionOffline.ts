@@ -176,8 +176,8 @@ export function sincronizarCola(): Promise<void> {
   return enCurso
 }
 
-// Se monta en el layout de los roles que encolan (entrenador; portería, que
-// encola los escaneos sin conexión). `pendientes` cuenta
+// Se monta en el layout de los roles que encolan (entrenador y colaborador,
+// asistencia; portería, que encola los escaneos sin conexión). `pendientes` cuenta
 // también las lesiones guardadas, que quedan en la cola mientras el módulo
 // está oculto.
 export function useSincronizacionOffline() {

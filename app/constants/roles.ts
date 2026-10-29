@@ -2,6 +2,7 @@ export const ROLES = {
   SUBCOMISION: 'subcomision',
   COORDINADOR: 'coordinador',
   ENTRENADOR:  'entrenador',
+  COLABORADOR: 'colaborador',
   MANAGER:     'manager',
   ADMIN:       'admin',
   SECRETARIA:  'secretaria',
@@ -19,6 +20,7 @@ export const ROL_LABELS: Record<Rol, string> = {
   subcomision: 'Subcomisión',
   coordinador: 'Coordinador',
   entrenador:  'Entrenador',
+  colaborador: 'Colaborador',
   manager:     'Manager',
   admin:       'Admin',
   secretaria:  'Secretaría',
@@ -38,6 +40,8 @@ export const ROL_RUTA_INICIAL: Record<Rol, string> = {
   subcomision: '/(subcomision)/diario',
   coordinador: '/(coordinador)/diario',
   entrenador:  '/(entrenador)/diario',
+  // Only takes attendance (migration 20261105000000_rol_colaborador).
+  colaborador: '/(colaborador)/asistencia',
   manager:     '/(manager)/diario',
   // Own group since 2026-10-09: no player/attendance data, see (admin)/_layout.
   admin:       '/(admin)/usuarios',
