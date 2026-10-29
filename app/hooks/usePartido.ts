@@ -453,13 +453,17 @@ export function usePartido() {
     // Bloquear si equipo opcional y el obligatorio aún no tiene mesa
     const esObligatorio = equipoSeleccionado.id === equipoObligatorio.id
     if (!esInfantil && !esObligatorio) {
-      const { data: mesaOblig } = await supabase
+      const { data: mesaOblig, error: obligErr } = await supabase
         .from('mesas_de_partido')
         .select('id')
         .eq('evento_id', partidoSeleccionado.id)
         .eq('equipo_id', equipoObligatorio.id)
         .maybeSingle()
 
+      if (obligErr) {
+        setErrorMesa('No se pudo verificar la mesa de "' + equipoObligatorio.nombre + '": ' + obligErr.message)
+        return
+      }
       if (!mesaOblig) {
         setErrorMesa(
           `Completá primero la mesa de "${equipoObligatorio.nombre}" antes de guardar este equipo.`,
@@ -472,32 +476,18 @@ export function usePartido() {
     setGuardandoMesa(true)
     setErrorMesa(null)
 
-    const { data: mesa, error: mesaErr } = await supabase
-      .from('mesas_de_partido')
-      .upsert(
-        { evento_id: partidoSeleccionado.id, equipo_id: equipoSeleccionado.id },
-        { onConflict: 'evento_id,equipo_id' },
-      )
-      .select('id')
-      .single()
+    // Mesa + jugadores en una sola transacción (auditoría entrenador T15):
+    // si algo falla, la mesa anterior queda como estaba.
+    const { error: mesaErr } = await supabase.rpc('guardar_mesa', {
+      p_evento: partidoSeleccionado.id,
+      p_equipo: equipoSeleccionado.id,
+      p_jugadores: enMesa.map(j => ({ jugador_id: j.id, rol_en_mesa: j.rolEnMesa! })),
+    })
 
-    if (mesaErr || !mesa) {
-      setErrorMesa('Error al crear la mesa: ' + (mesaErr?.message ?? 'desconocido'))
+    if (mesaErr) {
+      setErrorMesa('Error al guardar la mesa: ' + mesaErr.message)
       setGuardandoMesa(false)
       return
-    }
-
-    await supabase.from('mesa_jugadores').delete().eq('mesa_id', mesa.id)
-
-    if (enMesa.length > 0) {
-      const { error: mjErr } = await supabase.from('mesa_jugadores').insert(
-        enMesa.map(j => ({ mesa_id: mesa.id, jugador_id: j.id, rol_en_mesa: j.rolEnMesa! })),
-      )
-      if (mjErr) {
-        setErrorMesa('Error al guardar jugadores: ' + mjErr.message)
-        setGuardandoMesa(false)
-        return
-      }
     }
 
     setMesaGuardada(true)

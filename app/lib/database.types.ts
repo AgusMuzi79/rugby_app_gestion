@@ -2563,6 +2563,10 @@ export type Database = {
           nuevo_jugador_id: string
         }[]
       }
+      guardar_mesa: {
+        Args: { p_equipo: string; p_evento: string; p_jugadores: Json }
+        Returns: string
+      }
       get_deporte_subcomision: { Args: never; Returns: string }
       get_rol: { Args: never; Returns: string }
       get_socio_id: { Args: never; Returns: string }
