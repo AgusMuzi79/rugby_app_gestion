@@ -21,6 +21,7 @@ import {
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 import { leerPedidoPartido, seccionarPartidos, DIAS_ATRAS_PARTIDOS, DIAS_ADELANTE_PARTIDOS } from '@/lib/partidosEntrenador'
 import { fechaLocal } from '@/lib/fecha'
 
@@ -64,6 +65,41 @@ function ConteoBar({ conteo }: { conteo: ConteoMesa }) {
   )
 }
 
+// ─── Resultado de un guardado ─────────────────────────────────────────────────
+
+// Error u "✓ … guardada" de cada paso, anunciado al lector de pantalla. La vista
+// queda montada aunque esté vacía: la live region de Android avisa al cambiar.
+function EstadoGuardado({ error, ok }: { error: string | null; ok: string | null }) {
+  useAnuncioAccesible(error ?? ok)
+  return (
+    <View accessibilityLiveRegion="polite">
+      {error ? (
+        <View style={s.bannerError}>
+          <Text style={s.bannerErrorTexto}>{error}</Text>
+        </View>
+      ) : ok ? (
+        <Text style={s.bannerOkTexto} accessibilityLabel={ok}>✓ {ok}</Text>
+      ) : null}
+    </View>
+  )
+}
+
+// ─── Botón volver ─────────────────────────────────────────────────────────────
+
+function BotonVolver({ texto, etiqueta, onPress }: { texto: string; etiqueta: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      style={s.volverBtn}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={etiqueta}
+    >
+      <Text style={s.volverTexto}>{texto}</Text>
+    </TouchableOpacity>
+  )
+}
+
 // ─── Fila asistencia (partido) ────────────────────────────────────────────────
 
 function FilaAsistencia({
@@ -80,11 +116,18 @@ function FilaAsistencia({
     <View style={s.fila}>
       <Text style={s.numero}>{numero}</Text>
       <Text style={s.nombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
-      <View style={s.badgesRow}>
+      <View
+        style={s.badgesRow}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={`Asistencia de ${jugador.nombre_completo}`}
+      >
         <TouchableOpacity
           style={[s.badge, jugador.presente ? s.badgePres : s.badgeInactivo]}
           onPress={() => { if (!jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: jugador.presente, checked: jugador.presente }}
+          accessibilityLabel={`Presente, ${jugador.nombre_completo}`}
         >
           <Text style={[s.badgeTexto, jugador.presente ? s.badgeTextoPres : s.badgeTextoInactivo]}>
             PRES
@@ -94,6 +137,9 @@ function FilaAsistencia({
           style={[s.badge, !jugador.presente ? s.badgeAus : s.badgeInactivo]}
           onPress={() => { if (jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: !jugador.presente, checked: !jugador.presente }}
+          accessibilityLabel={`Ausente, ${jugador.nombre_completo}`}
         >
           <Text style={[s.badgeTexto, !jugador.presente ? s.badgeTextoAus : s.badgeTextoInactivo]}>
             AUS
@@ -123,6 +169,9 @@ function FilaMesa({
         style={s.mesaCardDark}
         onPress={() => onAsignar(jugador.id, jugador.rolEnMesa!)}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`Sacar a ${jugador.nombre_completo} de la mesa`}
+        accessibilityHint={jugador.rolEnMesa === 'titular' ? 'Está de titular' : 'Está de suplente'}
       >
         <Text style={s.mesaNombreDark} numberOfLines={1}>{jugador.nombre_completo}</Text>
         <Text style={s.mesaQuitarTexto}>✕</Text>
@@ -139,6 +188,9 @@ function FilaMesa({
           onPress={() => onAsignar(jugador.id, 'titular')}
           disabled={titularLleno}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Poner a ${jugador.nombre_completo} de titular`}
+          accessibilityState={{ disabled: titularLleno }}
         >
           <Text style={[s.mesaRolBtnTxt, titularLleno && s.mesaRolBtnTxtOff]}>T</Text>
         </TouchableOpacity>
@@ -147,6 +199,9 @@ function FilaMesa({
           onPress={() => onAsignar(jugador.id, 'suplente')}
           disabled={suplenteLleno}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Poner a ${jugador.nombre_completo} de suplente`}
+          accessibilityState={{ disabled: suplenteLleno }}
         >
           <Text style={[s.mesaRolBtnTxt, suplenteLleno && s.mesaRolBtnTxtOff]}>S</Text>
         </TouchableOpacity>
@@ -214,8 +269,9 @@ function FilaPartido({
       style={[s.card, activo && s.cardActivo]}
       onPress={() => onSelect(p)}
       activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityState={{ selected: activo }}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: activo, checked: activo }}
+      accessibilityLabel={`Partido contra ${p.rival ?? 'rival por confirmar'}, ${formatFecha(p.fecha)}${p.lugar ? `, ${p.lugar}` : ''}`}
     >
       <View style={s.cardRow}>
         <View style={s.cardInfo}>
@@ -252,6 +308,8 @@ function SelectorDivision({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={s.divisionChips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(div => {
         const activo = div.id === divisionId
@@ -262,8 +320,9 @@ function SelectorDivision({
             onPress={() => onSeleccionar(div.id)}
             disabled={deshabilitado}
             activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activo, disabled: deshabilitado }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo, checked: activo, disabled: deshabilitado }}
+            accessibilityLabel={`División ${div.nombre}`}
           >
             <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
               {div.nombre.toUpperCase()}
@@ -295,7 +354,7 @@ function SelectorEquipos({
     return <Text style={s.emptyTexto}>Preparando equipos...</Text>
   }
   return (
-    <View style={s.gap8}>
+    <View style={s.gap8} accessibilityRole="radiogroup" accessibilityLabel="Equipo">
       {equipos.map(e => {
         const activo       = seleccionado?.id === e.id
         const esObligatorio = e.id === equipoObligatorio?.id
@@ -305,6 +364,9 @@ function SelectorEquipos({
             style={[s.card, activo && s.cardActivo]}
             onPress={() => onSelect(e)}
             activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo, checked: activo }}
+            accessibilityLabel={`${e.nombre}, ${esObligatorio ? 'obligatorio' : 'opcional'}`}
           >
             <View style={s.cardRow}>
               <Text style={[s.cardTitle, s.cardTitleFlex, activo && s.cardTitleActivo]}>
@@ -422,9 +484,7 @@ function PasoAsistencia({
 
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER" etiqueta="Volver a elegir partido y equipo" onPress={onVolver} />
 
       <View style={s.contadores}>
         <View style={[s.contadorBox, s.contadorBoxVerde]}>
@@ -447,14 +507,10 @@ function PasoAsistencia({
       ))}
 
       <View style={s.bloqueMt2}>
-        {errorAsistencia && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorAsistencia}</Text>
-          </View>
-        )}
-        {asistenciaGuardada && !guardandoAsistencia && esInfantil && (
-          <Text style={s.bannerOkTexto}>✓ Asistencia guardada</Text>
-        )}
+        <EstadoGuardado
+          error={errorAsistencia}
+          ok={asistenciaGuardada && !guardandoAsistencia && esInfantil ? 'Asistencia guardada' : null}
+        />
         <TouchableOpacity
           style={[s.botonPrimario, (!puedeGuardar || guardandoAsistencia) && s.botonOff]}
           onPress={onGuardar}
@@ -506,9 +562,7 @@ function PasoMesa({
 
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER A ASISTENCIA</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER A ASISTENCIA" etiqueta="Volver a asistencia" onPress={onVolver} />
 
       <View style={s.conteoRow}>
         <ConteoBar conteo={conteoMesa} />
@@ -580,14 +634,7 @@ function PasoMesa({
       )}
 
       <View style={s.bloqueMt3}>
-        {errorMesa && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorMesa}</Text>
-          </View>
-        )}
-        {mesaGuardada && !guardandoMesa && (
-          <Text style={s.bannerOkTexto}>✓ Mesa guardada</Text>
-        )}
+        <EstadoGuardado error={errorMesa} ok={mesaGuardada && !guardandoMesa ? 'Mesa guardada' : null} />
         <TouchableOpacity
           style={[s.botonGuardarMesa, guardandoMesa && s.botonOff]}
           onPress={onGuardar}
@@ -642,9 +689,7 @@ function PasoResultado({
 }) {
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER A MESA</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER A MESA" etiqueta="Volver a la mesa" onPress={onVolver} />
 
       <View style={s.bloque}>
         <View style={s.resultadoRow}>
@@ -654,6 +699,7 @@ function PasoResultado({
               style={s.inputNumero}
               value={puntosPropios}
               onChangeText={onChangePropios}
+              accessibilityLabel="Puntos nuestros"
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={MUTED}
@@ -667,6 +713,7 @@ function PasoResultado({
               style={[s.inputNumero, s.inputNumeroRight]}
               value={puntosRival}
               onChangeText={onChangeRival}
+              accessibilityLabel="Puntos del rival"
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={MUTED}
@@ -681,19 +728,16 @@ function PasoResultado({
             style={s.inputTexto}
             value={rivalNombre}
             onChangeText={onChangeRivalNombre}
+            accessibilityLabel="Nombre del rival"
             placeholder="Nombre del rival"
             placeholderTextColor={MUTED}
           />
         </View>
 
-        {errorResultado && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorResultado}</Text>
-          </View>
-        )}
-        {resultadoGuardado && !guardandoResultado && (
-          <Text style={s.bannerOkTexto}>✓ Resultado guardado</Text>
-        )}
+        <EstadoGuardado
+          error={errorResultado}
+          ok={resultadoGuardado && !guardandoResultado ? 'Resultado guardado' : null}
+        />
 
         <TouchableOpacity
           style={[s.botonPrimarioMt, guardandoResultado && s.botonOff]}

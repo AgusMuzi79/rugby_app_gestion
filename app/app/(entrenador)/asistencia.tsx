@@ -18,6 +18,7 @@ import { etiquetaEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamient
 import { nombresSinMarcar, textoSinMarcar } from '@/lib/marcadoAsistencia'
 import { horaGuardado } from '@/lib/plantelGuardado'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 
@@ -27,10 +28,11 @@ const VERDE  = '#4A7C59'
 const ROJO   = colors.rojoUrgente  // #C0392B
 const DORADO = colors.oro           // #E8B53C
 
-const BADGES: { key: EstadoAsistencia; label: string; bg: string; textColor: string }[] = [
-  { key: 'presente',    label: 'PRES', bg: VERDE,  textColor: '#FFFFFF' },
-  { key: 'ausente',     label: 'AUS',  bg: ROJO,   textColor: '#FFFFFF' },
-  { key: 'justificado', label: 'JUST', bg: DORADO,  textColor: '#000000' },
+// `nombre`: lo que lee el lector de pantalla ("Presente, Juan Pérez").
+const BADGES: { key: EstadoAsistencia; label: string; nombre: string; bg: string; textColor: string }[] = [
+  { key: 'presente',    label: 'PRES', nombre: 'Presente',    bg: VERDE,  textColor: '#FFFFFF' },
+  { key: 'ausente',     label: 'AUS',  nombre: 'Ausente',     bg: ROJO,   textColor: '#FFFFFF' },
+  { key: 'justificado', label: 'JUST', nombre: 'Justificado', bg: DORADO,  textColor: '#000000' },
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,6 +72,8 @@ function SelectorDivision({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={s.divisionChips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(div => {
         const activo = div.id === divisionId
@@ -79,6 +83,9 @@ function SelectorDivision({
             style={[s.divisionChip, activo && s.divisionChipActivo]}
             onPress={() => onSeleccionar(div.id)}
             activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo, checked: activo }}
+            accessibilityLabel={`División ${div.nombre}`}
           >
             <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
               {div.nombre.toUpperCase()}
@@ -106,6 +113,8 @@ function SelectorEntrenamiento({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={s.divisionChips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="Entrenamiento de hoy"
     >
       {entrenamientos.map((ev, i) => {
         const activo = ev.id === eventoId
@@ -117,7 +126,7 @@ function SelectorEntrenamiento({
             onPress={() => onSeleccionar(ev.id)}
             activeOpacity={0.8}
             accessibilityRole="radio"
-            accessibilityState={{ selected: activo }}
+            accessibilityState={{ selected: activo, checked: activo }}
             accessibilityLabel={`Entrenamiento ${etiqueta}`}
           >
             <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
@@ -151,7 +160,11 @@ function FilaJugador({
         <Text style={s.nombre} numberOfLines={1}>{item.nombre_completo}</Text>
         {conAlerta && <Text style={s.alertaInline}>⚠ 4 AUSENCIAS</Text>}
       </View>
-      <View style={s.badgesRow}>
+      <View
+        style={s.badgesRow}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={`Asistencia de ${item.nombre_completo}`}
+      >
         {BADGES.map(badge => {
           const activo = item.estado === badge.key
           return (
@@ -162,6 +175,9 @@ function FilaJugador({
               // Feedback háptico (Haptics.selectionAsync) cuando expo-haptics esté en el binario (Tanda 3, build nativo).
               onPress={() => onMarca(item.id, badge.key)}
               activeOpacity={0.75}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: activo, checked: activo }}
+              accessibilityLabel={`${badge.nombre}, ${item.nombre_completo}`}
             >
               <Text style={[s.badgeTexto, { color: activo ? badge.textColor : '#A09880' }]}>
                 {badge.label}
@@ -216,6 +232,24 @@ export default function AsistenciaScreen() {
   const todosMarcados = marcados === jugadores.length
   // GUARDAR no se puede tocar mientras guarda, carga o no hay lista.
   const guardarBloqueado = guardando || loading || !!errorCarga
+
+  // Resultado del último guardado: se ve abajo y se anuncia al lector de pantalla.
+  const estado: { tipo: 'error' | 'pendiente' | 'ok'; texto: string; anuncio: string } | null =
+    guardando ? null
+    : errorGuardado ? { tipo: 'error', texto: `✕ ${errorGuardado}`, anuncio: errorGuardado }
+    : !guardado ? null
+    : pendienteSync && pendientesCola > 0
+      ? {
+          tipo: 'pendiente',
+          texto: `⏳ Sin señal: guardada en el teléfono. Se envía sola cuando vuelva la conexión${pendientesCola > 1 ? ` (${pendientesCola} pendientes)` : ''}.`,
+          anuncio: 'Sin señal: asistencia guardada en el teléfono. Se envía sola cuando vuelva la conexión.',
+        }
+      : {
+          tipo: 'ok',
+          texto: `✓ Asistencia guardada — ${marcados}/${jugadores.length} marcados`,
+          anuncio: `Asistencia guardada, ${marcados} de ${jugadores.length} marcados`,
+        }
+  useAnuncioAccesible(estado?.anuncio ?? null)
 
   // Si queda alguien sin marcar, se avisa quiénes antes de guardar.
   function onGuardar() {
@@ -356,21 +390,17 @@ export default function AsistenciaScreen() {
       )}
 
       {/* ── Estado ─────────────────────────────────────────────────────────── */}
-      {(errorGuardado || (guardado && !guardando)) && (
-        <View style={s.statusBar}>
-          {errorGuardado && !guardando && (
-            <Text style={s.statusError}>✕ {errorGuardado}</Text>
-          )}
-          {guardado && !guardando && !errorGuardado && (
-            pendienteSync && pendientesCola > 0
-              ? <Text style={s.statusPendiente}>
-                  ⏳ Sin señal: guardada en el teléfono. Se envía sola cuando vuelva la conexión
-                  {pendientesCola > 1 ? ` (${pendientesCola} pendientes)` : ''}.
-                </Text>
-              : <Text style={s.statusOk}>✓ Asistencia guardada — {marcados}/{jugadores.length} marcados</Text>
-          )}
-        </View>
-      )}
+      {/* Siempre montada: la live region de Android sólo avisa cuando cambia. */}
+      <View style={estado ? s.statusBar : null} accessibilityLiveRegion="polite">
+        {estado && (
+          <Text
+            style={estado.tipo === 'error' ? s.statusError : estado.tipo === 'pendiente' ? s.statusPendiente : s.statusOk}
+            accessibilityLabel={estado.anuncio}
+          >
+            {estado.texto}
+          </Text>
+        )}
+      </View>
 
       {/* GUARDAR fijo abajo, al alcance del pulgar, con el avance de la lista. */}
       <View style={s.footer}>

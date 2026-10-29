@@ -42,7 +42,7 @@ function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
         <View style={styles.filaNombreRow}>
           <Text style={styles.nombreJugador} numberOfLines={1}>{nombre_completo}</Text>
           {ausenciasConsecutivas && (
-            <View style={styles.alerta}>
+            <View style={styles.alerta} accessible accessibilityLabel="4 ausencias seguidas">
               <Text style={styles.alertaTexto}>4 AUST.</Text>
             </View>
           )}
@@ -55,9 +55,9 @@ function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
       </View>
       <View style={styles.porcentajeContainer}>
         {porcentaje !== null ? (
-          <Text style={[styles.porcentaje, { color }]}>{porcentaje}%</Text>
+          <Text style={[styles.porcentaje, { color }]} accessibilityLabel={`${porcentaje} por ciento de asistencia`}>{porcentaje}%</Text>
         ) : (
-          <Text style={[styles.porcentaje, { color: MUTED }]}>—</Text>
+          <Text style={[styles.porcentaje, { color: MUTED }]} accessibilityLabel="Sin porcentaje">—</Text>
         )}
       </View>
     </View>
@@ -80,6 +80,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorD
       showsHorizontalScrollIndicator={false}
       style={styles.selectorScroll}
       contentContainerStyle={styles.selectorContent}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(d => (
         <TouchableOpacity
@@ -87,6 +89,9 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorD
           style={[styles.pill, d.id === seleccionada && styles.pillActiva]}
           onPress={() => onSeleccionar(d.id)}
           activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: d.id === seleccionada, checked: d.id === seleccionada }}
+          accessibilityLabel={`División ${d.nombre}`}
         >
           <Text style={[styles.pillTexto, d.id === seleccionada && styles.pillTextoActivo]}>
             {d.nombre}

@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useJugadoresDivision'
 import { useMoverJugador } from '@/hooks/useMoverJugador'
 import { ModalMoverJugador, etiquetaDivision } from '@/components/coordinador/ModalMoverJugador'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorP
       showsHorizontalScrollIndicator={false}
       style={s.selectorScroll}
       contentContainerStyle={s.selectorContent}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(d => {
         const activa = d.id === seleccionada
@@ -86,8 +89,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorP
             style={[s.pill, activa && s.pillActiva]}
             onPress={() => onSeleccionar(d.id)}
             activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activa }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activa, checked: activa }}
             accessibilityLabel={`Ver jugadores de ${etiquetaDivision(d)}`}
           >
             <Text style={[s.pillTexto, activa && s.pillTextoActivo]}>{etiquetaDivision(d)}</Text>
@@ -110,6 +113,7 @@ export default function JugadoresCoordinadorScreen() {
 
   const [jugadorAMover, setJugadorAMover] = useState<JugadorDivision | null>(null)
   const [exito, setExito] = useState<string | null>(null)
+  useAnuncioAccesible(exito)
 
   useEffect(() => {
     if (!exito) return
@@ -175,11 +179,14 @@ export default function JugadoresCoordinadorScreen() {
 
       <View style={s.divider} />
 
-      {exito && (
-        <View style={s.exitoBanner} accessibilityRole="alert">
-          <Text style={s.exitoTexto}>{exito}</Text>
-        </View>
-      )}
+      {/* Siempre montada: la live region de Android avisa cuando aparece el texto. */}
+      <View accessibilityLiveRegion="polite">
+        {exito && (
+          <View style={s.exitoBanner} accessibilityRole="alert">
+            <Text style={s.exitoTexto}>{exito}</Text>
+          </View>
+        )}
+      </View>
 
       {error && (
         <View style={s.errorBanner} accessibilityRole="alert">

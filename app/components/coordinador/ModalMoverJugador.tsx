@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import type { DivisionCoordinador, JugadorDivision } from '@/hooks/useJugadoresDivision'
 import { colors, fonts } from '@/constants/theme'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 
 // ─── Tokens (mismos que el resto de pantallas de coordinador) ────────────────
 
@@ -48,6 +49,7 @@ export function ModalMoverJugador({ jugador, origen, destinos, moviendo, error, 
 
   // Cada apertura arranca en el paso de elegir destino
   useEffect(() => { setDestino(null) }, [jugador?.id])
+  useAnuncioAccesible(jugador ? error : null)
 
   if (!jugador || !origen) return null
 
@@ -120,11 +122,14 @@ export function ModalMoverJugador({ jugador, origen, destinos, moviendo, error, 
             </>
           )}
 
-          {error && (
-            <View style={s.errorBanner} accessibilityRole="alert">
-              <Text style={s.errorTexto}>{error}</Text>
-            </View>
-          )}
+          {/* Siempre montada: la live region de Android avisa cuando aparece el error. */}
+          <View accessibilityLiveRegion="polite">
+            {error && (
+              <View style={s.errorBanner} accessibilityRole="alert">
+                <Text style={s.errorTexto}>{error}</Text>
+              </View>
+            )}
+          </View>
         </ScrollView>
 
         {destino && (

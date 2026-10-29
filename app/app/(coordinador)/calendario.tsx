@@ -11,6 +11,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  AccessibilityInfo,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import {
@@ -19,6 +20,7 @@ import {
 } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 import { etiquetaEvento, letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 import { fechaLocal } from '@/lib/fecha'
@@ -67,7 +69,7 @@ function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancel
 
   return (
     <View style={[styles.fila, pasado && styles.filaPasada]}>
-      <View style={[styles.tipoBadge, badge]}>
+      <View style={[styles.tipoBadge, badge]} accessible accessibilityLabel={etiquetaEvento({ tipo: evento.tipo })}>
         <Text style={[styles.tipoBadgeTexto, evento.tipo === 'actividad' && styles.tipoBadgeTextoActividad, evento.tipo === 'partido' && styles.tipoBadgeTextoPartido]}>
           {letraEvento(evento.tipo)}
         </Text>
@@ -88,10 +90,33 @@ function FilaEvento({ evento, onCancelar }: { evento: EventoCalendario; onCancel
         <Text style={styles.eventoDiv}>{evento.division_nombre}</Text>
       </View>
       {!pasado && onCancelar && (
-        <TouchableOpacity onPress={() => onCancelar(evento)} activeOpacity={0.7} style={styles.cancelarBtn}>
+        <TouchableOpacity
+          onPress={() => onCancelar(evento)}
+          activeOpacity={0.7}
+          style={styles.cancelarBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Cancelar ${tituloEvento(evento, 'partido ')} del ${fechaCorta(evento.fecha)}, ${evento.division_nombre}`}
+        >
           <Text style={styles.cancelarBtnTexto}>✕</Text>
         </TouchableOpacity>
       )}
+    </View>
+  )
+}
+
+// ─── BannerError ──────────────────────────────────────────────────────────────
+
+// Error al guardar o cancelar, anunciado al lector de pantalla. Queda montado
+// aunque esté vacío: la live region de Android avisa al cambiar.
+function BannerError({ mensaje }: { mensaje: string | null }) {
+  useAnuncioAccesible(mensaje)
+  return (
+    <View accessibilityLiveRegion="polite">
+      {mensaje ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorTexto}>{mensaje}</Text>
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -142,7 +167,13 @@ function ModalNuevoEvento({
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitulo}>Nuevo evento</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={styles.modalCerrarBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar sin crear el evento"
+            >
               <Text style={styles.modalCerrar}>Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -150,13 +181,16 @@ function ModalNuevoEvento({
           <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.modalBody}>
             {/* Tipo */}
             <Text style={styles.inputLabel}>TIPO</Text>
-            <View style={styles.tipoRow}>
+            <View style={styles.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Tipo de evento">
               {(['entrenamiento', 'partido', 'actividad'] as TipoEvento[]).map(t => (
                 <TouchableOpacity
                   key={t}
                   style={[styles.tipoBoton, form.tipo === t && styles.tipoBotonActivo]}
                   onPress={() => cambiarTipo(t)}
                   activeOpacity={0.8}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: form.tipo === t, checked: form.tipo === t }}
+                  accessibilityLabel={etiquetaEvento({ tipo: t })}
                 >
                   <Text
                     style={[styles.tipoBotonTexto, form.tipo === t && styles.tipoBotonTextoActivo]}
@@ -202,6 +236,7 @@ function ModalNuevoEvento({
                           activeOpacity={0.8}
                           accessibilityRole="checkbox"
                           accessibilityState={{ checked: activa }}
+                          accessibilityLabel={`División ${d.nombre}`}
                         >
                           <Text style={[styles.divPillTexto, activa && styles.divPillTextoActivo]}>
                             {d.nombre}
@@ -258,13 +293,15 @@ function ModalNuevoEvento({
             {form.tipo === 'partido' && esTenis && (
               <>
                 <Text style={styles.inputLabel}>MODALIDAD</Text>
-                <View style={styles.tipoRow}>
+                <View style={styles.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Modalidad">
                   {(['singles', 'dobles'] as ModalidadPartido[]).map(m => (
                     <TouchableOpacity
                       key={m}
                       style={[styles.tipoBoton, form.modalidad === m && styles.tipoBotonActivo]}
                       onPress={() => setForm({ ...form, modalidad: m })}
                       activeOpacity={0.8}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: form.modalidad === m, checked: form.modalidad === m }}
                     >
                       <Text style={[styles.tipoBotonTexto, form.modalidad === m && styles.tipoBotonTextoActivo]}>
                         {m.charAt(0).toUpperCase() + m.slice(1)}
@@ -275,11 +312,7 @@ function ModalNuevoEvento({
               </>
             )}
 
-            {errorGuardado && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorTexto}>{errorGuardado}</Text>
-              </View>
-            )}
+            <BannerError mensaje={errorGuardado} />
           </ScrollView>
 
           <View style={styles.modalFooter}>
@@ -329,7 +362,13 @@ function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCa
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitulo}>Cancelar evento</Text>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={onClose}
+              activeOpacity={0.7}
+              style={styles.modalCerrarBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Volver sin cancelar el evento"
+            >
               <Text style={styles.modalCerrar}>Volver</Text>
             </TouchableOpacity>
           </View>
@@ -360,11 +399,7 @@ function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCa
               Se publicará automáticamente una noticia y se enviará un push a los jugadores del plantel que estén registrados como socios.
             </Text>
 
-            {errorCancelacion && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorTexto}>{errorCancelacion}</Text>
-              </View>
-            )}
+            <BannerError mensaje={errorCancelacion} />
           </ScrollView>
 
           <View style={styles.modalFooter}>
@@ -401,7 +436,10 @@ export default function CalendarioScreen() {
   function abrirModal() { resetForm(); setModalVisible(true) }
   async function handleGuardar() {
     const ok = await crearEvento()
-    if (ok) setModalVisible(false)
+    if (!ok) return
+    setModalVisible(false)
+    // El modal se cierra: sin esto el lector de pantalla no se entera de que salió bien.
+    AccessibilityInfo.announceForAccessibility(form.division_ids.length > 1 ? 'Eventos creados' : 'Evento creado')
   }
   async function handleConfirmarCancelacion(mensaje: string) {
     if (!eventoCancelar) return
@@ -414,7 +452,9 @@ export default function CalendarioScreen() {
       eventoCancelar.fecha,
       mensaje,
     )
-    if (ok) setEventoCancelar(null)
+    if (!ok) return
+    setEventoCancelar(null)
+    AccessibilityInfo.announceForAccessibility('Evento cancelado')
   }
 
   if (loading) {
@@ -449,7 +489,13 @@ export default function CalendarioScreen() {
         <Text style={styles.labelHeader}>COORDINADOR</Text>
         <View style={styles.headerRow}>
           <Text style={styles.titulo}>Calendario</Text>
-          <TouchableOpacity style={styles.botonNuevo} onPress={abrirModal} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.botonNuevo}
+            onPress={abrirModal}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Nuevo evento"
+          >
             <Text style={styles.botonNuevoTexto}>+ Nuevo</Text>
           </TouchableOpacity>
         </View>
@@ -471,7 +517,13 @@ export default function CalendarioScreen() {
         ListEmptyComponent={errorCarga ? null : (
           <View style={styles.emptyWrap}>
             <Text style={styles.mutedTexto}>No hay eventos en los próximos 60 días.</Text>
-            <TouchableOpacity onPress={abrirModal} activeOpacity={0.8} style={styles.crearPrimeroBtn}>
+            <TouchableOpacity
+              onPress={abrirModal}
+              activeOpacity={0.8}
+              style={styles.crearPrimeroBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Crear el primer evento"
+            >
               <Text style={styles.crearPrimeroTexto}>Crear el primero</Text>
             </TouchableOpacity>
           </View>
@@ -549,6 +601,7 @@ const styles = StyleSheet.create({
   modalContainer:  { flex: 1, backgroundColor: FONDO },
   modalHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: DIVIDER },
   modalTitulo:     { fontFamily: fonts.titulo, fontSize: 19, color: TEXTO },
+  modalCerrarBtn:  { justifyContent: 'center' },
   modalCerrar:     { fontFamily: fonts.cuerpo, fontSize: 16, color: MUTED },
   modalBody:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   modalFooter:     { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER },
