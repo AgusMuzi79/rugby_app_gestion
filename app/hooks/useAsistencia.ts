@@ -13,6 +13,7 @@ import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
 import { marcarTodosPresentes } from '@/lib/marcadoAsistencia'
 import { claveDivisiones, clavePlantel, leerGuardado, resolverCarga, serializarGuardado } from '@/lib/plantelGuardado'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { mensajeError } from '@/lib/mensajeError'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
@@ -390,7 +391,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     const evento = eventoId ? { id: eventoId, error: null } : await obtenerOCrearEvento(divisionId)
     if (!evento.id) {
       if (esErrorDeRed(evento.error)) return guardarEnTelefono()
-      setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
+      console.warn('crear entrenamiento:', evento.error)
+      setErrorGuardado(mensajeError(evento.error, 'No se pudo crear el entrenamiento de hoy. Probá de nuevo.'))
       setGuardando(false)
       return false
     }
@@ -417,7 +419,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
         .upsert(asistencias, { onConflict: 'evento_id,jugador_id' })
       if (asistError) {
         if (esErrorDeRed(asistError)) return guardarEnTelefono()
-        setErrorGuardado('Error al guardar asistencias: ' + asistError.message)
+        console.warn('guardar asistencias:', asistError)
+        setErrorGuardado(mensajeError(asistError, 'No se pudo guardar la asistencia. Probá de nuevo.'))
         setGuardando(false)
         return false
       }

@@ -13,6 +13,7 @@ import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 import { sincronizarEquipos, type AccesoEquipos, type Equipo } from '@/lib/equiposPartido'
 import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { mensajeError } from '@/lib/mensajeError'
 
 export type { Equipo } from '@/lib/equiposPartido'
 
@@ -540,7 +541,8 @@ export function usePartido(pedido: PedidoPartido = {}) {
         .from('asistencias')
         .upsert(payload, { onConflict: 'evento_id,jugador_id' })
       if (error && !esErrorDeRed(error)) {
-        setErrorAsistencia('Error al guardar: ' + error.message)
+        console.warn('asistencia partido:', error)
+        setErrorAsistencia(mensajeError(error, 'No se pudo guardar la asistencia. Probá de nuevo.'))
         setGuardandoAsistencia(false)
         return
       }
@@ -608,7 +610,8 @@ export function usePartido(pedido: PedidoPartido = {}) {
         .maybeSingle()
 
       if (obligErr) {
-        setErrorMesa('No se pudo verificar la mesa de "' + equipoObligatorio.nombre + '": ' + obligErr.message)
+        console.warn('verificar mesa obligatoria:', obligErr)
+        setErrorMesa(mensajeError(obligErr, `No se pudo verificar la mesa de "${equipoObligatorio.nombre}". Probá de nuevo.`))
         return
       }
       if (!mesaOblig) {
@@ -632,7 +635,12 @@ export function usePartido(pedido: PedidoPartido = {}) {
     })
 
     if (mesaErr) {
-      setErrorMesa('Error al guardar la mesa: ' + mesaErr.message)
+      console.warn('guardar mesa:', mesaErr)
+      // guardar_mesa: 23505 = jugador repetido, 22023 = equipo de otra división.
+      setErrorMesa(mensajeError(mesaErr, 'No se pudo guardar la mesa. Probá de nuevo.', {
+        duplicado: 'Hay un jugador repetido en la mesa.',
+        invalido:  'Ese equipo no es de esta división. Recargá la pantalla.',
+      }))
       setGuardandoMesa(false)
       return
     }
@@ -674,7 +682,8 @@ export function usePartido(pedido: PedidoPartido = {}) {
       )
 
     if (error) {
-      setErrorResultado('Error al guardar: ' + error.message)
+      console.warn('guardar resultado:', error)
+      setErrorResultado(mensajeError(error, 'No se pudo guardar el resultado. Probá de nuevo.'))
       setGuardandoResultado(false)
       return
     }

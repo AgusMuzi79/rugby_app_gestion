@@ -6,6 +6,7 @@ import { useEstadoCarga } from './useEstadoCarga'
 import { tituloActividadValido, tituloCancelacion, type TipoEventoCalendario } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { mensajeError } from '@/lib/mensajeError'
 
 export type TipoEvento = TipoEventoCalendario
 export type ModalidadPartido = 'singles' | 'dobles'
@@ -265,8 +266,10 @@ export function useCalendario(): UseCalendarioReturn {
     setGuardando(false)
 
     if (error) {
-      console.log('[calendario] Error al crear evento:', error.message)
-      setErrorGuardado(error.message)
+      console.warn('[calendario] Error al crear evento:', error)
+      setErrorGuardado(mensajeError(error, 'No se pudo crear el evento. Probá de nuevo.', {
+        invalido: 'Revisá la fecha, la hora y los datos del evento.',
+      }))
       return false
     }
 
@@ -295,7 +298,8 @@ export function useCalendario(): UseCalendarioReturn {
       .eq('id', id)
 
     if (cancelErr) {
-      setErrorCancelacion('Error al cancelar: ' + cancelErr.message)
+      console.warn('[calendario] Error al cancelar evento:', cancelErr)
+      setErrorCancelacion(mensajeError(cancelErr, 'No se pudo cancelar el evento. Probá de nuevo.'))
       setCancelando(false)
       return false
     }
