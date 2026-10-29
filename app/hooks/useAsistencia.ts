@@ -7,6 +7,8 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 import { fechaLocal } from '@/lib/fecha'
 import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
+import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
 
@@ -14,6 +16,8 @@ export interface JugadorConEstado {
   id: string
   nombre_completo: string
   estado: EstadoAsistencia | null
+  // Lo guardado (en la base o en la cola): distinto de `estado` = sin guardar.
+  estadoGuardado: EstadoAsistencia | null
 }
 
 export interface DivisionOpcion {
@@ -35,6 +39,7 @@ export interface UseAsistenciaReturn {
   divisionNombre: string
   sinDivision: boolean
   marcados: number
+  sinGuardar: number
   // Entrenamientos de hoy de la división (doble turno: más de uno) y el elegido.
   // eventoId null = no hay ninguno hoy: se crea al guardar.
   entrenamientos: EntrenamientoHoy[]
@@ -42,7 +47,8 @@ export interface UseAsistenciaReturn {
   seleccionarDivision: (id: string) => void
   seleccionarEntrenamiento: (id: string) => void
   marcarEstado: (jugadorId: string, estado: EstadoAsistencia) => void
-  guardarAsistencia: () => Promise<void>
+  // true si quedó guardada (en la base o en el teléfono).
+  guardarAsistencia: () => Promise<boolean>
 }
 
 // Lo que llega desde el Inicio ("TOMAR ASISTENCIA" del entrenamiento de hoy).
@@ -79,6 +85,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
 
   const fecha = fechaLocal()
   const marcados = jugadores.filter(j => j.estado !== null).length
+  const sinGuardar = cantidadSinGuardar(jugadores)
   const divisionNombre = divisiones.find(d => d.id === divisionId)?.nombre ?? ''
 
   // Divisiones asignadas al entrenador — puede tener más de una.
@@ -129,13 +136,17 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       eventoPedido.current = pedido.eventoId ?? null
       return
     }
-    if (pedido.divisionId && pedido.divisionId !== divisionId && divisiones.some(d => d.id === pedido.divisionId)) {
-      eventoPedido.current = pedido.eventoId ?? null
-      setDivisionId(pedido.divisionId)
+    const divPedida = pedido.divisionId
+    if (divPedida && divPedida !== divisionId && divisiones.some(d => d.id === divPedida)) {
+      cambiarSinPerderMarcas(() => {
+        eventoPedido.current = pedido.eventoId ?? null
+        setDivisionId(divPedida)
+      })
       return
     }
-    if (pedido.eventoId && pedido.eventoId !== eventoId && entrenamientos.some(e => e.id === pedido.eventoId)) {
-      void cargarMarcas(pedido.eventoId)
+    const evPedido = pedido.eventoId
+    if (evPedido && evPedido !== eventoId && entrenamientos.some(e => e.id === evPedido)) {
+      cambiarSinPerderMarcas(() => { void cargarMarcas(evPedido) })
     }
   }, [pedido.eventoId, pedido.divisionId])
 
@@ -195,6 +206,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       id: j.id,
       nombre_completo: j.nombre_completo,
       estado: estadoMap[j.id] ?? null,
+      estadoGuardado: estadoMap[j.id] ?? null,
     })))
     setLoading(false)
   }
@@ -209,18 +221,30 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     const estadoMap = await leerMarcas(evId)
     if (lectura !== ultimaLectura.current) return
     setEventoId(evId)
-    setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null })))
+    setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null, estadoGuardado: estadoMap[j.id] ?? null })))
     setLoading(false)
+  }
+
+  // Cambiar de división o de turno recarga la lista: con marcas sin guardar,
+  // primero se pregunta (antes se perdían sin aviso).
+  function cambiarSinPerderMarcas(cambiar: () => void) {
+    if (sinGuardar === 0) { cambiar(); return }
+    const donde = [divisionNombre, entrenamientos.length > 1 ? 'este turno' : ''].filter(Boolean).join(', ')
+    confirmarDescarte({
+      mensaje: textoSinGuardar(sinGuardar, donde),
+      onGuardar: () => { void guardarAsistencia().then(ok => { if (ok) cambiar() }) },
+      onDescartar: cambiar,
+    })
   }
 
   function seleccionarDivision(id: string) {
     if (id === divisionId) return
-    setDivisionId(id)
+    cambiarSinPerderMarcas(() => setDivisionId(id))
   }
 
   function seleccionarEntrenamiento(id: string) {
     if (id === eventoId) return
-    void cargarMarcas(id)
+    cambiarSinPerderMarcas(() => { void cargarMarcas(id) })
   }
 
   function marcarEstado(jugadorId: string, estado: EstadoAsistencia) {
@@ -228,16 +252,23 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setJugadores(prev => prev.map(j => (j.id === jugadorId ? { ...j, estado } : j)))
   }
 
-  async function guardarAsistencia() {
-    if (!session || !divisionId) return
+  async function guardarAsistencia(): Promise<boolean> {
+    if (!session || !divisionId) return false
     setGuardando(true)
     setPendienteSync(false)
     setAlertas([])
     setErrorGuardado(null)
 
+    // Lo que se manda: al terminar bien queda como "guardado" (sin cambios).
+    const enviadas: Record<string, EstadoAsistencia> = {}
+    jugadores.forEach(j => { if (j.estado !== null) enviadas[j.id] = j.estado })
+    const marcarGuardadas = () => setJugadores(prev => prev.map(j => (
+      enviadas[j.id] ? { ...j, estadoGuardado: enviadas[j.id] } : j
+    )))
+
     // Sin señal (o si la red se cae a mitad): queda en el teléfono y
     // useSincronizacionOffline la manda cuando vuelve la conexión.
-    const guardarEnTelefono = async () => {
+    const guardarEnTelefono = async (): Promise<boolean> => {
       await encolar({
         tipo: 'asistencia',
         payload: {
@@ -253,20 +284,22 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
         },
       })
       await actualizarPendientes()
+      marcarGuardadas()
       setPendienteSync(true)
       setGuardado(true)
       setGuardando(false)
+      return true
     }
 
     const { isConnected } = await NetInfo.fetch()
-    if (!isConnected) { await guardarEnTelefono(); return }
+    if (!isConnected) return guardarEnTelefono()
 
     const evento = eventoId ? { id: eventoId, error: null } : await obtenerOCrearEvento(divisionId)
     if (!evento.id) {
-      if (esErrorDeRed(evento.error)) { await guardarEnTelefono(); return }
+      if (esErrorDeRed(evento.error)) return guardarEnTelefono()
       setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
       setGuardando(false)
-      return
+      return false
     }
     const eventoGuardado = evento.id
     if (!eventoId) {
@@ -290,13 +323,14 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
         .from('asistencias')
         .upsert(asistencias, { onConflict: 'evento_id,jugador_id' })
       if (asistError) {
-        if (esErrorDeRed(asistError)) { await guardarEnTelefono(); return }
+        if (esErrorDeRed(asistError)) return guardarEnTelefono()
         setErrorGuardado('Error al guardar asistencias: ' + asistError.message)
         setGuardando(false)
-        return
+        return false
       }
     }
 
+    marcarGuardadas()
     await verificarAusenciasConsecutivas(divisionId)
     // Si había una de esta división y fecha que no se pudo enviar, esta la
     // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
@@ -308,6 +342,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     }
     setGuardado(true)
     setGuardando(false)
+    return true
   }
 
   // Sin entrenamiento hoy al abrir: el primero que haya aparecido (mismo criterio
@@ -387,6 +422,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     divisionNombre,
     sinDivision,
     marcados,
+    sinGuardar,
     entrenamientos,
     eventoId,
     seleccionarDivision,

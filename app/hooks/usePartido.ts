@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
@@ -8,6 +8,8 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 import { fechaLocal, fechaLocalMasDias } from '@/lib/fecha'
 import { useEstadoCarga } from './useEstadoCarga'
+import { presenciasSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type RolEnMesa = 'titular' | 'suplente'
 export type Paso = 'equipo' | 'asistencia' | 'mesa' | 'resultado'
@@ -89,6 +91,8 @@ export function usePartido() {
   const [guardandoAsistencia, setGuardandoAsistencia] = useState(false)
   const [asistenciaGuardada, setAsistenciaGuardada] = useState(false)
   const [errorAsistencia, setErrorAsistencia] = useState<string | null>(null)
+  // Presentes según lo último cargado o guardado del partido (T3).
+  const presenciaGuardada = useRef<Record<string, boolean>>({})
 
   const [guardandoMesa, setGuardandoMesa] = useState(false)
   const [mesaGuardada, setMesaGuardada] = useState(false)
@@ -252,7 +256,20 @@ export function usePartido() {
     setErrorResultado(null)
   }
 
+  // Cambiar de partido vuelve a todos a presentes: con marcas sin guardar,
+  // primero se pregunta (auditoría entrenador T3). Sin "Guardar y cambiar":
+  // guardar acá también avanza al paso de la mesa.
   function seleccionarPartido(partido: PartidoEvento) {
+    const sinGuardar = partidoSeleccionado ? presenciasSinGuardar(jugadores, presenciaGuardada.current) : 0
+    if (sinGuardar === 0) { aplicarPartido(partido); return }
+    confirmarDescarte({
+      mensaje: textoSinGuardar(sinGuardar, partidoSeleccionado?.rival ? `el partido vs ${partidoSeleccionado.rival}` : 'este partido'),
+      onDescartar: () => aplicarPartido(partido),
+    })
+  }
+
+  function aplicarPartido(partido: PartidoEvento) {
+    presenciaGuardada.current = {}
     setPartidoSeleccionado(partido)
     setAsistenciaGuardada(false)
     setMesaGuardada(false)
@@ -294,6 +311,7 @@ export function usePartido() {
       reset.forEach(j => { if (j.id in mapa) j.presente = mapa[j.id] })
       setAsistenciaGuardada(true)
     }
+    presenciaGuardada.current = Object.fromEntries(reset.map(j => [j.id, j.presente]))
 
     if (mesaRes.data) {
       type MJ = { jugador_id: string; rol_en_mesa: string }
@@ -399,6 +417,7 @@ export function usePartido() {
       await actualizarPendientes()
     }
 
+    presenciaGuardada.current = Object.fromEntries(jugadores.map(j => [j.id, j.presente]))
     setAsistenciaGuardada(true)
     setGuardandoAsistencia(false)
     if (!esInfantil) setPaso('mesa')
