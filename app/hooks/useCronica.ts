@@ -4,56 +4,27 @@ import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { FEATURES } from '@/constants/features'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import {
+  alcanceCronica, tiposNotificacion, ordenarFeed,
+  itemLesion, itemFichaje, itemResultado, itemNotificacion,
+  type FilaLesion, type FilaFichaje, type FilaResultado, type FilaNotificacion,
+} from '@/lib/cronica'
 
-export type FeedTipo = 'LESIÓN' | 'ASISTENCIA' | 'FICHAJE' | 'RESULTADO' | 'INFO'
-
-export interface FeedItem {
-  id:        string
-  tipo:      FeedTipo
-  titulo:    string
-  desc:      string
-  autor:     string
-  createdAt: string
-  urgente:   boolean
-  route:     string | null
-  // Full message for INFO rows (desc is truncated to a preview); null otherwise.
-  mensaje:   string | null
-}
+export type { FeedItem, FeedTipo } from '@/lib/cronica'
 
 function hace7Dias() {
   const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString()
 }
 
-function routeForTipo(tipo: FeedTipo, rol: string): string | null {
-  switch (tipo) {
-    case 'LESIÓN':     return rol === 'entrenador' ? '/(entrenador)/lesiones' : null
-    case 'FICHAJE':    return rol === 'manager'    ? '/(manager)/fichajes'    : null
-    case 'RESULTADO':  return rol === 'entrenador' ? '/(entrenador)/partido'  : null
-    case 'ASISTENCIA': return rol === 'coordinador'? '/(coordinador)/asistencia' : null
-    default:           return null
-  }
-}
-
-type LesionRow = {
-  id: string; created_at: string; grado: number; descripcion: string | null
-  division_id: string
-  jugadores:  { nombre_completo: string } | null
-  divisiones: { nombre: string } | null
-}
-type JugadorRow = {
-  id: string; nombre_completo: string; division_id: string; created_at: string
-  divisiones: { nombre: string } | null
-}
-type ResultadoRow = {
-  id: string; created_at: string; evento_id: string
-  eventos: { rival: string | null; division_id: string; divisiones: { nombre: string } | null } | null
-}
-type NotifRow = { id: string; titulo: string; mensaje: string; tipo: string; created_at: string }
+type Respuesta = { data: unknown[] | null; error: unknown }
+const VACIA: Respuesta = { data: [], error: null }
 
 export function useCronica() {
   const { session, rol } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
-  const [items, setItems]     = useState<FeedItem[]>([])
+  const [items, setItems]           = useState<ReturnType<typeof ordenarFeed>>([])
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session && rol) void fetchTodo() }, [session, rol])
   useRefreshOnFocus(fetchTodo)
@@ -61,117 +32,76 @@ export function useCronica() {
   async function fetchTodo() {
     if (!session || !rol) return
     empezar()
-
     try {
-      const { data: profile } = await supabase
-        .from('profiles').select('divisiones').eq('id', session.user.id).single()
-
-      const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
-      const divId            = divIds[0] ?? null
-      const isSubcomision    = ['subcomision', 'admin'].includes(rol)
-
-      // ─ Build queries ─
-      let lesionesQ = supabase.from('lesiones')
-        .select('id, created_at, grado, descripcion, division_id, jugadores(nombre_completo), divisiones(nombre)')
-        .gte('created_at', hace7Dias())
-        .order('created_at', { ascending: false }).limit(10)
-
-      let fichajesQ = supabase.from('jugadores')
-        .select('id, nombre_completo, division_id, created_at, divisiones(nombre)')
-        .gte('created_at', hace7Dias())
-        .order('created_at', { ascending: false }).limit(5)
-
-      const resultadosQ = supabase.from('resultados')
-        .select('id, created_at, evento_id, eventos(rival, division_id, divisiones(nombre))')
-        .gte('created_at', hace7Dias())
-        .order('created_at', { ascending: false }).limit(5)
-
-      const notifQ = supabase.from('notificaciones')
-        .select('id, titulo, mensaje, tipo, created_at')
-        .gte('created_at', hace7Dias())
-        .in('tipo', isSubcomision ? ['ausencias_consecutivas', 'manual'] : ['ausencias_consecutivas'])
-        .order('created_at', { ascending: false }).limit(5)
-
-      if (!isSubcomision && divId) {
-        lesionesQ = lesionesQ.eq('division_id', divId)
-        fichajesQ = fichajesQ.eq('division_id', divId)
-      }
-
-      // Módulo de lesiones oculto (FEATURES.lesiones): ni se consulta la tabla.
-      const [lesionesRes, fichajesRes, resultadosRes, notifRes] = await Promise.all([
-        FEATURES.lesiones ? lesionesQ : Promise.resolve({ data: [] }),
-        fichajesQ, resultadosQ, notifQ,
-      ])
-
-      // Lesiones
-      const lesionItems: FeedItem[] = ((lesionesRes.data ?? []) as unknown as LesionRow[]).map(row => ({
-        id:        `lesion-${row.id}`,
-        tipo:      'LESIÓN',
-        titulo:    `Lesión grado ${row.grado} — ${row.jugadores?.nombre_completo ?? 'Jugador'}`,
-        desc:      [row.divisiones?.nombre, row.descripcion].filter(Boolean).join(' · '),
-        autor:     `POR SISTEMA · ${row.divisiones?.nombre ?? '—'}`,
-        createdAt: row.created_at,
-        urgente:   row.grado >= 3,
-        route:     routeForTipo('LESIÓN', rol),
-        mensaje:   null,
-      }))
-
-      // Fichajes
-      const fichajeItems: FeedItem[] = ((fichajesRes.data ?? []) as unknown as JugadorRow[]).map(row => ({
-        id:        `fichaje-${row.id}`,
-        tipo:      'FICHAJE',
-        titulo:    `Nuevo fichaje — ${row.nombre_completo}`,
-        desc:      row.divisiones?.nombre ?? '',
-        autor:     `POR SISTEMA · ${row.divisiones?.nombre ?? '—'}`,
-        createdAt: row.created_at,
-        urgente:   false,
-        route:     routeForTipo('FICHAJE', rol),
-        mensaje:   null,
-      }))
-
-      // Resultados — filtrar por división client-side para no-subcomision
-      let resultadosData = (resultadosRes.data ?? []) as unknown as ResultadoRow[]
-      if (!isSubcomision && divId) {
-        resultadosData = resultadosData.filter(r => r.eventos?.division_id === divId)
-      }
-      const resultadoItems: FeedItem[] = resultadosData.map(row => ({
-        id:        `resultado-${row.id}`,
-        tipo:      'RESULTADO',
-        titulo:    row.eventos?.rival
-          ? `Resultado registrado — vs ${row.eventos.rival}`
-          : 'Resultado registrado',
-        desc:      row.eventos?.divisiones?.nombre ?? '',
-        autor:     `POR SISTEMA · ${row.eventos?.divisiones?.nombre ?? '—'}`,
-        createdAt: row.created_at,
-        urgente:   false,
-        route:     routeForTipo('RESULTADO', rol),
-        mensaje:   null,
-      }))
-
-      // Notificaciones
-      const notifItems: FeedItem[] = ((notifRes.data ?? []) as NotifRow[]).map(row => {
-        const feedTipo: FeedTipo = row.tipo === 'ausencias_consecutivas' ? 'ASISTENCIA' : 'INFO'
-        return {
-          id:        `notif-${row.id}`,
-          tipo:      feedTipo,
-          titulo:    row.titulo,
-          desc:      row.mensaje.length > 80 ? row.mensaje.slice(0, 80) + '…' : row.mensaje,
-          autor:     feedTipo === 'INFO' ? 'POR SUBCOMISIÓN' : 'POR SISTEMA',
-          createdAt: row.created_at,
-          urgente:   false,
-          route:     routeForTipo(feedTipo, rol),
-          mensaje:   feedTipo === 'INFO' ? row.mensaje : null,
-        }
-      })
-
-      const all = [...lesionItems, ...fichajeItems, ...resultadoItems, ...notifItems]
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-      setItems(all)
-    } catch { /* keep defaults */ }
-
+      await cargar(session.user.id, rol)
+    } catch (err) {
+      // Un fallo no es "sin novedades": se muestra el error y, si había una
+      // lista de antes, queda debajo.
+      setErrorCarga(mensajeErrorCarga('la crónica', err))
+    }
     terminar()
   }
 
-  return { loading, refrescando, items, rol: rol ?? '', refetch: fetchTodo }
+  async function cargar(userId: string, rolActual: string) {
+    const { data: profile, error: errProfile } = await supabase
+      .from('profiles').select('divisiones').eq('id', userId).single()
+    if (errProfile) throw errProfile
+
+    const alcance = alcanceCronica(rolActual, (profile?.divisiones as string[] | null) ?? [])
+    // Sin divisiones asignadas (y sin ser subcomisión) no hay nada de división que leer.
+    const conDivisiones = alcance.todas || alcance.divisiones.length > 0
+    const desde = hace7Dias()
+
+    // El filtro por división va en la query (antes del limit): si se filtrara
+    // después, el límite global podía dejar afuera los resultados propios.
+    let lesionesQ = supabase.from('lesiones')
+      .select('id, created_at, grado, descripcion, jugadores(nombre_completo), divisiones(nombre)')
+      .gte('created_at', desde)
+      .order('created_at', { ascending: false }).limit(10)
+
+    // Fichajes reales (tabla `fichajes`): mover de división o el pase de
+    // temporada crean filas nuevas en `jugadores`, pero no un fichaje.
+    let fichajesQ = supabase.from('fichajes')
+      .select('id, created_at, jugadores!inner(nombre_completo, division_id, divisiones(nombre))')
+      .gte('created_at', desde)
+      .order('created_at', { ascending: false }).limit(5)
+
+    let resultadosQ = supabase.from('resultados')
+      .select('id, created_at, eventos!inner(rival, division_id, divisiones(nombre))')
+      .gte('created_at', desde)
+      .order('created_at', { ascending: false }).limit(5)
+
+    const notifQ = supabase.from('notificaciones')
+      .select('id, titulo, mensaje, tipo, created_at')
+      .gte('created_at', desde)
+      .in('tipo', tiposNotificacion(rolActual))
+      .order('created_at', { ascending: false }).limit(5)
+
+    if (!alcance.todas) {
+      lesionesQ   = lesionesQ.in('division_id', alcance.divisiones)
+      fichajesQ   = fichajesQ.in('jugadores.division_id', alcance.divisiones)
+      resultadosQ = resultadosQ.in('eventos.division_id', alcance.divisiones)
+    }
+
+    // Módulo de lesiones oculto (FEATURES.lesiones): ni se consulta la tabla.
+    const [lesionesRes, fichajesRes, resultadosRes, notifRes]: Respuesta[] = await Promise.all([
+      FEATURES.lesiones && conDivisiones ? lesionesQ : Promise.resolve(VACIA),
+      conDivisiones ? fichajesQ : Promise.resolve(VACIA),
+      conDivisiones ? resultadosQ : Promise.resolve(VACIA),
+      notifQ,
+    ])
+
+    const error = primerError(lesionesRes.error, fichajesRes.error, resultadosRes.error, notifRes.error)
+    if (error) throw error
+
+    setItems(ordenarFeed(
+      ((lesionesRes.data ?? []) as FilaLesion[]).map(r => itemLesion(r, rolActual)),
+      ((fichajesRes.data ?? []) as FilaFichaje[]).map(r => itemFichaje(r, rolActual)),
+      ((resultadosRes.data ?? []) as FilaResultado[]).map(r => itemResultado(r, rolActual)),
+      ((notifRes.data ?? []) as FilaNotificacion[]).map(r => itemNotificacion(r, rolActual)),
+    ))
+    setErrorCarga(null)
+  }
+
+  return { loading, refrescando, items, errorCarga, rol: rol ?? '', refetch: fetchTodo }
 }
