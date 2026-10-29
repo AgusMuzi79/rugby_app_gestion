@@ -97,7 +97,7 @@ function SelectorDivision({
   )
 }
 
-// Doble turno: el entrenador elige a qué entrenamiento de hoy va la lista.
+// Doble turno: quien toma lista elige a qué entrenamiento de hoy va.
 function SelectorEntrenamiento({
   entrenamientos,
   eventoId,
@@ -192,13 +192,17 @@ function FilaJugador({
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function AsistenciaScreen() {
+// Toma de asistencia. La comparten el entrenador ((entrenador)/asistencia) y el
+// colaborador ((colaborador)/asistencia, auditoría entrenador T23), que sólo
+// toma asistencia: esta pantalla no lleva a nada que sea sólo del entrenador.
+export function AsistenciaScreen() {
   const scrollRef = useRef<FlatList>(null)
   useScrollToTop(scrollRef)
   // Si la cola ya se vació (volvió la señal), la asistencia llegó: "guardada".
   const pendientesCola = useColaOffline(st => st.pendientes)
   const noEnviadas = useColaOffline(st => st.noEnviadas)
-  // Desde el Inicio llega el entrenamiento de hoy elegido (y su división).
+  // Desde el Inicio del entrenador llega el entrenamiento de hoy elegido (y su
+  // división). El colaborador no tiene Inicio: entra sin parámetros.
   const params = useLocalSearchParams<{ eventoId?: string; divisionId?: string }>()
   const {
     jugadores,
