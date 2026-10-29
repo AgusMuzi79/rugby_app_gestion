@@ -1,8 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { colors, fonts } from '@/constants/theme'
 
-// Bloque de error de lectura de las pantallas de Secretaría (auditoría UX
-// secretaría, T12): el mensaje como alerta y un REINTENTAR de 44 pt.
+// Bloque de error de lectura (auditoría UX secretaría T12; también Manager y
+// Subcomisión): el mensaje como alerta y un REINTENTAR de 44 pt.
 export function ErrorCarga({ mensaje, onReintentar }: { mensaje: string; onReintentar: () => void }) {
   return (
     <View style={s.bloque}>

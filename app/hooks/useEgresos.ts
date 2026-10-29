@@ -8,6 +8,7 @@ import {
   type BalanceEvento,
   type EgresoForm,
 } from '@/lib/balanceEvento'
+import { crearGuardaEnVuelo, crearGuardaPorClave } from '@/lib/guardaEnVuelo'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import {
@@ -120,7 +121,16 @@ export function useEgresosEvento(evento: EventoEgresosRef | null) {
     setCargando(false)
   }
 
-  async function agregarEgreso(): Promise<boolean> {
+  // Guardas síncronas contra el doble toque (T15): un egreso duplicado resta
+  // dos veces del neto.
+  const guardaAgregar = useRef(crearGuardaEnVuelo()).current
+  // Borrar: una guarda por egreso, así borrar otro mientras el primero sigue en
+  // vuelo no se saltea (devolvería false = "no se borró").
+  const guardaBorrar  = useRef(crearGuardaPorClave()).current
+  const agregarEgreso = () => guardaAgregar(agregarEgresoUnaVez, false)
+  const borrarEgreso  = (id: string) => guardaBorrar(id, () => borrarEgresoUnaVez(id), false)
+
+  async function agregarEgresoUnaVez(): Promise<boolean> {
     if (!eventoId) return false
     if (!editable) {
       setErrorGuardado('El evento está cerrado: no se pueden cargar egresos.')
@@ -152,7 +162,7 @@ export function useEgresosEvento(evento: EventoEgresosRef | null) {
   }
 
   // false si no se borró (error o 0 filas por RLS: evento cerrado o ajeno).
-  async function borrarEgreso(id: string): Promise<boolean> {
+  async function borrarEgresoUnaVez(id: string): Promise<boolean> {
     if (!eventoId || !editable) return false
     setBorrandoId(id)
     setErrorGuardado(null)

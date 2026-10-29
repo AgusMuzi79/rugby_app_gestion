@@ -7,7 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { Header } from '@/components/shared/Header'
-import { ErrorCarga } from '@/components/secretaria/ErrorCarga'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useNoticias, type Noticia } from '@/hooks/useNoticias'
 import { colors, fonts } from '@/constants/theme'
 

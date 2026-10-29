@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -21,6 +22,9 @@ import {
   FormaDePago,
 } from '@/hooks/useCobranzas'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { formatMonto } from '@/components/eventos/estilo'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +50,13 @@ const FORMA_OPS: Array<{ key: FormaDePago; label: string }> = [
   { key: 'otro',          label: 'OTRO' },
 ]
 
+// Nombre completo para el lector de pantalla ("TRANSF." se leería mal).
+const FORMA_A11Y: Record<FormaDePago, string> = {
+  efectivo:      'Efectivo',
+  transferencia: 'Transferencia',
+  otro:          'Otro',
+}
+
 function formatFecha(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('es-AR', {
@@ -53,9 +64,6 @@ function formatFecha(iso: string) {
   })
 }
 
-function formatMonto(n: number) {
-  return '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-}
 
 // ─── Barra de progreso ────────────────────────────────────────────────────────
 
@@ -78,7 +86,13 @@ function EventoCard({
 }) {
   const { pctCobrado, countPagados, countJugadores, montoCobrado } = evento
   return (
-    <TouchableOpacity style={s.eventoCard} onPress={() => onSelect(evento)} activeOpacity={0.82}>
+    <TouchableOpacity
+      style={s.eventoCard}
+      onPress={() => onSelect(evento)}
+      activeOpacity={0.82}
+      accessibilityRole="button"
+      accessibilityLabel={`${evento.nombre}, ${countPagados} de ${countJugadores} pagaron`}
+    >
       <View style={s.eventoCardHead}>
         <View style={s.tipoBadge}>
           <Text style={s.tipoBadgeTexto}>{TIPO_LABEL[evento.tipo] ?? evento.tipo}</Text>
@@ -121,7 +135,14 @@ function FilaJugador({
   const pagado = jugador.estado === 'pagado'
   const numero = String(index + 1).padStart(2, '0')
   return (
-    <TouchableOpacity style={s.filaJugador} onPress={() => onTap(jugador.jugadorId)} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={s.filaJugador}
+      onPress={() => onTap(jugador.jugadorId)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={`${jugador.nombre}${jugador.divisionNombre ? `, ${jugador.divisionNombre}` : ''}, ${pagado ? 'pagado' : 'pendiente'}`}
+      accessibilityHint="Abre el pago del jugador"
+    >
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaNombreWrap}>
         <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre}</Text>
@@ -189,7 +210,14 @@ function ModalPago({
             <Text style={s.modalSuper}>PAGO · JUGADOR</Text>
             <Text style={s.modalTitulo} numberOfLines={2}>{jugador.nombre}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalClose} disabled={guardando}>
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            style={s.modalClose}
+            disabled={guardando}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar sin guardar"
+          >
             <Ionicons name="close" size={20} color={MUTED} />
           </TouchableOpacity>
         </View>
@@ -199,11 +227,14 @@ function ModalPago({
           {/* Estado selector */}
           <View style={s.campo}>
             <Text style={s.campoLabel}>ESTADO</Text>
-            <View style={s.estadoSelector}>
+            <View style={s.estadoSelector} accessibilityRole="radiogroup" accessibilityLabel="Estado del pago">
               <TouchableOpacity
                 style={[s.estadoSelectorBtn, pagado && s.estadoSelectorBtnActivo]}
                 onPress={() => !pagado && onToggle(jugador.jugadorId)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: pagado }}
+                accessibilityLabel="Pagado"
               >
                 <Ionicons name="checkmark-circle" size={18} color={pagado ? colors.sobreOro : MUTED} style={s.estadoIconMr} />
                 <Text style={[s.estadoSelectorTexto, pagado && s.estadoSelectorTextoActivo]}>
@@ -214,6 +245,9 @@ function ModalPago({
                 style={[s.estadoSelectorBtn, !pagado && s.estadoPendienteSelector]}
                 onPress={() => pagado && onToggle(jugador.jugadorId)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: !pagado }}
+                accessibilityLabel="Pendiente"
               >
                 <Ionicons name="time-outline" size={18} color={!pagado ? ROJO : MUTED} style={s.estadoIconMr} />
                 <Text style={[s.estadoSelectorTexto, !pagado && s.estadoSelectorTextoPendiente]}>
@@ -243,7 +277,7 @@ function ModalPago({
 
               <View style={s.campo}>
                 <Text style={s.campoLabel}>FORMA DE PAGO</Text>
-                <View style={s.formaRow}>
+                <View style={s.formaRow} accessibilityRole="radiogroup" accessibilityLabel="Forma de pago">
                   {FORMA_OPS.map(({ key, label }) => {
                     const activo = jugador.formaDePago === key
                     return (
@@ -252,6 +286,9 @@ function ModalPago({
                         style={[s.formaBtn, activo && s.formaBtnActivo]}
                         onPress={() => onForma(jugador.jugadorId, key)}
                         activeOpacity={0.75}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: activo }}
+                        accessibilityLabel={FORMA_A11Y[key]}
                       >
                         <Text style={[s.formaBtnTexto, activo && s.formaBtnTextoActivo]}>
                           {label}
@@ -265,7 +302,7 @@ function ModalPago({
           )}
 
           {error && (
-            <View style={s.bannerError}>
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{error}</Text>
             </View>
           )}
@@ -273,6 +310,8 @@ function ModalPago({
           <TouchableOpacity
             style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
             onPress={onGuardar}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: guardando, busy: guardando }}
             disabled={guardando}
             activeOpacity={0.85}
           >
@@ -294,8 +333,8 @@ export default function CobranzasScreen() {
     loading, divisionNombre, sinDivision,
     eventos, eventoSeleccionado, paso,
     cargandoJugadores, jugadores, resumen,
-    guardando, guardadoOk, error, errorCarga, reintentarCarga,
-    seleccionarEvento, volverAEventos,
+    guardando, guardadoOk, error, errorCarga, errorLista, recargar, reintentarCarga,
+    seleccionarEvento, volverAEventos, hayCambios, descartarCambiosJugador,
     toggleEstado, actualizarMonto, actualizarFormaDePago,
     guardarCobranzas,
   } = useCobranzas()
@@ -309,6 +348,31 @@ export default function CobranzasScreen() {
     if (!modalJugadorId) return
     if (await guardarCobranzas(modalJugadorId)) setModalJugadorId(null)
   }
+
+  // X, Back de Android o swipe del sheet: lo que no se guardó de ese jugador
+  // se descarta (antes quedaba un PAGADO en pantalla sin estar guardado).
+  function cerrarModalSinGuardar() {
+    if (guardando) return
+    if (modalJugadorId) descartarCambiosJugador(modalJugadorId)
+    setModalJugadorId(null)
+  }
+
+  // Salir del evento con filas sin guardar pide confirmación.
+  function pedirVolverAEventos() {
+    if (!hayCambios) { volverAEventos(); return }
+    Alert.alert(
+      'Cambios sin guardar',
+      'Hay pagos que todavía no guardaste. Si volvés, se pierden.',
+      [
+        { text: 'Seguir editando', style: 'cancel' },
+        { text: 'Descartar', style: 'destructive', onPress: volverAEventos },
+      ],
+    )
+  }
+
+  // Back de Android con un evento abierto: vuelve a la lista (con la misma
+  // confirmación si hay cambios), no sale de la pestaña (T11, interino).
+  useBackDelDetalle(paso === 'jugadores', pedirVolverAEventos)
 
   if (loading) {
     return (
@@ -346,7 +410,10 @@ export default function CobranzasScreen() {
             <Text style={s.seccionConteo}>{eventos.length}</Text>
           </View>
 
-          {eventos.length === 0 ? (
+          {/* Error de red / permisos: no es "sin división" ni "sin eventos". */}
+          {errorLista ? (
+            <ErrorCarga mensaje={errorLista} onReintentar={recargar} />
+          ) : eventos.length === 0 ? (
             <View style={s.emptyWrap}>
               <Text style={s.emptyTexto}>Sin eventos activos.</Text>
               <Text style={s.emptySubtexto}>
@@ -373,7 +440,13 @@ export default function CobranzasScreen() {
 
       {paso === 'jugadores' && (
         <View style={s.jugadoresFlex}>
-          <TouchableOpacity style={s.volverBtn} onPress={volverAEventos} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={s.volverBtn}
+            onPress={pedirVolverAEventos}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a eventos"
+          >
             <Ionicons name="chevron-back" size={16} color={ORO} />
             <Text style={s.volverTexto}>Eventos</Text>
           </TouchableOpacity>
@@ -424,23 +497,22 @@ export default function CobranzasScreen() {
                   </View>
                 ))
               )}
-
-              {error && !errorCarga && (
-                <View style={s.bannerError}>
-                  <Text style={s.bannerErrorTexto}>{error}</Text>
-                </View>
-              )}
-
-              {guardadoOk && (
-                <View style={s.bannerOk}>
-                  <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
-                </View>
-              )}
             </ScrollView>
           )}
 
           {!cargandoJugadores && jugadores.length > 0 && (
             <View style={s.bottomBar}>
+              {/* Resultado del guardado junto al botón, no al final de la lista. */}
+              {error && !errorCarga && modalJugadorId === null && (
+                <View style={s.bannerErrorBarra} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                  <Text style={s.bannerErrorTexto}>{error}</Text>
+                </View>
+              )}
+              {guardadoOk && (
+                <View style={s.bannerOkBarra} accessibilityLiveRegion="polite">
+                  <Text style={s.bannerOkTexto}>COBRANZAS GUARDADAS</Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
                 onPress={() => guardarCobranzas()}
@@ -457,13 +529,18 @@ export default function CobranzasScreen() {
         </View>
       )}
 
-      <Modal visible={modalJugadorId !== null} animationType="slide" presentationStyle="pageSheet">
+      <Modal
+        visible={modalJugadorId !== null}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={cerrarModalSinGuardar}
+      >
         {jugadorModal && (
           <ModalPago
             jugador={jugadorModal}
             guardando={guardando}
             error={error}
-            onClose={() => setModalJugadorId(null)}
+            onClose={cerrarModalSinGuardar}
             onGuardar={handleGuardarModal}
             onToggle={toggleEstado}
             onMonto={actualizarMonto}
@@ -521,7 +598,7 @@ const s = StyleSheet.create({
   progFill: { height: 4, backgroundColor: ORO, borderRadius: 2 },
 
   // Volver
-  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
   volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Paso jugadores
@@ -563,8 +640,9 @@ const s = StyleSheet.create({
   // Banners
   bannerError:      { marginTop: 12, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
   bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
-  bannerOk:         { marginTop: 12, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 14 },
   bannerOkTexto:    { fontFamily: fonts.label, fontSize: 13, color: colors.oroSobreClaro, fontWeight: '700', letterSpacing: 2 },
+  bannerErrorBarra: { marginBottom: 8, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerOkBarra:    { marginBottom: 8, backgroundColor: TEXTO, borderLeftWidth: 3, borderLeftColor: ORO, borderRadius: 4, padding: 12 },
 
   // Modal
   kavFlex:        { flex: 1 },
@@ -572,7 +650,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO, maxWidth: '85%' },
-  modalClose:     { padding: 4, marginTop: 4 },
+  modalClose:     { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
   campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
@@ -594,7 +672,7 @@ const s = StyleSheet.create({
 
   // Forma de pago
   formaRow:           { flexDirection: 'row', gap: 8 },
-  formaBtn:           { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  formaBtn:           { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   formaBtnActivo:     { backgroundColor: ORO, borderColor: ORO },
   formaBtnTexto:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   formaBtnTextoActivo:{ color: colors.sobreOro },

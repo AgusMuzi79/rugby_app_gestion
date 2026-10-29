@@ -20,7 +20,7 @@ import { useCobrosSubcomision } from '@/hooks/useCobrosSubcomision'
 import { ResumenBalance } from './ResumenBalance'
 import { CobrosPanel } from './CobrosPanel'
 import { EgresosPanel } from './EgresosPanel'
-import { DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
+import { CARD, DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, formatMonto } from './estilo'
 
 // Detalle de una recaudación de Subcomisión: resumen Cobrado / Egresos / Neto
 // y un selector "Cobros | Egresos". Cobros = quién pagó, por división;
@@ -30,9 +30,10 @@ import { DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, TEXTO, formatFechaLarga, 
 type Pestana = 'cobros' | 'egresos'
 
 export function DetalleRecaudacion({
-  ev, cerrando, onCerrar, onVolver,
+  ev, cerrando, errorCierre, onCerrar, onVolver,
 }: {
-  ev: EventoItem; cerrando: boolean; onCerrar: () => void; onVolver: () => void
+  ev: EventoItem; cerrando: boolean; errorCierre: string | null
+  onCerrar: () => void; onVolver: () => void
 }) {
   const [pestana, setPestana] = useState<Pestana>('cobros')
   const egresos  = useEgresosEvento(ev)
@@ -54,7 +55,13 @@ export function DetalleRecaudacion({
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.topBar}>
-        <TouchableOpacity onPress={onVolver} style={s.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={onVolver}
+          style={s.backBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a eventos"
+        >
           <Ionicons name="chevron-back" size={22} color={ORO} />
         </TouchableOpacity>
         <Text style={s.topLabel}>EVENTO · RECAUDACIÓN</Text>
@@ -81,7 +88,7 @@ export function DetalleRecaudacion({
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <ResumenBalance balance={egresos.balance} />
 
-          <View style={s.tabRow}>
+          <View style={s.tabRow} accessibilityRole="tablist">
             {(['cobros', 'egresos'] as Pestana[]).map(p => {
               const sel = pestana === p
               return (
@@ -90,6 +97,9 @@ export function DetalleRecaudacion({
                   style={[s.tabBtn, sel && s.tabBtnActivo]}
                   onPress={() => setPestana(p)}
                   activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: sel }}
+                  accessibilityLabel={p === 'cobros' ? 'Cobros' : 'Egresos'}
                 >
                   <Text style={[s.tabTexto, sel && s.tabTextoActivo]}>
                     {p === 'cobros' ? 'COBROS' : 'EGRESOS'}
@@ -104,12 +114,21 @@ export function DetalleRecaudacion({
             : <EgresosPanel estado={egresos} />
           }
 
+          {errorCierre && (
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Text style={s.bannerErrorTexto}>{errorCierre}</Text>
+            </View>
+          )}
+
           {activo && (
             <TouchableOpacity
               style={[s.botonCerrar, cerrando && s.botonCerrarOff]}
               onPress={confirmarCierre}
               disabled={cerrando}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar evento"
+              accessibilityState={{ disabled: cerrando, busy: cerrando }}
             >
               {cerrando
                 ? <ActivityIndicator color={ROJO} size="small" />
@@ -128,7 +147,7 @@ const s = StyleSheet.create({
   flex:      { flex: 1 },
 
   topBar:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 8 },
-  backBtn:      { padding: 4 },
+  backBtn:      { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginLeft: -10 },
   topLabel:     { flex: 1, fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },
   cerradoBadge: { backgroundColor: DIVIDER, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
   cerradoTexto: { fontFamily: fonts.label, fontSize: 12, color: MUTED, fontWeight: '700', letterSpacing: 1 },
@@ -141,10 +160,13 @@ const s = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 48, gap: 14 },
 
   tabRow:         { flexDirection: 'row', gap: 24, borderBottomWidth: 1, borderBottomColor: DIVIDER },
-  tabBtn:         { paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtn:         { minHeight: 44, justifyContent: 'center', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   tabBtnActivo:   { borderBottomColor: ORO },
   tabTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: MUTED, fontWeight: '700' },
   tabTextoActivo: { color: TEXTO },
+
+  bannerError:      { marginTop: 16, backgroundColor: CARD, borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12 },
+  bannerErrorTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: ROJO_TEXTO },
 
   botonCerrar:      { marginTop: 16, borderWidth: 1.5, borderColor: ROJO, borderRadius: 3, paddingVertical: 14, alignItems: 'center' },
   botonCerrarOff:   { opacity: 0.6 },

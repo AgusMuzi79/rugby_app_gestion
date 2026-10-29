@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
+import { pendientesDe, resumenDe, resumenesPorEvento } from '@/lib/resumenCobranzas'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { SIN_CONEXION } from '@/lib/errorFunction'
+import { esErrorDeRed } from '@/lib/offlineSync'
+import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
 
 export type TipoEvento = 'recaudacion' | 'viaje' | 'tercer_tiempo'
 
@@ -21,6 +26,7 @@ export interface EventoItem {
   divisionNombre:  string | null  // etiqueta "M15 · M16" (null = todo el club)
   estado:          string
   fecha:           string | null
+  // Sobre los jugadores del evento que ve el rol (RPC resumen_cobranzas_eventos)
   countPagados:    number
   countPendientes: number
   totalCobrado:    number
@@ -133,12 +139,21 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   const [eventoDetalle, setEventoDetalle]     = useState<EventoDetalle | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState(false)
   const [cerrando, setCerrando]               = useState(false)
+  const [errorDetalle, setErrorDetalle]       = useState<string | null>(null)
+  const [errorCierre, setErrorCierre]         = useState<string | null>(null)
 
   // Modal nuevo evento
   const [modalVisible, setModalVisible]   = useState(false)
   const [form, setForm]                   = useState<NuevoEventoForm>(formVacio(modo, []))
   const [guardando, setGuardando]         = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+
+  // Guardas síncronas contra el doble toque (T15): `disabled={guardando}`
+  // llega tarde si el segundo toque entra antes del re-render.
+  const guardaCrear  = useRef(crearGuardaEnVuelo()).current
+  const guardaCerrar = useRef(crearGuardaEnVuelo()).current
+  const crearEvento  = () => guardaCrear(crearEventoUnaVez, false)
+  const cerrarEvento = () => guardaCerrar(cerrarEventoUnaVez, undefined)
 
   useEffect(() => {
     if (session) fetchTodo()
@@ -228,7 +243,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   async function fetchEventos(misIds: string[]) {
     let query = supabase
       .from('eventos_financieros')
-      .select(`id, nombre, tipo, descripcion, estado, fecha, creado_por, ${SELECT_DIVISIONES_EVENTO}, cobranzas(estado, monto)`)
+      .select(`id, nombre, tipo, descripcion, estado, fecha, creado_por, ${SELECT_DIVISIONES_EVENTO}`)
       .order('created_at', { ascending: false })
 
     if (modo === 'manager') {
@@ -241,24 +256,34 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
       setErrorCarga(ERROR_CARGA_EVENTOS)
       return
     }
-    setErrorCarga(null)
 
-    type CobranzaJoin = Array<{ estado: string; monto: number | null }>
     type Fila = EventoDivisionesRow & {
       id: string; nombre: string; tipo: string; descripcion: string | null
-      estado: string; fecha: string | null; creado_por: string; cobranzas: CobranzaJoin | null
+      estado: string; fecha: string | null; creado_por: string
     }
 
-    const items: EventoItem[] = []
-    for (const e of (data ?? []) as unknown as Fila[]) {
-      const divs = divisionesDeEvento(e)
-      // Manager: eventos que incluyen alguna división suya o que creó.
-      if (modo === 'manager'
-        && e.creado_por !== session?.user.id
-        && !divs.some(d => misIds.includes(d.id))) continue
+    // Manager: eventos que incluyen alguna división suya o que creó.
+    const visibles = ((data ?? []) as unknown as Fila[])
+      .map(e => ({ e, divs: divisionesDeEvento(e) }))
+      .filter(({ e, divs }) => modo !== 'manager'
+        || e.creado_por === session?.user.id
+        || divs.some(d => misIds.includes(d.id)))
 
-      const cobrs   = e.cobranzas ?? []
-      const pagados = cobrs.filter(c => c.estado === 'pagado')
+    // Pagados / pendientes sobre los jugadores del evento (T3), no sobre las
+    // filas de cobranzas. Si el resumen falla es un error de carga, no "0".
+    const resumenRes = visibles.length > 0
+      ? await supabase.rpc('resumen_cobranzas_eventos', { p_ids: visibles.map(({ e }) => e.id) })
+      : { data: [], error: null }
+    if (resumenRes.error) {
+      setErrorCarga(ERROR_CARGA_EVENTOS)
+      return
+    }
+    setErrorCarga(null)
+    const resumenes = resumenesPorEvento(resumenRes.data)
+
+    const items: EventoItem[] = []
+    for (const { e, divs } of visibles) {
+      const r = resumenDe(resumenes, e.id)
       items.push({
         id:              e.id,
         nombre:          e.nombre,
@@ -269,9 +294,9 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
         divisionNombre:  etiquetaDivisiones(divs),
         estado:          e.estado,
         fecha:           e.fecha,
-        countPagados:    pagados.length,
-        countPendientes: cobrs.filter(c => c.estado === 'pendiente').length,
-        totalCobrado:    pagados.reduce((s, c) => s + (c.monto ?? 0), 0),
+        countPagados:    r.pagados,
+        countPendientes: pendientesDe(r),
+        totalCobrado:    r.cobrado,
       })
     }
 
@@ -284,6 +309,8 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   async function abrirDetalle(ev: EventoItem) {
     setPaso('detalle')
     setCargandoDetalle(true)
+    setErrorDetalle(null)
+    setErrorCierre(null)
     setEventoDetalle({
       ...ev,
       resumenTotal:  { pagados: 0, pendientes: 0, cobrado: 0 },
@@ -302,6 +329,14 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
         .eq('evento_financiero_id', ev.id)
         .order('created_at', { ascending: false }),
     ])
+
+    // Un error de lectura no es "Sin pedidos registrados" ni un resumen en 0.
+    const errorLectura = primerError(cobranzasRes.error, pedidosRes.error)
+    if (errorLectura) {
+      setErrorDetalle(mensajeErrorCarga('el detalle del evento', errorLectura))
+      setCargandoDetalle(false)
+      return
+    }
 
     // Procesar cobranzas con desglose por división
     type DivJoin2    = { nombre: string } | null
@@ -357,22 +392,32 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
   function volverALista() {
     setPaso('lista')
     setEventoDetalle(null)
+    setErrorDetalle(null)
+    setErrorCierre(null)
   }
 
   // ─── Cerrar evento ────────────────────────────────────────────────────────────
 
-  async function cerrarEvento() {
+  // La RLS puede dejar el update en 0 filas sin error: se pide el id de vuelta
+  // y, si no vuelve ninguno, se avisa en vez de dejar el evento activo en silencio.
+  async function cerrarEventoUnaVez() {
     if (!eventoDetalle) return
     setCerrando(true)
-    const { error } = await supabase
+    setErrorCierre(null)
+    const { data, error } = await supabase
       .from('eventos_financieros')
       .update({ estado: 'cerrado' })
       .eq('id', eventoDetalle.id)
+      .select('id')
     setCerrando(false)
-    if (!error) {
-      await fetchEventos(misDivisiones.map(d => d.id))
-      volverALista()
+    if (error || !data?.length) {
+      setErrorCierre(
+        error && esErrorDeRed(error) ? SIN_CONEXION : 'No se pudo cerrar el evento. Probá de nuevo.',
+      )
+      return
     }
+    await fetchEventos(misDivisiones.map(d => d.id))
+    volverALista()
   }
 
   // ─── Modal nuevo evento ───────────────────────────────────────────────────────
@@ -399,7 +444,7 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     }))
   }
 
-  async function crearEvento(): Promise<boolean> {
+  async function crearEventoUnaVez(): Promise<boolean> {
     if (!session) return false
 
     const nombreTrim = form.nombre.trim()
@@ -460,9 +505,11 @@ export function useEventos(modo: ModoEventos = 'subcomision') {
     paso,
     eventoDetalle,
     cargandoDetalle,
+    errorDetalle,
     abrirDetalle,
     volverALista,
     cerrando,
+    errorCierre,
     cerrarEvento,
     modalVisible,
     abrirModal,

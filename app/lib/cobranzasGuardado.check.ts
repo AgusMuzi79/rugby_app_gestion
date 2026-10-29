@@ -3,7 +3,14 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { filasAGuardar, parseMontoCobranza, type EstadoCobranza, type OriginalCobranza } from './cobranzasGuardado'
+import {
+  filasAGuardar,
+  hayCambiosSinGuardar,
+  parseMontoCobranza,
+  restaurarJugador,
+  type EstadoCobranza,
+  type OriginalCobranza,
+} from './cobranzasGuardado'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -101,6 +108,45 @@ caso('se puede guardar un solo jugador (modal)', () => {
   ], originales, { ...CTX, soloJugadorId: 'a' })
   assert.deepEqual(r.errores, [])
   assert.deepEqual(r.filas.map(f => f.jugador_id), ['a'])
+})
+
+// ─── Cambios sin guardar (T5) ────────────────────────────────────────────────
+
+caso('sin cambios no hay nada sin guardar', () => {
+  const originales = new Map([['a', o({ estado: 'pagado', monto: '15000' })], ['b', o({})]])
+  assert.equal(hayCambiosSinGuardar([
+    j({ jugadorId: 'a', estado: 'pagado', monto: '15.000' }),
+    j({ jugadorId: 'b', monto: '9999' }),   // pendiente con otro monto escrito: no es un cambio
+  ], originales), false)
+})
+
+caso('marcar PAGADO sin guardar es un cambio sin guardar', () => {
+  const originales = new Map([['a', o({})]])
+  assert.equal(hayCambiosSinGuardar([j({ jugadorId: 'a', estado: 'pagado', monto: '100' })], originales), true)
+})
+
+caso('la X del modal descarta los cambios de ese jugador y deja los otros', () => {
+  const originales = new Map([
+    ['a', o({ estado: 'pagado', monto: '15000', formaDePago: 'efectivo' })],
+    ['b', o({})],
+  ])
+  const editados = [
+    j({ jugadorId: 'a', estado: 'pendiente', monto: '1', formaDePago: null }),
+    j({ jugadorId: 'b', estado: 'pagado', monto: '200', formaDePago: 'otro' }),
+  ]
+  const r = restaurarJugador(editados, originales, 'a')
+  assert.deepEqual(
+    r.map(x => [x.jugadorId, x.estado, x.monto, x.formaDePago]),
+    [['a', 'pagado', '15000', 'efectivo'], ['b', 'pagado', '200', 'otro']],
+  )
+  assert.equal(editados[0].estado, 'pendiente')   // no muta la lista original
+  assert.equal(hayCambiosSinGuardar(r, originales), true)   // b sigue sin guardar
+  assert.equal(hayCambiosSinGuardar(restaurarJugador(r, originales, 'b'), originales), false)
+})
+
+caso('restaurar un jugador sin original lo deja pendiente', () => {
+  const r = restaurarJugador([j({ jugadorId: 'z', estado: 'pagado', monto: '5' })], new Map(), 'z')
+  assert.equal(r[0].estado, 'pendiente')
 })
 
 console.log(`\n${casos} casos ok`)

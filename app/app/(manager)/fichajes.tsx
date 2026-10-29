@@ -19,7 +19,10 @@ import {
   TipoDocumento,
 } from '@/hooks/useFichajes'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import type { DivisionOpcion } from '@/lib/fichajes'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,13 @@ const TIPO_LABEL: Record<TipoDocumento, string> = {
   otro:         'OTRO',
 }
 
+// Nombre completo para el lector de pantalla ("FICHA MÉD." se leería mal).
+const TIPO_A11Y: Record<TipoDocumento, string> = {
+  dni:          'DNI',
+  ficha_medica: 'Ficha médica',
+  otro:         'Otro',
+}
+
 const TIPO_COLOR: Record<TipoDocumento, string> = {
   dni:          ORO,
   ficha_medica: colors.estadoActivo,
@@ -55,19 +65,25 @@ function formatFecha(iso: string) {
 // ─── FilaJugador ─────────────────────────────────────────────────────────────
 
 function FilaJugador({
-  jugador, index, onPress,
+  jugador, index, divisionNombre, onPress,
 }: {
-  jugador: JugadorFichado; index: number; onPress: (j: JugadorFichado) => void
+  jugador: JugadorFichado; index: number; divisionNombre: string | null
+  onPress: (j: JugadorFichado) => void
 }) {
   const numero = String(index + 1).padStart(2, '0')
+  const meta   = [divisionNombre, jugador.posicion?.toUpperCase()].filter(Boolean).join(' · ')
   return (
-    <TouchableOpacity style={s.fila} onPress={() => onPress(jugador)} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={s.fila}
+      onPress={() => onPress(jugador)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={[jugador.nombre_completo, meta, `fichado el ${formatFecha(jugador.fecha_fichaje)}`].filter(Boolean).join(', ')}
+    >
       <Text style={s.filaNumero}>{numero}</Text>
       <View style={s.filaInfo}>
         <Text style={s.filaNombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
-        {jugador.posicion ? (
-          <Text style={s.filaPosicion}>{jugador.posicion.toUpperCase()}</Text>
-        ) : null}
+        {meta ? <Text style={s.filaPosicion}>{meta}</Text> : null}
       </View>
       <View style={s.filaRight}>
         <Text style={s.filaFecha}>{formatFecha(jugador.fecha_fichaje)}</Text>
@@ -110,6 +126,9 @@ function DocumentoFila({
         onPress={() => onAbrir(doc.storage_path)}
         disabled={abriendo}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir ${TIPO_LABEL[tipo] ?? doc.tipo}, ${doc.nombre_archivo ?? 'archivo'}`}
+        accessibilityState={{ disabled: abriendo, busy: abriendo }}
       >
         {abriendo
           ? <ActivityIndicator size="small" color={ORO} />
@@ -134,7 +153,7 @@ function SelectorTipo({
 }) {
   const tipos: TipoDocumento[] = ['dni', 'ficha_medica', 'otro']
   return (
-    <View style={s.tipoRow}>
+    <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel="Tipo de documento">
       {tipos.map(t => {
         const activo = seleccionado === t
         return (
@@ -143,6 +162,9 @@ function SelectorTipo({
             style={[s.tipoBtn, activo && s.tipoBtnActivo]}
             onPress={() => onSelect(t)}
             activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={TIPO_A11Y[t]}
           >
             <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>
               {TIPO_LABEL[t]}
@@ -154,27 +176,82 @@ function SelectorTipo({
   )
 }
 
+// ─── SelectorDivision ────────────────────────────────────────────────────────
+// conTodas: agrega "TODAS" (valor null) para el filtro de la lista.
+
+function SelectorDivision({
+  divisiones, seleccionada, onSelect, conTodas = false, etiqueta,
+}: {
+  divisiones: DivisionOpcion[]; seleccionada: string | null
+  onSelect: (id: string | null) => void; conTodas?: boolean; etiqueta: string
+}) {
+  const opciones: Array<{ id: string | null; nombre: string }> = conTodas
+    ? [{ id: null, nombre: 'TODAS' }, ...divisiones]
+    : divisiones
+  return (
+    <View style={s.tipoRow} accessibilityRole="radiogroup" accessibilityLabel={etiqueta}>
+      {opciones.map(d => {
+        const activo = seleccionada === d.id
+        return (
+          <TouchableOpacity
+            key={d.id ?? 'todas'}
+            style={[s.tipoBtn, activo && s.tipoBtnActivo]}
+            onPress={() => onSelect(d.id)}
+            activeOpacity={0.75}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={d.id === null ? 'Todas las divisiones' : d.nombre}
+          >
+            <Text style={[s.tipoBtnTexto, activo && s.tipoBtnTextoActivo]}>{d.nombre}</Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
+  )
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function FichajesScreen() {
   const {
-    loading, divisionNombre, sinDivision,
-    jugadores, paso, jugadorDetalle, cargandoDetalle,
+    loading, divisionNombre, misDivisiones, sinDivision, errorCarga, listaCargada, recargar,
+    filtroDivision, setFiltroDivision,
+    jugadores, paso, jugadorDetalle, cargandoDetalle, errorDocumentos, recargarDocumentos,
     seleccionarJugador, volverALista,
     modalVisible, abrirModal, cerrarModal,
     nombre, setNombre, dni, setDni,
     fechaNacimiento, setFechaNacimiento,
     posicion, setPosicion,
+    divisionForm, setDivisionForm,
     guardandoFichaje, guardadoFichajeOk, errorForm, guardarFichaje,
     tipoSeleccionado, setTipoSeleccionado,
     subiendo, subiendoOk, errorUpload, subirDocumento,
     abriendoDoc, abrirDocumento,
   } = useFichajes()
 
+  // Back de Android en el detalle de un jugador: vuelve a la lista (T11, interino).
+  useBackDelDetalle(paso === 'detalle', volverALista)
+
   if (loading) {
     return (
       <SafeAreaView style={s.centrado} edges={['top']}>
         <ActivityIndicator color={ORO} size="large" />
+      </SafeAreaView>
+    )
+  }
+
+  // Error de carga (red / RLS): no es "sin división" ni "sin fichajes". Pantalla
+  // completa sólo si nunca hubo lista; si ya la hay, va como aviso arriba de la
+  // lista (un fichaje recién guardado y su confirmación no desaparecen).
+  if (errorCarga && paso === 'lista' && !listaCargada) {
+    return (
+      <SafeAreaView style={s.centrado} edges={['top']}>
+        <View style={[s.bannerError, s.errorCargaWrap]}>
+          <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+        </View>
+        <TouchableOpacity style={s.botonSecundario} onPress={recargar} activeOpacity={0.85}>
+          <Text style={[s.botonSecundarioTexto, s.reintentarTexto]}>REINTENTAR</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     )
   }
@@ -187,6 +264,9 @@ export default function FichajesScreen() {
       </SafeAreaView>
     )
   }
+
+  const variasDivisiones = misDivisiones.length > 1
+  const nombreDivision   = new Map(misDivisiones.map(d => [d.id, d.nombre]))
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -205,6 +285,31 @@ export default function FichajesScreen() {
       {paso === 'lista' && (
         <>
           <ScrollView contentContainerStyle={s.lista}>
+            {errorCarga && (
+              <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                <Text style={s.bannerErrorTexto}>{errorCarga}</Text>
+                <TouchableOpacity
+                  style={s.botonSecundario}
+                  onPress={recargar}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                >
+                  <Text style={[s.botonSecundarioTexto, s.reintentarTexto]}>REINTENTAR</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {variasDivisiones && (
+              <View style={s.filtroWrap}>
+                <SelectorDivision
+                  divisiones={misDivisiones}
+                  seleccionada={filtroDivision}
+                  onSelect={setFiltroDivision}
+                  conTodas
+                  etiqueta="Filtrar por división"
+                />
+              </View>
+            )}
+
             <View style={s.seccionHeader}>
               <Text style={s.seccionLabel}>JUGADORES FICHADOS</Text>
               <Text style={s.seccionConteo}>{jugadores.length}</Text>
@@ -217,7 +322,12 @@ export default function FichajesScreen() {
                 {jugadores.map((j, i) => (
                   <View key={j.id}>
                     {i > 0 && <View style={s.filaDiv} />}
-                    <FilaJugador jugador={j} index={i} onPress={seleccionarJugador} />
+                    <FilaJugador
+                      jugador={j}
+                      index={i}
+                      divisionNombre={variasDivisiones && !filtroDivision ? nombreDivision.get(j.divisionId) ?? null : null}
+                      onPress={seleccionarJugador}
+                    />
                   </View>
                 ))}
               </View>
@@ -235,7 +345,13 @@ export default function FichajesScreen() {
       {/* ── Paso: Detalle jugador ── */}
       {paso === 'detalle' && jugadorDetalle && (
         <ScrollView contentContainerStyle={s.detalleScroll}>
-          <TouchableOpacity style={s.volverBtn} onPress={volverALista} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={s.volverBtn}
+            onPress={volverALista}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Volver a fichajes"
+          >
             <Ionicons name="chevron-back" size={16} color={ORO} />
             <Text style={s.volverTexto}>Fichajes</Text>
           </TouchableOpacity>
@@ -267,6 +383,8 @@ export default function FichajesScreen() {
 
             {cargandoDetalle ? (
               <ActivityIndicator color={ORO} style={s.activityMt} />
+            ) : errorDocumentos ? (
+              <ErrorCarga mensaje={errorDocumentos} onReintentar={recargarDocumentos} />
             ) : jugadorDetalle.documentos.length === 0 ? (
               <Text style={s.emptyTexto}>Sin documentos cargados.</Text>
             ) : (
@@ -311,13 +429,13 @@ export default function FichajesScreen() {
             )}
 
             {errorUpload && (
-              <View style={s.bannerError}>
+              <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 <Text style={s.bannerErrorTexto}>{errorUpload}</Text>
               </View>
             )}
 
             {subiendoOk && (
-              <View style={s.bannerOk}>
+              <View style={s.bannerOk} accessibilityLiveRegion="polite">
                 <Text style={s.bannerOkTexto}>DOCUMENTO SUBIDO</Text>
               </View>
             )}
@@ -326,7 +444,13 @@ export default function FichajesScreen() {
       )}
 
       {/* ── Modal nuevo fichaje ── */}
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
+      {/* onRequestClose: el Back de Android (y el swipe del sheet) cierran el modal. */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => { if (!guardandoFichaje) cerrarModal() }}
+      >
         <KeyboardAvoidingView
           style={s.kavFlex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -342,6 +466,8 @@ export default function FichajesScreen() {
                 disabled={guardandoFichaje}
                 activeOpacity={0.7}
                 style={s.modalClose}
+                accessibilityRole="button"
+                accessibilityLabel="Cerrar"
               >
                 <Ionicons name="close" size={20} color={MUTED} />
               </TouchableOpacity>
@@ -352,6 +478,16 @@ export default function FichajesScreen() {
               contentContainerStyle={s.modalScroll}
               keyboardShouldPersistTaps="handled"
             >
+              <View style={s.campo}>
+                <Text style={s.campoLabel}>DIVISIÓN</Text>
+                <SelectorDivision
+                  divisiones={misDivisiones}
+                  seleccionada={divisionForm}
+                  onSelect={setDivisionForm}
+                  etiqueta="División del fichaje"
+                />
+              </View>
+
               <View style={s.campo}>
                 <Text style={s.campoLabel}>NOMBRE COMPLETO</Text>
                 <TextInput
@@ -399,13 +535,13 @@ export default function FichajesScreen() {
               </View>
 
               {errorForm && (
-                <View style={s.bannerError}>
+                <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                   <Text style={s.bannerErrorTexto}>{errorForm}</Text>
                 </View>
               )}
 
               {guardadoFichajeOk && (
-                <View style={s.bannerOk}>
+                <View style={s.bannerOk} accessibilityLiveRegion="polite">
                   <Text style={s.bannerOkTexto}>FICHAJE REGISTRADO</Text>
                   <Text style={s.bannerOkSub}>Se notificará a la Subcomisión</Text>
                 </View>
@@ -417,6 +553,8 @@ export default function FichajesScreen() {
                   onPress={guardarFichaje}
                   disabled={guardandoFichaje}
                   activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: guardandoFichaje, busy: guardandoFichaje }}
                 >
                   {guardandoFichaje
                     ? <ActivityIndicator color={colors.sobreOro} size="small" />
@@ -461,6 +599,9 @@ const s = StyleSheet.create({
   emptyTexto:    { fontFamily: fonts.cuerpo, color: MUTED, fontSize: 16, fontStyle: 'italic', marginTop: 12 },
   filaDiv:       { height: 1, backgroundColor: DIVIDER },
   jugadoresWrap: { marginTop: 8 },
+  filtroWrap:    { marginBottom: 16 },
+  errorCargaWrap:  { marginHorizontal: 20, alignSelf: 'stretch' },
+  reintentarTexto: { paddingHorizontal: 24 },
 
   // Fila de jugador
   fila:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 10 },
@@ -482,7 +623,7 @@ const s = StyleSheet.create({
   fabTexto:{ fontFamily: fonts.label, color: colors.sobreOro, fontSize: 13, letterSpacing: 2.5, fontWeight: '700' },
 
   // Volver
-  volverBtn:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
+  volverBtn:  { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 4 },
   volverTexto:{ fontFamily: fonts.label, fontSize: 15, color: ORO, letterSpacing: 0.5 },
 
   // Detalle
@@ -505,12 +646,12 @@ const s = StyleSheet.create({
   docTipo:     { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '700' },
   docNombre:   { fontFamily: fonts.cuerpo, fontSize: 15, color: TEXTO, fontWeight: '600' },
   docFecha:    { fontFamily: fonts.label, fontSize: 13, color: MUTED },
-  abrirBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, justifyContent: 'center' },
+  abrirBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: ORO, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 5, minWidth: 60, minHeight: 44, justifyContent: 'center' },
   abrirBtnTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: ORO, fontWeight: '700' },
 
   // Selector tipo
   tipoRow:            { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  tipoBtn:            { borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
+  tipoBtn:            { minHeight: 44, justifyContent: 'center', borderWidth: 1, borderColor: DIVIDER, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 8 },
   tipoBtnActivo:      { borderColor: ORO, backgroundColor: CARD },
   tipoBtnTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   tipoBtnTextoActivo: { color: ORO_HONDO },
@@ -533,7 +674,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
-  modalClose:     { padding: 4, marginTop: 4 },
+  modalClose:     { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
   campoLabel:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO },

@@ -10,6 +10,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  AccessibilityInfo,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -22,10 +23,11 @@ import { CARD, DIVIDER, FONDO, MUTED, ORO, ROJO, ROJO_TEXTO, SOBRE_ORO, TEXTO, V
 // división y, en cada una, sus jugadores. Tocar un jugador abre el modal para
 // marcar pagado (monto + forma de pago) o volver a pendiente.
 
-const FORMA_OPS: Array<{ key: FormaDePago; label: string }> = [
-  { key: 'efectivo',      label: 'EFECTIVO' },
-  { key: 'transferencia', label: 'TRANSF.' },
-  { key: 'otro',          label: 'OTRO' },
+// a11y: nombre completo para el lector de pantalla ("TRANSF." se leería mal).
+const FORMA_OPS: Array<{ key: FormaDePago; label: string; a11y: string }> = [
+  { key: 'efectivo',      label: 'EFECTIVO', a11y: 'Efectivo' },
+  { key: 'transferencia', label: 'TRANSF.',  a11y: 'Transferencia' },
+  { key: 'otro',          label: 'OTRO',     a11y: 'Otro' },
 ]
 
 // ─── Modal de pago ────────────────────────────────────────────────────────────
@@ -54,7 +56,14 @@ function ModalCobro({
             <Text style={s.modalSuper}>PAGO · JUGADOR</Text>
             <Text style={s.modalTitulo} numberOfLines={2}>{jugador.nombre}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={s.modalClose} disabled={guardando}>
+          <TouchableOpacity
+            onPress={onClose}
+            activeOpacity={0.7}
+            style={s.modalClose}
+            disabled={guardando}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar sin guardar"
+          >
             <Ionicons name="close" size={20} color={MUTED} />
           </TouchableOpacity>
         </View>
@@ -63,11 +72,14 @@ function ModalCobro({
         <ScrollView contentContainerStyle={s.modalScroll} keyboardShouldPersistTaps="handled">
           <View style={s.campo}>
             <Text style={s.campoLabel}>ESTADO</Text>
-            <View style={s.selectorRow}>
+            <View style={s.selectorRow} accessibilityRole="radiogroup" accessibilityLabel="Estado del pago">
               <TouchableOpacity
                 style={[s.selectorBtn, pagado && s.selectorBtnPagado]}
                 onPress={() => setPagado(true)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: pagado }}
+                accessibilityLabel="Pagado"
               >
                 <Ionicons name="checkmark-circle" size={18} color={pagado ? FONDO : MUTED} style={s.iconMr} />
                 <Text style={[s.selectorTexto, pagado && s.selectorTextoPagado]}>PAGADO</Text>
@@ -76,6 +88,9 @@ function ModalCobro({
                 style={[s.selectorBtn, !pagado && s.selectorBtnPendiente]}
                 onPress={() => setPagado(false)}
                 activeOpacity={0.8}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: !pagado }}
+                accessibilityLabel="Pendiente"
               >
                 <Ionicons name="time-outline" size={18} color={!pagado ? ROJO : MUTED} style={s.iconMr} />
                 <Text style={[s.selectorTexto, !pagado && s.selectorTextoPendiente]}>PENDIENTE</Text>
@@ -103,8 +118,8 @@ function ModalCobro({
 
               <View style={s.campo}>
                 <Text style={s.campoLabel}>FORMA DE PAGO</Text>
-                <View style={s.selectorRow}>
-                  {FORMA_OPS.map(({ key, label }) => {
+                <View style={s.selectorRow} accessibilityRole="radiogroup" accessibilityLabel="Forma de pago">
+                  {FORMA_OPS.map(({ key, label, a11y }) => {
                     const activo = forma === key
                     return (
                       <TouchableOpacity
@@ -112,6 +127,9 @@ function ModalCobro({
                         style={[s.formaBtn, activo && s.formaBtnActivo]}
                         onPress={() => setForma(activo ? null : key)}
                         activeOpacity={0.75}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: activo }}
+                        accessibilityLabel={a11y}
                       >
                         <Text style={[s.formaTexto, activo && s.formaTextoActivo]}>{label}</Text>
                       </TouchableOpacity>
@@ -123,7 +141,7 @@ function ModalCobro({
           )}
 
           {error && (
-            <View style={s.bannerError}>
+            <View style={s.bannerError} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Text style={s.bannerErrorTexto}>{error}</Text>
             </View>
           )}
@@ -132,6 +150,8 @@ function ModalCobro({
             style={[s.botonPrincipal, guardando && s.botonPrincipalOff]}
             onPress={() => onGuardar({ pagado, monto, formaDePago: forma })}
             disabled={guardando}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: guardando, busy: guardando }}
             activeOpacity={0.85}
           >
             {guardando
@@ -172,6 +192,7 @@ export function CobrosPanel({
     if (ok) {
       setModalId(null)
       onGuardado?.()
+      AccessibilityInfo.announceForAccessibility('Pago guardado')
     }
   }
 
@@ -182,7 +203,14 @@ export function CobrosPanel({
   return (
     <View style={s.wrap}>
       {errorCarga && (
-        <TouchableOpacity style={s.bannerError} onPress={recargar} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={s.bannerError}
+          onPress={recargar}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={`${errorCarga} Reintentar`}
+        >
           <Text style={s.bannerErrorTexto}>{errorCarga} Tocá para reintentar.</Text>
         </TouchableOpacity>
       )}
@@ -217,6 +245,8 @@ export function CobrosPanel({
                   onPress={() => abrir(j.jugadorId)}
                   activeOpacity={editable ? 0.8 : 1}
                   disabled={guardandoId === j.jugadorId}
+                  accessibilityRole={editable ? 'button' : 'text'}
+                  accessibilityLabel={`${j.nombre}, ${pagado ? `pagado ${formatMonto(j.montoPagado)}` : 'pendiente'}`}
                 >
                   <Text style={s.filaNombre} numberOfLines={1}>{j.nombre}</Text>
                   {pagado && <Text style={s.filaMonto}>{formatMonto(j.montoPagado)}</Text>}
@@ -283,7 +313,7 @@ const s = StyleSheet.create({
   modalHeader:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 18 },
   modalSuper:     { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: ORO, marginBottom: 4 },
   modalTitulo:    { fontFamily: fonts.titulo, fontSize: 26, color: TEXTO },
-  modalClose:     { padding: 4, marginTop: 4 },
+  modalClose:     { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12 },
   separador:      { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
   modalScroll:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 48, gap: 24 },
   campo:          { gap: 10 },
@@ -302,7 +332,7 @@ const s = StyleSheet.create({
   montoSimbolo: { fontFamily: fonts.label, fontSize: 23, color: MUTED, marginRight: 6, lineHeight: 36 },
   montoInput:   { flex: 1, fontFamily: fonts.cuerpo, fontSize: 32, fontWeight: '700', color: TEXTO, padding: 0 },
 
-  formaBtn:         { flex: 1, paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  formaBtn:         { flex: 1, minHeight: 44, justifyContent: 'center', paddingVertical: 10, borderRadius: 3, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   formaBtnActivo:   { backgroundColor: ORO, borderColor: ORO },
   formaTexto:       { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: MUTED, fontWeight: '700' },
   formaTextoActivo: { color: SOBRE_ORO },

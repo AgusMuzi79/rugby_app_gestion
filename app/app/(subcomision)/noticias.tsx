@@ -46,7 +46,13 @@ function FilaNoticia({ noticia, onEliminar }: { noticia: NoticiaSubco; onElimina
           {noticia.etiquetas.length > 0 ? ` · ${noticia.etiquetas.join(', ').toUpperCase()}` : ''}
         </Text>
       </View>
-      <TouchableOpacity onPress={() => onEliminar(noticia)} activeOpacity={0.7} style={s.eliminarBtn}>
+      <TouchableOpacity
+        onPress={() => onEliminar(noticia)}
+        activeOpacity={0.7}
+        style={s.eliminarBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Borrar noticia ${noticia.titulo}`}
+      >
         <Text style={[s.eliminarBtnTexto, { color: tc.rojoUrgente }]}>✕</Text>
       </TouchableOpacity>
     </View>
@@ -108,7 +114,13 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
       >
         <View style={[s.modalHeader, { borderBottomColor: tc.grisClaro, paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 16 }]}>
           <Text style={[s.modalTitulo, { color: tc.texto }]}>Nueva noticia</Text>
-          <TouchableOpacity onPress={handleClose} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={handleClose}
+            activeOpacity={0.7}
+            style={s.cancelarBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar"
+          >
             <Text style={[s.modalCerrar, { color: tc.muted }]}>Cancelar</Text>
           </TouchableOpacity>
         </View>
@@ -254,7 +266,7 @@ const s = StyleSheet.create({
   labelFila:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32 },
-  botonNuevo:  { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevo:  { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
   botonNuevoTexto: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
 
   divider:      { height: 1, marginHorizontal: 20 },
@@ -268,13 +280,14 @@ const s = StyleSheet.create({
   filaCuerpo: { fontFamily: fonts.cuerpo, fontSize: 14, marginTop: 2 },
   filaFecha:  { fontFamily: fonts.label, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
 
-  eliminarBtn:      { padding: 8 },
+  eliminarBtn:      { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
   eliminarBtnTexto: { fontFamily: fonts.label, fontSize: 16, fontWeight: '700' },
 
   // Modal
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   modalTitulo:  { fontFamily: fonts.titulo, fontSize: 19 },
   modalCerrar:  { fontFamily: fonts.cuerpo, fontSize: 16 },
+  cancelarBtn:  { minHeight: 44, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 8, marginRight: -8 },
   modalBody:    { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   modalFooter:  { paddingHorizontal: 20, paddingTop: 8, borderTopWidth: 1 },
   inputLabel:   { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, marginBottom: 6 },
@@ -285,7 +298,7 @@ const s = StyleSheet.create({
   botonImagenTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, fontWeight: '600' },
   previewWrap:      { marginBottom: 20 },
   preview:          { width: '100%', aspectRatio: 4 / 3, borderRadius: 6 },
-  previewQuitar:    { alignSelf: 'flex-start', marginTop: 8 },
+  previewQuitar:    { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, justifyContent: 'center' },
   previewQuitarTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '600' },
   botonPublicar:      { paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:           { opacity: 0.5 },

@@ -17,6 +17,8 @@ import {
   type EventoFinancieroInforme,
 } from '@/hooks/useInformes'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { formatMonto } from '@/components/eventos/estilo'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -207,6 +209,8 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
         datos.map(ef => {
           // color is truly dynamic (per tipo from runtime data) — keep inline
           const color = tipoColor(ef.tipo)
+          // null = sin resumen (error de carga) o evento sin jugadores: "—"
+          const pct = ef.porcentajeCobrado
           return (
             <View key={ef.id} style={s.cardGap}>
               <View style={s.fila}>
@@ -223,13 +227,15 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 
               {/* Barra de progreso — width is dynamic */}
               <View style={s.progressBar}>
-                <View style={[s.progressFill, { width: `${ef.porcentajeCobrado}%` }]} />
+                <View style={[s.progressFill, { width: `${pct ?? 0}%` }]} />
               </View>
 
               <View style={s.fila}>
-                <Text style={s.cobrado}>${ef.totalCobrado.toLocaleString('es-AR')}</Text>
+                <Text style={s.cobrado}>
+                  {ef.totalCobrado !== null ? formatMonto(ef.totalCobrado) : '—'}
+                </Text>
                 <Text style={s.cardMuted}>
-                  {ef.porcentajeCobrado}% · {ef.countPagados}P · {ef.countPendientes}PN
+                  {pct !== null ? `${pct}%` : '—'} · {ef.countPagados ?? '—'}P · {ef.countPendientes ?? '—'}PN
                 </Text>
               </View>
 
@@ -238,7 +244,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
                   {Object.entries(ef.formasDePago).map(([forma, monto]) => (
                     <View key={forma} style={s.formaPill}>
                       <Text style={s.formaTexto}>
-                        {forma}: ${monto.toLocaleString('es-AR')}
+                        {forma}: {formatMonto(monto)}
                       </Text>
                     </View>
                   ))}
@@ -257,7 +263,7 @@ function SeccionFinanciero({ datos }: { datos: EventoFinancieroInforme[] }) {
 export default function InformesScreen() {
   const insets = useSafeAreaInsets()
   const {
-    loading, refrescando, refetch, divisiones, divisionFiltro, setDivisionFiltro,
+    loading, refrescando, errorCarga, refetch, divisiones, divisionFiltro, setDivisionFiltro,
     asistencias, resultados, fichajesPorDiv, fichajesRecientes, financiero,
   } = useInformes()
 
@@ -282,11 +288,16 @@ export default function InformesScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.selectorContent}
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Filtrar por división"
         >
           <TouchableOpacity
             style={[s.pill, divisionFiltro === null && s.pillActiva]}
             onPress={() => setDivisionFiltro(null)}
             activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: divisionFiltro === null }}
+            accessibilityLabel="Todas las divisiones"
           >
             <Text style={[s.pillTexto, divisionFiltro === null && s.pillTextoActiva]}>Todas</Text>
           </TouchableOpacity>
@@ -296,6 +307,9 @@ export default function InformesScreen() {
               style={[s.pill, divisionFiltro === d.id && s.pillActiva]}
               onPress={() => setDivisionFiltro(d.id)}
               activeOpacity={0.7}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: divisionFiltro === d.id }}
+              accessibilityLabel={d.nombre}
             >
               <Text style={[s.pillTexto, divisionFiltro === d.id && s.pillTextoActiva]}>
                 {d.nombre}
@@ -311,10 +325,17 @@ export default function InformesScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refetch} tintColor={colors.oro} />}
       >
-        <SeccionAsistencia datos={asistencias} />
-        <SeccionResultados datos={resultados} />
-        <SeccionFichajes porDiv={fichajesPorDiv} recientes={fichajesRecientes} />
-        <SeccionFinanciero datos={financiero} />
+        {/* Error de red / permisos: no se muestran secciones "Sin datos". */}
+        {errorCarga ? (
+          <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />
+        ) : (
+          <>
+            <SeccionAsistencia datos={asistencias} />
+            <SeccionResultados datos={resultados} />
+            <SeccionFichajes porDiv={fichajesPorDiv} recientes={fichajesRecientes} />
+            <SeccionFinanciero datos={financiero} />
+          </>
+        )}
       </ScrollView>
     </View>
   )
@@ -333,7 +354,7 @@ const s = StyleSheet.create({
 
   selectorWrap:    { backgroundColor: TEXTO, paddingBottom: 12 },
   selectorContent: { paddingHorizontal: 16, gap: 8, flexDirection: 'row' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
+  pill:            { minHeight: 44, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 22, backgroundColor: DIVIDER, borderWidth: 1, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.label, color: colors.textoSecundario, fontSize: 14, fontWeight: '500' },
   pillTextoActiva: { color: colors.sobreOro },
