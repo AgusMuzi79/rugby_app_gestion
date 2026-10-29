@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -6,6 +6,7 @@ import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 import { fechaLocal } from '@/lib/fecha'
+import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
 
@@ -34,12 +35,28 @@ export interface UseAsistenciaReturn {
   divisionNombre: string
   sinDivision: boolean
   marcados: number
+  // Entrenamientos de hoy de la división (doble turno: más de uno) y el elegido.
+  // eventoId null = no hay ninguno hoy: se crea al guardar.
+  entrenamientos: EntrenamientoHoy[]
+  eventoId: string | null
   seleccionarDivision: (id: string) => void
+  seleccionarEntrenamiento: (id: string) => void
   marcarEstado: (jugadorId: string, estado: EstadoAsistencia) => void
   guardarAsistencia: () => Promise<void>
 }
 
-export function useAsistencia(): UseAsistenciaReturn {
+// Lo que llega desde el Inicio ("TOMAR ASISTENCIA" del entrenamiento de hoy).
+export interface PedidoAsistencia {
+  eventoId?: string
+  divisionId?: string
+}
+
+function minutosAhora(): number {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaReturn {
   const { session } = useAuthStore()
   const [jugadores, setJugadores] = useState<JugadorConEstado[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,6 +68,14 @@ export function useAsistencia(): UseAsistenciaReturn {
   const [divisionId, setDivisionId] = useState<string | null>(null)
   const [sinDivision, setSinDivision] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const [entrenamientos, setEntrenamientos] = useState<EntrenamientoHoy[]>([])
+  const [eventoId, setEventoId] = useState<string | null>(null)
+
+  // Pedido del Inicio todavía sin aplicar: lo consume la próxima carga.
+  const eventoPedido = useRef<string | null>(pedido.eventoId ?? null)
+  const divisionPedida = useRef<string | null>(pedido.divisionId ?? null)
+  // Sólo la última lectura escribe (cambio rápido de división o de turno).
+  const ultimaLectura = useRef(0)
 
   const fecha = fechaLocal()
   const marcados = jugadores.filter(j => j.estado !== null).length
@@ -87,65 +112,115 @@ export function useAsistencia(): UseAsistenciaReturn {
 
     const divs = divsData ?? []
     setDivisiones(divs)
-    setDivisionId(prev => (prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)))
+    const pedida = divisionPedida.current
+    divisionPedida.current = null
+    setDivisionId(prev => {
+      if (pedida && divs.some(d => d.id === pedida)) return pedida
+      return prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)
+    })
   }
 
-  // Jugadores + asistencia de hoy de la división seleccionada.
+  // Volver desde el Inicio con otro entrenamiento (la pestaña ya estaba montada).
+  useEffect(() => {
+    if (!pedido.eventoId && !pedido.divisionId) return
+    if (divisiones.length === 0) {
+      // Todavía cargando: fetchDivisiones / fetchJugadores lo toman de los refs.
+      divisionPedida.current = pedido.divisionId ?? null
+      eventoPedido.current = pedido.eventoId ?? null
+      return
+    }
+    if (pedido.divisionId && pedido.divisionId !== divisionId && divisiones.some(d => d.id === pedido.divisionId)) {
+      eventoPedido.current = pedido.eventoId ?? null
+      setDivisionId(pedido.divisionId)
+      return
+    }
+    if (pedido.eventoId && pedido.eventoId !== eventoId && entrenamientos.some(e => e.id === pedido.eventoId)) {
+      void cargarMarcas(pedido.eventoId)
+    }
+  }, [pedido.eventoId, pedido.divisionId])
+
+  // Jugadores + entrenamientos de hoy de la división seleccionada.
   useEffect(() => {
     if (divisionId) fetchJugadores(divisionId)
   }, [divisionId])
 
+  async function leerMarcas(evId: string): Promise<Record<string, EstadoAsistencia>> {
+    const { data } = await supabase
+      .from('asistencias')
+      .select('jugador_id, estado')
+      .eq('evento_id', evId)
+    const estadoMap: Record<string, EstadoAsistencia> = {}
+    ;(data ?? []).forEach(a => {
+      estadoMap[a.jugador_id] = a.estado as EstadoAsistencia
+    })
+    return estadoMap
+  }
+
   async function fetchJugadores(divId: string) {
+    const lectura = ++ultimaLectura.current
     setLoading(true)
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
 
-    const { data: jgsRes } = await supabase
-      .from('jugadores')
-      .select('id, nombre_completo')
-      .eq('division_id', divId)
-      .eq('activo', true)
-      .order('nombre_completo')
+    // Nunca `.maybeSingle()` por (división, fecha, tipo): con doble turno tira
+    // error y se creaba un tercer entrenamiento. Se listan todos los de hoy.
+    const [jgsRes, eventosRes] = await Promise.all([
+      supabase
+        .from('jugadores')
+        .select('id, nombre_completo')
+        .eq('division_id', divId)
+        .eq('activo', true)
+        .order('nombre_completo'),
+      supabase
+        .from('eventos')
+        .select('id, hora')
+        .eq('tipo', 'entrenamiento')
+        .eq('division_id', divId)
+        .eq('fecha', fecha)
+        .eq('cancelado', false)
+        .order('hora', { nullsFirst: false })
+        .order('created_at'),
+    ])
 
-    const jugadoresBase: JugadorConEstado[] = (jgsRes ?? []).map(j => ({
+    const lista: EntrenamientoHoy[] = eventosRes.data ?? []
+    const elegido = elegirEntrenamiento(lista, eventoPedido.current, minutosAhora())
+    eventoPedido.current = null
+    const estadoMap = elegido ? await leerMarcas(elegido) : {}
+
+    if (lectura !== ultimaLectura.current) return
+    setEntrenamientos(lista)
+    setEventoId(elegido)
+    setJugadores((jgsRes.data ?? []).map(j => ({
       id: j.id,
       nombre_completo: j.nombre_completo,
-      estado: null,
-    }))
+      estado: estadoMap[j.id] ?? null,
+    })))
+    setLoading(false)
+  }
 
-    // Pre-cargar asistencias de hoy si ya existe el evento
-    const { data: eventoHoy } = await supabase
-      .from('eventos')
-      .select('id')
-      .eq('tipo', 'entrenamiento')
-      .eq('division_id', divId)
-      .eq('fecha', fecha)
-      .eq('cancelado', false)
-      .maybeSingle()
-
-    if (eventoHoy) {
-      const { data: asistenciasHoy } = await supabase
-        .from('asistencias')
-        .select('jugador_id, estado')
-        .eq('evento_id', eventoHoy.id)
-
-      const estadoMap: Record<string, EstadoAsistencia> = {}
-      ;(asistenciasHoy ?? []).forEach(a => {
-        estadoMap[a.jugador_id] = a.estado as EstadoAsistencia
-      })
-      jugadoresBase.forEach(j => {
-        if (estadoMap[j.id]) j.estado = estadoMap[j.id]
-      })
-    }
-
-    setJugadores(jugadoresBase)
+  // Cambiar de turno (doble entrenamiento): mismas personas, marcas de ese evento.
+  async function cargarMarcas(evId: string) {
+    const lectura = ++ultimaLectura.current
+    setLoading(true)
+    setGuardado(false)
+    setAlertas([])
+    setErrorGuardado(null)
+    const estadoMap = await leerMarcas(evId)
+    if (lectura !== ultimaLectura.current) return
+    setEventoId(evId)
+    setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null })))
     setLoading(false)
   }
 
   function seleccionarDivision(id: string) {
     if (id === divisionId) return
     setDivisionId(id)
+  }
+
+  function seleccionarEntrenamiento(id: string) {
+    if (id === eventoId) return
+    void cargarMarcas(id)
   }
 
   function marcarEstado(jugadorId: string, estado: EstadoAsistencia) {
@@ -166,6 +241,9 @@ export function useAsistencia(): UseAsistenciaReturn {
       await encolar({
         tipo: 'asistencia',
         payload: {
+          // Con el turno elegido va su evento; sin evento hoy, la sync usa el
+          // primero del día de la división o lo crea (igual que online).
+          ...(eventoId ? { evento_id: eventoId, entrenamiento: true } : {}),
           division_id: divisionId,
           fecha,
           registrado_por: session.user.id,
@@ -183,19 +261,24 @@ export function useAsistencia(): UseAsistenciaReturn {
     const { isConnected } = await NetInfo.fetch()
     if (!isConnected) { await guardarEnTelefono(); return }
 
-    const evento = await obtenerOCrearEvento(divisionId)
+    const evento = eventoId ? { id: eventoId, error: null } : await obtenerOCrearEvento(divisionId)
     if (!evento.id) {
       if (esErrorDeRed(evento.error)) { await guardarEnTelefono(); return }
       setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
       setGuardando(false)
       return
     }
-    const eventoId = evento.id
+    const eventoGuardado = evento.id
+    if (!eventoId) {
+      // El que se creó (o apareció) queda elegido: el próximo guardado no crea otro.
+      setEventoId(eventoGuardado)
+      setEntrenamientos(prev => (prev.some(e => e.id === eventoGuardado) ? prev : [...prev, { id: eventoGuardado, hora: null }]))
+    }
 
     const asistencias = jugadores
       .filter(j => j.estado !== null)
       .map(j => ({
-        evento_id: eventoId,
+        evento_id: eventoGuardado,
         jugador_id: j.id,
         division_id: divisionId,
         estado: j.estado!,
@@ -227,18 +310,22 @@ export function useAsistencia(): UseAsistenciaReturn {
     setGuardando(false)
   }
 
+  // Sin entrenamiento hoy al abrir: el primero que haya aparecido (mismo criterio
+  // que la sync offline, lib/offlineSync.ts) o uno nuevo.
   async function obtenerOCrearEvento(divId: string): Promise<{ id: string | null; error: unknown }> {
-    const { data: existente, error: errorBusqueda } = await supabase
+    const { data: existentes, error: errorBusqueda } = await supabase
       .from('eventos')
       .select('id')
       .eq('tipo', 'entrenamiento')
       .eq('division_id', divId)
       .eq('fecha', fecha)
       .eq('cancelado', false)
-      .maybeSingle()
+      .order('created_at')
+      .limit(1)
 
+    const existente = existentes?.[0]
     if (existente) return { id: existente.id, error: null }
-    if (errorBusqueda && esErrorDeRed(errorBusqueda)) return { id: null, error: errorBusqueda }
+    if (errorBusqueda) return { id: null, error: errorBusqueda }
 
     const { data: nuevo, error } = await supabase
       .from('eventos')
@@ -300,7 +387,10 @@ export function useAsistencia(): UseAsistenciaReturn {
     divisionNombre,
     sinDivision,
     marcados,
+    entrenamientos,
+    eventoId,
     seleccionarDivision,
+    seleccionarEntrenamiento,
     marcarEstado,
     guardarAsistencia,
   }

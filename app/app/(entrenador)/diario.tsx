@@ -10,8 +10,9 @@ import { Header } from '@/components/shared/Header'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
-import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
+import { etiquetaEvento } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
+import { accionDelEvento } from '@/lib/entrenamientoHoy'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -68,9 +69,18 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
+// Asistencia sólo para el entrenamiento de hoy (con su id: doble turno); un
+// partido de hoy se toma en Partido. Otro día no tiene botón: antes la lista
+// caía en un entrenamiento fantasma creado hoy.
 function CardEvento({
-  ev, divisionNombre, onAsistencia,
-}: { ev: ProximoEvento | null; divisionNombre: string; onAsistencia: () => void }) {
+  ev, divisionNombre, onAsistencia, onPartido,
+}: {
+  ev: ProximoEvento | null
+  divisionNombre: string
+  onAsistencia: (eventoId: string) => void
+  onPartido: () => void
+}) {
+  const accion = ev ? accionDelEvento(ev, fechaLocal()) : null
   return (
     <View style={s.eventoCard}>
       {ev ? (
@@ -82,9 +92,19 @@ function CardEvento({
           {ev.lugar ? (
             <Text style={s.eventoLugar}>{ev.lugar}</Text>
           ) : null}
-          {admiteAsistencia(ev.tipo) && (
-            <TouchableOpacity style={s.asistenciaBtn} onPress={onAsistencia} activeOpacity={0.85}>
+          {accion === 'asistencia' && (
+            <TouchableOpacity
+              style={s.asistenciaBtn}
+              onPress={() => onAsistencia(ev.id)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
               <Text style={s.asistenciaBtnText}>TOMAR ASISTENCIA →</Text>
+            </TouchableOpacity>
+          )}
+          {accion === 'partido' && (
+            <TouchableOpacity style={s.asistenciaBtn} onPress={onPartido} activeOpacity={0.85} accessibilityRole="button">
+              <Text style={s.asistenciaBtnText}>MESA Y ASISTENCIA →</Text>
             </TouchableOpacity>
           )}
         </>
@@ -168,7 +188,11 @@ export default function DiarioEntrenadorScreen() {
             <CardEvento
               ev={data.proximoEvento}
               divisionNombre={data.divisionNombre}
-              onAsistencia={() => router.navigate('/(entrenador)/asistencia')}
+              onAsistencia={eventoId => router.navigate({
+                pathname: '/(entrenador)/asistencia',
+                params: { eventoId, ...(data.divisionId ? { divisionId: data.divisionId } : {}) },
+              })}
+              onPartido={() => router.navigate('/(entrenador)/partido')}
             />
           </View>
 

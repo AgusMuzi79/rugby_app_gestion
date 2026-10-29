@@ -124,6 +124,23 @@ async function main() {
     assert.deepEqual(llamadas, [['div-1', ['j1', 'j2']]])
   })
 
+  await caso('un entrenamiento elegido (doble turno) usa su evento_id y corre la alerta de 4 faltas', async () => {
+    const db = baseFalsa()
+    db.eventos.set('div-1|2026-10-26', 'ev-primero')
+    const llamadas: [string, string[]][] = []
+    db.puerto.alSincronizarEntrenamiento = async (div, ids) => { llamadas.push([div, ids]) }
+    const elegido: ItemCola = {
+      id: 'e', tipo: 'asistencia', creadoEn: 1,
+      payload: { evento_id: 'ev-segundo', entrenamiento: true, division_id: 'div-1', fecha: '2026-10-26', registrado_por: 'coach', jugadores: [{ jugador_id: 'j1', estado: 'ausente' }] },
+    }
+    const r = await sincronizarItems([elegido], db.puerto)
+    assert.deepEqual(r.enviados, ['e'])
+    assert.ok(db.asistencias.has('ev-segundo|j1'))
+    assert.equal(db.asistencias.has('ev-primero|j1'), false)
+    assert.equal(db.creados(), 0)
+    assert.deepEqual(llamadas, [['div-1', ['j1']]])
+  })
+
   await caso('una falla de la alerta no deja la asistencia en la cola', async () => {
     const db = baseFalsa()
     db.puerto.alSincronizarEntrenamiento = async () => { throw new Error('push caído') }

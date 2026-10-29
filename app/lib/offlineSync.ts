@@ -62,6 +62,9 @@ export function particionarFallidos(
 
 interface PayloadAsistencia {
   evento_id?:     string
+  // Entrenamiento elegido en pantalla (doble turno): trae su evento_id pero
+  // igual corre la alerta de 4 faltas, como el que se resuelve por fecha.
+  entrenamiento?: boolean
   division_id:    string
   fecha?:         string
   registrado_por: string
@@ -81,7 +84,8 @@ function leerPayload(p: Record<string, unknown>): PayloadAsistencia {
 
 async function enviarAsistencia(item: ItemCola, db: PuertoSync): Promise<void> {
   const p = leerPayload(item.payload)
-  // Partido: trae su evento. Entrenamiento: el del día de esa división, o se crea.
+  // Partido o entrenamiento elegido: trae su evento. Entrenamiento sin evento
+  // (no había ninguno hoy al abrir): el primero del día de esa división, o se crea.
   let eventoId = p.evento_id
   if (!eventoId) {
     eventoId = (await db.buscarEntrenamiento(p.division_id, p.fecha!))
@@ -95,7 +99,7 @@ async function enviarAsistencia(item: ItemCola, db: PuertoSync): Promise<void> {
     estado:         j.estado,
     registrado_por: p.registrado_por,
   })))
-  if (!p.evento_id && db.alSincronizarEntrenamiento) {
+  if ((!p.evento_id || p.entrenamiento === true) && db.alSincronizarEntrenamiento) {
     try {
       await db.alSincronizarEntrenamiento(p.division_id, p.jugadores.map(j => j.jugador_id))
     } catch {

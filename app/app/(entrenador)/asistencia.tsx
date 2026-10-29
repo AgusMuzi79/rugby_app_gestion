@@ -10,8 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRef } from 'react'
 import { useScrollToTop } from '@react-navigation/native'
+import { useLocalSearchParams } from 'expo-router'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
+import { etiquetaEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 
@@ -84,6 +86,46 @@ function SelectorDivision({
   )
 }
 
+// Doble turno: el entrenador elige a qué entrenamiento de hoy va la lista.
+function SelectorEntrenamiento({
+  entrenamientos,
+  eventoId,
+  onSeleccionar,
+}: {
+  entrenamientos: EntrenamientoHoy[]
+  eventoId: string | null
+  onSeleccionar: (id: string) => void
+}) {
+  if (entrenamientos.length < 2) return null
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.divisionChips}
+    >
+      {entrenamientos.map((ev, i) => {
+        const activo = ev.id === eventoId
+        const etiqueta = etiquetaEntrenamiento(ev, i)
+        return (
+          <TouchableOpacity
+            key={ev.id}
+            style={[s.divisionChip, activo && s.divisionChipActivo]}
+            onPress={() => onSeleccionar(ev.id)}
+            activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo }}
+            accessibilityLabel={`Entrenamiento ${etiqueta}`}
+          >
+            <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
+              ENTRENAMIENTO {etiqueta.toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </ScrollView>
+  )
+}
+
 function FilaJugador({
   item,
   index,
@@ -135,6 +177,8 @@ export default function AsistenciaScreen() {
   // Si la cola ya se vació (volvió la señal), la asistencia llegó: "guardada".
   const pendientesCola = useColaOffline(st => st.pendientes)
   const noEnviadas = useColaOffline(st => st.noEnviadas)
+  // Desde el Inicio llega el entrenamiento de hoy elegido (y su división).
+  const params = useLocalSearchParams<{ eventoId?: string; divisionId?: string }>()
   const {
     jugadores,
     loading,
@@ -149,10 +193,13 @@ export default function AsistenciaScreen() {
     divisionNombre,
     sinDivision,
     marcados,
+    entrenamientos,
+    eventoId,
     seleccionarDivision,
+    seleccionarEntrenamiento,
     marcarEstado,
     guardarAsistencia,
-  } = useAsistencia()
+  } = useAsistencia({ eventoId: params.eventoId, divisionId: params.divisionId })
 
   const presentes = jugadores.filter(j => j.estado === 'presente').length
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
@@ -207,6 +254,12 @@ export default function AsistenciaScreen() {
         divisiones={divisiones}
         divisionId={divisionId}
         onSeleccionar={seleccionarDivision}
+      />
+
+      <SelectorEntrenamiento
+        entrenamientos={entrenamientos}
+        eventoId={eventoId}
+        onSeleccionar={seleccionarEntrenamiento}
       />
 
       <View style={s.divider} />
