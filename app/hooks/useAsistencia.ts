@@ -8,10 +8,22 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { actualizarPendientes, verificarCuartaAusencia } from '@/hooks/useSincronizacionOffline'
 import type { MarcaGuardada } from '@/lib/ausenciasConsecutivas'
 import { fechaLocal } from '@/lib/fecha'
-import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
+import type { EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
 import { marcarTodosPresentes } from '@/lib/marcadoAsistencia'
 import { claveDivisiones, clavePlantel, leerGuardado, resolverCarga, serializarGuardado } from '@/lib/plantelGuardado'
+import {
+  actualizarCopiaDia,
+  armarJugadores,
+  claveDia,
+  leerCopiaDia,
+  marcasParaGuardar,
+  payloadCola,
+  resolverEntrenamientos,
+  resolverMarcas,
+  serializarCopiaDia,
+  type MarcasResueltas,
+} from '@/lib/copiaDelDia'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
 import { mensajeError } from '@/lib/mensajeError'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
@@ -241,46 +253,91 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
         .order('created_at'),
     ])
 
-    const lista: EntrenamientoHoy[] = eventosRes.data ?? []
-    const elegido = eventosRes.error ? null : elegirEntrenamiento(lista, eventoPedido.current, minutosAhora())
-    eventoPedido.current = null
-    const marcasRes = elegido ? await leerMarcas(elegido) : { marcas: {}, error: null }
-
-    // Si algo falló: sin señal se sigue con la copia del plantel (sin evento
-    // elegido: al guardar va a la cola y la sync resuelve el entrenamiento del
-    // día); con otro error, REINTENTAR.
-    const error = jgsRes.error ?? eventosRes.error ?? marcasRes.error
+    // Cada parte se resuelve sola: sin señal, lo que no llegó sale de la copia
+    // del teléfono (plantel: plantelGuardado.ts; turnos y marcas de hoy:
+    // copiaDelDia.ts) y lo que sí llegó se usa tal cual. Con otro error,
+    // REINTENTAR.
     const clave = clavePlantel(divId)
-    const carga = resolverCarga<PlantelJugador>({
-      error,
+    const claveD = claveDia(divId)
+    const copia = leerCopiaDia(await leerLocal(claveD))
+    const plantel = resolverCarga<PlantelJugador>({
+      error: jgsRes.error,
       remoto: jgsRes.data,
-      guardado: error ? leerGuardado(await leerLocal(clave)) : null,
+      guardado: jgsRes.error ? leerGuardado(await leerLocal(clave)) : null,
     })
+    const turnos = resolverEntrenamientos({
+      error: eventosRes.error,
+      remoto: eventosRes.data,
+      copia,
+      fecha,
+      pedidoId: eventoPedido.current,
+      ahoraMin: minutosAhora(),
+    })
+    eventoPedido.current = null
+
+    // Si los turnos salieron de la copia no hay señal: las marcas también.
+    let marcas: MarcasResueltas<EstadoAsistencia> = { tipo: 'ok', marcas: {}, deCopia: false }
+    if (plantel.tipo !== 'error' && turnos.tipo !== 'error') {
+      const leidas = turnos.eventoId && turnos.tipo === 'remoto'
+        ? await leerMarcas(turnos.eventoId)
+        : { marcas: null, error: turnos.tipo === 'guardado' ? eventosRes.error : null }
+      marcas = resolverMarcas<EstadoAsistencia>({
+        eventoId: turnos.eventoId,
+        error: leidas.error,
+        remoto: leidas.error ? null : leidas.marcas,
+        copia,
+        fecha,
+      })
+    }
 
     if (lectura !== ultimaLectura.current) return
-    if (carga.tipo === 'error') {
+    if (plantel.tipo === 'error' || turnos.tipo === 'error' || marcas.tipo === 'error') {
+      const error = plantel.tipo === 'error' ? plantel.error
+        : turnos.tipo === 'error' ? turnos.error
+          : marcas.tipo === 'error' ? marcas.error : null
       setEntrenamientos([])
       setEventoId(null)
       setJugadores([])
-      setErrorCarga(mensajeErrorCarga('la lista de jugadores', carga.error))
+      setErrorCarga(mensajeErrorCarga('la lista de jugadores', error))
       setLoading(false)
       return
     }
-    if (carga.tipo === 'remoto') {
-      void guardarLocal(clave, serializarGuardado(carga.datos.map(j => ({ id: j.id, nombre_completo: j.nombre_completo })), Date.now()))
-    } else {
-      setListaGuardadaEn(carga.guardadoEn)
+
+    const ahora = Date.now()
+    if (plantel.tipo === 'remoto') {
+      void guardarLocal(clave, serializarGuardado(plantel.datos.map(j => ({ id: j.id, nombre_completo: j.nombre_completo })), ahora))
     }
-    const estadoMap: Record<string, EstadoAsistencia> = carga.tipo === 'remoto' ? marcasRes.marcas : {}
-    setEntrenamientos(carga.tipo === 'remoto' ? lista : [])
-    setEventoId(carga.tipo === 'remoto' ? elegido : null)
-    setJugadores(carga.datos.map(j => ({
-      id: j.id,
-      nombre_completo: j.nombre_completo,
-      estado: estadoMap[j.id] ?? null,
-      estadoGuardado: estadoMap[j.id] ?? null,
-    })))
+    // Lo que llegó de la base actualiza la copia del día.
+    const marcasLeidas = marcas.tipo === 'ok' && !marcas.deCopia && turnos.eventoId ? marcas.marcas : null
+    if (turnos.tipo === 'remoto' || marcasLeidas) {
+      void guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(copia, {
+        fecha,
+        ahora,
+        ...(turnos.tipo === 'remoto' ? { entrenamientos: turnos.lista } : {}),
+        ...(marcasLeidas && turnos.eventoId ? { eventoId: turnos.eventoId, marcas: marcasLeidas } : {}),
+      })))
+    }
+
+    const deCopia = turnos.tipo === 'guardado' || (marcas.tipo === 'ok' && marcas.deCopia)
+    setListaGuardadaEn(
+      plantel.tipo === 'guardado' ? plantel.guardadoEn
+        : deCopia && copia ? copia.guardadoEn
+          : null,
+    )
+    setEntrenamientos(turnos.lista)
+    setEventoId(turnos.eventoId)
+    // Sin señal y sin copia de ese turno no se sabe qué había: se arranca vacío.
+    setJugadores(armarJugadores(plantel.datos, marcas.tipo === 'ok' ? marcas.marcas : {}))
     setLoading(false)
+  }
+
+  // Suma a la copia del día lo que se acaba de guardar (en la base o en la cola).
+  async function anotarEnCopia(divId: string, evId: string, enviadas: Record<string, EstadoAsistencia>) {
+    const claveD = claveDia(divId)
+    const copia = leerCopiaDia(await leerLocal(claveD))
+    await guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(copia, {
+      fecha, ahora: Date.now(), eventoId: evId, marcas: enviadas, mezclar: true,
+    })))
   }
 
   // Cambiar de turno (doble entrenamiento): mismas personas, marcas de ese evento.
@@ -290,14 +347,31 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
-    const { marcas: estadoMap, error } = await leerMarcas(evId)
+    const leidas = await leerMarcas(evId)
+    const claveD = divisionId ? claveDia(divisionId) : null
+    const copia = leidas.error && claveD ? leerCopiaDia(await leerLocal(claveD)) : null
+    const r = resolverMarcas<EstadoAsistencia>({
+      eventoId: evId,
+      error: leidas.error,
+      remoto: leidas.error ? null : leidas.marcas,
+      copia,
+      fecha,
+    })
     if (lectura !== ultimaLectura.current) return
-    if (error) {
-      // Se queda en el turno anterior, con sus marcas.
-      setErrorGuardado(`${mensajeErrorCarga('las marcas de ese entrenamiento', error)}`)
+    if (r.tipo !== 'ok') {
+      // Se queda en el turno anterior, con sus marcas (sin señal y sin copia de
+      // ese turno no se sabe qué había guardado: tampoco se cambia).
+      setErrorGuardado(mensajeErrorCarga('las marcas de ese entrenamiento', r.tipo === 'error' ? r.error : leidas.error))
       setLoading(false)
       return
     }
+    if (!r.deCopia && claveD) {
+      void (async () => {
+        const actual = leerCopiaDia(await leerLocal(claveD))
+        await guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(actual, { fecha, ahora: Date.now(), eventoId: evId, marcas: r.marcas })))
+      })()
+    }
+    const estadoMap = r.marcas
     setEventoId(evId)
     setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null, estadoGuardado: estadoMap[j.id] ?? null })))
     setLoading(false)
@@ -356,28 +430,19 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       enviadas[j.id] ? { ...j, estadoGuardado: enviadas[j.id] } : j
     )))
     // Para la alerta de 4 faltas: lo que había antes en el evento.
-    const marcasGuardadas: MarcaGuardada[] = jugadores
-      .filter(j => j.estado !== null)
-      .map(j => ({ jugador_id: j.id, estado: j.estado!, estadoPrevio: j.estadoGuardado }))
+    const marcasGuardadas: MarcaGuardada[] = marcasParaGuardar(jugadores)
 
     // Sin señal (o si la red se cae a mitad): queda en el teléfono y
-    // useSincronizacionOffline la manda cuando vuelve la conexión.
+    // useSincronizacionOffline la manda cuando vuelve la conexión. Con el turno
+    // elegido va su evento; sin evento hoy, la sync usa el primero del día de
+    // la división o lo crea (igual que online).
     const guardarEnTelefono = async (): Promise<boolean> => {
       await encolar({
         tipo: 'asistencia',
-        payload: {
-          // Con el turno elegido va su evento; sin evento hoy, la sync usa el
-          // primero del día de la división o lo crea (igual que online).
-          ...(eventoId ? { evento_id: eventoId, entrenamiento: true } : {}),
-          division_id: divisionId,
-          fecha,
-          registrado_por: session.user.id,
-          jugadores: marcasGuardadas.map(m => ({
-            jugador_id: m.jugador_id, estado: m.estado, estado_previo: m.estadoPrevio,
-          })),
-        },
+        payload: payloadCola({ eventoId, divisionId, fecha, registradoPor: session.user.id, marcas: marcasGuardadas }),
       })
       await actualizarPendientes()
+      if (eventoId) await anotarEnCopia(divisionId, eventoId, enviadas)
       marcarGuardadas()
       setPendienteSync(true)
       setGuardado(true)
@@ -427,6 +492,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     }
 
     marcarGuardadas()
+    void anotarEnCopia(divisionId, eventoGuardado, enviadas)
     // Si había una de esta división y fecha que no se pudo enviar, esta la
     // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
     try {
