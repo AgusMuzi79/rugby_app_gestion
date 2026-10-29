@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useFocusEffect } from 'expo-router'
 import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
@@ -10,14 +10,34 @@ import { fechaLocal, fechaLocalMasDias } from '@/lib/fecha'
 import { useEstadoCarga } from './useEstadoCarga'
 import { presenciasSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
+import { sincronizarEquipos, type AccesoEquipos, type Equipo } from '@/lib/equiposPartido'
+import { crearGuardaEnVuelo } from '@/lib/guardaEnVuelo'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+
+export type { Equipo } from '@/lib/equiposPartido'
+
+// Tabla `equipos` vía Supabase (lib/equiposPartido.ts). Del más viejo al más
+// nuevo: si hay duplicados viejos, la app usa el más viejo.
+const accesoEquipos: AccesoEquipos = {
+  listar: async (divisionId) => {
+    const { data, error } = await supabase
+      .from('equipos')
+      .select('id, nombre')
+      .eq('division_id', divisionId)
+      .order('created_at')
+      .order('id')
+    return { data, error }
+  },
+  crear: async (filas, modo) => {
+    const { error } = modo === 'upsert'
+      ? await supabase.from('equipos').upsert(filas, { onConflict: 'division_id,nombre', ignoreDuplicates: true })
+      : await supabase.from('equipos').insert(filas)
+    return { error }
+  },
+}
 
 export type RolEnMesa = 'titular' | 'suplente'
 export type Paso = 'equipo' | 'asistencia' | 'mesa' | 'resultado'
-
-export interface Equipo {
-  id: string
-  nombre: string
-}
 
 export interface PartidoEvento {
   id: string
@@ -38,31 +58,6 @@ export interface ConteoMesa {
   suplente: number
 }
 
-// ─── Helpers de generación de nombres ────────────────────────────────────────
-
-const LETRAS = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-
-function generarNombresEquipos(
-  cantidad: number,
-  categoria: string,
-  divisionNombre: string,
-): string[] {
-  if (categoria === 'superior') {
-    return Array.from({ length: cantidad }, (_, i) => {
-      if (i === 0) return 'Primera'
-      if (i === 1) return 'Intermedia'
-      if (i === 2) return 'Preintermedia'
-      const l = i - 3
-      return `Preintermedia ${LETRAS[l] ?? String.fromCharCode(66 + l)}`
-    })
-  }
-  return Array.from({ length: cantidad }, (_, i) =>
-    i === 0
-      ? divisionNombre
-      : `${divisionNombre} ${LETRAS[i - 1] ?? String.fromCharCode(65 + i)}`,
-  )
-}
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePartido() {
@@ -71,7 +66,6 @@ export function usePartido() {
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [divisionId, setDivisionId] = useState<string | null>(null)
   const [divisionNombre, setDivisionNombre] = useState('')
-  const [divisionCategoria, setDivisionCategoria] = useState('')
   const [esInfantil, setEsInfantil] = useState(false)
   const [sinDivision, setSinDivision] = useState(false)
 
@@ -110,82 +104,63 @@ export function usePartido() {
     suplente: jugadores.filter(j => j.presente && j.rolEnMesa === 'suplente').length,
   }
 
-  // Carga inicial cuando la sesión está disponible
-  useEffect(() => {
-    if (session && !divisionId) fetchDatos()
-  }, [session])
+  // Una sola carga a la vez (auditoría entrenador T16): la carga inicial y la
+  // re-sincronización de equipos al volver a la pestaña comparten la guarda,
+  // así dos cargas en paralelo nunca crean el mismo equipo dos veces.
+  const guardaCarga = useRef(crearGuardaEnVuelo()).current
+  const cargado = useRef(false)
+  // Lo que necesita la re-sincronización en segundo plano (sin closures viejos).
+  const datosDivision = useRef<{ divId: string; categoria: string; nombre: string; cantidad: number } | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
-  // Re-sincroniza equipos en cada foco (sin resetear el paso actual)
+  // Primera vez: carga completa. Después, en cada foco, sólo re-sincroniza
+  // los equipos (sin resetear el paso actual). useFocusEffect corre también
+  // en el montaje: no hace falta (ni conviene) otro useEffect de carga.
   useFocusEffect(
     useCallback(() => {
       if (!session) return
-      if (!divisionId) {
+      if (!cargado.current) {
+        cargado.current = true
         fetchDatos()
       } else {
         sincronizarEnBackground()
       }
-    }, [session, divisionId]),
+    }, [session]),
   )
 
   // ─── Sincronización de equipos ─────────────────────────────────────────────
 
-  async function doSincronizarEquipos(
-    divId: string,
-    categoria: string,
-    divNombre: string,
-    jugadorCount: number,
-    userId: string,
-  ): Promise<Equipo[]> {
-    const cantidad = Math.max(1, Math.ceil(jugadorCount / 35))
-    const nombresEsperados = generarNombresEquipos(cantidad, categoria, divNombre)
-
-    const { data: existentes } = await supabase
-      .from('equipos')
-      .select('id, nombre')
-      .eq('division_id', divId)
-
-    const mapaExistentes = new Map((existentes ?? []).map(e => [e.nombre, e.id] as [string, string]))
-
-    const nuevosNombres = nombresEsperados.filter(n => !mapaExistentes.has(n))
-    if (nuevosNombres.length > 0) {
-      const { data: creados } = await supabase
-        .from('equipos')
-        .insert(nuevosNombres.map(nombre => ({ division_id: divId, nombre, created_by: userId })))
-        .select('id, nombre')
-      ;(creados ?? []).forEach(e => mapaExistentes.set(e.nombre, e.id))
+  function aplicarEquipos(lista: Equipo[], inicial: boolean) {
+    setEquipos(lista)
+    if (lista.length > 0) {
+      setEquipoObligatorio(lista[0])
+      if (inicial && lista.length === 1) setEquipoSeleccionado(lista[0])
     }
-
-    // Orden: esperados primero (en orden generado), extras al final
-    const result: Equipo[] = []
-    for (const nombre of nombresEsperados) {
-      const id = mapaExistentes.get(nombre)
-      if (id) result.push({ id, nombre })
-    }
-    for (const [nombre, id] of mapaExistentes) {
-      if (!nombresEsperados.includes(nombre)) result.push({ id, nombre })
-    }
-
-    return result
   }
 
-  async function sincronizarEnBackground() {
-    if (!session || !divisionId || loading) return
-    const lista = await doSincronizarEquipos(
-      divisionId,
-      divisionCategoria,
-      divisionNombre,
-      jugadoresBase.length,
-      session.user.id,
-    )
-    setEquipos(lista)
-    if (lista.length > 0) setEquipoObligatorio(lista[0])
+  function sincronizarEnBackground() {
+    const d = datosDivision.current
+    if (!session || !d) return
+    guardaCarga(async () => {
+      const r = await sincronizarEquipos(accesoEquipos, {
+        divisionId: d.divId, categoria: d.categoria, divisionNombre: d.nombre,
+        cantidadJugadores: d.cantidad, userId: session.user.id,
+      })
+      // Un error en segundo plano no borra los equipos que ya se ven.
+      if (!r.error) aplicarEquipos(r.equipos, false)
+    }, undefined)
   }
 
   // ─── Carga completa ────────────────────────────────────────────────────────
 
-  async function fetchDatos() {
+  function fetchDatos() {
+    return guardaCarga(cargarDatos, undefined)
+  }
+
+  async function cargarDatos() {
     if (!session) return
     empezar()
+    setErrorCarga(null)
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -223,7 +198,6 @@ export function usePartido() {
     const divNombre = divRes.data?.nombre ?? ''
 
     setDivisionNombre(divNombre)
-    setDivisionCategoria(categoria)
     setEsInfantil(categoria === 'infantil')
     setPartidos(partidosRes.data ?? [])
 
@@ -236,12 +210,13 @@ export function usePartido() {
     setJugadoresBase(base)
     setJugadores(base)
 
-    const lista = await doSincronizarEquipos(divId, categoria, divNombre, base.length, session.user.id)
-    setEquipos(lista)
-    if (lista.length > 0) {
-      setEquipoObligatorio(lista[0])
-      if (lista.length === 1) setEquipoSeleccionado(lista[0])
-    }
+    datosDivision.current = { divId, categoria, nombre: divNombre, cantidad: base.length }
+    const r = await sincronizarEquipos(accesoEquipos, {
+      divisionId: divId, categoria, divisionNombre: divNombre,
+      cantidadJugadores: base.length, userId: session.user.id,
+    })
+    if (r.error) setErrorCarga(mensajeErrorCarga('los equipos', r.error))
+    aplicarEquipos(r.equipos, true)
 
     terminar()
   }
@@ -539,6 +514,8 @@ export function usePartido() {
   return {
     loading,
     refrescando,
+    errorCarga,
+    reintentar: fetchDatos,
     divisionNombre,
     sinDivision,
     esInfantil,

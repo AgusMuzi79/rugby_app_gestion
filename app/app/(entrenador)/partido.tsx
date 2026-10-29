@@ -18,6 +18,7 @@ import {
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -629,7 +630,7 @@ function PasoResultado({
 
 export default function PartidoScreen() {
   const {
-    loading, divisionNombre, sinDivision, esInfantil,
+    loading, errorCarga, reintentar, divisionNombre, sinDivision, esInfantil,
     equipos, equipoObligatorio, equipoSeleccionado, seleccionarEquipo,
     partidos, partidoSeleccionado, seleccionarPartido,
     jugadores, paso, cargandoTransicion, irAAsistencia, irAEquipo, irAMesa, irAResultado,
@@ -681,6 +682,10 @@ export default function PartidoScreen() {
       <View style={s.divider} />
 
       <ScrollView contentContainerStyle={s.scrollContent}>
+        {errorCarga && (
+          <ErrorCarga mensaje={errorCarga} onReintentar={() => { void reintentar() }} />
+        )}
+
         {paso === 'equipo' && (
           <PasoEquipo
             partidos={partidos}
