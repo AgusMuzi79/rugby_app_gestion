@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAsistenciaCoordinador, JugadorAsistencia } from '@/hooks/useAsistenciaCoordinador'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ export default function AsistenciaCoordinadorScreen() {
     loading,
     refrescando,
     sinDivisiones,
+    errorCarga,
     seleccionarDivision,
     recargar,
   } = useAsistenciaCoordinador()
@@ -148,6 +150,8 @@ export default function AsistenciaCoordinadorScreen() {
         <View style={styles.centrado}>
           <ActivityIndicator color={colors.oro} size="large" />
         </View>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
       ) : (
         <>
           {conAlerta > 0 && (

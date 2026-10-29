@@ -6,6 +6,7 @@ import { useEstadoCarga } from './useEstadoCarga'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 import { FEATURES } from '@/constants/features'
 import { fechaLocal } from '@/lib/fecha'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export interface ProximoEvento {
   id:    string
@@ -46,6 +47,7 @@ export function useDiarioEntrenador() {
   const { session } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioEntrenadorData>(DEFAULT)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
   useRefreshOnFocus(fetchTodo)
@@ -55,14 +57,17 @@ export function useDiarioEntrenador() {
     empezar()
 
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: errProfile } = await supabase
         .from('profiles').select('nombre, divisiones').eq('id', session.user.id).single()
+      // Un error de lectura no es "sin división": se muestra con REINTENTAR.
+      if (errProfile) throw errProfile
 
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       const divId = divIds[0] ?? null
 
       if (!divId) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
+        setErrorCarga(null)
         terminar()
         return
       }
@@ -101,12 +106,19 @@ export function useDiarioEntrenador() {
             .limit(1),
         ])
 
+      const errBase = primerError(
+        divRes.error, jugadoresRes.error, proximoEventoRes.error, partidosPas3dRes.error, proximoPartidoRes.error,
+        'error' in lesionesRes ? lesionesRes.error : null,
+      )
+      if (errBase) throw errBase
+
       // Chequear resultados pendientes (partidos últimos 3 días)
       const partidoIds3d = (partidosPas3dRes.data ?? []).map(p => p.id)
       let sinResultado = 0
       if (partidoIds3d.length > 0) {
         const resRes = await supabase.from('resultados')
           .select('evento_id').in('evento_id', partidoIds3d)
+        if (resRes.error) throw resRes.error
         const resSet = new Set((resRes.data ?? []).map(r => r.evento_id))
         sinResultado = partidoIds3d.filter(id => !resSet.has(id)).length
       }
@@ -117,6 +129,7 @@ export function useDiarioEntrenador() {
       if (proximoPartidoId) {
         const mesaRes = await supabase.from('mesas_de_partido')
           .select('evento_id').eq('evento_id', proximoPartidoId).limit(1)
+        if (mesaRes.error) throw mesaRes.error
         if (!(mesaRes.data?.length ?? 0)) sinMesa = 1
       }
 
@@ -160,10 +173,14 @@ export function useDiarioEntrenador() {
         tareas,
         sinDivision:    false,
       })
-    } catch { /* keep defaults */ }
+      setErrorCarga(null)
+    } catch (e) {
+      // Se queda lo último que se vio; la pantalla muestra el error con REINTENTAR.
+      setErrorCarga(mensajeErrorCarga('tu inicio', e))
+    }
 
     terminar()
   }
 
-  return { loading, refrescando, data, refetch: fetchTodo }
+  return { loading, refrescando, data, errorCarga, refetch: fetchTodo }
 }

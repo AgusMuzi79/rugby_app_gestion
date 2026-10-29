@@ -5,6 +5,7 @@ import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { tituloActividadValido, tituloCancelacion, type TipoEventoCalendario } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
 
 export type TipoEvento = TipoEventoCalendario
 export type ModalidadPartido = 'singles' | 'dobles'
@@ -77,6 +78,8 @@ export interface UseCalendarioReturn {
   guardando: boolean
   errorGuardado: string | null
   sinDivisiones: boolean
+  // Falló una lectura: mensaje con REINTENTAR (recargar).
+  errorCarga: string | null
   form: NuevoEventoForm
   setForm: (form: NuevoEventoForm) => void
   resetForm: () => void
@@ -97,31 +100,44 @@ export function useCalendario(): UseCalendarioReturn {
   const [cancelando, setCancelando] = useState(false)
   const [errorCancelacion, setErrorCancelacion] = useState<string | null>(null)
   const [sinDivisiones, setSinDivisiones] = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [form, setForm] = useState<NuevoEventoForm>(FORM_VACIO)
 
   const fetchDatos = useCallback(async () => {
     if (!session) return
     empezar()
 
-    const { data: profile } = await supabase
+    // Un error de lectura no es "sin divisiones" ni "sin eventos": se muestra
+    // con REINTENTAR y se queda lo último que se vio.
+    const fallar = (que: string, error: unknown) => {
+      setErrorCarga(mensajeErrorCarga(que, error))
+      terminar()
+    }
+
+    const { data: profile, error: errProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
       .single()
 
+    if (errProfile) { fallar('tus divisiones', errProfile); return }
+
     const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
 
     if (divIds.length === 0) {
       setSinDivisiones(true)
+      setErrorCarga(null)
       terminar()
       return
     }
 
-    const { data: divsData } = await supabase
+    const { data: divsData, error: errDivs } = await supabase
       .from('divisiones')
       .select('id, nombre, deporte')
       .in('id', divIds)
       .order('nombre')
+
+    if (errDivs) { fallar('tus divisiones', errDivs); return }
 
     const divs = divsData ?? []
     setDivisiones(divs)
@@ -152,6 +168,8 @@ export function useCalendario(): UseCalendarioReturn {
 
     console.log('[calendario] Eventos recibidos:', eventosData?.length ?? 0, eventosError ?? 'sin error')
     console.log('[calendario] Detalle eventos:', eventosData?.map(e => ({ id: e.id, tipo: e.tipo, fecha: e.fecha, division_id: e.division_id })))
+
+    if (eventosError) { fallar('el calendario', eventosError); return }
 
     const eventosNormalizados: EventoCalendario[] = (eventosData ?? []).map((e: {
       id: string
@@ -186,6 +204,7 @@ export function useCalendario(): UseCalendarioReturn {
     }))
 
     setEventos(eventosNormalizados)
+    setErrorCarga(null)
     terminar()
   }, [session, empezar, terminar])
 
@@ -317,6 +336,7 @@ export function useCalendario(): UseCalendarioReturn {
     cancelando,
     errorCancelacion,
     sinDivisiones,
+    errorCarga,
     form,
     setForm,
     resetForm,

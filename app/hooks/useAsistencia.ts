@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import NetInfo from '@react-native-community/netinfo'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
@@ -10,6 +11,8 @@ import { fechaLocal } from '@/lib/fecha'
 import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
 import { marcarTodosPresentes } from '@/lib/marcadoAsistencia'
+import { claveDivisiones, clavePlantel, leerGuardado, resolverCarga, serializarGuardado } from '@/lib/plantelGuardado'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
@@ -40,6 +43,11 @@ export interface UseAsistenciaReturn {
   divisionId: string | null
   divisionNombre: string
   sinDivision: boolean
+  // Falló una lectura y no hay copia: mensaje con REINTENTAR (recargar).
+  errorCarga: string | null
+  // Sin señal: se marca sobre la copia del plantel guardada a esta hora (ms).
+  listaGuardadaEn: number | null
+  recargar: () => void
   marcados: number
   sinGuardar: number
   // Entrenamientos de hoy de la división (doble turno: más de uno) y el elegido.
@@ -58,6 +66,17 @@ export interface UseAsistenciaReturn {
 export interface PedidoAsistencia {
   eventoId?: string
   divisionId?: string
+}
+
+type PlantelJugador = { id: string; nombre_completo: string }
+
+// Copia local del plantel y de las divisiones (lib/plantelGuardado.ts). Si
+// AsyncStorage falla, se sigue sin copia: nunca frena la pantalla.
+async function leerLocal(clave: string): Promise<string | null> {
+  try { return await AsyncStorage.getItem(clave) } catch { return null }
+}
+async function guardarLocal(clave: string, valor: string): Promise<void> {
+  try { await AsyncStorage.setItem(clave, valor) } catch { /* sin copia */ }
 }
 
 function minutosAhora(): number {
@@ -79,6 +98,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
   const [entrenamientos, setEntrenamientos] = useState<EntrenamientoHoy[]>([])
   const [eventoId, setEventoId] = useState<string | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [listaGuardadaEn, setListaGuardadaEn] = useState<number | null>(null)
 
   // Pedido del Inicio todavía sin aplicar: lo consume la próxima carga.
   const eventoPedido = useRef<string | null>(pedido.eventoId ?? null)
@@ -96,11 +117,15 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     if (session) fetchDivisiones()
   }, [session])
 
+  // Un error de lectura no es "sin división": se muestra con REINTENTAR (o,
+  // sin señal, se sigue con la copia guardada en el teléfono).
   async function fetchDivisiones() {
     if (!session) return
     setLoading(true)
+    setErrorCarga(null)
+    const clave = claveDivisiones(session.user.id)
 
-    const { data: profile } = await supabase
+    const { data: profile, error: errProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
@@ -108,19 +133,35 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
 
     const divIds = (profile?.divisiones as string[] | null) ?? []
 
-    if (divIds.length === 0) {
+    if (!errProfile && divIds.length === 0) {
       setSinDivision(true)
       setLoading(false)
       return
     }
 
-    const { data: divsData } = await supabase
-      .from('divisiones')
-      .select('id, nombre')
-      .in('id', divIds)
-      .order('nombre')
+    const divsRes = errProfile
+      ? { data: null, error: errProfile }
+      : await supabase.from('divisiones').select('id, nombre').in('id', divIds).order('nombre')
 
-    const divs = divsData ?? []
+    const carga = resolverCarga<DivisionOpcion>({
+      error: divsRes.error,
+      remoto: divsRes.data,
+      guardado: divsRes.error ? leerGuardado(await leerLocal(clave)) : null,
+    })
+    if (carga.tipo === 'error') {
+      setErrorCarga(mensajeErrorCarga('tus divisiones', carga.error))
+      setLoading(false)
+      return
+    }
+    if (carga.tipo === 'remoto') void guardarLocal(clave, serializarGuardado(carga.datos, Date.now()))
+
+    const divs = carga.datos
+    if (divs.length === 0) {
+      setSinDivision(true)
+      setLoading(false)
+      return
+    }
+    setSinDivision(false)
     setDivisiones(divs)
     const pedida = divisionPedida.current
     divisionPedida.current = null
@@ -158,8 +199,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     if (divisionId) fetchJugadores(divisionId)
   }, [divisionId])
 
-  async function leerMarcas(evId: string): Promise<Record<string, EstadoAsistencia>> {
-    const { data } = await supabase
+  async function leerMarcas(evId: string): Promise<{ marcas: Record<string, EstadoAsistencia>; error: unknown }> {
+    const { data, error } = await supabase
       .from('asistencias')
       .select('jugador_id, estado')
       .eq('evento_id', evId)
@@ -167,7 +208,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     ;(data ?? []).forEach(a => {
       estadoMap[a.jugador_id] = a.estado as EstadoAsistencia
     })
-    return estadoMap
+    return { marcas: estadoMap, error }
   }
 
   async function fetchJugadores(divId: string) {
@@ -176,6 +217,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
+    setErrorCarga(null)
+    setListaGuardadaEn(null)
 
     // Nunca `.maybeSingle()` por (división, fecha, tipo): con doble turno tira
     // error y se creaba un tercer entrenamiento. Se listan todos los de hoy.
@@ -198,14 +241,39 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     ])
 
     const lista: EntrenamientoHoy[] = eventosRes.data ?? []
-    const elegido = elegirEntrenamiento(lista, eventoPedido.current, minutosAhora())
+    const elegido = eventosRes.error ? null : elegirEntrenamiento(lista, eventoPedido.current, minutosAhora())
     eventoPedido.current = null
-    const estadoMap = elegido ? await leerMarcas(elegido) : {}
+    const marcasRes = elegido ? await leerMarcas(elegido) : { marcas: {}, error: null }
+
+    // Si algo falló: sin señal se sigue con la copia del plantel (sin evento
+    // elegido: al guardar va a la cola y la sync resuelve el entrenamiento del
+    // día); con otro error, REINTENTAR.
+    const error = jgsRes.error ?? eventosRes.error ?? marcasRes.error
+    const clave = clavePlantel(divId)
+    const carga = resolverCarga<PlantelJugador>({
+      error,
+      remoto: jgsRes.data,
+      guardado: error ? leerGuardado(await leerLocal(clave)) : null,
+    })
 
     if (lectura !== ultimaLectura.current) return
-    setEntrenamientos(lista)
-    setEventoId(elegido)
-    setJugadores((jgsRes.data ?? []).map(j => ({
+    if (carga.tipo === 'error') {
+      setEntrenamientos([])
+      setEventoId(null)
+      setJugadores([])
+      setErrorCarga(mensajeErrorCarga('la lista de jugadores', carga.error))
+      setLoading(false)
+      return
+    }
+    if (carga.tipo === 'remoto') {
+      void guardarLocal(clave, serializarGuardado(carga.datos.map(j => ({ id: j.id, nombre_completo: j.nombre_completo })), Date.now()))
+    } else {
+      setListaGuardadaEn(carga.guardadoEn)
+    }
+    const estadoMap: Record<string, EstadoAsistencia> = carga.tipo === 'remoto' ? marcasRes.marcas : {}
+    setEntrenamientos(carga.tipo === 'remoto' ? lista : [])
+    setEventoId(carga.tipo === 'remoto' ? elegido : null)
+    setJugadores(carga.datos.map(j => ({
       id: j.id,
       nombre_completo: j.nombre_completo,
       estado: estadoMap[j.id] ?? null,
@@ -221,11 +289,23 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
-    const estadoMap = await leerMarcas(evId)
+    const { marcas: estadoMap, error } = await leerMarcas(evId)
     if (lectura !== ultimaLectura.current) return
+    if (error) {
+      // Se queda en el turno anterior, con sus marcas.
+      setErrorGuardado(`${mensajeErrorCarga('las marcas de ese entrenamiento', error)}`)
+      setLoading(false)
+      return
+    }
     setEventoId(evId)
     setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null, estadoGuardado: estadoMap[j.id] ?? null })))
     setLoading(false)
+  }
+
+  // Volver a leer lo que falló (REINTENTAR).
+  function recargar() {
+    if (divisiones.length === 0 || !divisionId) { void fetchDivisiones(); return }
+    void fetchJugadores(divisionId)
   }
 
   // Cambiar de división o de turno recarga la lista: con marcas sin guardar,
@@ -411,6 +491,9 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     divisionId,
     divisionNombre,
     sinDivision,
+    errorCarga,
+    listaGuardadaEn,
+    recargar,
     marcados,
     sinGuardar,
     entrenamientos,

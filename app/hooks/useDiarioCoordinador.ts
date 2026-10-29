@@ -10,6 +10,7 @@ import {
 } from './useEventos'
 import { fechaLocal } from '@/lib/fecha'
 import { eventosQueCuentan, porcentajeDivision } from '@/lib/porcentajeAsistencia'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export interface EventoSemana {
   id:             string
@@ -59,6 +60,7 @@ export function useDiarioCoordinador() {
   const { session } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioCoordinadorData>(DEFAULT)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
   useRefreshOnFocus(fetchTodo)
@@ -68,12 +70,15 @@ export function useDiarioCoordinador() {
     empezar()
 
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: errProfile } = await supabase
         .from('profiles').select('nombre, divisiones').eq('id', session.user.id).single()
+      // Un error de lectura no es "sin divisiones": se muestra con REINTENTAR.
+      if (errProfile) throw errProfile
 
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       if (divIds.length === 0) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivisiones: true })
+        setErrorCarga(null)
         terminar()
         return
       }
@@ -101,6 +106,9 @@ export function useDiarioCoordinador() {
           .select(SELECT_DIVISIONES_EVENTO)
           .eq('estado', 'activo'),
       ])
+
+      const errBase = primerError(divsRes.error, semanaRes.error, eventos30Res.error, cobranzasActivasRes.error)
+      if (errBase) throw errBase
 
       const divs = divsRes.data ?? []
 
@@ -141,6 +149,8 @@ export function useDiarioCoordinador() {
             .in('division_id', divIds).eq('activo', true),
         ])
 
+        const errAsist = primerError(asistRes.error, jugRes.error)
+        if (errAsist) throw errAsist
         const asists = asistRes.data ?? []
         const jugs   = jugRes.data   ?? []
 
@@ -188,10 +198,14 @@ export function useDiarioCoordinador() {
         alertas,
         sinDivisiones: false,
       })
-    } catch { /* keep defaults */ }
+      setErrorCarga(null)
+    } catch (e) {
+      // Se queda lo último que se vio; la pantalla muestra el error con REINTENTAR.
+      setErrorCarga(mensajeErrorCarga('tu inicio', e))
+    }
 
     terminar()
   }
 
-  return { loading, refrescando, data, refetch: fetchTodo }
+  return { loading, refrescando, data, errorCarga, refetch: fetchTodo }
 }

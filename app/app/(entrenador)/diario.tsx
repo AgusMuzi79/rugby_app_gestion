@@ -7,6 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
@@ -143,7 +144,7 @@ export default function DiarioEntrenadorScreen() {
   useScrollToTop(scrollRef)
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioEntrenador()
+  const { loading, refrescando, data, errorCarga, refetch } = useDiarioEntrenador()
 
   if (data.sinDivision && !loading) {
     return (
@@ -178,9 +179,13 @@ export default function DiarioEntrenadorScreen() {
         <View style={s.saludoDivider} />
       </View>
 
+      {/* Si falla una relectura queda lo último que se vio, con el aviso arriba;
+          si nunca cargó, sólo el aviso (no un "sin eventos" falso). */}
+      {!loading && errorCarga && <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
-      ) : (
+      ) : errorCarga && !data.divisionId ? null : (
         <>
           {/* ── PRÓXIMO EVENTO ── */}
           <View style={s.section}>

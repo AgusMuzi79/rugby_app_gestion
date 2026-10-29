@@ -18,6 +18,7 @@ import {
   MAX_DIVISIONES_PARTIDO, partidoMultiDivisionValido, recortarParaPartido,
 } from '@/hooks/useCalendario'
 import { DatePickerField } from '@/components/ui/DatePickerField'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { etiquetaEvento, letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 import { fechaLocal } from '@/lib/fecha'
@@ -390,7 +391,7 @@ function ModalCancelarEvento({ evento, onClose, onConfirmar, cancelando, errorCa
 export default function CalendarioScreen() {
   const {
     eventos, divisiones, loading, refrescando, guardando, errorGuardado,
-    sinDivisiones, form, setForm, resetForm, crearEvento, recargar,
+    sinDivisiones, errorCarga, form, setForm, resetForm, crearEvento, recargar,
     cancelarEvento, cancelando, errorCancelacion,
   } = useCalendario()
 
@@ -433,6 +434,15 @@ export default function CalendarioScreen() {
     )
   }
 
+  // Nunca cargó (sin divisiones para crear eventos): sólo el error.
+  if (errorCarga && divisiones.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -444,11 +454,13 @@ export default function CalendarioScreen() {
           </TouchableOpacity>
         </View>
         <Text style={styles.subtitulo}>
-          {eventos.length === 0 ? 'Sin eventos próximos' : `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`}
+          {errorCarga ? '' : eventos.length === 0 ? 'Sin eventos próximos' : `${eventos.length} evento${eventos.length !== 1 ? 's' : ''}`}
         </Text>
       </View>
 
       <View style={styles.divider} />
+
+      {errorCarga && <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />}
 
       <FlatList
         data={eventos}
@@ -456,14 +468,14 @@ export default function CalendarioScreen() {
         renderItem={({ item }) => <FilaEvento evento={item} onCancelar={setEventoCancelar} />}
         ItemSeparatorComponent={() => <View style={styles.divider} />}
         contentContainerStyle={eventos.length === 0 ? styles.listaVacia : styles.listaContent}
-        ListEmptyComponent={
+        ListEmptyComponent={errorCarga ? null : (
           <View style={styles.emptyWrap}>
             <Text style={styles.mutedTexto}>No hay eventos en los próximos 60 días.</Text>
             <TouchableOpacity onPress={abrirModal} activeOpacity={0.8} style={styles.crearPrimeroBtn}>
               <Text style={styles.crearPrimeroTexto}>Crear el primero</Text>
             </TouchableOpacity>
           </View>
-        }
+        )}
         onRefresh={recargar}
         refreshing={refrescando}
       />

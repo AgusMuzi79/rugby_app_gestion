@@ -7,6 +7,7 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import {
   useDiarioCoordinador,
   type EventoSemana,
@@ -124,7 +125,7 @@ export default function DiarioCoordinadorScreen() {
   useScrollToTop(scrollRef)
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioCoordinador()
+  const { loading, refrescando, data, errorCarga, refetch } = useDiarioCoordinador()
 
   if (data.sinDivisiones && !loading) {
     return (
@@ -167,9 +168,13 @@ export default function DiarioCoordinadorScreen() {
         <View style={s.tituloDivider} />
       </View>
 
+      {/* Si falla una relectura queda lo último que se vio, con el aviso arriba;
+          si nunca cargó, sólo el aviso (no un "sin eventos" falso). */}
+      {!loading && errorCarga && <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
-      ) : (
+      ) : errorCarga && data.divisiones.length === 0 ? null : (
         <>
           {/* ── ESTA SEMANA ── */}
           <View style={s.section}>

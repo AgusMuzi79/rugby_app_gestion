@@ -16,6 +16,8 @@ import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } fro
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { etiquetaEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { nombresSinMarcar, textoSinMarcar } from '@/lib/marcadoAsistencia'
+import { horaGuardado } from '@/lib/plantelGuardado'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 
@@ -195,6 +197,9 @@ export default function AsistenciaScreen() {
     divisionId,
     divisionNombre,
     sinDivision,
+    errorCarga,
+    listaGuardadaEn,
+    recargar,
     marcados,
     entrenamientos,
     eventoId,
@@ -209,6 +214,8 @@ export default function AsistenciaScreen() {
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
   const justifs   = jugadores.filter(j => j.estado === 'justificado').length
   const todosMarcados = marcados === jugadores.length
+  // GUARDAR no se puede tocar mientras guarda, carga o no hay lista.
+  const guardarBloqueado = guardando || loading || !!errorCarga
 
   // Si queda alguien sin marcar, se avisa quiénes antes de guardar.
   function onGuardar() {
@@ -225,6 +232,16 @@ export default function AsistenciaScreen() {
       <SafeAreaView style={s.centrado} edges={['top']}>
         <Text style={s.mutedTexto}>Sin división asignada.</Text>
         <Text style={s.mutedTexto}>Contactá a la Subcomisión.</Text>
+      </SafeAreaView>
+    )
+  }
+
+  // Falló la lectura de las divisiones y no hay copia en el teléfono: no es
+  // "sin división" (antes mandaba a reclamarle a la Subcomisión).
+  if (!divisionId && errorCarga) {
+    return (
+      <SafeAreaView style={s.root} edges={['top']}>
+        <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
       </SafeAreaView>
     )
   }
@@ -272,8 +289,20 @@ export default function AsistenciaScreen() {
         <View style={s.lista}>
           <ActivityIndicator color={colors.oro} style={s.loadingInline} />
         </View>
+      ) : errorCarga ? (
+        <View style={s.lista}>
+          <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
+        </View>
       ) : (
         <>
+          {listaGuardadaEn !== null && (
+            <View style={s.notaGuardada} accessibilityRole="text">
+              <Text style={s.statusPendiente}>
+                Sin señal: lista guardada al {horaGuardado(listaGuardadaEn)}. Marcá y guardá: se envía sola cuando vuelva la conexión.
+              </Text>
+            </View>
+          )}
+
           {/* ── Contadores ─────────────────────────────────────────────────── */}
           <View style={s.contadores}>
             <ContadorBox label="PRESENTES" count={presentes} color={colors.confirmacion}  />
@@ -346,13 +375,13 @@ export default function AsistenciaScreen() {
       {/* GUARDAR fijo abajo, al alcance del pulgar, con el avance de la lista. */}
       <View style={s.footer}>
         <TouchableOpacity
-          style={[s.guardarFooter, (guardando || loading) && s.guardarBtnGuardando]}
+          style={[s.guardarFooter, guardarBloqueado && s.guardarBtnGuardando]}
           onPress={onGuardar}
-          disabled={guardando || loading}
+          disabled={guardarBloqueado}
           activeOpacity={0.85}
           accessibilityRole="button"
           accessibilityLabel={`Guardar asistencia, ${marcados} de ${jugadores.length} marcados`}
-          accessibilityState={{ disabled: guardando || loading, busy: guardando }}
+          accessibilityState={{ disabled: guardarBloqueado, busy: guardando }}
         >
           {guardando
             ? <ActivityIndicator color={colors.sobreOro} size="small" />
@@ -497,6 +526,7 @@ const s = StyleSheet.create({
 
   // Player rows
   lista: { flex: 1 },
+  notaGuardada: { paddingHorizontal: 20, paddingTop: 12 },
   listContent: { paddingBottom: 8 },
   fila: {
     flexDirection: 'row',

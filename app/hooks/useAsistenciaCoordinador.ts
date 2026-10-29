@@ -5,6 +5,7 @@ import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { fechaLocal } from '@/lib/fecha'
 import { estadisticaJugador, eventosQueCuentan } from '@/lib/porcentajeAsistencia'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export interface JugadorAsistencia {
   id: string
@@ -24,6 +25,7 @@ export interface UseAsistenciaCoordinadorReturn {
   loading: boolean
   refrescando: boolean
   sinDivisiones: boolean
+  errorCarga: string | null
   seleccionarDivision: (id: string) => void
   recargar: () => void
 }
@@ -38,6 +40,7 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
   // es otra, así que se muestra el spinner; al volver a la pestaña, no.
   const [divisionCargada, setDivisionCargada] = useState<string | null>(null)
   const [sinDivisiones, setSinDivisiones] = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   const divisionNombre = divisiones.find(d => d.id === divisionSeleccionada)?.nombre ?? ''
   const cambiandoDivision = divisionCargada !== null && divisionCargada !== divisionSeleccionada
@@ -96,6 +99,12 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
         .order('created_at', { ascending: false }),
     ])
 
+    const errBase = primerError(jgsRes.error, eventosRes.error, asistencias60Res.error)
+    if (errBase) {
+      fallarLectura(lectura, divisionId, errBase)
+      return
+    }
+
     const jugadoresData = jgsRes.data ?? []
     // Eventos ya pasados (hoy no) y no actividades; por jugador sólo cuentan
     // los que tienen fila suya (lib/porcentajeAsistencia.ts).
@@ -106,10 +115,14 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     // Fetch asistencias for the 30-day events in one batch
     let asistencias30: { jugador_id: string; evento_id: string; estado: string }[] = []
     if (eventoIds30.length > 0) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('asistencias')
         .select('jugador_id, evento_id, estado')
         .in('evento_id', eventoIds30)
+      if (error) {
+        fallarLectura(lectura, divisionId, error)
+        return
+      }
       asistencias30 = data ?? []
     }
 
@@ -134,17 +147,35 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     if (lectura !== ultimaLectura.current) return
     setJugadores(jugadoresConStats)
     setDivisionCargada(divisionId)
+    setErrorCarga(null)
     terminar()
   }, [empezar, terminar])
+
+  // Una lectura que falla no deja una lista vacía ni 0 %: se muestra el error
+  // con REINTENTAR (y el spinner de cambio de división se va).
+  function fallarLectura(lectura: number, divisionId: string, error: unknown) {
+    if (lectura !== ultimaLectura.current) return
+    setJugadores([])
+    setDivisionCargada(divisionId)
+    setErrorCarga(mensajeErrorCarga('la asistencia de la división', error))
+    terminar()
+  }
 
   async function fetchDivisiones() {
     if (!session) return
 
-    const { data: profile } = await supabase
+    const { data: profile, error: errProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
       .single()
+
+    // Un error de lectura no es "sin divisiones".
+    if (errProfile) {
+      setErrorCarga(mensajeErrorCarga('tus divisiones', errProfile))
+      terminar()
+      return
+    }
 
     const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
 
@@ -154,11 +185,17 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
       return
     }
 
-    const { data: divsData } = await supabase
+    const { data: divsData, error: errDivs } = await supabase
       .from('divisiones')
       .select('id, nombre')
       .in('id', divIds)
       .order('nombre')
+
+    if (errDivs) {
+      setErrorCarga(mensajeErrorCarga('tus divisiones', errDivs))
+      terminar()
+      return
+    }
 
     const divs = divsData ?? []
     setDivisiones(divs)
@@ -187,7 +224,12 @@ export function useAsistenciaCoordinador(): UseAsistenciaCoordinadorReturn {
     loading,
     refrescando,
     sinDivisiones,
+    errorCarga,
     seleccionarDivision,
-    recargar: () => { if (divisionSeleccionada) fetchJugadores(divisionSeleccionada) },
+    // Sin división elegida (falló la carga de divisiones) se reintenta desde el principio.
+    recargar: () => {
+      if (divisionSeleccionada) fetchJugadores(divisionSeleccionada)
+      else void fetchDivisiones()
+    },
   }
 }
