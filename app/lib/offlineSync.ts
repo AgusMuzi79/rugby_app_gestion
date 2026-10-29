@@ -6,6 +6,7 @@
 // Lógica pura con la base inyectada (offlineSync.check.ts).
 
 import type { ItemCola } from './offlineQueue'
+import type { MarcaGuardada } from './ausenciasConsecutivas'
 
 export interface FilaAsistencia {
   evento_id:      string
@@ -20,9 +21,10 @@ export interface PuertoSync {
   buscarEntrenamiento(divisionId: string, fecha: string): Promise<string | null>
   crearEntrenamiento(divisionId: string, fecha: string, creadoPor: string): Promise<string>
   upsertAsistencias(filas: FilaAsistencia[]): Promise<void>
-  // Igual que el guardado online de un entrenamiento: alerta de 4 faltas.
-  // Si falla, la asistencia igual cuenta como enviada.
-  alSincronizarEntrenamiento?(divisionId: string, jugadorIds: string[]): Promise<void>
+  // Igual que el guardado online de un entrenamiento: alerta de 4 faltas
+  // (sólo al cruzar el tope, ver ausenciasConsecutivas.ts). Si falla, la
+  // asistencia igual cuenta como enviada.
+  alSincronizarEntrenamiento?(divisionId: string, eventoId: string, marcas: MarcaGuardada[]): Promise<void>
 }
 
 // `definitivo`: el servidor ya contestó que el ítem no se puede usar (no existe
@@ -68,7 +70,8 @@ interface PayloadAsistencia {
   division_id:    string
   fecha?:         string
   registrado_por: string
-  jugadores:      { jugador_id: string; estado: string }[]
+  // estado_previo: lo que había guardado al encolar (ítems viejos no lo traen).
+  jugadores:      { jugador_id: string; estado: string; estado_previo?: string | null }[]
 }
 
 function leerPayload(p: Record<string, unknown>): PayloadAsistencia {
@@ -101,7 +104,11 @@ async function enviarAsistencia(item: ItemCola, db: PuertoSync): Promise<void> {
   })))
   if ((!p.evento_id || p.entrenamiento === true) && db.alSincronizarEntrenamiento) {
     try {
-      await db.alSincronizarEntrenamiento(p.division_id, p.jugadores.map(j => j.jugador_id))
+      await db.alSincronizarEntrenamiento(p.division_id, eventoId, p.jugadores.map(j => ({
+        jugador_id:   j.jugador_id,
+        estado:       j.estado,
+        estadoPrevio: j.estado_previo ?? null,
+      })))
     } catch {
       // La asistencia ya está en la base; la alerta no la devuelve a la cola.
     }

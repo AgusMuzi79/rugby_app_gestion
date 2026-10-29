@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { LOTE_ACCESOS_OFFLINE, MAX_INTENTOS, esErrorDeRed, nuevoIdCola, particionarFallidos, sinNoEnviadasDe, sincronizarAccesosOffline, sincronizarItems, type EscaneoOffline, type FilaAsistencia, type PuertoAccesos, type PuertoSync, type ResultadoAccesoOffline } from './offlineSync'
 import type { ItemCola } from './offlineQueue'
+import type { MarcaGuardada } from './ausenciasConsecutivas'
 
 let casos = 0
 async function caso(nombre: string, fn: () => Promise<void> | void) {
@@ -114,21 +115,37 @@ async function main() {
 
   await caso('después de mandar un entrenamiento se corre la alerta de 4 faltas (partido no)', async () => {
     const db = baseFalsa()
-    const llamadas: [string, string[]][] = []
-    db.puerto.alSincronizarEntrenamiento = async (div, ids) => { llamadas.push([div, ids]) }
+    const llamadas: [string, string, MarcaGuardada[]][] = []
+    db.puerto.alSincronizarEntrenamiento = async (div, ev, marcas) => { llamadas.push([div, ev, marcas]) }
     const partido: ItemCola = {
       id: 'p', tipo: 'asistencia', creadoEn: 1,
       payload: { evento_id: 'partido-9', division_id: 'div-1', registrado_por: 'coach', jugadores: [{ jugador_id: 'j1', estado: 'ausente' }] },
     }
     await sincronizarItems([entrenamiento('a'), partido], db.puerto)
-    assert.deepEqual(llamadas, [['div-1', ['j1', 'j2']]])
+    // Un ítem viejo (sin estado_previo) cuenta como fila nueva.
+    assert.deepEqual(llamadas, [['div-1', 'ev-1', [
+      { jugador_id: 'j1', estado: 'presente', estadoPrevio: null },
+      { jugador_id: 'j2', estado: 'ausente', estadoPrevio: null },
+    ]]])
+  })
+
+  await caso('la alerta recibe lo que había antes en el evento (para avisar sólo al cruzar las 4)', async () => {
+    const db = baseFalsa()
+    const llamadas: MarcaGuardada[][] = []
+    db.puerto.alSincronizarEntrenamiento = async (_div, _ev, marcas) => { llamadas.push(marcas) }
+    const item: ItemCola = {
+      id: 'r', tipo: 'asistencia', creadoEn: 1,
+      payload: { division_id: 'div-1', fecha: '2026-10-26', registrado_por: 'coach', jugadores: [{ jugador_id: 'j1', estado: 'ausente', estado_previo: 'ausente' }] },
+    }
+    await sincronizarItems([item], db.puerto)
+    assert.deepEqual(llamadas, [[{ jugador_id: 'j1', estado: 'ausente', estadoPrevio: 'ausente' }]])
   })
 
   await caso('un entrenamiento elegido (doble turno) usa su evento_id y corre la alerta de 4 faltas', async () => {
     const db = baseFalsa()
     db.eventos.set('div-1|2026-10-26', 'ev-primero')
-    const llamadas: [string, string[]][] = []
-    db.puerto.alSincronizarEntrenamiento = async (div, ids) => { llamadas.push([div, ids]) }
+    const llamadas: [string, string, string[]][] = []
+    db.puerto.alSincronizarEntrenamiento = async (div, ev, marcas) => { llamadas.push([div, ev, marcas.map(m => m.jugador_id)]) }
     const elegido: ItemCola = {
       id: 'e', tipo: 'asistencia', creadoEn: 1,
       payload: { evento_id: 'ev-segundo', entrenamiento: true, division_id: 'div-1', fecha: '2026-10-26', registrado_por: 'coach', jugadores: [{ jugador_id: 'j1', estado: 'ausente' }] },
@@ -138,7 +155,7 @@ async function main() {
     assert.ok(db.asistencias.has('ev-segundo|j1'))
     assert.equal(db.asistencias.has('ev-primero|j1'), false)
     assert.equal(db.creados(), 0)
-    assert.deepEqual(llamadas, [['div-1', ['j1']]])
+    assert.deepEqual(llamadas, [['div-1', 'ev-segundo', ['j1']]])
   })
 
   await caso('una falla de la alerta no deja la asistencia en la cola', async () => {

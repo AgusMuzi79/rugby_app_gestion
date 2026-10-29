@@ -5,6 +5,8 @@ import { create } from 'zustand'
 import { supabase } from '@/lib/supabase'
 import { aplicarResultadoSync, cantidadNoEnviadas, obtenerCola, tamañoCola } from '@/lib/offlineQueue'
 import { particionarFallidos, sincronizarAccesosOffline, sincronizarItems, type PuertoAccesos, type PuertoSync, type ResultadoAccesoOffline } from '@/lib/offlineSync'
+import { VENTANA_EVENTOS, jugadoresQueLleganAlTope, type MarcaGuardada } from '@/lib/ausenciasConsecutivas'
+import { fechaLocal } from '@/lib/fecha'
 
 // Lo que queda en el teléfono: `pendientes` todavía se va a mandar;
 // `noEnviadas` falló MAX_INTENTOS veces por un error que no es de red
@@ -53,31 +55,76 @@ const puertoSupabase: PuertoSync = {
     if (error) throw error
   },
   // Misma alerta de 4 faltas que corre useAsistencia al guardar online.
-  async alSincronizarEntrenamiento(divisionId, jugadorIds) {
-    const [jugadoresRes, divisionRes] = await Promise.all([
-      supabase.from('jugadores').select('id, nombre_completo').in('id', jugadorIds),
-      supabase.from('divisiones').select('nombre').eq('id', divisionId).single(),
-    ])
-    if (jugadoresRes.error) throw jugadoresRes.error
-    const divisionNombre = divisionRes.data?.nombre ?? ''
-    await Promise.all((jugadoresRes.data ?? []).map(async j => {
-      const { data: ultimas } = await supabase
-        .from('asistencias')
-        .select('estado')
-        .eq('jugador_id', j.id)
-        .eq('division_id', divisionId)
-        .order('created_at', { ascending: false })
-        .limit(4)
-      if ((ultimas ?? []).length === 4 && ultimas!.every(a => a.estado === 'ausente')) {
-        await supabase.functions.invoke('notifications', {
-          body: {
-            type: 'ausencias_consecutivas',
-            payload: { jugadorNombre: j.nombre_completo, jugadorId: j.id, divisionNombre, divisionId },
-          },
-        })
-      }
-    }))
+  async alSincronizarEntrenamiento(divisionId, eventoId, marcas) {
+    await verificarCuartaAusencia({ divisionId, eventoId, marcas })
   },
+}
+
+// Alerta de 4 ausencias seguidas, compartida por el guardado online
+// (useAsistencia) y la sync offline. Dos lecturas en total (no una por
+// jugador) y push sólo a quienes esta carga les completa la 4ª falta.
+// Devuelve los nombres de esos jugadores. Tira si falla una lectura.
+export async function verificarCuartaAusencia({
+  divisionId,
+  eventoId,
+  marcas,
+  divisionNombre,
+  nombres,
+}: {
+  divisionId: string
+  eventoId: string
+  marcas: MarcaGuardada[]
+  divisionNombre?: string
+  nombres?: Record<string, string>
+}): Promise<string[]> {
+  if (!marcas.some(m => m.estado === 'ausente')) return []
+
+  const { data: eventos, error: errEventos } = await supabase
+    .from('eventos')
+    .select('id')
+    .eq('division_id', divisionId)
+    .eq('cancelado', false)
+    // Las actividades no toman asistencia: no cortan ni suman la racha.
+    .neq('tipo', 'actividad')
+    .lte('fecha', fechaLocal())
+    .order('fecha', { ascending: false })
+    .order('hora', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(VENTANA_EVENTOS)
+  if (errEventos) throw errEventos
+  const ids = (eventos ?? []).map(e => e.id)
+  if (!ids.includes(eventoId)) return []
+
+  const { data: filas, error: errFilas } = await supabase
+    .from('asistencias')
+    .select('jugador_id, evento_id, estado')
+    .in('evento_id', ids)
+    .in('jugador_id', marcas.map(m => m.jugador_id))
+  if (errFilas) throw errFilas
+
+  const llegan = jugadoresQueLleganAlTope(ids, filas ?? [], eventoId, marcas)
+  if (llegan.length === 0) return []
+
+  let porId = nombres ?? {}
+  if (llegan.some(id => !porId[id])) {
+    const { data } = await supabase.from('jugadores').select('id, nombre_completo').in('id', llegan)
+    porId = { ...porId, ...Object.fromEntries((data ?? []).map(j => [j.id, j.nombre_completo])) }
+  }
+  let divNombre = divisionNombre
+  if (divNombre === undefined) {
+    const { data } = await supabase.from('divisiones').select('nombre').eq('id', divisionId).single()
+    divNombre = data?.nombre ?? ''
+  }
+
+  for (const id of llegan) {
+    void supabase.functions.invoke('notifications', {
+      body: {
+        type: 'ausencias_consecutivas',
+        payload: { jugadorNombre: porId[id] ?? '', jugadorId: id, divisionNombre: divNombre, divisionId },
+      },
+    })
+  }
+  return llegan.map(id => porId[id] ?? '')
 }
 
 // Escaneos de la puerta que se dejaron pasar sin conexión (portería T4): socios-qr

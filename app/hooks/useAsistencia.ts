@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
-import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { actualizarPendientes, verificarCuartaAusencia } from '@/hooks/useSincronizacionOffline'
+import type { MarcaGuardada } from '@/lib/ausenciasConsecutivas'
 import { fechaLocal } from '@/lib/fecha'
 import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
@@ -273,6 +274,10 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     const marcarGuardadas = () => setJugadores(prev => prev.map(j => (
       enviadas[j.id] ? { ...j, estadoGuardado: enviadas[j.id] } : j
     )))
+    // Para la alerta de 4 faltas: lo que había antes en el evento.
+    const marcasGuardadas: MarcaGuardada[] = jugadores
+      .filter(j => j.estado !== null)
+      .map(j => ({ jugador_id: j.id, estado: j.estado!, estadoPrevio: j.estadoGuardado }))
 
     // Sin señal (o si la red se cae a mitad): queda en el teléfono y
     // useSincronizacionOffline la manda cuando vuelve la conexión.
@@ -286,9 +291,9 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
           division_id: divisionId,
           fecha,
           registrado_por: session.user.id,
-          jugadores: jugadores
-            .filter(j => j.estado !== null)
-            .map(j => ({ jugador_id: j.id, estado: j.estado })),
+          jugadores: marcasGuardadas.map(m => ({
+            jugador_id: m.jugador_id, estado: m.estado, estado_previo: m.estadoPrevio,
+          })),
         },
       })
       await actualizarPendientes()
@@ -339,7 +344,6 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     }
 
     marcarGuardadas()
-    await verificarAusenciasConsecutivas(divisionId)
     // Si había una de esta división y fecha que no se pudo enviar, esta la
     // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
     try {
@@ -350,7 +354,22 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     }
     setGuardado(true)
     setGuardando(false)
+    // Después de mostrar "guardada": la alerta no demora la confirmación.
+    void avisarCuartaAusencia(divisionId, eventoGuardado, marcasGuardadas)
     return true
+  }
+
+  // Alerta de 4 faltas seguidas: sólo a quienes esta carga les completa la 4ª.
+  async function avisarCuartaAusencia(divId: string, evId: string, marcas: MarcaGuardada[]) {
+    const lectura = ultimaLectura.current
+    try {
+      const nombres = Object.fromEntries(jugadores.map(j => [j.id, j.nombre_completo]))
+      const llegaron = await verificarCuartaAusencia({ divisionId: divId, eventoId: evId, marcas, divisionNombre, nombres })
+      // Si mientras tanto cambió la lista (otra división o turno), no se marca.
+      if (lectura === ultimaLectura.current) setAlertas(llegaron)
+    } catch (e) {
+      console.warn('alerta 4 ausencias:', e instanceof Error ? e.message : String(e))
+    }
   }
 
   // Sin entrenamiento hoy al abrir: el primero que haya aparecido (mismo criterio
@@ -377,43 +396,6 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       .single()
 
     return error ? { id: null, error } : { id: nuevo.id, error: null }
-  }
-
-  async function verificarAusenciasConsecutivas(divId: string) {
-    if (jugadores.length === 0) return
-
-    const resultados = await Promise.all(
-      jugadores.map(j =>
-        supabase
-          .from('asistencias')
-          .select('estado')
-          .eq('jugador_id', j.id)
-          .eq('division_id', divId)
-          .order('created_at', { ascending: false })
-          .limit(4),
-      ),
-    )
-
-    const conAlertas: string[] = []
-    resultados.forEach((res, i) => {
-      const ultimas = res.data ?? []
-      if (ultimas.length === 4 && ultimas.every(a => a.estado === 'ausente')) {
-        conAlertas.push(jugadores[i].nombre_completo)
-        void supabase.functions.invoke('notifications', {
-          body: {
-            type: 'ausencias_consecutivas',
-            payload: {
-              jugadorNombre:  jugadores[i].nombre_completo,
-              jugadorId:      jugadores[i].id,
-              divisionNombre,
-              divisionId:     divId,
-            },
-          },
-        })
-      }
-    })
-
-    setAlertas(conAlertas)
   }
 
   return {
