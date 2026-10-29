@@ -21,9 +21,10 @@ import {
   payloadCola,
   resolverEntrenamientos,
   resolverMarcas,
-  serializarCopiaDia,
+  type CopiaDia,
   type MarcasResueltas,
 } from '@/lib/copiaDelDia'
+import { actualizarCopiaGuardada } from '@/lib/copiaDelDiaGuardada'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
 import { mensajeError } from '@/lib/mensajeError'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
@@ -90,6 +91,12 @@ async function leerLocal(clave: string): Promise<string | null> {
 }
 async function guardarLocal(clave: string, valor: string): Promise<void> {
   try { await AsyncStorage.setItem(clave, valor) } catch { /* sin copia */ }
+}
+
+// Toda escritura de la copia del día lee, mezcla y escribe dentro del candado
+// de su clave (lib/copiaDelDiaGuardada.ts): nunca sobre una base vieja.
+function actualizarCopiaDelDia(divId: string, cambiar: (actual: CopiaDia | null) => CopiaDia | null) {
+  return actualizarCopiaGuardada(AsyncStorage, claveDia(divId), cambiar)
 }
 
 function minutosAhora(): number {
@@ -307,15 +314,17 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     if (plantel.tipo === 'remoto') {
       void guardarLocal(clave, serializarGuardado(plantel.datos.map(j => ({ id: j.id, nombre_completo: j.nombre_completo })), ahora))
     }
-    // Lo que llegó de la base actualiza la copia del día.
+    // Lo que llegó de la base actualiza la copia del día. Se mezcla sobre la
+    // copia que se lee dentro del candado, no sobre `copia` (leída antes de la
+    // red): un guardado hecho en el medio no se pisa.
     const marcasLeidas = marcas.tipo === 'ok' && !marcas.deCopia && turnos.eventoId ? marcas.marcas : null
     if (turnos.tipo === 'remoto' || marcasLeidas) {
-      void guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(copia, {
+      void actualizarCopiaDelDia(divId, actual => actualizarCopiaDia(actual, {
         fecha,
         ahora,
         ...(turnos.tipo === 'remoto' ? { entrenamientos: turnos.lista } : {}),
         ...(marcasLeidas && turnos.eventoId ? { eventoId: turnos.eventoId, marcas: marcasLeidas } : {}),
-      })))
+      }))
     }
 
     const deCopia = turnos.tipo === 'guardado' || (marcas.tipo === 'ok' && marcas.deCopia)
@@ -333,11 +342,9 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
 
   // Suma a la copia del día lo que se acaba de guardar (en la base o en la cola).
   async function anotarEnCopia(divId: string, evId: string, enviadas: Record<string, EstadoAsistencia>) {
-    const claveD = claveDia(divId)
-    const copia = leerCopiaDia(await leerLocal(claveD))
-    await guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(copia, {
+    await actualizarCopiaDelDia(divId, actual => actualizarCopiaDia(actual, {
       fecha, ahora: Date.now(), eventoId: evId, marcas: enviadas, mezclar: true,
-    })))
+    }))
   }
 
   // Cambiar de turno (doble entrenamiento): mismas personas, marcas de ese evento.
@@ -365,11 +372,8 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       setLoading(false)
       return
     }
-    if (!r.deCopia && claveD) {
-      void (async () => {
-        const actual = leerCopiaDia(await leerLocal(claveD))
-        await guardarLocal(claveD, serializarCopiaDia(actualizarCopiaDia(actual, { fecha, ahora: Date.now(), eventoId: evId, marcas: r.marcas })))
-      })()
+    if (!r.deCopia && divisionId) {
+      void actualizarCopiaDelDia(divisionId, actual => actualizarCopiaDia(actual, { fecha, ahora: Date.now(), eventoId: evId, marcas: r.marcas }))
     }
     const estadoMap = r.marcas
     setEventoId(evId)
