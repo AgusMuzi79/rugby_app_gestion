@@ -14,6 +14,7 @@ import { FEATURES } from '@/constants/features'
 import { etiquetaEvento } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
 import { accionDelEvento } from '@/lib/entrenamientoHoy'
+import { paramsPedidoPartido } from '@/lib/partidosEntrenador'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -78,8 +79,8 @@ function CardEvento({
 }: {
   ev: ProximoEvento | null
   divisionNombre: string
-  onAsistencia: (eventoId: string) => void
-  onPartido: () => void
+  onAsistencia: (ev: ProximoEvento) => void
+  onPartido: (ev: ProximoEvento) => void
 }) {
   const accion = ev ? accionDelEvento(ev, fechaLocal()) : null
   return (
@@ -96,7 +97,7 @@ function CardEvento({
           {accion === 'asistencia' && (
             <TouchableOpacity
               style={s.asistenciaBtn}
-              onPress={() => onAsistencia(ev.id)}
+              onPress={() => onAsistencia(ev)}
               activeOpacity={0.85}
               accessibilityRole="button"
             >
@@ -104,7 +105,7 @@ function CardEvento({
             </TouchableOpacity>
           )}
           {accion === 'partido' && (
-            <TouchableOpacity style={s.asistenciaBtn} onPress={onPartido} activeOpacity={0.85} accessibilityRole="button">
+            <TouchableOpacity style={s.asistenciaBtn} onPress={() => onPartido(ev)} activeOpacity={0.85} accessibilityRole="button">
               <Text style={s.asistenciaBtnText}>MESA Y ASISTENCIA →</Text>
             </TouchableOpacity>
           )}
@@ -145,6 +146,16 @@ export default function DiarioEntrenadorScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
   const { loading, refrescando, data, errorCarga, refetch } = useDiarioEntrenador()
+
+  // Tareas de partido (T7): abren Partido con ese partido (y, RESULTADO, en
+  // el paso de resultado). La marca hace que el mismo toque se reaplique.
+  function abrirTarea(t: TareaPendiente) {
+    if (t.pedido) {
+      router.navigate({ pathname: t.route, params: paramsPedidoPartido(t.pedido, String(Date.now())) })
+    } else {
+      router.navigate(t.route)
+    }
+  }
 
   if (data.sinDivision && !loading) {
     return (
@@ -193,11 +204,14 @@ export default function DiarioEntrenadorScreen() {
             <CardEvento
               ev={data.proximoEvento}
               divisionNombre={data.divisionNombre}
-              onAsistencia={eventoId => router.navigate({
+              onAsistencia={ev => router.navigate({
                 pathname: '/(entrenador)/asistencia',
-                params: { eventoId, ...(data.divisionId ? { divisionId: data.divisionId } : {}) },
+                params: { eventoId: ev.id, divisionId: ev.divisionId },
               })}
-              onPartido={() => router.navigate('/(entrenador)/partido')}
+              onPartido={ev => router.navigate({
+                pathname: '/(entrenador)/partido',
+                params: paramsPedidoPartido({ eventoId: ev.id, divisionId: ev.divisionId }, String(Date.now())),
+              })}
             />
           </View>
 
@@ -212,7 +226,7 @@ export default function DiarioEntrenadorScreen() {
                   <FilaTarea
                     key={t.tipo}
                     tarea={t}
-                    onPress={() => router.navigate(t.route)}
+                    onPress={() => abrirTarea(t)}
                   />
                 ))}
               </View>

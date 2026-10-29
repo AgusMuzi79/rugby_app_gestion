@@ -8,6 +8,7 @@ import {
   TextInput,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLocalSearchParams } from 'expo-router'
 import {
   usePartido,
   RolEnMesa,
@@ -15,10 +16,13 @@ import {
   JugadorPartido,
   ConteoMesa,
   Equipo,
+  DivisionPartido,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { leerPedidoPartido, seccionarPartidos, DIAS_ATRAS_PARTIDOS, DIAS_ADELANTE_PARTIDOS } from '@/lib/partidosEntrenador'
+import { fechaLocal } from '@/lib/fecha'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -153,49 +157,121 @@ function FilaMesa({
 
 // ─── Selector de partidos ─────────────────────────────────────────────────────
 
+// Secciones (T7): SIN RESULTADO (pasados de la última semana sin resultado)
+// primero, después PRÓXIMOS y JUGADOS.
 function SelectorPartidos({
   partidos,
   seleccionado,
   onSelect,
+  registraResultado,
+  hayError,
 }: {
   partidos: PartidoEvento[]
   seleccionado: PartidoEvento | null
   onSelect: (p: PartidoEvento) => void
+  registraResultado: boolean
+  hayError: boolean
 }) {
   if (partidos.length === 0) {
+    // Con error de lectura, el aviso con REINTENTAR ya está arriba: no es "sin partidos".
+    if (hayError) return null
     return (
       <View style={s.emptyGap}>
-        <Text style={s.emptyTexto}>Sin partidos programados en los próximos 14 días.</Text>
+        <Text style={s.emptyTexto}>
+          Sin partidos entre los últimos {DIAS_ATRAS_PARTIDOS} días y los próximos {DIAS_ADELANTE_PARTIDOS}.
+        </Text>
         <Text style={s.emptySubtexto}>El Coordinador debe cargarlos en el calendario.</Text>
       </View>
     )
   }
   return (
     <View style={s.gap8}>
-      {partidos.map(p => {
-        const activo = seleccionado?.id === p.id
+      {seccionarPartidos(partidos, fechaLocal(), registraResultado).map(seccion => (
+        <View key={seccion.clave} style={s.gap8}>
+          <Text style={[s.subseccionLabel, seccion.clave === 'sin_resultado' && s.subseccionLabelAlerta]}>
+            {seccion.titulo}
+          </Text>
+          {seccion.partidos.map(p => (
+            <FilaPartido key={p.id} partido={p} activo={seleccionado?.id === p.id} onSelect={onSelect} />
+          ))}
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function FilaPartido({
+  partido: p,
+  activo,
+  onSelect,
+}: {
+  partido: PartidoEvento
+  activo: boolean
+  onSelect: (p: PartidoEvento) => void
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.card, activo && s.cardActivo]}
+      onPress={() => onSelect(p)}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityState={{ selected: activo }}
+    >
+      <View style={s.cardRow}>
+        <View style={s.cardInfo}>
+          <Text style={[s.cardTitle, activo && s.cardTitleActivo]}>
+            vs {p.rival ?? 'Rival por confirmar'}
+          </Text>
+          <Text style={s.cardSub}>
+            {formatFecha(p.fecha)}{p.lugar ? ` · ${p.lugar}` : ''}
+          </Text>
+        </View>
+        {activo && <Text style={s.checkOro}>✓</Text>}
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Selector de división ─────────────────────────────────────────────────────
+
+// Entrenador con varias divisiones (T7): igual que en Asistencia.
+function SelectorDivision({
+  divisiones,
+  divisionId,
+  onSeleccionar,
+  deshabilitado,
+}: {
+  divisiones: DivisionPartido[]
+  divisionId: string | null
+  onSeleccionar: (id: string) => void
+  deshabilitado: boolean
+}) {
+  if (divisiones.length < 2) return null
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.divisionChips}
+    >
+      {divisiones.map(div => {
+        const activo = div.id === divisionId
         return (
           <TouchableOpacity
-            key={p.id}
-            style={[s.card, activo && s.cardActivo]}
-            onPress={() => onSelect(p)}
+            key={div.id}
+            style={[s.divisionChip, activo && s.divisionChipActivo]}
+            onPress={() => onSeleccionar(div.id)}
+            disabled={deshabilitado}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityState={{ selected: activo, disabled: deshabilitado }}
           >
-            <View style={s.cardRow}>
-              <View style={s.cardInfo}>
-                <Text style={[s.cardTitle, activo && s.cardTitleActivo]}>
-                  vs {p.rival ?? 'Rival por confirmar'}
-                </Text>
-                <Text style={s.cardSub}>
-                  {formatFecha(p.fecha)}{p.lugar ? ` · ${p.lugar}` : ''}
-                </Text>
-              </View>
-              {activo && <Text style={s.checkOro}>✓</Text>}
-            </View>
+            <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
+              {div.nombre.toUpperCase()}
+            </Text>
           </TouchableOpacity>
         )
       })}
-    </View>
+    </ScrollView>
   )
 }
 
@@ -206,13 +282,16 @@ function SelectorEquipos({
   equipoObligatorio,
   seleccionado,
   onSelect,
+  hayError,
 }: {
   equipos: Equipo[]
   equipoObligatorio: Equipo | null
   seleccionado: Equipo | null
   onSelect: (e: Equipo) => void
+  hayError: boolean
 }) {
   if (equipos.length === 0) {
+    if (hayError) return null
     return <Text style={s.emptyTexto}>Preparando equipos...</Text>
   }
   return (
@@ -257,6 +336,8 @@ function PasoEquipo({
   onSeleccionarEquipo,
   onContinuar,
   cargandoTransicion,
+  registraResultado,
+  hayError,
 }: {
   partidos: PartidoEvento[]
   partidoSeleccionado: PartidoEvento | null
@@ -267,6 +348,8 @@ function PasoEquipo({
   onSeleccionarEquipo: (e: Equipo) => void
   onContinuar: () => void
   cargandoTransicion: boolean
+  registraResultado: boolean
+  hayError: boolean
 }) {
   const puedeAvanzar = equipoSeleccionado !== null && partidoSeleccionado !== null
 
@@ -278,6 +361,8 @@ function PasoEquipo({
           partidos={partidos}
           seleccionado={partidoSeleccionado}
           onSelect={onSeleccionarPartido}
+          registraResultado={registraResultado}
+          hayError={hayError}
         />
       </View>
 
@@ -290,6 +375,7 @@ function PasoEquipo({
           equipoObligatorio={equipoObligatorio}
           seleccionado={equipoSeleccionado}
           onSelect={onSeleccionarEquipo}
+          hayError={hayError}
         />
       </View>
 
@@ -629,8 +715,11 @@ function PasoResultado({
 // ─── Screen principal ─────────────────────────────────────────────────────────
 
 export default function PartidoScreen() {
+  // Desde el Inicio (tarea RESULTADO / MESA o tarjeta del próximo partido).
+  const params = useLocalSearchParams<{ eventoId?: string; divisionId?: string; paso?: string; pedido?: string }>()
   const {
     loading, errorCarga, reintentar, divisionNombre, sinDivision, esInfantil,
+    divisiones, divisionId, seleccionarDivision, cargandoDivision,
     equipos, equipoObligatorio, equipoSeleccionado, seleccionarEquipo,
     partidos, partidoSeleccionado, seleccionarPartido,
     jugadores, paso, cargandoTransicion, irAAsistencia, irAEquipo, irAMesa, irAResultado,
@@ -641,7 +730,7 @@ export default function PartidoScreen() {
     puntosPropios, puntosRival, rivalNombre,
     setPuntosPropios, setPuntosRival, setRivalNombre,
     guardandoResultado, resultadoGuardado, errorResultado, guardarResultado,
-  } = usePartido()
+  } = usePartido(leerPedidoPartido(params))
 
   const pasoTitulo: Record<typeof paso, string> = {
     equipo:     'Equipo · Partido',
@@ -679,14 +768,26 @@ export default function PartidoScreen() {
         </View>
         <AvatarPerfil />
       </View>
+      {paso === 'equipo' && (
+        <SelectorDivision
+          divisiones={divisiones}
+          divisionId={divisionId}
+          onSeleccionar={seleccionarDivision}
+          deshabilitado={cargandoDivision}
+        />
+      )}
       <View style={s.divider} />
 
       <ScrollView contentContainerStyle={s.scrollContent}>
         {errorCarga && (
-          <ErrorCarga mensaje={errorCarga} onReintentar={() => { void reintentar() }} />
+          <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
         )}
 
-        {paso === 'equipo' && (
+        {cargandoDivision && (
+          <ActivityIndicator color={colors.oro} size="large" style={s.cargandoDivision} />
+        )}
+
+        {paso === 'equipo' && !cargandoDivision && (
           <PasoEquipo
             partidos={partidos}
             partidoSeleccionado={partidoSeleccionado}
@@ -697,6 +798,8 @@ export default function PartidoScreen() {
             onSeleccionarEquipo={seleccionarEquipo}
             onContinuar={irAAsistencia}
             cargandoTransicion={cargandoTransicion}
+            registraResultado={!esInfantil}
+            hayError={!!errorCarga}
           />
         )}
 
@@ -797,6 +900,22 @@ const s = StyleSheet.create({
   emptyTexto:    { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic' },
   emptyTextoMx:  { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic', marginHorizontal: 20, marginTop: 16 },
   emptySubtexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: MUTED, marginTop: 4 },
+  subseccionLabel:       { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 6 },
+  subseccionLabelAlerta: { color: colors.rojoTexto },
+  cargandoDivision:      { marginTop: 40 },
+
+  // Selector de división
+  divisionChips:      { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
+  divisionChip: {
+    minHeight: 44, justifyContent: 'center',
+    borderWidth: 1, borderColor: DIVIDER, borderRadius: 3,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  divisionChipActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
+  divisionChipTexto: {
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED,
+  },
+  divisionChipTextoActivo: { color: colors.sobreOro, fontWeight: '700' },
 
   // Equipo badges
   equipoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },

@@ -5,7 +5,8 @@ import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import type { TipoEventoCalendario } from '@/lib/tipoEvento'
 import { FEATURES } from '@/constants/features'
-import { fechaLocal } from '@/lib/fecha'
+import { fechaLocal, fechaLocalMasDias } from '@/lib/fecha'
+import { partidosSinResultado, ventanaPartidos } from '@/lib/partidosEntrenador'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export interface ProximoEvento {
@@ -16,12 +17,22 @@ export interface ProximoEvento {
   hora:  string | null
   lugar: string | null
   rival: string | null
+  divisionId: string
+}
+
+// Partido al que lleva la tarea (T7): RESULTADO abre ese partido en el paso
+// de resultado; MESA, en el paso 1 con el partido elegido.
+export interface PedidoTarea {
+  eventoId:   string
+  divisionId: string
+  paso?:      'resultado'
 }
 
 export interface TareaPendiente {
-  tipo:  'RESULTADO' | 'MESA' | 'LESIÓN'
-  desc:  string
-  route: '/(entrenador)/partido' | '/(entrenador)/lesiones'
+  tipo:    'RESULTADO' | 'MESA' | 'LESIÓN'
+  desc:    string
+  route:   '/(entrenador)/partido' | '/(entrenador)/lesiones'
+  pedido?: PedidoTarea
 }
 
 export interface DiarioEntrenadorData {
@@ -35,8 +46,7 @@ export interface DiarioEntrenadorData {
 }
 
 function hoy()      { return fechaLocal() }
-function hace3Dias()  { const d = new Date(); d.setDate(d.getDate() - 3);  return fechaLocal(d) }
-function hace30Dias() { const d = new Date(); d.setDate(d.getDate() - 30); return fechaLocal(d) }
+function hace30Dias() { return fechaLocalMasDias(-30) }
 
 const DEFAULT: DiarioEntrenadorData = {
   nombre: '', divisionNombre: '', divisionId: null, totalJugadores: 0,
@@ -62,27 +72,30 @@ export function useDiarioEntrenador() {
       // Un error de lectura no es "sin división": se muestra con REINTENTAR.
       if (errProfile) throw errProfile
 
+      // Todas las divisiones del entrenador (T7), no sólo la primera.
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
-      const divId = divIds[0] ?? null
 
-      if (!divId) {
+      if (divIds.length === 0) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivision: true })
         setErrorCarga(null)
         terminar()
         return
       }
 
+      // Partidos pasados de la misma ventana que muestra Partido (7 días).
+      const { desde } = ventanaPartidos()
+
       // Queries paralelas base
-      const [divRes, jugadoresRes, proximoEventoRes, lesionesRes, partidosPas3dRes, proximoPartidoRes] =
+      const [divRes, jugadoresRes, proximoEventoRes, lesionesRes, partidosPasadosRes, proximoPartidoRes] =
         await Promise.all([
-          supabase.from('divisiones').select('nombre').eq('id', divId).single(),
+          supabase.from('divisiones').select('id, nombre, categoria').in('id', divIds).order('nombre'),
           supabase.from('jugadores')
             .select('id', { count: 'exact', head: true })
-            .eq('division_id', divId).eq('activo', true),
+            .in('division_id', divIds).eq('activo', true),
           // Próximo evento (entrenamiento, partido o actividad)
           supabase.from('eventos')
-            .select('id, tipo, titulo, fecha, hora, lugar, rival')
-            .eq('division_id', divId).eq('cancelado', false)
+            .select('id, tipo, titulo, fecha, hora, lugar, rival, division_id')
+            .in('division_id', divIds).eq('cancelado', false)
             .gte('fecha', hoy())
             .order('fecha').order('hora', { nullsFirst: false })
             .limit(1),
@@ -90,63 +103,70 @@ export function useDiarioEntrenador() {
           FEATURES.lesiones
             ? supabase.from('lesiones')
                 .select('id', { count: 'exact', head: true })
-                .eq('division_id', divId).gte('fecha', hace30Dias())
+                .in('division_id', divIds).gte('fecha', hace30Dias())
             : Promise.resolve({ count: 0 as number | null }),
-          // Partidos de los últimos 3 días (para resultado pendiente)
+          // Partidos de la última semana (para resultado pendiente)
           supabase.from('eventos')
-            .select('id')
-            .eq('tipo', 'partido').eq('division_id', divId).eq('cancelado', false)
-            .gte('fecha', hace3Dias()).lt('fecha', hoy()),
+            .select('id, fecha, division_id')
+            .eq('tipo', 'partido').in('division_id', divIds).eq('cancelado', false)
+            .gte('fecha', desde).lt('fecha', hoy()),
           // Próximo partido (para mesa pendiente)
           supabase.from('eventos')
-            .select('id')
-            .eq('tipo', 'partido').eq('division_id', divId).eq('cancelado', false)
+            .select('id, division_id')
+            .eq('tipo', 'partido').in('division_id', divIds).eq('cancelado', false)
             .gte('fecha', hoy())
             .order('fecha').order('hora', { nullsFirst: false })
             .limit(1),
         ])
 
       const errBase = primerError(
-        divRes.error, jugadoresRes.error, proximoEventoRes.error, partidosPas3dRes.error, proximoPartidoRes.error,
+        divRes.error, jugadoresRes.error, proximoEventoRes.error, partidosPasadosRes.error, proximoPartidoRes.error,
         'error' in lesionesRes ? lesionesRes.error : null,
       )
       if (errBase) throw errBase
 
-      // Chequear resultados pendientes (partidos últimos 3 días)
-      const partidoIds3d = (partidosPas3dRes.data ?? []).map(p => p.id)
-      let sinResultado = 0
-      if (partidoIds3d.length > 0) {
+      const divisiones = divRes.data ?? []
+      const infantiles = new Set(divisiones.filter(d => d.categoria === 'infantil').map(d => d.id))
+
+      // Resultados pendientes (partidos de la última semana, no infantiles)
+      const partidosPasados = partidosPasadosRes.data ?? []
+      let pendientes: typeof partidosPasados = []
+      if (partidosPasados.length > 0) {
         const resRes = await supabase.from('resultados')
-          .select('evento_id').in('evento_id', partidoIds3d)
+          .select('evento_id').in('evento_id', partidosPasados.map(p => p.id))
         if (resRes.error) throw resRes.error
-        const resSet = new Set((resRes.data ?? []).map(r => r.evento_id))
-        sinResultado = partidoIds3d.filter(id => !resSet.has(id)).length
+        const conResultado = new Set((resRes.data ?? []).map(r => r.evento_id))
+        pendientes = partidosSinResultado(partidosPasados, conResultado, infantiles)
       }
 
       // Chequear mesa del próximo partido
-      const proximoPartidoId = proximoPartidoRes.data?.[0]?.id ?? null
+      const proximoPartido = proximoPartidoRes.data?.[0] ?? null
       let sinMesa = 0
-      if (proximoPartidoId) {
+      if (proximoPartido) {
         const mesaRes = await supabase.from('mesas_de_partido')
-          .select('evento_id').eq('evento_id', proximoPartidoId).limit(1)
+          .select('evento_id').eq('evento_id', proximoPartido.id).limit(1)
         if (mesaRes.error) throw mesaRes.error
         if (!(mesaRes.data?.length ?? 0)) sinMesa = 1
       }
 
       // Construir lista de tareas
       const tareas: TareaPendiente[] = []
-      if (sinResultado > 0) {
+      if (pendientes.length > 0) {
+        const n = pendientes.length
         tareas.push({
           tipo: 'RESULTADO',
-          desc: `${sinResultado} partido${sinResultado > 1 ? 's' : ''} sin resultado cargado`,
+          desc: `${n} partido${n > 1 ? 's' : ''} sin resultado cargado`,
           route: '/(entrenador)/partido',
+          // El más reciente; los demás quedan arriba en "SIN RESULTADO".
+          pedido: { eventoId: pendientes[0].id, divisionId: pendientes[0].division_id, paso: 'resultado' },
         })
       }
-      if (sinMesa > 0) {
+      if (sinMesa > 0 && proximoPartido) {
         tareas.push({
           tipo: 'MESA',
           desc: 'Próximo partido sin mesa confirmada',
           route: '/(entrenador)/partido',
+          pedido: { eventoId: proximoPartido.id, divisionId: proximoPartido.division_id },
         })
       }
       const lesiones = lesionesRes.count ?? 0
@@ -161,13 +181,14 @@ export function useDiarioEntrenador() {
       const rawEvento = proximoEventoRes.data?.[0]
       const proximoEvento: ProximoEvento | null = rawEvento
         ? { id: rawEvento.id, tipo: rawEvento.tipo as TipoEventoCalendario, titulo: rawEvento.titulo,
-            fecha: rawEvento.fecha, hora: rawEvento.hora, lugar: rawEvento.lugar, rival: rawEvento.rival }
+            fecha: rawEvento.fecha, hora: rawEvento.hora, lugar: rawEvento.lugar, rival: rawEvento.rival,
+            divisionId: rawEvento.division_id }
         : null
 
       setData({
         nombre:         profile?.nombre ?? '',
-        divisionNombre: divRes.data?.nombre ?? '',
-        divisionId:     divId,
+        divisionNombre: divisiones.map(d => d.nombre).join(' · '),
+        divisionId:     divIds[0],
         totalJugadores: jugadoresRes.count ?? 0,
         proximoEvento,
         tareas,
