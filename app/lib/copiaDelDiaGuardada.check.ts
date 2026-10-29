@@ -42,6 +42,7 @@ const BASE: CopiaDia = {
   guardadoEn: 1,
   entrenamientos: [{ id: 'ev-1', hora: '20:30' }],
   marcas: { 'ev-1': { j1: 'presente' } },
+  marcasEn: { 'ev-1': 1 },
 }
 
 // La carga de la lista (turnos leídos de la base) y un guardado (suma marcas).
@@ -98,6 +99,37 @@ async function main() {
     soltar()
     await Promise.all([trabada, misma])
     assert.equal(corrio, true)
+  })
+
+  // La carga lee las marcas de la base, espera la red y recién después las
+  // escribe; en el medio un guardado (online o en la cola) entra a la copia.
+  async function cargaConGuardadoEnElMedio(conLeidoEn: boolean) {
+    const { almacen, leer } = almacenFalso({ [CLAVE]: serializarCopiaDia(BASE) })
+    const carga = (async () => {
+      const leidoEn = Date.now()
+      const deLaBase = { j1: 'presente' } // lo que había en la base al leer
+      await esperar(30) // la red
+      await actualizarCopiaGuardada(almacen, CLAVE, a => actualizarCopiaDia(a, {
+        fecha: HOY, ahora: Date.now(), entrenamientos: [{ id: 'ev-1', hora: '20:30' }],
+        eventoId: 'ev-1', marcas: deLaBase, ...(conLeidoEn ? { leidoEn } : {}),
+      }))
+    })()
+    const guardado = (async () => {
+      await esperar(10)
+      await actualizarCopiaGuardada(almacen, CLAVE, a => actualizarCopiaDia(a, {
+        fecha: HOY, ahora: Date.now(), eventoId: 'ev-1', marcas: { j2: 'ausente' }, mezclar: true,
+      }))
+    })()
+    await Promise.all([carga, guardado])
+    return leer(CLAVE)?.marcas['ev-1']
+  }
+
+  await caso('sin hora de lectura (lo de antes): la carga pisa el guardado hecho mientras leía', async () => {
+    assert.deepEqual(await cargaConGuardadoEnElMedio(false), { j1: 'presente' })
+  })
+
+  await caso('con hora de lectura: el guardado hecho mientras la carga leía sobrevive', async () => {
+    assert.deepEqual(await cargaConGuardadoEnElMedio(true), { j1: 'presente', j2: 'ausente' })
   })
 
   await caso('si AsyncStorage falla no rechaza y la próxima actualización corre', async () => {

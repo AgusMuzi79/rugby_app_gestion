@@ -39,6 +39,7 @@ const COPIA: CopiaDia = {
   guardadoEn: 1000,
   entrenamientos: TURNOS,
   marcas: { 'ev-pm': { j1: 'ausente', j2: 'presente' } },
+  marcasEn: { 'ev-pm': 1000 },
 }
 
 caso('clave por división, separada de la del plantel', () => {
@@ -142,7 +143,7 @@ caso('sin turno elegido el ítem va por fecha (la sync usa el primero del día o
 
 caso('actualizar la copia: turnos nuevos podan marcas de turnos que ya no están', () => {
   const c = actualizarCopiaDia(COPIA, { fecha: HOY, ahora: 2000, entrenamientos: [TURNOS[0]] })
-  assert.deepEqual(c, { fecha: HOY, guardadoEn: 2000, entrenamientos: [TURNOS[0]], marcas: {} })
+  assert.deepEqual(c, { fecha: HOY, guardadoEn: 2000, entrenamientos: [TURNOS[0]], marcas: {}, marcasEn: {} })
 })
 
 caso('actualizar la copia: marcas leídas reemplazan, las guardadas se suman', () => {
@@ -154,12 +155,63 @@ caso('actualizar la copia: marcas leídas reemplazan, las guardadas se suman', (
 
 caso('actualizar la copia: un entrenamiento creado al guardar se agrega a la lista', () => {
   const c = actualizarCopiaDia(null, { fecha: HOY, ahora: 5, eventoId: 'ev-nuevo', marcas: { j1: 'presente' }, mezclar: true })
-  assert.deepEqual(c, { fecha: HOY, guardadoEn: 5, entrenamientos: [{ id: 'ev-nuevo', hora: null }], marcas: { 'ev-nuevo': { j1: 'presente' } } })
+  assert.deepEqual(c, {
+    fecha: HOY, guardadoEn: 5, entrenamientos: [{ id: 'ev-nuevo', hora: null }],
+    marcas: { 'ev-nuevo': { j1: 'presente' } }, marcasEn: { 'ev-nuevo': 5 },
+  })
 })
 
 caso('actualizar la copia: una de otro día se descarta entera', () => {
   const c = actualizarCopiaDia({ ...COPIA, fecha: AYER }, { fecha: HOY, ahora: 7, eventoId: 'ev-x', marcas: { j1: 'presente' } })
-  assert.deepEqual(c, { fecha: HOY, guardadoEn: 7, entrenamientos: [{ id: 'ev-x', hora: null }], marcas: { 'ev-x': { j1: 'presente' } } })
+  assert.deepEqual(c, {
+    fecha: HOY, guardadoEn: 7, entrenamientos: [{ id: 'ev-x', hora: null }],
+    marcas: { 'ev-x': { j1: 'presente' } }, marcasEn: { 'ev-x': 7 },
+  })
+})
+
+// La carga toma `leidoEn` antes de ir a la red y escribe lo leído después: un
+// guardado que entró a la copia en el medio es más nuevo que esa lectura.
+caso('carga: sin nada más nuevo en la copia, las marcas de la base reemplazan', () => {
+  const c = actualizarCopiaDia(COPIA, { fecha: HOY, ahora: 2000, leidoEn: 1500, eventoId: 'ev-pm', marcas: { j2: 'justificado' } })
+  assert.deepEqual(c.marcas['ev-pm'], { j2: 'justificado' })
+  assert.equal(c.marcasEn['ev-pm'], 1500, 'queda la hora de la lectura')
+})
+
+caso('carga: un guardado posterior a la lectura no se pisa con la base vieja', () => {
+  const guardada = actualizarCopiaDia(COPIA, { fecha: HOY, ahora: 1600, eventoId: 'ev-pm', marcas: { j2: 'ausente' }, mezclar: true })
+  assert.equal(guardada.marcasEn['ev-pm'], 1600, 'el guardado anota su hora')
+  const c = actualizarCopiaDia(guardada, {
+    fecha: HOY, ahora: 2000, leidoEn: 1500, entrenamientos: TURNOS, eventoId: 'ev-pm', marcas: { j1: 'ausente' },
+  })
+  assert.deepEqual(c.marcas['ev-pm'], { j1: 'ausente', j2: 'ausente' })
+  assert.equal(c.marcasEn['ev-pm'], 1600)
+})
+
+caso('carga: un guardado anterior a la lectura sí se reemplaza (la base ya lo tiene o lo corrigió)', () => {
+  const guardada = actualizarCopiaDia(COPIA, { fecha: HOY, ahora: 1400, eventoId: 'ev-pm', marcas: { j2: 'ausente' }, mezclar: true })
+  const c = actualizarCopiaDia(guardada, { fecha: HOY, ahora: 2000, leidoEn: 1500, eventoId: 'ev-pm', marcas: { j2: 'justificado' } })
+  assert.deepEqual(c.marcas['ev-pm'], { j2: 'justificado' })
+  assert.equal(c.marcasEn['ev-pm'], 1500)
+})
+
+caso('carga: una copia vieja sin horas de marcas se comporta como antes', () => {
+  const { marcasEn: _, ...sinHoras } = COPIA
+  const vieja = leerCopiaDia(JSON.stringify(sinHoras))
+  assert.deepEqual(vieja?.marcasEn, {})
+  const c = actualizarCopiaDia(vieja, { fecha: HOY, ahora: 2000, leidoEn: 1500, eventoId: 'ev-pm', marcas: { j2: 'justificado' } })
+  assert.deepEqual(c.marcas['ev-pm'], { j2: 'justificado' })
+})
+
+caso('carga: el entrenamiento creado por un guardado en el medio no se poda', () => {
+  const guardada = actualizarCopiaDia(COPIA, { fecha: HOY, ahora: 1600, eventoId: 'ev-nuevo', marcas: { j1: 'presente' }, mezclar: true })
+  const c = actualizarCopiaDia(guardada, { fecha: HOY, ahora: 2000, leidoEn: 1500, entrenamientos: TURNOS })
+  assert.deepEqual(c.entrenamientos.map(e => e.id), ['ev-am', 'ev-pm', 'ev-nuevo'])
+  assert.deepEqual(c.marcas['ev-nuevo'], { j1: 'presente' })
+  // Uno que ya estaba antes de la lectura y no volvió de la base sí se poda.
+  const d = actualizarCopiaDia(guardada, { fecha: HOY, ahora: 2000, leidoEn: 1700, entrenamientos: TURNOS })
+  assert.deepEqual(d.entrenamientos.map(e => e.id), ['ev-am', 'ev-pm'])
+  assert.equal(d.marcas['ev-nuevo'], undefined)
+  assert.equal(d.marcasEn['ev-nuevo'], undefined)
 })
 
 caso('ida y vuelta por AsyncStorage; basura → null', () => {

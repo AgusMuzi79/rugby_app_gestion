@@ -239,6 +239,9 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setErrorGuardado(null)
     setErrorCarga(null)
     setListaGuardadaEn(null)
+    // Antes de ir a la red: un guardado que entre a la copia después de esto es
+    // más nuevo que lo que se lea (copiaDelDia.ts, `leidoEn`).
+    const leidoEn = Date.now()
 
     // Nunca `.maybeSingle()` por (división, fecha, tipo): con doble turno tira
     // error y se creaba un tercer entrenamiento. Se listan todos los de hoy.
@@ -316,12 +319,14 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     }
     // Lo que llegó de la base actualiza la copia del día. Se mezcla sobre la
     // copia que se lee dentro del candado, no sobre `copia` (leída antes de la
-    // red): un guardado hecho en el medio no se pisa.
+    // red), y con `leidoEn`: las marcas de un guardado hecho en el medio (que la
+    // lectura no trae, p. ej. las de la cola) no se pisan con las leídas.
     const marcasLeidas = marcas.tipo === 'ok' && !marcas.deCopia && turnos.eventoId ? marcas.marcas : null
     if (turnos.tipo === 'remoto' || marcasLeidas) {
       void actualizarCopiaDelDia(divId, actual => actualizarCopiaDia(actual, {
         fecha,
         ahora,
+        leidoEn,
         ...(turnos.tipo === 'remoto' ? { entrenamientos: turnos.lista } : {}),
         ...(marcasLeidas && turnos.eventoId ? { eventoId: turnos.eventoId, marcas: marcasLeidas } : {}),
       }))
@@ -354,6 +359,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
+    const leidoEn = Date.now()
     const leidas = await leerMarcas(evId)
     const claveD = divisionId ? claveDia(divisionId) : null
     const copia = leidas.error && claveD ? leerCopiaDia(await leerLocal(claveD)) : null
@@ -373,7 +379,9 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
       return
     }
     if (!r.deCopia && divisionId) {
-      void actualizarCopiaDelDia(divisionId, actual => actualizarCopiaDia(actual, { fecha, ahora: Date.now(), eventoId: evId, marcas: r.marcas }))
+      void actualizarCopiaDelDia(divisionId, actual => actualizarCopiaDia(actual, {
+        fecha, ahora: Date.now(), leidoEn, eventoId: evId, marcas: r.marcas,
+      }))
     }
     const estadoMap = r.marcas
     setEventoId(evId)

@@ -21,6 +21,9 @@ export interface CopiaDia {
   entrenamientos: EntrenamientoHoy[]
   // evento → jugador → estado guardado (en la base o en la cola).
   marcas:         Record<string, Record<string, string>>
+  // evento → cuándo se escribieron sus marcas (ms). Una copia vieja no lo trae:
+  // sin hora cuenta como más vieja que cualquier lectura.
+  marcasEn:       Record<string, number>
 }
 
 export function claveDia(divisionId: string): string {
@@ -132,12 +135,18 @@ export function payloadCola({
 
 // `entrenamientos`: la lista leída de la base (poda marcas de turnos que ya no
 // están). `marcas` de `eventoId`: las leídas reemplazan; con `mezclar` (un
-// guardado) se suman a las que había.
+// guardado) se suman a las que había y anotan `ahora` como su hora.
+// `leidoEn`: cuándo arrancó la lectura de la base. Lo leído se toma antes de ir
+// a la red y se escribe después; si en el medio un guardado (online o en la
+// cola) escribió ese evento, la copia es más nueva que la lectura: se quedan
+// sus marcas (y su turno no se poda). Si no, lo leído reemplaza como siempre
+// (una corrección hecha desde otro teléfono gana).
 export function actualizarCopiaDia(
   copia: CopiaDia | null,
   cambios: {
     fecha:           string
     ahora:           number
+    leidoEn?:        number
     entrenamientos?: EntrenamientoHoy[]
     eventoId?:       string
     marcas?:         Record<string, string>
@@ -147,17 +156,31 @@ export function actualizarCopiaDia(
   const base = delDia(copia, cambios.fecha)
   let entrenamientos = base?.entrenamientos ?? []
   let marcas = { ...(base?.marcas ?? {}) }
+  let marcasEn = { ...(base?.marcasEn ?? {}) }
+  const { leidoEn } = cambios
+  const escritoDespues = (id: string) =>
+    leidoEn !== undefined && marcasEn[id] !== undefined && marcasEn[id] >= leidoEn
   if (cambios.entrenamientos) {
-    entrenamientos = cambios.entrenamientos
+    const leidos = new Set(cambios.entrenamientos.map(e => e.id))
+    // Un turno que creó un guardado durante la lectura todavía no vino de la base.
+    const nuevos = entrenamientos.filter(e => !leidos.has(e.id) && escritoDespues(e.id))
+    entrenamientos = [...cambios.entrenamientos, ...nuevos]
     const ids = new Set(entrenamientos.map(e => e.id))
     marcas = Object.fromEntries(Object.entries(marcas).filter(([id]) => ids.has(id)))
+    marcasEn = Object.fromEntries(Object.entries(marcasEn).filter(([id]) => ids.has(id)))
   }
   const evId = cambios.eventoId
   if (evId && cambios.marcas) {
     if (!entrenamientos.some(e => e.id === evId)) entrenamientos = [...entrenamientos, { id: evId, hora: null }]
-    marcas[evId] = cambios.mezclar ? { ...(marcas[evId] ?? {}), ...cambios.marcas } : { ...cambios.marcas }
+    if (cambios.mezclar) {
+      marcas[evId] = { ...(marcas[evId] ?? {}), ...cambios.marcas }
+      marcasEn[evId] = cambios.ahora
+    } else if (!escritoDespues(evId)) {
+      marcas[evId] = { ...cambios.marcas }
+      marcasEn[evId] = leidoEn ?? cambios.ahora
+    }
   }
-  return { fecha: cambios.fecha, guardadoEn: cambios.ahora, entrenamientos, marcas }
+  return { fecha: cambios.fecha, guardadoEn: cambios.ahora, entrenamientos, marcas, marcasEn }
 }
 
 export function serializarCopiaDia(copia: CopiaDia): string {
@@ -170,7 +193,9 @@ export function leerCopiaDia(raw: string | null): CopiaDia | null {
     const v = JSON.parse(raw) as Partial<CopiaDia>
     if (typeof v.fecha !== 'string' || typeof v.guardadoEn !== 'number') return null
     if (!Array.isArray(v.entrenamientos) || !v.marcas || typeof v.marcas !== 'object') return null
-    return { fecha: v.fecha, guardadoEn: v.guardadoEn, entrenamientos: v.entrenamientos, marcas: v.marcas }
+    // Copia de antes de `marcasEn`: sin horas (más vieja que cualquier lectura).
+    const marcasEn = v.marcasEn && typeof v.marcasEn === 'object' ? v.marcasEn : {}
+    return { fecha: v.fecha, guardadoEn: v.guardadoEn, entrenamientos: v.entrenamientos, marcas: v.marcas, marcasEn }
   } catch {
     return null
   }
