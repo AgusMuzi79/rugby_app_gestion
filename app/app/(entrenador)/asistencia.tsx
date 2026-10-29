@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRef } from 'react'
@@ -14,6 +15,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useAsistencia, EstadoAsistencia, JugadorConEstado, DivisionOpcion } from '@/hooks/useAsistencia'
 import { useColaOffline } from '@/hooks/useSincronizacionOffline'
 import { etiquetaEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
+import { nombresSinMarcar, textoSinMarcar } from '@/lib/marcadoAsistencia'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 
@@ -155,6 +157,7 @@ function FilaJugador({
               key={badge.key}
               // badge.bg and badge.textColor are constants from the BADGES array — truly dynamic per item
               style={[s.badge, activo ? { backgroundColor: badge.bg, borderColor: badge.bg } : s.badgeInactivo]}
+              // Feedback háptico (Haptics.selectionAsync) cuando expo-haptics esté en el binario (Tanda 3, build nativo).
               onPress={() => onMarca(item.id, badge.key)}
               activeOpacity={0.75}
             >
@@ -198,12 +201,24 @@ export default function AsistenciaScreen() {
     seleccionarDivision,
     seleccionarEntrenamiento,
     marcarEstado,
+    marcarTodos,
     guardarAsistencia,
   } = useAsistencia({ eventoId: params.eventoId, divisionId: params.divisionId })
 
   const presentes = jugadores.filter(j => j.estado === 'presente').length
   const ausentes  = jugadores.filter(j => j.estado === 'ausente').length
   const justifs   = jugadores.filter(j => j.estado === 'justificado').length
+  const todosMarcados = marcados === jugadores.length
+
+  // Si queda alguien sin marcar, se avisa quiénes antes de guardar.
+  function onGuardar() {
+    const faltan = nombresSinMarcar(jugadores)
+    if (faltan.length === 0) { void guardarAsistencia(); return }
+    Alert.alert('Asistencia incompleta', textoSinMarcar(faltan), [
+      { text: 'Volver', style: 'cancel' },
+      { text: 'Guardar igual', onPress: () => { void guardarAsistencia() } },
+    ])
+  }
 
   if (sinDivision) {
     return (
@@ -232,17 +247,6 @@ export default function AsistenciaScreen() {
             <Text style={s.seccion}>SECCIÓN · CANCHA</Text>
             <Text style={s.titulo}>Toma de asistencia</Text>
           </View>
-          <TouchableOpacity
-            style={[s.guardarBtn, guardando && s.guardarBtnGuardando]}
-            onPress={guardarAsistencia}
-            disabled={guardando}
-            activeOpacity={0.8}
-          >
-            {guardando
-              ? <ActivityIndicator color={colors.oro} size="small" />
-              : <Text style={s.guardarTexto}>GUARDAR</Text>
-            }
-          </TouchableOpacity>
           <AvatarPerfil />
         </View>
         <Text style={s.headerMeta}>
@@ -265,7 +269,9 @@ export default function AsistenciaScreen() {
       <View style={s.divider} />
 
       {loading ? (
-        <ActivityIndicator color={colors.oro} style={s.loadingInline} />
+        <View style={s.lista}>
+          <ActivityIndicator color={colors.oro} style={s.loadingInline} />
+        </View>
       ) : (
         <>
           {/* ── Contadores ─────────────────────────────────────────────────── */}
@@ -274,6 +280,21 @@ export default function AsistenciaScreen() {
             <ContadorBox label="AUSENTES"  count={ausentes}  color={colors.rojoTexto}   />
             <ContadorBox label="JUSTIF."   count={justifs}   color={DORADO} />
           </View>
+
+          {/* Un toque para todos; después se marcan sólo los ausentes. */}
+          {jugadores.length > 0 && (
+            <TouchableOpacity
+              style={[s.todosBtn, todosMarcados && s.todosBtnInactivo]}
+              onPress={marcarTodos}
+              disabled={todosMarcados}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Marcar presentes a todos los que faltan marcar"
+              accessibilityState={{ disabled: todosMarcados }}
+            >
+              <Text style={s.todosTexto}>✓ TODOS PRESENTES</Text>
+            </TouchableOpacity>
+          )}
 
           {/* ── Lista de jugadores ───────────────────────────────────────────── */}
           <FlatList
@@ -289,6 +310,7 @@ export default function AsistenciaScreen() {
               />
             )}
             ItemSeparatorComponent={() => <View style={s.separator} />}
+            style={s.lista}
             contentContainerStyle={s.listContent}
           />
         </>
@@ -320,6 +342,24 @@ export default function AsistenciaScreen() {
           )}
         </View>
       )}
+
+      {/* GUARDAR fijo abajo, al alcance del pulgar, con el avance de la lista. */}
+      <View style={s.footer}>
+        <TouchableOpacity
+          style={[s.guardarFooter, (guardando || loading) && s.guardarBtnGuardando]}
+          onPress={onGuardar}
+          disabled={guardando || loading}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Guardar asistencia, ${marcados} de ${jugadores.length} marcados`}
+          accessibilityState={{ disabled: guardando || loading, busy: guardando }}
+        >
+          {guardando
+            ? <ActivityIndicator color={colors.sobreOro} size="small" />
+            : <Text style={s.guardarFooterTexto}>GUARDAR · {marcados}/{jugadores.length}</Text>
+          }
+        </TouchableOpacity>
+      </View>
 
     </SafeAreaView>
   )
@@ -370,23 +410,47 @@ const s = StyleSheet.create({
     color: colors.muted,
   },
 
-  // GUARDAR button (header)
-  guardarBtn: {
-    borderWidth: 1,
-    borderColor: colors.oro,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 2,
-    marginTop: 4,
-    minWidth: 72,
+  // GUARDAR fijo abajo
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: DIVIDER,
+    backgroundColor: FONDO,
+  },
+  guardarFooter: {
+    backgroundColor: colors.oro,
+    minHeight: 52,
+    borderRadius: 4,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   guardarBtnGuardando: { opacity: 0.55 },
-  guardarTexto: {
+  guardarFooterTexto: {
     fontFamily: fonts.label,
-    fontSize: 13,
+    fontSize: 15,
     letterSpacing: 2,
-    color: colors.oro,
+    color: colors.sobreOro,
+  },
+
+  // TODOS PRESENTES
+  todosBtn: {
+    marginHorizontal: 20,
+    marginBottom: 8,
+    minHeight: 44,
+    borderWidth: 1.5,
+    borderColor: colors.confirmacion,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  todosBtnInactivo: { opacity: 0.45 },
+  todosTexto: {
+    fontFamily: fonts.label,
+    fontSize: 14,
+    letterSpacing: 2,
+    color: colors.confirmacion,
   },
 
   divider: { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
@@ -432,6 +496,7 @@ const s = StyleSheet.create({
   },
 
   // Player rows
+  lista: { flex: 1 },
   listContent: { paddingBottom: 8 },
   fila: {
     flexDirection: 'row',
@@ -469,17 +534,22 @@ const s = StyleSheet.create({
   },
 
   // Badges
-  badgesRow: { flexDirection: 'row', gap: 5 },
+  // Segmentos de 44 pt con 8 pt entre sí (antes ~24 pt a 5 pt: con guantes se
+  // marcaba el estado equivocado).
+  badgesRow: { flexDirection: 'row', gap: 8 },
   badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 4,
-    borderRadius: 2,
-    borderWidth: 1,
+    minWidth: 48,
+    minHeight: 44,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+    borderWidth: 1.5,
   },
   badgeInactivo: { borderColor: '#C5BEA8', backgroundColor: 'transparent' },
   badgeTexto: {
     fontFamily: fonts.label,
-    fontSize: 12,
+    fontSize: 14,
     letterSpacing: 1,
   },
 

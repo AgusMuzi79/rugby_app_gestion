@@ -8,6 +8,7 @@ import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
 import { fechaLocal } from '@/lib/fecha'
 import { elegirEntrenamiento, type EntrenamientoHoy } from '@/lib/entrenamientoHoy'
 import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
+import { marcarTodosPresentes } from '@/lib/marcadoAsistencia'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
@@ -47,6 +48,7 @@ export interface UseAsistenciaReturn {
   seleccionarDivision: (id: string) => void
   seleccionarEntrenamiento: (id: string) => void
   marcarEstado: (jugadorId: string, estado: EstadoAsistencia) => void
+  marcarTodos: () => void
   // true si quedó guardada (en la base o en el teléfono).
   guardarAsistencia: () => Promise<boolean>
 }
@@ -252,6 +254,12 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     setJugadores(prev => prev.map(j => (j.id === jugadorId ? { ...j, estado } : j)))
   }
 
+  // Un toque para el caso común: después se marcan sólo los ausentes.
+  function marcarTodos() {
+    setGuardado(false)
+    setJugadores(prev => marcarTodosPresentes(prev))
+  }
+
   async function guardarAsistencia(): Promise<boolean> {
     if (!session || !divisionId) return false
     setGuardando(true)
@@ -428,6 +436,7 @@ export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaRetur
     seleccionarDivision,
     seleccionarEntrenamiento,
     marcarEstado,
+    marcarTodos,
     guardarAsistencia,
   }
 }
