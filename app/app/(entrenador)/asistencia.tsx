@@ -518,6 +518,7 @@ const s = StyleSheet.create({
   // Selector de división
   divisionChips:      { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
   divisionChip: {
+    minHeight: 44, justifyContent: 'center',
     borderWidth: 1, borderColor: DIVIDER, borderRadius: 3,
     paddingHorizontal: 12, paddingVertical: 7,
   },

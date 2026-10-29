@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
 
   selectorScroll:  { marginBottom: 12 },
   selectorContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row', alignItems: 'center' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
+  pill:            { paddingHorizontal: 14, paddingVertical: 7, minHeight: 44, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
   pillTextoActivo: { color: colors.sobreOro },

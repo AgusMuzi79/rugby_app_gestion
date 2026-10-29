@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   headerRow:   { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   titulo:      { fontFamily: fonts.titulo, fontSize: 32, color: TEXTO },
   subtitulo:   { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 4, letterSpacing: 0.3 },
-  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 4, marginBottom: 4 },
+  botonNuevo:  { backgroundColor: colors.oro, paddingHorizontal: 14, paddingVertical: 8, minHeight: 44, justifyContent: 'center', borderRadius: 4, marginBottom: 4 },
   botonNuevoTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 1.5, fontWeight: '600' },
 
   divider:     { height: 1, backgroundColor: DIVIDER, marginHorizontal: 20 },
@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   hoyTexto:       { fontFamily: fonts.label, fontSize: 12, fontWeight: '700', color: colors.sobreOro, letterSpacing: 0.5 },
 
   emptyWrap:        { alignItems: 'center', paddingVertical: 48 },
-  crearPrimeroBtn:  { marginTop: 16 },
+  crearPrimeroBtn:  { marginTop: 8, minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
   crearPrimeroTexto:{ fontFamily: fonts.label, color: colors.oro, fontSize: 16, fontWeight: '600' },
 
   // Modal
@@ -601,18 +601,19 @@ const styles = StyleSheet.create({
   modalContainer:  { flex: 1, backgroundColor: FONDO },
   modalHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: DIVIDER },
   modalTitulo:     { fontFamily: fonts.titulo, fontSize: 19, color: TEXTO },
-  modalCerrarBtn:  { justifyContent: 'center' },
+  // "Cancelar" / "Volver" de texto: 44 pt sin agrandar el encabezado ni moverlo del borde.
+  modalCerrarBtn:  { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 8, marginRight: -8, marginVertical: -12 },
   modalCerrar:     { fontFamily: fonts.cuerpo, fontSize: 16, color: MUTED },
   modalBody:       { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
   modalFooter:     { paddingHorizontal: 20, paddingBottom: 16, paddingTop: 8, borderTopWidth: 1, borderTopColor: DIVIDER },
   inputLabel:      { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro, marginBottom: 6 },
   input:           { borderWidth: 1.5, borderColor: DIVIDER, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, backgroundColor: CARD, marginBottom: 20 },
   tipoRow:         { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  tipoBoton:       { flex: 1, paddingVertical: 12, borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
+  tipoBoton:       { flex: 1, paddingVertical: 12, minHeight: 44, justifyContent: 'center', borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER, alignItems: 'center' },
   tipoBotonActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   tipoBotonTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED, fontWeight: '500' },
   tipoBotonTextoActivo: { color: colors.sobreOro },
-  divPill:         { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
+  divPill:         { paddingHorizontal: 14, paddingVertical: 8, minHeight: 44, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: DIVIDER },
   divPillActiva:   { backgroundColor: colors.oro, borderColor: colors.oro },
   divPillTexto:    { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
   divPillTextoActivo: { color: colors.sobreOro },
@@ -623,7 +624,8 @@ const styles = StyleSheet.create({
   botonGuardarTexto: { fontFamily: fonts.label, color: colors.sobreOro, fontSize: 14, letterSpacing: 2.5, fontWeight: '600' },
 
   // Cancelar evento
-  cancelarBtn:      { padding: 8, marginLeft: 4 },
+  // 44 pt (antes ~26×36); el margen negativo lo deja alineado al borde.
+  cancelarBtn:      { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'center', marginRight: -12 },
   cancelarBtnTexto: { fontFamily: fonts.label, fontSize: 16, color: colors.rojoTexto, fontWeight: '700' },
   cancelarInfo:     { fontFamily: fonts.cuerpo, fontSize: 18, color: TEXTO, marginBottom: 4 },
   cancelarAviso:    { fontFamily: fonts.cuerpo, fontSize: 14, color: MUTED, marginTop: 12, lineHeight: 18 },

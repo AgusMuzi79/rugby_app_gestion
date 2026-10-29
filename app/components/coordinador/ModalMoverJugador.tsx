@@ -64,6 +64,7 @@ export function ModalMoverJugador({ jugador, origen, destinos, moviendo, error, 
             onPress={destino ? () => setDestino(null) : cerrar}
             disabled={moviendo}
             activeOpacity={0.7}
+            style={s.cerrarBtn}
             accessibilityRole="button"
             accessibilityLabel={destino ? 'Volver a elegir división' : 'Cancelar'}
           >
@@ -159,6 +160,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: FONDO },
   header:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: DIVIDER },
   titulo:    { fontFamily: fonts.titulo, fontSize: 19, color: TEXTO },
+  // 44 pt (antes ~20 de alto) sin agrandar el encabezado ni moverlo del borde.
+  cerrarBtn: { minWidth: 44, minHeight: 44, justifyContent: 'center', alignItems: 'flex-end', paddingHorizontal: 8, marginRight: -8, marginVertical: -12 },
   cerrar:    { fontFamily: fonts.cuerpo, fontSize: 16, color: MUTED },
   body:      { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32 },
 

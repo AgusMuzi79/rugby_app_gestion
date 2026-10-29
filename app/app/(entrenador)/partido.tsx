@@ -976,8 +976,9 @@ const s = StyleSheet.create({
   mesaPadding:{ paddingHorizontal: 20 },
 
   // Badges asistencia
-  badgesRow:          { flexDirection: 'row', gap: 5 },
-  badge:              { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 2, borderWidth: 1 },
+  // 48×44 pt con 8 pt entre sí, como en Asistencia (antes ~22 pt a 5 pt).
+  badgesRow:          { flexDirection: 'row', gap: 8 },
+  badge:              { minWidth: 48, minHeight: 44, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center', borderRadius: 2, borderWidth: 1 },
   badgeInactivo:      { borderColor: DIVIDER, backgroundColor: 'transparent' },
   badgePres:          { backgroundColor: VERDE, borderColor: VERDE },
   badgeAus:           { backgroundColor: ROJO, borderColor: ROJO },
@@ -1020,8 +1021,10 @@ const s = StyleSheet.create({
     borderRadius: 2, paddingHorizontal: 14, paddingVertical: 12,
   },
   mesaNombreLight: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, marginRight: 10 },
-  mesaBotones:     { flexDirection: 'row', gap: 6 },
-  mesaRolBtn:      { width: 34, height: 34, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
+  // T / S de 44 pt con 8 pt entre sí (antes 34 a 6 pt). El margen negativo
+  // evita que la tarjeta crezca.
+  mesaBotones:     { flexDirection: 'row', gap: 8, marginVertical: -5 },
+  mesaRolBtn:      { width: 44, height: 44, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
   mesaRolBtnOff:   { borderColor: DIVIDER, opacity: 0.4 },
   mesaRolBtnTxt:   { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: TEXTO },
   mesaRolBtnTxtOff:{ color: MUTED },
@@ -1035,7 +1038,8 @@ const s = StyleSheet.create({
   botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
   botonOff:           { opacity: 0.4 },
 
-  volverBtn:  { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  // 44 pt de alto (antes ~36), ocupando el mismo lugar.
+  volverBtn:  { paddingHorizontal: 20, marginTop: 6, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   volverTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
 
   // Banners
