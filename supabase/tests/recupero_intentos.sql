@@ -146,11 +146,16 @@ select t_espera(t_res($q$ select registrar_intento_recupero('', interval '60 sec
 select t_espera(t_res($q$ select registrar_intento_recupero('x', interval '2 days', 1) $q$), 'rechazado', 'ventana de más de un día: rechazado');
 select t_espera(t_res($q$ select registrar_intento_recupero('x', interval '60 seconds', 0) $q$), 'rechazado', 'máximo 0: rechazado');
 
--- Limpieza: una fila vencida hace más de un día se borra en el próximo registro
+-- Nunca borra: una fila vencida hace más de un día sigue ahí, y su próximo
+-- intento reinicia la ventana en la misma fila (cuenta vuelve a 1).
 update recupero_intentos set inicio_at = now() - interval '25 hours' where clave = 'id:60:bb';
 select registrar_intento_recupero('id:60:ee', interval '60 seconds', 1);
-select t_espera(t_val($q$ select count(*) from recupero_intentos where clave = 'id:60:bb' $q$), '0',
-  'las filas vencidas hace más de un día se borran');
+select t_espera(t_val($q$ select count(*) from recupero_intentos where clave = 'id:60:bb' $q$), '1',
+  'una fila vencida no se borra');
+select t_espera(t_val($q$ select registrar_intento_recupero('id:60:bb', interval '60 seconds', 1)::text $q$), 'true',
+  'la ventana vencida se reinicia en la misma fila');
+select t_espera(t_val($q$ select cuenta::text from recupero_intentos where clave = 'id:60:bb' $q$), '1',
+  'la cuenta vuelve a 1');
 
 reset role;
 

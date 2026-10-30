@@ -23,15 +23,16 @@ COMMENT ON TABLE public.recupero_intentos IS
 
 ALTER TABLE public.recupero_intentos ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.recupero_intentos FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.recupero_intentos TO service_role;
+-- Sin DELETE: el conteo nunca borra filas (una por clave; la ventana vencida se
+-- reinicia en la misma fila), así que la tabla crece una fila por DNI/mail/IP.
+GRANT SELECT, INSERT, UPDATE ON TABLE public.recupero_intentos TO service_role;
 
 -- Registra un intento para p_clave y dice si está dentro del límite: como
 -- máximo p_maximo intentos por ventana fija de p_ventana (la ventana arranca
 -- con el primer intento y se reinicia cuando vence). El upsert toma el lock de
 -- la fila, así que dos pedidos simultáneos no pueden pasar los dos. Los
 -- intentos rechazados también cuentan, pero no estiran la ventana.
--- De paso borra las filas vencidas hace más de un día (la tabla queda chica);
--- por eso la ventana no puede pasar de un día.
+-- No borra nada: una ventana vencida se reinicia en la misma fila.
 CREATE OR REPLACE FUNCTION public.registrar_intento_recupero(
   p_clave   text,
   p_ventana interval,
@@ -50,8 +51,6 @@ BEGIN
      OR p_ventana <= interval '0' OR p_ventana > interval '1 day' OR p_maximo < 1 THEN
     RAISE EXCEPTION 'registrar_intento_recupero: parámetros inválidos';
   END IF;
-
-  DELETE FROM public.recupero_intentos WHERE inicio_at < now() - interval '1 day';
 
   INSERT INTO public.recupero_intentos AS r (clave, inicio_at, cuenta)
   VALUES (p_clave, now(), 1)
