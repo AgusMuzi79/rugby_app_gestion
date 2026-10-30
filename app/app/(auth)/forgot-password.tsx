@@ -10,7 +10,7 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useForgotPassword } from '@/hooks/useForgotPassword'
 import { colors, fonts } from '@/constants/theme'
 
@@ -20,6 +20,7 @@ export default function ForgotPasswordScreen() {
   const [dniOMail, setDniOMail] = useState('')
   const { enviarLink, loading, error, enviado } = useForgotPassword()
   const router = useRouter()
+  const { aviso } = useLocalSearchParams<{ aviso?: string }>()
 
   return (
     <KeyboardAvoidingView
@@ -66,6 +67,13 @@ export default function ForgotPasswordScreen() {
           ) : (
             /* ── Formulario ── */
             <>
+              {/* Aviso al llegar desde un link de reset vencido o ya usado */}
+              {!!aviso && (
+                <View style={styles.avisoBanner}>
+                  <Text style={styles.avisoText}>{aviso}</Text>
+                </View>
+              )}
+
               <Text style={styles.subtitle}>
                 Ingresá tu DNI o tu mail y te mandamos un link al mail de tu
                 cuenta para elegir una contraseña nueva.
@@ -112,7 +120,8 @@ export default function ForgotPasswordScreen() {
           {/* Volver al login */}
           <TouchableOpacity
             style={styles.backWrap}
-            onPress={() => router.back()}
+            // Llegando desde un link vencido (replace) no hay a dónde volver.
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
             disabled={loading}
           >
             <Text style={styles.backText}>← Volver al inicio de sesión</Text>
@@ -199,6 +208,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     letterSpacing: 2.5,
     color: colors.sobreOro,
+  },
+  avisoBanner: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.oro,
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  avisoText: {
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.texto,
+    textAlign: 'center',
   },
   errorBanner: {
     backgroundColor: colors.card,

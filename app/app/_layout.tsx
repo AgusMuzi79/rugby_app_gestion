@@ -21,6 +21,7 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
+import { AVISO_LINK_VENCIDO, avisoFallaLink, parsearLinkAuth } from '@/lib/linkAuth'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
@@ -144,29 +145,39 @@ export default function RootLayout() {
     return () => clearTimeout(timer)
   }, [])
 
-  // Parsear deep links de recovery/invite
+  // Parsear deep links de recovery/invite (lib/linkAuth.ts). Un link vencido
+  // o ya usado llega con error_code (otp_expired): se manda a pedir uno nuevo.
+  // Los flags de recovery / usuario nuevo se marcan recién cuando la sesión
+  // del link abrió: antes se marcaban primero y, si fallaba, todo redirigía a
+  // reset-password sin sesión para siempre.
   useEffect(() => {
+    function avisarFalla(aviso: string) {
+      setPasswordRecovery(false)
+      setNuevoUsuario(false)
+      router.replace({ pathname: '/(auth)/forgot-password', params: { aviso } })
+    }
+
     async function handleUrl(url: string) {
-      const codeMatch = url.match(/[?&]code=([^&#]+)/)
-      if (codeMatch) {
-        const queryType = url.match(/[?&]type=([^&#]+)/)?.[1]
-        if (queryType === 'invite' || queryType === 'signup' || queryType === 'magiclink') {
-          setNuevoUsuario(true)
-        }
-        await supabase.auth.exchangeCodeForSession(decodeURIComponent(codeMatch[1]))
+      const link = parsearLinkAuth(url)
+      if (link.tipo === 'nada') return
+      if (link.tipo === 'error') {
+        avisarFalla(AVISO_LINK_VENCIDO)
         return
       }
-      const fragment = url.split('#')[1]
-      if (!fragment) return
-      const params       = new URLSearchParams(fragment)
-      const accessToken  = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-      const type         = params.get('type')
-      if (accessToken && refreshToken) {
-        if (type === 'recovery') setPasswordRecovery(true)
-        if (type === 'invite' || type === 'signup' || type === 'magiclink') setNuevoUsuario(true)
-        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      try {
+        const { error } = link.tipo === 'codigo'
+          ? await supabase.auth.exchangeCodeForSession(link.code)
+          : await supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+        if (error) {
+          avisarFalla(avisoFallaLink(esErrorDeRed(error)))
+          return
+        }
+      } catch (e) {
+        avisarFalla(avisoFallaLink(esErrorDeRed(e)))
+        return
       }
+      if (link.flujo === 'recovery') setPasswordRecovery(true)
+      if (link.flujo === 'nuevo') setNuevoUsuario(true)
     }
 
     Linking.getInitialURL().then(url => { if (url) handleUrl(url) })

@@ -21,7 +21,7 @@ export default function ResetPasswordScreen() {
   const [password, setPassword]           = useState('')
   const [confirmacion, setConfirmacion]   = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
-  const { actualizarPassword, loading, error, completado } = useResetPassword()
+  const { actualizarPassword, cancelar, loading, error, completado } = useResetPassword()
   const router = useRouter()
 
   useEffect(() => {
@@ -105,6 +105,18 @@ export default function ResetPasswordScreen() {
               ? <ActivityIndicator color={colors.oro} size="small" />
               : <Text style={styles.buttonText}>GUARDAR CONTRASEÑA →</Text>
             }
+          </TouchableOpacity>
+
+          {/* Salida: si no, el guard devuelve siempre a esta pantalla */}
+          <TouchableOpacity
+            style={styles.cancelWrap}
+            onPress={async () => {
+              await cancelar()
+              router.replace('/(auth)/login')
+            }}
+            disabled={loading}
+          >
+            <Text style={styles.cancelText}>Cancelar y volver al inicio</Text>
           </TouchableOpacity>
 
           <Text style={styles.footer}>UNCAS RUGBY APP · V1.0</Text>
@@ -223,6 +235,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     color: colors.texto,
+  },
+  cancelWrap: {
+    alignItems: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+  },
+  cancelText: {
+    fontFamily: fonts.label,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.textoSecundario,
   },
   footer: {
     fontFamily: fonts.label,
