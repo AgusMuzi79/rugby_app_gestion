@@ -19,9 +19,11 @@
 // `action: 'reset'` (body { action, dni }): recupero de contraseña por DNI o
 // mail. Resuelve el mail de la cuenta igual que el login y le manda el link
 // de GoTrue; si no hay cuenta o el mail es sintético (@uncas.local) no manda
-// nada. Siempre responde { ok: true } — misma regla anti-enumeración.
+// nada. Siempre responde { ok: true } — misma regla anti-enumeración. Tiene
+// límite propio por identificador y por IP (registrar_intento_recupero).
 //
-// Deploy: supabase functions deploy login-dni --no-verify-jwt
+// Deploy: aplicar antes la migración 20261107000000_recupero_password_intentos.
+// supabase functions deploy login-dni --no-verify-jwt
 // (se llama sin sesión — el usuario todavía no está logueado)
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -35,6 +37,7 @@ import {
   cierreRecupero,
   emailParaRecupero,
 } from '../_shared/recupero-password.ts'
+import { clavesRecupero, decisionRecupero, ipCliente } from '../_shared/recupero-intentos.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
 
@@ -62,7 +65,30 @@ async function emailDeDni(dni: string): Promise<{ email: string | null; fallo: b
   return { email: userData?.user?.email ?? null, fallo: false }
 }
 
-async function recuperar(identificador: Identificador): Promise<Response> {
+// Límite propio por identificador y por IP (_shared/recupero-intentos.ts). Va
+// antes de buscar la cuenta, así que nada de lo que responde depende de que
+// exista.
+async function limiteRecupero(identificador: Identificador, ip: string | null) {
+  const claves = await clavesRecupero(identificador, ip)
+  const resultados = await Promise.all(claves.map(async ({ clave, ventana, maximo }) => {
+    const { data, error } = await supabaseAdmin.rpc('registrar_intento_recupero', {
+      p_clave: clave, p_ventana: ventana, p_maximo: maximo,
+    })
+    if (error) {
+      console.error('login-dni reset: registrar_intento_recupero', error.code, error.message)
+      return 'error' as const
+    }
+    return data === true
+  }))
+  return decisionRecupero(resultados)
+}
+
+async function recuperar(identificador: Identificador, ip: string | null): Promise<Response> {
+  const limite = await limiteRecupero(identificador, ip)
+  if (limite === 'error') return jsonError(500, 'No se pudo verificar el usuario')
+  // Pasado el límite: la misma respuesta, sin mandar nada.
+  if (limite === 'limitado') return jsonOk(RESPUESTA_RECUPERO)
+
   let email: string | null
   if (identificador.tipo === 'email') {
     email = identificador.email
@@ -105,7 +131,7 @@ Deno.serve(async (req: Request) => {
 
   if (body.action === 'reset') {
     if (!identificador) return jsonError(400, 'Faltan datos')
-    return await recuperar(identificador)
+    return await recuperar(identificador, ipCliente(req.headers.get('x-forwarded-for')))
   }
 
   const password = body.password as string | undefined
