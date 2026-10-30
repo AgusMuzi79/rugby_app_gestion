@@ -673,6 +673,11 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                     <Text style={s.botonPrimarioTexto}>Crear usuario</Text>
                   )}
                 </TouchableOpacity>
+                {hook.avisoValidacionNuevo && (
+                  <Text style={s.avisoValidacion} accessibilityLiveRegion="polite" accessibilityRole="alert">
+                    {hook.avisoValidacionNuevo}
+                  </Text>
+                )}
               </>
             )
           )}
@@ -776,8 +781,9 @@ const s = StyleSheet.create({
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },
-  // 44 pt de área táctil; los márgenes negativos mantienen el título en su lugar.
-  backBtn:     { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: -12, marginBottom: -8 },
+  // 44 pt de área táctil, todos del botón: sube sobre el padding del header
+  // (no hay nada arriba) y el título va debajo, sin pisarlo.
+  backBtn:     { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: -12 },
   backTexto:   { fontFamily: fonts.label, color: colors.oro, fontSize: 16 },
 
   // Scroll
@@ -817,6 +823,7 @@ const s = StyleSheet.create({
   // Feedback banners
   bannerOk:    { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12 },
   bannerOkMt:  { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12, marginTop: 8 },
+  avisoValidacion: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.rojoTexto, textAlign: 'center', marginTop: 8 },
   bannerError: { backgroundColor: ROJO   + '22', borderRadius: 8, padding: 12 },
   bannerTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
 

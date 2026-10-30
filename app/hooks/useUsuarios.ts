@@ -87,9 +87,15 @@ export function useUsuarios() {
   const [creando, setCreando]                           = useState(false)
   const [creadoOk, setCreadoOk]                         = useState(false)
   const [errorForm, setErrorForm]                       = useState<string | null>(null)
+  // Se intentó crear con errores de validación: aviso corto junto al botón
+  // mientras queden errores (avisoValidacionNuevo).
+  const [envioConErrores, setEnvioConErrores]           = useState(false)
   const [tocadosNuevo, setTocadosNuevo]                 = useState<Tocados<CampoNuevoUsuario>>({})
   const erroresNuevoTodos = validarFormNuevoUsuario({ nombre, email, dni, rol: rolSeleccionado })
   const erroresNuevo      = erroresVisibles(erroresNuevoTodos, tocadosNuevo)
+  const avisoValidacionNuevo = envioConErrores && hayErrores(erroresNuevoTodos)
+    ? 'Revisá los campos marcados.'
+    : null
 
   // Assign-role flow
   const [busquedaSocio, setBusquedaSocio]               = useState('')
@@ -184,6 +190,7 @@ export function useUsuarios() {
     setDeporteSeleccionado(null)
     setErrorForm(null)
     setTocadosNuevo({})
+    setEnvioConErrores(false)
     setCreadoOk(false)
     setBusquedaSocio('')
     setSocioEncontrado(null)
@@ -313,9 +320,12 @@ export function useUsuarios() {
 
     // Errores de validación: debajo de cada campo, todos a la vez. El banner
     // de abajo queda sólo para errores del servidor.
+    // Además, una línea junto al botón: con el formulario scrolleado hasta
+    // abajo, los errores de arriba no se ven.
     setTocadosNuevo(todosTocados(CAMPOS_NUEVO_USUARIO))
-    if (hayErrores(erroresNuevoTodos) || !rolSeleccionado) { setErrorForm(null); return }
+    if (hayErrores(erroresNuevoTodos)) { setErrorForm(null); setEnvioConErrores(true); return }
 
+    setEnvioConErrores(false)
     setCreando(true)
     setErrorForm(null)
 
@@ -509,6 +519,7 @@ export function useUsuarios() {
     creando,
     creadoOk,
     errorForm,
+    avisoValidacionNuevo,
     erroresNuevo,
     tocarCampoNuevo,
     crearUsuario,
