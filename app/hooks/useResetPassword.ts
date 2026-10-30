@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { mensajeErrorAuth } from '@/lib/errorFunction'
+import { cerrarSesionRecupero } from '@/lib/cancelarRecupero'
 import {
   erroresVisibles, hayErrores, todosTocados, validarFormPassword,
   type CampoPassword, type Errores, type Tocados,
@@ -15,6 +16,7 @@ export function useResetPassword() {
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [completado, setCompletado] = useState(false)
+  const [cancelando, setCancelando] = useState(false)
   const [tocados, setTocados]       = useState<Tocados<CampoPassword>>({})
   const { clearAuth, setPasswordRecovery } = useAuthStore()
 
@@ -61,17 +63,20 @@ export function useResetPassword() {
   }
 
   // Salida de reset-password: sin esto, mientras el flag de recovery estaba
-  // puesto, el guard devolvía siempre a esta pantalla. Cierre local: no
-  // depende de la red (la sesión del link vence sola).
+  // puesto, el guard devolvía siempre a esta pantalla. Primero se cierra la
+  // sesión del link y recién después se limpia el flag (lib/cancelarRecupero.ts):
+  // al revés, el guard llevaba la sesión viva al inicio del rol.
   async function cancelar(): Promise<void> {
-    setPasswordRecovery(false)
+    setCancelando(true)
     try {
-      await supabase.auth.signOut({ scope: 'local' })
-    } catch {
-      // Igual se limpia el estado local abajo.
+      await cerrarSesionRecupero(
+        opciones => supabase.auth.signOut(opciones),
+        () => { setPasswordRecovery(false); clearAuth() },
+      )
+    } finally {
+      setCancelando(false)
     }
-    clearAuth()
   }
 
-  return { actualizarPassword, cancelar, tocar, errores, loading, error, completado }
+  return { actualizarPassword, cancelar, tocar, errores, loading, cancelando, error, completado }
 }

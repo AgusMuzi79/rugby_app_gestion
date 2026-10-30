@@ -23,7 +23,7 @@ export default function ResetPasswordScreen() {
   const [confirmacion, setConfirmacion]   = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const confirmacionRef = useRef<TextInput>(null)
-  const { actualizarPassword, cancelar, tocar, errores, loading, error, completado } = useResetPassword()
+  const { actualizarPassword, cancelar, tocar, errores, loading, cancelando, error, completado } = useResetPassword()
   const router = useRouter()
   const errs = errores(password, confirmacion)
 
@@ -115,7 +115,7 @@ export default function ResetPasswordScreen() {
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonLoading]}
             onPress={() => actualizarPassword(password, confirmacion)}
-            disabled={loading}
+            disabled={loading || cancelando}
             activeOpacity={0.85}
           >
             {loading
@@ -128,13 +128,17 @@ export default function ResetPasswordScreen() {
           <TouchableOpacity
             style={styles.cancelWrap}
             accessibilityRole="button"
+            accessibilityState={{ disabled: loading || cancelando, busy: cancelando }}
             onPress={async () => {
               await cancelar()
               router.replace('/(auth)/login')
             }}
-            disabled={loading}
+            disabled={loading || cancelando}
           >
-            <Text style={styles.cancelText}>Cancelar y volver al inicio</Text>
+            {cancelando
+              ? <ActivityIndicator color={colors.oro} size="small" />
+              : <Text style={styles.cancelText}>Cancelar y volver al inicio</Text>
+            }
           </TouchableOpacity>
 
           <Text style={styles.footer}>UNCAS RUGBY APP · V1.0</Text>
