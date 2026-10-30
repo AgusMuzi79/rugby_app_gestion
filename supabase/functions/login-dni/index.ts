@@ -16,16 +16,77 @@
 // esté cargado en profiles.dni (staff creada antes de esta migración,
 // directo vía admin-usuarios, sin pasar por un socio existente).
 //
+// `action: 'reset'` (body { action, dni }): recupero de contraseña por DNI o
+// mail. Resuelve el mail de la cuenta igual que el login y le manda el link
+// de GoTrue; si no hay cuenta o el mail es sintético (@uncas.local) no manda
+// nada. Siempre responde { ok: true } — misma regla anti-enumeración.
+//
 // Deploy: supabase functions deploy login-dni --no-verify-jwt
 // (se llama sin sesión — el usuario todavía no está logueado)
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
-import { normalizarIdentificador, passwordAProbar } from '../_shared/login-identificador.ts'
+import { normalizarIdentificador, passwordAProbar, type Identificador } from '../_shared/login-identificador.ts'
 import { respuestaErrorLogin } from '../_shared/login-errores.ts'
+import {
+  REDIRECT_RECUPERO,
+  RESPUESTA_RECUPERO,
+  emailParaRecupero,
+  respuestaErrorRecupero,
+} from '../_shared/recupero-password.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
+
+function clienteAnon() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_ANON_KEY')!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  )
+}
+
+// Mail de la cuenta de un DNI. `email: null` = no hay cuenta (o no tiene
+// mail); `fallo` = la base o Auth no respondieron (no es "no existe").
+async function emailDeDni(dni: string): Promise<{ email: string | null; fallo: boolean }> {
+  const { data: profile, error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('dni', dni)
+    .maybeSingle()
+  if (profileErr) return { email: null, fallo: true }
+  if (!profile) return { email: null, fallo: false }
+
+  const { data: userData, error: userErr } = await supabaseAdmin.auth.admin.getUserById(profile.id)
+  if (userErr) return { email: null, fallo: true }
+  return { email: userData?.user?.email ?? null, fallo: false }
+}
+
+async function recuperar(identificador: Identificador): Promise<Response> {
+  let email: string | null
+  if (identificador.tipo === 'email') {
+    email = identificador.email
+  } else {
+    const cuenta = await emailDeDni(identificador.dni)
+    if (cuenta.fallo) return jsonError(500, 'No se pudo verificar el usuario')
+    email = cuenta.email
+  }
+
+  // Sin cuenta o con mail sintético: no hay a dónde mandar. Misma respuesta.
+  const destino = emailParaRecupero(email)
+  if (!destino) return jsonOk(RESPUESTA_RECUPERO)
+
+  // GoTrue tampoco revela si el mail existe: con un mail tipeado que no es de
+  // nadie responde OK sin mandar nada. Flujo implícito (tokens en el
+  // fragmento), el que entiende el deep link de la app.
+  const { error } = await clienteAnon().auth.resetPasswordForEmail(destino, { redirectTo: REDIRECT_RECUPERO })
+  const falla = respuestaErrorRecupero(error)
+  if (falla) {
+    console.error('login-dni reset:', error?.code ?? error?.status, error?.message)
+    return jsonError(falla.status, falla.mensaje)
+  }
+  return jsonOk(RESPUESTA_RECUPERO)
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -40,7 +101,14 @@ Deno.serve(async (req: Request) => {
 
   // DNI con puntos o espacios ("30.123.456") se busca sin ellos: profiles.dni
   // guarda sólo dígitos.
-  const identificador = normalizarIdentificador((body.dni as string | undefined) ?? '')
+  const raw = typeof body.dni === 'string' ? body.dni : ''
+  const identificador = normalizarIdentificador(raw)
+
+  if (body.action === 'reset') {
+    if (!identificador) return jsonError(400, 'Faltan datos')
+    return await recuperar(identificador)
+  }
+
   const password = body.password as string | undefined
   if (!identificador || !password) return jsonError(400, 'Faltan datos')
 
@@ -65,11 +133,7 @@ Deno.serve(async (req: Request) => {
     email = userData.user.email
   }
 
-  const supabaseAnon = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { auth: { autoRefreshToken: false, persistSession: false } },
-  )
+  const supabaseAnon = clienteAnon()
 
   // Un solo intento: la inicial es el DNI, y si tipearon el DNI de esta misma
   // cuenta con puntos se manda sin ellos (passwordAProbar).

@@ -90,3 +90,12 @@ export function mensajeLogin(r: { status?: number; sinRed?: boolean }): string {
   if (r.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
   return 'El servidor no respondió. Probá de nuevo en un rato.'
 }
+
+// Recupero de contraseña (login-dni, action 'reset'). El éxito es siempre el
+// mismo; acá sólo las fallas del pedido, que no dicen nada de la cuenta.
+export function mensajeRecupero(r: { status?: number; sinRed?: boolean }): string {
+  if (r.sinRed) return SIN_CONEXION
+  if (r.status === 400) return 'Ingresá tu DNI o tu mail.'
+  if (r.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
+  return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+}

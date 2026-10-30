@@ -1,28 +1,41 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mensajeRecupero, statusErrorFunction } from '@/lib/errorFunction'
 
 export function useForgotPassword() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enviado, setEnviado] = useState(false)
 
-  async function enviarLink(email: string): Promise<void> {
-    setLoading(true)
+  // `dniOMail`: lo mismo que se tipea en el login. login-dni resuelve el DNI
+  // al mail de la cuenta y manda el link; nunca dice si la cuenta existe ni
+  // si su mail es sintético (siempre { ok: true }).
+  async function enviarLink(dniOMail: string): Promise<void> {
     setError(null)
+    if (!dniOMail.trim()) {
+      setError(mensajeRecupero({ status: 400 }))
+      return
+    }
+    setLoading(true)
 
     try {
-      const timeout = new Promise<{ error: Error }>(resolve =>
-        setTimeout(() => resolve({ error: new Error('timeout') }), 15000)
+      const timeout = new Promise<{ data: null; error: { name: string } }>(resolve =>
+        setTimeout(() => resolve({ data: null, error: { name: 'FunctionsFetchError' } }), 15000)
       )
-      const { error: resetError } = await Promise.race([
-        supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: 'uncasrugby://reset-password',
+      const { data, error: resetError } = await Promise.race([
+        supabase.functions.invoke('login-dni', {
+          body: { action: 'reset', dni: dniOMail },
         }),
         timeout,
       ])
 
       if (resetError) {
-        setError('No se pudo enviar el link. Verificá el email y la conexión.')
+        const sinRed = (resetError as { name?: string }).name === 'FunctionsFetchError'
+        setError(mensajeRecupero({ sinRed, status: statusErrorFunction(resetError) }))
+        return
+      }
+      if (!data?.ok) {
+        setError(mensajeRecupero({ status: 500 }))
         return
       }
 

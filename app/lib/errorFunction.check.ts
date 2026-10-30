@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/errorFunction.check.ts
 
 import assert from 'node:assert/strict'
-import { mensajeErrorAuth, mensajeErrorFunction, mensajeLogin, statusErrorFunction } from './errorFunction'
+import { mensajeErrorAuth, mensajeErrorFunction, mensajeLogin, mensajeRecupero, statusErrorFunction } from './errorFunction'
 
 let casos = 0
 async function caso(nombre: string, fn: () => Promise<void> | void) {
@@ -48,6 +48,14 @@ async function main() {
     assert.match(mensajeLogin({ status: 500 }), /servidor/)
     assert.match(mensajeLogin({ sinRed: true }), /No hay conexión/)
     assert.match(mensajeLogin({ status: 400 }), /Completá/)
+  })
+
+  await caso('recupero de contraseña: cada falla dice algo distinto, sin revelar si la cuenta existe', () => {
+    assert.match(mensajeRecupero({ status: 400 }), /DNI o tu mail/)
+    assert.match(mensajeRecupero({ status: 429 }), /Demasiados intentos/)
+    assert.match(mensajeRecupero({ sinRed: true }), /No hay conexión/)
+    assert.match(mensajeRecupero({ status: 500 }), /No se pudo enviar/)
+    assert.match(mensajeRecupero({}), /No se pudo enviar/)
   })
 
   await caso('errores de GoTrue en castellano (antes el inglés crudo en registro)', () => {
