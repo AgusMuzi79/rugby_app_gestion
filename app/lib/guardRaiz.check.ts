@@ -91,4 +91,12 @@ caso('pantallas de auth: la misma pantalla, o las que se recorren sin sesión', 
   assert.equal(yaEstaEnDestino('/(auth)/acceso-restringido', ['(auth)', 'registro-tutor']), true)
 })
 
+caso('desde el login, sin sesión, al alta de familiar o tutor: el guard no lo saca (auth T9)', () => {
+  const destino = destinoGuard({ ...base, haySesion: false, rol: null })
+  assert.equal(destino, '/(auth)/login')
+  assert.equal(yaEstaEnDestino(destino!, ['(auth)', 'registro-tutor']), true)
+  // Y mientras la pantalla está abierta (registroSinSesion), ni siquiera hay destino.
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, registroSinSesion: true }), null)
+})
+
 console.log(`\n${casos} casos ok`)

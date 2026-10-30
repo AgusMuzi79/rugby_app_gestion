@@ -18,7 +18,8 @@ import { useRegistroTutor, type RelacionTutor } from '@/hooks/useRegistroTutor'
 import { colors, fonts } from '@/constants/theme'
 
 // Sign-up of the adult (mother, father, guardian) of a member under 13 who is
-// not a club member. Opened from acceso-restringido.tsx with the minor's DNI.
+// not a club member. Opened from acceso-restringido.tsx with the minor's DNI,
+// or from the login (no DNI: the adult types it).
 // Runs without a session: the root guard leaves it alone while
 // `registroSinSesion` is set (see app/_layout.tsx).
 

@@ -180,6 +180,14 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </Link>
 
+          {/* Alta de familiar o tutor de un socio menor de 13 (no socio).
+              Antes sólo se llegaba entrando con la cuenta del menor. */}
+          <Link href="/(auth)/registro-tutor" asChild>
+            <TouchableOpacity style={s.forgotWrap} disabled={loading}>
+              <Text style={s.forgotText}>Crear cuenta de familiar o tutor</Text>
+            </TouchableOpacity>
+          </Link>
+
           {/* Footer */}
           <Text style={s.footer}>UNCAS RUGBY APP · V1.0</Text>
 
