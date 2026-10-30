@@ -91,6 +91,11 @@ export default function ForgotPasswordScreen() {
                   placeholder="DNI o tu mail"
                   placeholderTextColor={PLACEHOLDER}
                   editable={!loading}
+                  accessibilityLabel="DNI sin puntos o mail"
+                  textContentType="username"
+                  autoComplete="username"
+                  returnKeyType="go"
+                  onSubmitEditing={() => { if (!loading) void enviarLink(dniOMail) }}
                 />
               </View>
 

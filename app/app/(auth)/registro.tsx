@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   StyleSheet,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
@@ -31,6 +31,8 @@ export default function RegistroScreen() {
   const [password, setPassword]               = useState('')
   const [confirmacion, setConfirmacion]       = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
+  const passwordRef                           = useRef<TextInput>(null)
+  const confirmacionRef                       = useRef<TextInput>(null)
   const [loading, setLoading]                 = useState(false)
   const [error, setError]                     = useState<string | null>(null)
 
@@ -114,6 +116,12 @@ export default function RegistroScreen() {
               placeholder="Tu nombre completo"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
+              accessibilityLabel="Nombre completo"
+              textContentType="name"
+              autoComplete="name"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
 
@@ -122,6 +130,7 @@ export default function RegistroScreen() {
             <Text style={styles.label}>NUEVA CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
               <TextInput
+                ref={passwordRef}
                 style={styles.passwordInput}
                 value={password}
                 onChangeText={setPassword}
@@ -129,18 +138,20 @@ export default function RegistroScreen() {
                 placeholder="Mínimo 8 caracteres"
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
+                accessibilityLabel="Nueva contraseña"
+                textContentType="newPassword"
+                autoComplete="new-password"
+                passwordRules="minlength: 8;"
+                autoCapitalize="none"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => confirmacionRef.current?.focus()}
               />
-              <TouchableOpacity
+              <BotonVerPassword
                 style={styles.eyeButton}
-                onPress={() => setMostrarPassword(v => !v)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={PLACEHOLDER}
-                />
-              </TouchableOpacity>
+                visible={mostrarPassword}
+                onToggle={() => setMostrarPassword(v => !v)}
+              />
             </View>
           </View>
 
@@ -148,6 +159,7 @@ export default function RegistroScreen() {
           <View style={styles.fieldWrapLast}>
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
+              ref={confirmacionRef}
               style={styles.input}
               value={confirmacion}
               onChangeText={setConfirmacion}
@@ -155,6 +167,13 @@ export default function RegistroScreen() {
               placeholder="Repetí tu contraseña"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
+              accessibilityLabel="Confirmar contraseña"
+              textContentType="newPassword"
+              autoComplete="new-password"
+              passwordRules="minlength: 8;"
+              autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={() => { if (!loading) void guardar() }}
             />
           </View>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   StyleSheet,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
 import { useAuthStore } from '@/stores/authStore'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useRegistroTutor, type RelacionTutor } from '@/hooks/useRegistroTutor'
@@ -23,7 +23,6 @@ import { colors, fonts } from '@/constants/theme'
 // `registroSinSesion` is set (see app/_layout.tsx).
 
 const PLACEHOLDER = '#9B9A8F'
-const HITSOP = { top: 8, bottom: 8, left: 8, right: 8 }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_MIN = 8
 
@@ -76,6 +75,11 @@ export default function RegistroTutorScreen() {
   const [password2, setPassword2]           = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const [aviso, setAviso]                   = useState<string | null>(null)
+  const emailRef     = useRef<TextInput>(null)
+  const fechaRef     = useRef<TextInput>(null)
+  const dniRef       = useRef<TextInput>(null)
+  const passwordRef  = useRef<TextInput>(null)
+  const password2Ref = useRef<TextInput>(null)
 
   // Flag first, then sign the restricted minor out: the guard must see the
   // flag when the session clears. Cleared on unmount (account created ->
@@ -166,6 +170,12 @@ export default function RegistroTutorScreen() {
                   placeholder="Tu nombre y apellido"
                   placeholderTextColor={PLACEHOLDER}
                   editable={!loading}
+                  accessibilityLabel="Nombre y apellido"
+                  textContentType="name"
+                  autoComplete="name"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => emailRef.current?.focus()}
                 />
               </View>
 
@@ -194,6 +204,7 @@ export default function RegistroTutorScreen() {
               <View style={s.fieldWrap}>
                 <Text style={s.label}>TU MAIL</Text>
                 <TextInput
+                  ref={emailRef}
                   style={s.input}
                   value={email}
                   onChangeText={setEmail}
@@ -203,12 +214,19 @@ export default function RegistroTutorScreen() {
                   placeholder="tu@mail.com"
                   placeholderTextColor={PLACEHOLDER}
                   editable={!loading}
+                  accessibilityLabel="Tu mail"
+                  textContentType="emailAddress"
+                  autoComplete="email"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => fechaRef.current?.focus()}
                 />
               </View>
 
               <View style={s.fieldWrap}>
                 <Text style={s.label}>TU FECHA DE NACIMIENTO</Text>
                 <TextInput
+                  ref={fechaRef}
                   style={s.input}
                   value={fecha}
                   onChangeText={t => setFecha(formatearFechaTipeada(t))}
@@ -217,12 +235,19 @@ export default function RegistroTutorScreen() {
                   placeholderTextColor={PLACEHOLDER}
                   maxLength={10}
                   editable={!loading}
+                  accessibilityLabel="Tu fecha de nacimiento, día, mes y año"
+                  textContentType="birthdate"
+                  autoComplete="birthdate-full"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => dniRef.current?.focus()}
                 />
               </View>
 
               <View style={s.fieldWrapLast}>
                 <Text style={s.label}>DNI DEL SOCIO MENOR</Text>
                 <TextInput
+                  ref={dniRef}
                   style={s.input}
                   value={dniMenor}
                   onChangeText={setDniMenor}
@@ -230,6 +255,11 @@ export default function RegistroTutorScreen() {
                   placeholder="Sin puntos"
                   placeholderTextColor={PLACEHOLDER}
                   editable={!loading}
+                  accessibilityLabel="DNI del socio menor"
+                  // Es el DNI de otra persona: nada que autocompletar.
+                  autoComplete="off"
+                  returnKeyType="go"
+                  onSubmitEditing={() => { if (!loading) void enviarCodigo(false) }}
                 />
               </View>
             </>
@@ -252,6 +282,10 @@ export default function RegistroTutorScreen() {
                   textContentType="oneTimeCode"
                   autoComplete="one-time-code"
                   editable={!loading}
+                  accessibilityLabel="Código"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
                 />
               </View>
 
@@ -259,6 +293,7 @@ export default function RegistroTutorScreen() {
                 <Text style={s.label}>CONTRASEÑA</Text>
                 <View style={s.passwordRow}>
                   <TextInput
+                    ref={passwordRef}
                     style={s.passwordInput}
                     value={password}
                     onChangeText={setPassword}
@@ -267,24 +302,26 @@ export default function RegistroTutorScreen() {
                     placeholderTextColor={PLACEHOLDER}
                     autoCapitalize="none"
                     editable={!loading}
+                    accessibilityLabel="Contraseña"
+                    textContentType="newPassword"
+                    autoComplete="new-password"
+                    passwordRules={`minlength: ${PASSWORD_MIN};`}
+                    returnKeyType="next"
+                    submitBehavior="submit"
+                    onSubmitEditing={() => password2Ref.current?.focus()}
                   />
-                  <TouchableOpacity
+                  <BotonVerPassword
                     style={s.eyeButton}
-                    onPress={() => setMostrarPassword(v => !v)}
-                    hitSlop={HITSOP}
-                  >
-                    <Ionicons
-                      name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={20}
-                      color={PLACEHOLDER}
-                    />
-                  </TouchableOpacity>
+                    visible={mostrarPassword}
+                    onToggle={() => setMostrarPassword(v => !v)}
+                  />
                 </View>
               </View>
 
               <View style={s.fieldWrapLast}>
                 <Text style={s.label}>REPETÍ LA CONTRASEÑA</Text>
                 <TextInput
+                  ref={password2Ref}
                   style={s.input}
                   value={password2}
                   onChangeText={setPassword2}
@@ -293,6 +330,12 @@ export default function RegistroTutorScreen() {
                   placeholderTextColor={PLACEHOLDER}
                   autoCapitalize="none"
                   editable={!loading}
+                  accessibilityLabel="Repetí la contraseña"
+                  textContentType="newPassword"
+                  autoComplete="new-password"
+                  passwordRules={`minlength: ${PASSWORD_MIN};`}
+                  returnKeyType="go"
+                  onSubmitEditing={() => { if (!loading) void confirmarCuenta() }}
                 />
               </View>
             </>

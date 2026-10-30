@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   StyleSheet,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
 import { useResetPassword } from '@/hooks/useResetPassword'
 import { colors, fonts } from '@/constants/theme'
 
@@ -21,6 +21,7 @@ export default function ResetPasswordScreen() {
   const [password, setPassword]           = useState('')
   const [confirmacion, setConfirmacion]   = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
+  const confirmacionRef = useRef<TextInput>(null)
   const { actualizarPassword, cancelar, loading, error, completado } = useResetPassword()
   const router = useRouter()
 
@@ -58,18 +59,20 @@ export default function ResetPasswordScreen() {
                 placeholder="Mínimo 8 caracteres"
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
+                accessibilityLabel="Nueva contraseña"
+                textContentType="newPassword"
+                autoComplete="new-password"
+                passwordRules="minlength: 8;"
+                autoCapitalize="none"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => confirmacionRef.current?.focus()}
               />
-              <TouchableOpacity
+              <BotonVerPassword
                 style={styles.eyeButton}
-                onPress={() => setMostrarPassword(v => !v)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={PLACEHOLDER}
-                />
-              </TouchableOpacity>
+                visible={mostrarPassword}
+                onToggle={() => setMostrarPassword(v => !v)}
+              />
             </View>
           </View>
 
@@ -77,6 +80,7 @@ export default function ResetPasswordScreen() {
           <View style={styles.fieldWrapLast}>
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
+              ref={confirmacionRef}
               style={styles.input}
               value={confirmacion}
               onChangeText={setConfirmacion}
@@ -84,6 +88,13 @@ export default function ResetPasswordScreen() {
               placeholder="Repetí tu contraseña"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
+              accessibilityLabel="Confirmar contraseña"
+              textContentType="newPassword"
+              autoComplete="new-password"
+              passwordRules="minlength: 8;"
+              autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={() => { if (!loading) void actualizarPassword(password, confirmacion) }}
             />
           </View>
 

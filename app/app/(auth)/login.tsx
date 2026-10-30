@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -13,17 +13,18 @@ import {
 } from 'react-native'
 import { Link, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
 import { useLogin } from '@/hooks/useLogin'
 import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
-const HITSOP = { top: 8, bottom: 8, left: 8, right: 8 }
 
 export default function LoginScreen() {
   const [dni, setDni]                          = useState('')
   const [password, setPassword]               = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
+  const passwordRef = useRef<TextInput>(null)
 
   const {
     login,
@@ -93,6 +94,12 @@ export default function LoginScreen() {
               placeholder="DNI o tu mail"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
+              accessibilityLabel="DNI sin puntos o mail"
+              textContentType="username"
+              autoComplete="username"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
 
@@ -101,6 +108,7 @@ export default function LoginScreen() {
             <Text style={s.label}>CONTRASEÑA</Text>
             <View style={s.passwordRow}>
               <TextInput
+                ref={passwordRef}
                 style={s.passwordInput}
                 value={password}
                 onChangeText={setPassword}
@@ -108,18 +116,18 @@ export default function LoginScreen() {
                 placeholder="••••••••"
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
+                accessibilityLabel="Contraseña"
+                textContentType="password"
+                autoComplete="password"
+                autoCapitalize="none"
+                returnKeyType="go"
+                onSubmitEditing={() => { if (!loading) void login(dni, password) }}
               />
-              <TouchableOpacity
+              <BotonVerPassword
                 style={s.eyeButton}
-                onPress={() => setMostrarPassword(v => !v)}
-                hitSlop={HITSOP}
-              >
-                <Ionicons
-                  name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={PLACEHOLDER}
-                />
-              </TouchableOpacity>
+                visible={mostrarPassword}
+                onToggle={() => setMostrarPassword(v => !v)}
+              />
             </View>
             {/* Los socios entran por primera vez con su DNI como contraseña. */}
             <Text style={s.ayuda}>¿Primera vez? Tu contraseña es tu DNI, sin puntos.</Text>
