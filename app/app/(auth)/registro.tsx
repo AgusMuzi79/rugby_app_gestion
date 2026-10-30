@@ -12,6 +12,11 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
+import {
+  erroresVisibles, hayErrores, todosTocados, validarFormRegistro,
+  type CampoRegistro, type Tocados,
+} from '@/lib/validacionAuth'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
@@ -19,6 +24,7 @@ import { mensajeErrorAuth } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
+const CAMPOS_REGISTRO: readonly CampoRegistro[] = ['nombre', 'password', 'confirmacion']
 
 export default function RegistroScreen() {
   const router              = useRouter()
@@ -35,6 +41,7 @@ export default function RegistroScreen() {
   const confirmacionRef                       = useRef<TextInput>(null)
   const [loading, setLoading]                 = useState(false)
   const [error, setError]                     = useState<string | null>(null)
+  const [tocados, setTocados]                 = useState<Tocados<CampoRegistro>>({})
 
   useEffect(() => {
     void cargarPerfil()
@@ -55,18 +62,22 @@ export default function RegistroScreen() {
     setCargando(false)
   }
 
+  // Errores por campo (lib/validacionAuth.ts): se muestran al salir del campo
+  // y todos al enviar. Las contraseñas se validan sin espacios en los bordes,
+  // igual que se guardan.
+  const valores = { nombre, password: password.trim(), confirmacion: confirmacion.trim() }
+  const errs = erroresVisibles(validarFormRegistro(valores), tocados)
+  const tocar = (campo: CampoRegistro) => setTocados(t => (t[campo] ? t : { ...t, [campo]: true }))
+
   async function guardar() {
     const nombreTrim = nombre.trim()
-    const pass       = password.trim()
-    const conf       = confirmacion.trim()
+    const pass       = valores.password
 
-    if (!nombreTrim)      { setError('El nombre es requerido.'); return }
-    if (!pass)            { setError('La contraseña es requerida.'); return }
-    if (pass.length < 8)  { setError('La contraseña debe tener al menos 8 caracteres.'); return }
-    if (pass !== conf)    { setError('Las contraseñas no coinciden.'); return }
+    setTocados(todosTocados(CAMPOS_REGISTRO))
+    setError(null)
+    if (hayErrores(validarFormRegistro(valores))) return
 
     setLoading(true)
-    setError(null)
 
     const { error: passErr } = await supabase.auth.updateUser({ password: pass })
     if (passErr) { setError(mensajeErrorAuth(passErr, 'No se pudo guardar la contraseña. Probá de nuevo.')); setLoading(false); return }
@@ -108,9 +119,10 @@ export default function RegistroScreen() {
           <View style={styles.fieldWrap}>
             <Text style={styles.label}>NOMBRE COMPLETO</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, !!errs.nombre && styles.inputConError]}
               value={nombre}
               onChangeText={setNombre}
+              onBlur={() => tocar('nombre')}
               autoCapitalize="words"
               autoCorrect={false}
               placeholder="Tu nombre completo"
@@ -123,6 +135,7 @@ export default function RegistroScreen() {
               submitBehavior="submit"
               onSubmitEditing={() => passwordRef.current?.focus()}
             />
+            <ErrorCampo mensaje={errs.nombre} />
           </View>
 
           {/* Contraseña */}
@@ -131,9 +144,10 @@ export default function RegistroScreen() {
             <View style={styles.passwordRow}>
               <TextInput
                 ref={passwordRef}
-                style={styles.passwordInput}
+                style={[styles.passwordInput, !!errs.password && styles.inputConError]}
                 value={password}
                 onChangeText={setPassword}
+                onBlur={() => tocar('password')}
                 secureTextEntry={!mostrarPassword}
                 placeholder="Mínimo 8 caracteres"
                 placeholderTextColor={PLACEHOLDER}
@@ -153,6 +167,7 @@ export default function RegistroScreen() {
                 onToggle={() => setMostrarPassword(v => !v)}
               />
             </View>
+            <ErrorCampo mensaje={errs.password} />
           </View>
 
           {/* Confirmar */}
@@ -160,9 +175,10 @@ export default function RegistroScreen() {
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
               ref={confirmacionRef}
-              style={styles.input}
+              style={[styles.input, !!errs.confirmacion && styles.inputConError]}
               value={confirmacion}
               onChangeText={setConfirmacion}
+              onBlur={() => tocar('confirmacion')}
               secureTextEntry={!mostrarPassword}
               placeholder="Repetí tu contraseña"
               placeholderTextColor={PLACEHOLDER}
@@ -175,6 +191,7 @@ export default function RegistroScreen() {
               returnKeyType="go"
               onSubmitEditing={() => { if (!loading) void guardar() }}
             />
+            <ErrorCampo mensaje={errs.confirmacion} />
           </View>
 
           {error !== null && (
@@ -267,6 +284,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
+  },
+  inputConError: {
+    borderBottomColor: colors.rojoTexto,
   },
   passwordRow: {
     flexDirection: 'row',

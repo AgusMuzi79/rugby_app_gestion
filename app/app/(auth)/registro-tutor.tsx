@@ -12,6 +12,13 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
+import { MIN_PASSWORD } from '@/lib/errorFunction'
+import {
+  erroresVisibles, fechaAIso, formatearFechaTipeada, hayErrores, todosTocados,
+  validarFormTutorCodigo, validarFormTutorDatos,
+  type CampoTutorCodigo, type CampoTutorDatos, type Tocados,
+} from '@/lib/validacionAuth'
 import { useAuthStore } from '@/stores/authStore'
 import { useSignOut } from '@/hooks/useSignOut'
 import { useRegistroTutor, type RelacionTutor } from '@/hooks/useRegistroTutor'
@@ -24,8 +31,7 @@ import { colors, fonts } from '@/constants/theme'
 // `registroSinSesion` is set (see app/_layout.tsx).
 
 const PLACEHOLDER = '#9B9A8F'
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PASSWORD_MIN = 8
+const PASSWORD_MIN = MIN_PASSWORD
 
 const RELACIONES: { value: RelacionTutor; label: string }[] = [
   { value: 'madre', label: 'Madre' },
@@ -34,26 +40,10 @@ const RELACIONES: { value: RelacionTutor; label: string }[] = [
   { value: 'otro',  label: 'Otro familiar' },
 ]
 
-// "DD/MM/AAAA" while typing: keeps digits only and inserts the slashes.
-function formatearFechaTipeada(texto: string): string {
-  const d = texto.replace(/\D/g, '').slice(0, 8)
-  if (d.length <= 2) return d
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`
-}
-
-// "DD/MM/AAAA" -> "YYYY-MM-DD", or null when it is not a real past date.
-function fechaAIso(texto: string): string | null {
-  const m = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!m) return null
-  const [, dd, mm, yyyy] = m
-  const fecha = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
-  const valida = fecha.getFullYear() === Number(yyyy)
-    && fecha.getMonth() === Number(mm) - 1
-    && fecha.getDate() === Number(dd)
-  if (!valida || fecha > new Date() || Number(yyyy) < 1900) return null
-  return `${yyyy}-${mm}-${dd}`
-}
+// Per-field validation (lib/validacionAuth.ts): each field shows its own error
+// once left, and every field is marked on submit.
+const CAMPOS_DATOS: readonly CampoTutorDatos[] = ['relacion', 'email', 'fecha', 'dniMenor']
+const CAMPOS_CODIGO: readonly CampoTutorCodigo[] = ['codigo', 'password', 'password2']
 
 type Paso = 'datos' | 'codigo'
 
@@ -76,6 +66,8 @@ export default function RegistroTutorScreen() {
   const [password2, setPassword2]           = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const [aviso, setAviso]                   = useState<string | null>(null)
+  const [tocadosDatos, setTocadosDatos]     = useState<Tocados<CampoTutorDatos>>({})
+  const [tocadosCodigo, setTocadosCodigo]   = useState<Tocados<CampoTutorCodigo>>({})
   const emailRef     = useRef<TextInput>(null)
   const fechaRef     = useRef<TextInput>(null)
   const dniRef       = useRef<TextInput>(null)
@@ -94,18 +86,18 @@ export default function RegistroTutorScreen() {
   const emailNormalizado = email.trim().toLowerCase()
   const dniNormalizado = dniMenor.replace(/\D/g, '')
 
-  function validarDatos(): string | null {
-    if (!relacion) return 'Elegí tu relación con el socio.'
-    if (!EMAIL_RE.test(emailNormalizado)) return 'Ingresá un mail válido.'
-    if (!fechaAIso(fecha)) return 'Ingresá tu fecha de nacimiento con el formato DD/MM/AAAA.'
-    if (!dniNormalizado) return 'Ingresá el DNI del socio menor.'
-    return null
-  }
+  const erroresDatos = validarFormTutorDatos({ relacion, email, fecha, dniMenor })
+  const erroresCodigo = validarFormTutorCodigo({ codigo, password, password2 })
+  const errDatos = erroresVisibles(erroresDatos, tocadosDatos)
+  const errCodigo = erroresVisibles(erroresCodigo, tocadosCodigo)
+  const tocarDato = (c: CampoTutorDatos) => setTocadosDatos(t => (t[c] ? t : { ...t, [c]: true }))
+  const tocarCodigo = (c: CampoTutorCodigo) => setTocadosCodigo(t => (t[c] ? t : { ...t, [c]: true }))
 
   async function enviarCodigo(esReenvio: boolean) {
     setAviso(null)
-    const invalido = validarDatos()
-    if (invalido) { setError(invalido); return }
+    setError(null)
+    setTocadosDatos(todosTocados(CAMPOS_DATOS))
+    if (hayErrores(erroresDatos)) return
     const ok = await solicitarCodigo({
       dniMenor:        dniNormalizado,
       email:           emailNormalizado,
@@ -114,18 +106,16 @@ export default function RegistroTutorScreen() {
     })
     if (!ok) return
     setCodigo('')
+    setTocadosCodigo({})
     setPaso('codigo')
     if (esReenvio) setAviso('Te enviamos un código nuevo.')
   }
 
   async function confirmarCuenta() {
     setAviso(null)
-    if (!/^\d{6}$/.test(codigo)) { setError('El código tiene 6 números.'); return }
-    if (password.length < PASSWORD_MIN) {
-      setError(`La contraseña tiene que tener al menos ${PASSWORD_MIN} caracteres.`)
-      return
-    }
-    if (password !== password2) { setError('Las contraseñas no coinciden.'); return }
+    setError(null)
+    setTocadosCodigo(todosTocados(CAMPOS_CODIGO))
+    if (hayErrores(erroresCodigo)) return
     // Success signs in; the root layout routes the new tutor by role.
     await crearCuenta({
       dniMenor: dniNormalizado,
@@ -189,7 +179,7 @@ export default function RegistroTutorScreen() {
                       <TouchableOpacity
                         key={r.value}
                         style={[s.chip, activo && s.chipActivo]}
-                        onPress={() => setRelacion(r.value)}
+                        onPress={() => { setRelacion(r.value); tocarDato('relacion') }}
                         disabled={loading}
                         activeOpacity={0.75}
                         accessibilityRole="radio"
@@ -201,15 +191,17 @@ export default function RegistroTutorScreen() {
                     )
                   })}
                 </View>
+                <ErrorCampo mensaje={errDatos.relacion} />
               </View>
 
               <View style={s.fieldWrap}>
                 <Text style={s.label}>TU MAIL</Text>
                 <TextInput
                   ref={emailRef}
-                  style={s.input}
+                  style={[s.input, !!errDatos.email && s.inputConError]}
                   value={email}
                   onChangeText={setEmail}
+                  onBlur={() => tocarDato('email')}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -223,15 +215,17 @@ export default function RegistroTutorScreen() {
                   submitBehavior="submit"
                   onSubmitEditing={() => fechaRef.current?.focus()}
                 />
+                <ErrorCampo mensaje={errDatos.email} />
               </View>
 
               <View style={s.fieldWrap}>
                 <Text style={s.label}>TU FECHA DE NACIMIENTO</Text>
                 <TextInput
                   ref={fechaRef}
-                  style={s.input}
+                  style={[s.input, !!errDatos.fecha && s.inputConError]}
                   value={fecha}
                   onChangeText={t => setFecha(formatearFechaTipeada(t))}
+                  onBlur={() => tocarDato('fecha')}
                   keyboardType="number-pad"
                   placeholder="DD/MM/AAAA"
                   placeholderTextColor={PLACEHOLDER}
@@ -244,15 +238,17 @@ export default function RegistroTutorScreen() {
                   submitBehavior="submit"
                   onSubmitEditing={() => dniRef.current?.focus()}
                 />
+                <ErrorCampo mensaje={errDatos.fecha} />
               </View>
 
               <View style={s.fieldWrapLast}>
                 <Text style={s.label}>DNI DEL SOCIO MENOR</Text>
                 <TextInput
                   ref={dniRef}
-                  style={s.input}
+                  style={[s.input, !!errDatos.dniMenor && s.inputConError]}
                   value={dniMenor}
                   onChangeText={setDniMenor}
+                  onBlur={() => tocarDato('dniMenor')}
                   keyboardType="number-pad"
                   placeholder="Sin puntos"
                   placeholderTextColor={PLACEHOLDER}
@@ -263,6 +259,7 @@ export default function RegistroTutorScreen() {
                   returnKeyType="go"
                   onSubmitEditing={() => { if (!loading) void enviarCodigo(false) }}
                 />
+                <ErrorCampo mensaje={errDatos.dniMenor} />
               </View>
             </>
           ) : (
@@ -274,9 +271,10 @@ export default function RegistroTutorScreen() {
               <View style={s.fieldWrap}>
                 <Text style={s.label}>CÓDIGO</Text>
                 <TextInput
-                  style={[s.input, s.codigoInput]}
+                  style={[s.input, s.codigoInput, !!errCodigo.codigo && s.inputConError]}
                   value={codigo}
                   onChangeText={t => setCodigo(t.replace(/\D/g, '').slice(0, 6))}
+                  onBlur={() => tocarCodigo('codigo')}
                   keyboardType="number-pad"
                   placeholder="······"
                   placeholderTextColor={PLACEHOLDER}
@@ -289,6 +287,7 @@ export default function RegistroTutorScreen() {
                   submitBehavior="submit"
                   onSubmitEditing={() => passwordRef.current?.focus()}
                 />
+                <ErrorCampo mensaje={errCodigo.codigo} />
               </View>
 
               <View style={s.fieldWrap}>
@@ -296,9 +295,10 @@ export default function RegistroTutorScreen() {
                 <View style={s.passwordRow}>
                   <TextInput
                     ref={passwordRef}
-                    style={s.passwordInput}
+                    style={[s.passwordInput, !!errCodigo.password && s.inputConError]}
                     value={password}
                     onChangeText={setPassword}
+                    onBlur={() => tocarCodigo('password')}
                     secureTextEntry={!mostrarPassword}
                     placeholder={`Mínimo ${PASSWORD_MIN} caracteres`}
                     placeholderTextColor={PLACEHOLDER}
@@ -318,15 +318,17 @@ export default function RegistroTutorScreen() {
                     onToggle={() => setMostrarPassword(v => !v)}
                   />
                 </View>
+                <ErrorCampo mensaje={errCodigo.password} />
               </View>
 
               <View style={s.fieldWrapLast}>
                 <Text style={s.label}>REPETÍ LA CONTRASEÑA</Text>
                 <TextInput
                   ref={password2Ref}
-                  style={s.input}
+                  style={[s.input, !!errCodigo.password2 && s.inputConError]}
                   value={password2}
                   onChangeText={setPassword2}
+                  onBlur={() => tocarCodigo('password2')}
                   secureTextEntry={!mostrarPassword}
                   placeholder="••••••••"
                   placeholderTextColor={PLACEHOLDER}
@@ -339,6 +341,7 @@ export default function RegistroTutorScreen() {
                   returnKeyType="go"
                   onSubmitEditing={() => { if (!loading) void confirmarCuenta() }}
                 />
+                <ErrorCampo mensaje={errCodigo.password2} />
               </View>
             </>
           )}
@@ -448,6 +451,7 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
     color: colors.texto,
   },
+  inputConError: { borderBottomColor: colors.rojoTexto },
   codigoInput: { fontFamily: fonts.mono, fontSize: 24, letterSpacing: 8 },
   passwordRow: { flexDirection: 'row', alignItems: 'center' },
   passwordInput: {

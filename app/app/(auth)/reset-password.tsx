@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
 import { useResetPassword } from '@/hooks/useResetPassword'
 import { colors, fonts } from '@/constants/theme'
 
@@ -22,8 +23,9 @@ export default function ResetPasswordScreen() {
   const [confirmacion, setConfirmacion]   = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
   const confirmacionRef = useRef<TextInput>(null)
-  const { actualizarPassword, cancelar, loading, error, completado } = useResetPassword()
+  const { actualizarPassword, cancelar, tocar, errores, loading, error, completado } = useResetPassword()
   const router = useRouter()
+  const errs = errores(password, confirmacion)
 
   useEffect(() => {
     if (completado) {
@@ -52,9 +54,10 @@ export default function ResetPasswordScreen() {
             <Text style={styles.label}>NUEVA CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, !!errs.password && styles.inputConError]}
                 value={password}
                 onChangeText={setPassword}
+                onBlur={() => tocar('password')}
                 secureTextEntry={!mostrarPassword}
                 placeholder="Mínimo 8 caracteres"
                 placeholderTextColor={PLACEHOLDER}
@@ -74,6 +77,7 @@ export default function ResetPasswordScreen() {
                 onToggle={() => setMostrarPassword(v => !v)}
               />
             </View>
+            <ErrorCampo mensaje={errs.password} />
           </View>
 
           {/* Confirmar contraseña */}
@@ -81,9 +85,10 @@ export default function ResetPasswordScreen() {
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
               ref={confirmacionRef}
-              style={styles.input}
+              style={[styles.input, !!errs.confirmacion && styles.inputConError]}
               value={confirmacion}
               onChangeText={setConfirmacion}
+              onBlur={() => tocar('confirmacion')}
               secureTextEntry={!mostrarPassword}
               placeholder="Repetí tu contraseña"
               placeholderTextColor={PLACEHOLDER}
@@ -96,6 +101,7 @@ export default function ResetPasswordScreen() {
               returnKeyType="go"
               onSubmitEditing={() => { if (!loading) void actualizarPassword(password, confirmacion) }}
             />
+            <ErrorCampo mensaje={errs.confirmacion} />
           </View>
 
           {/* Error */}
@@ -199,6 +205,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
+  },
+  inputConError: {
+    borderBottomColor: colors.rojoTexto,
   },
   passwordRow: {
     flexDirection: 'row',
