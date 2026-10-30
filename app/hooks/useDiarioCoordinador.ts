@@ -9,6 +9,8 @@ import {
   type EventoDivisionesRow,
 } from './useEventos'
 import { fechaLocal } from '@/lib/fecha'
+import { eventosQueCuentan, porcentajeDivision } from '@/lib/porcentajeAsistencia'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 
 export interface EventoSemana {
   id:             string
@@ -58,6 +60,7 @@ export function useDiarioCoordinador() {
   const { session } = useAuthStore()
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
   const [data, setData]       = useState<DiarioCoordinadorData>(DEFAULT)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
   useEffect(() => { if (session) void fetchTodo() }, [session])
   useRefreshOnFocus(fetchTodo)
@@ -67,12 +70,15 @@ export function useDiarioCoordinador() {
     empezar()
 
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error: errProfile } = await supabase
         .from('profiles').select('nombre, divisiones').eq('id', session.user.id).single()
+      // Un error de lectura no es "sin divisiones": se muestra con REINTENTAR.
+      if (errProfile) throw errProfile
 
       const divIds: string[] = (profile?.divisiones as string[] | null) ?? []
       if (divIds.length === 0) {
         setData({ ...DEFAULT, nombre: profile?.nombre ?? '', sinDivisiones: true })
+        setErrorCarga(null)
         terminar()
         return
       }
@@ -89,7 +95,7 @@ export function useDiarioCoordinador() {
           .gte('fecha', hoy()).lte('fecha', en7Dias())
           .eq('cancelado', false).order('fecha').order('hora', { nullsFirst: false }),
         supabase.from('eventos')
-          .select('id, division_id')
+          .select('id, division_id, fecha, tipo')
           .in('division_id', divIds)
           .gte('fecha', hace30Dias()).lte('fecha', hoy())
           .eq('cancelado', false)
@@ -100,6 +106,9 @@ export function useDiarioCoordinador() {
           .select(SELECT_DIVISIONES_EVENTO)
           .eq('estado', 'activo'),
       ])
+
+      const errBase = primerError(divsRes.error, semanaRes.error, eventos30Res.error, cobranzasActivasRes.error)
+      if (errBase) throw errBase
 
       const divs = divsRes.data ?? []
 
@@ -140,6 +149,8 @@ export function useDiarioCoordinador() {
             .in('division_id', divIds).eq('activo', true),
         ])
 
+        const errAsist = primerError(asistRes.error, jugRes.error)
+        if (errAsist) throw errAsist
         const asists = asistRes.data ?? []
         const jugs   = jugRes.data   ?? []
 
@@ -151,11 +162,12 @@ export function useDiarioCoordinador() {
           eventosPorDiv.set(ev.division_id, arr)
         }
 
+        // Mismo % que Asistencia del coordinador: sin hoy y sin justificados.
+        const cuentan = eventosQueCuentan(eventos30Res.data ?? [], hoy())
+
         asistencias = divs.map(div => {
           const divAsists = asists.filter(a => a.division_id === div.id)
-          const total     = divAsists.length
-          const presentes = divAsists.filter(a => a.estado === 'presente').length
-          const pct       = total > 0 ? Math.round((presentes / total) * 100) : null
+          const pct       = porcentajeDivision(divAsists, cuentan)
 
           const ultimos4Ids = eventosPorDiv.get(div.id) ?? []
           const divJugs     = jugs.filter(j => j.division_id === div.id)
@@ -186,10 +198,14 @@ export function useDiarioCoordinador() {
         alertas,
         sinDivisiones: false,
       })
-    } catch { /* keep defaults */ }
+      setErrorCarga(null)
+    } catch (e) {
+      // Se queda lo último que se vio; la pantalla muestra el error con REINTENTAR.
+      setErrorCarga(mensajeErrorCarga('tu inicio', e))
+    }
 
     terminar()
   }
 
-  return { loading, refrescando, data, refetch: fetchTodo }
+  return { loading, refrescando, data, errorCarga, refetch: fetchTodo }
 }

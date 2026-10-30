@@ -3,7 +3,7 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { autorizarAccion, rolesTrasQuitarStaff, type Destino } from './permisos-usuarios.ts'
+import { autorizarAccion, rolesTrasQuitarStaff, ROLES_POR_CALLER, type Destino } from './permisos-usuarios.ts'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -86,6 +86,22 @@ caso('quitar rol de staff deja socio y los roles que el caller no gestiona', () 
     { roles: ['tutor'], rol: 'tutor' },
   )
   assert.equal(rolesTrasQuitarStaff('admin', ['buffet']), null)
+})
+
+caso('colaborador (T23): subcomisión y admin lo crean, como a un entrenador', () => {
+  assert.ok(ROLES_POR_CALLER.subcomision.includes('colaborador'))
+  assert.ok(ROLES_POR_CALLER.admin.includes('colaborador'))
+})
+
+caso('colaborador (T23): subcomisión gestiona la cuenta y quitarle el rol deja socio', () => {
+  const colab = destino({ rol: 'colaborador', roles: ['colaborador'] })
+  for (const a of ['deactivate', 'reactivate', 'getUser'] as const) {
+    assert.equal(autorizarAccion(SUBCO, colab, a), null, a)
+  }
+  assert.deepEqual(
+    rolesTrasQuitarStaff('subcomision', ['socio', 'colaborador']),
+    { roles: ['socio'], rol: 'socio' },
+  )
 })
 
 console.log(`\n${casos} casos ok`)

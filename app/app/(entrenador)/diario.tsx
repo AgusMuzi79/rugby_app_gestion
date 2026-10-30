@@ -7,11 +7,14 @@ import { useScrollToTop } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useDiarioEntrenador, type TareaPendiente, type ProximoEvento } from '@/hooks/useDiarioEntrenador'
 import { colors, fonts } from '@/constants/theme'
 import { FEATURES } from '@/constants/features'
-import { admiteAsistencia, etiquetaEvento } from '@/lib/tipoEvento'
+import { etiquetaEvento } from '@/lib/tipoEvento'
 import { fechaLocal } from '@/lib/fecha'
+import { accionDelEvento } from '@/lib/entrenamientoHoy'
+import { paramsPedidoPartido } from '@/lib/partidosEntrenador'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -68,9 +71,18 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
+// Asistencia sólo para el entrenamiento de hoy (con su id: doble turno); un
+// partido de hoy se toma en Partido. Otro día no tiene botón: antes la lista
+// caía en un entrenamiento fantasma creado hoy.
 function CardEvento({
-  ev, divisionNombre, onAsistencia,
-}: { ev: ProximoEvento | null; divisionNombre: string; onAsistencia: () => void }) {
+  ev, divisionNombre, onAsistencia, onPartido,
+}: {
+  ev: ProximoEvento | null
+  divisionNombre: string
+  onAsistencia: (ev: ProximoEvento) => void
+  onPartido: (ev: ProximoEvento) => void
+}) {
+  const accion = ev ? accionDelEvento(ev, fechaLocal()) : null
   return (
     <View style={s.eventoCard}>
       {ev ? (
@@ -82,9 +94,19 @@ function CardEvento({
           {ev.lugar ? (
             <Text style={s.eventoLugar}>{ev.lugar}</Text>
           ) : null}
-          {admiteAsistencia(ev.tipo) && (
-            <TouchableOpacity style={s.asistenciaBtn} onPress={onAsistencia} activeOpacity={0.85}>
+          {accion === 'asistencia' && (
+            <TouchableOpacity
+              style={s.asistenciaBtn}
+              onPress={() => onAsistencia(ev)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+            >
               <Text style={s.asistenciaBtnText}>TOMAR ASISTENCIA →</Text>
+            </TouchableOpacity>
+          )}
+          {accion === 'partido' && (
+            <TouchableOpacity style={s.asistenciaBtn} onPress={() => onPartido(ev)} activeOpacity={0.85} accessibilityRole="button">
+              <Text style={s.asistenciaBtnText}>MESA Y ASISTENCIA →</Text>
             </TouchableOpacity>
           )}
         </>
@@ -123,7 +145,17 @@ export default function DiarioEntrenadorScreen() {
   useScrollToTop(scrollRef)
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, refrescando, data, refetch } = useDiarioEntrenador()
+  const { loading, refrescando, data, errorCarga, refetch } = useDiarioEntrenador()
+
+  // Tareas de partido (T7): abren Partido con ese partido (y, RESULTADO, en
+  // el paso de resultado). La marca hace que el mismo toque se reaplique.
+  function abrirTarea(t: TareaPendiente) {
+    if (t.pedido) {
+      router.navigate({ pathname: t.route, params: paramsPedidoPartido(t.pedido, String(Date.now())) })
+    } else {
+      router.navigate(t.route)
+    }
+  }
 
   if (data.sinDivision && !loading) {
     return (
@@ -158,9 +190,13 @@ export default function DiarioEntrenadorScreen() {
         <View style={s.saludoDivider} />
       </View>
 
+      {/* Si falla una relectura queda lo último que se vio, con el aviso arriba;
+          si nunca cargó, sólo el aviso (no un "sin eventos" falso). */}
+      {!loading && errorCarga && <ErrorCarga mensaje={errorCarga} onReintentar={refetch} />}
+
       {loading ? (
         <ActivityIndicator color={colors.oro} style={s.activityIndicator} />
-      ) : (
+      ) : errorCarga && !data.divisionId ? null : (
         <>
           {/* ── PRÓXIMO EVENTO ── */}
           <View style={s.section}>
@@ -168,7 +204,14 @@ export default function DiarioEntrenadorScreen() {
             <CardEvento
               ev={data.proximoEvento}
               divisionNombre={data.divisionNombre}
-              onAsistencia={() => router.navigate('/(entrenador)/asistencia')}
+              onAsistencia={ev => router.navigate({
+                pathname: '/(entrenador)/asistencia',
+                params: { eventoId: ev.id, divisionId: ev.divisionId },
+              })}
+              onPartido={ev => router.navigate({
+                pathname: '/(entrenador)/partido',
+                params: paramsPedidoPartido({ eventoId: ev.id, divisionId: ev.divisionId }, String(Date.now())),
+              })}
             />
           </View>
 
@@ -183,7 +226,7 @@ export default function DiarioEntrenadorScreen() {
                   <FilaTarea
                     key={t.tipo}
                     tarea={t}
-                    onPress={() => router.navigate(t.route)}
+                    onPress={() => abrirTarea(t)}
                   />
                 ))}
               </View>

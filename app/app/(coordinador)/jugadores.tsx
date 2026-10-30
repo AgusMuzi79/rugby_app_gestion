@@ -16,6 +16,7 @@ import {
 } from '@/hooks/useJugadoresDivision'
 import { useMoverJugador } from '@/hooks/useMoverJugador'
 import { ModalMoverJugador, etiquetaDivision } from '@/components/coordinador/ModalMoverJugador'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
 import { colors, fonts } from '@/constants/theme'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -77,6 +78,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorP
       showsHorizontalScrollIndicator={false}
       style={s.selectorScroll}
       contentContainerStyle={s.selectorContent}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(d => {
         const activa = d.id === seleccionada
@@ -86,8 +89,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorP
             style={[s.pill, activa && s.pillActiva]}
             onPress={() => onSeleccionar(d.id)}
             activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activa }}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activa, checked: activa }}
             accessibilityLabel={`Ver jugadores de ${etiquetaDivision(d)}`}
           >
             <Text style={[s.pillTexto, activa && s.pillTextoActivo]}>{etiquetaDivision(d)}</Text>
@@ -110,6 +113,7 @@ export default function JugadoresCoordinadorScreen() {
 
   const [jugadorAMover, setJugadorAMover] = useState<JugadorDivision | null>(null)
   const [exito, setExito] = useState<string | null>(null)
+  useAnuncioAccesible(exito)
 
   useEffect(() => {
     if (!exito) return
@@ -175,16 +179,19 @@ export default function JugadoresCoordinadorScreen() {
 
       <View style={s.divider} />
 
-      {exito && (
-        <View style={s.exitoBanner} accessibilityRole="alert">
-          <Text style={s.exitoTexto}>{exito}</Text>
-        </View>
-      )}
+      {/* Siempre montada: la live region de Android avisa cuando aparece el texto. */}
+      <View accessibilityLiveRegion="polite">
+        {exito && (
+          <View style={s.exitoBanner} accessibilityRole="alert">
+            <Text style={s.exitoTexto}>{exito}</Text>
+          </View>
+        )}
+      </View>
 
       {error && (
         <View style={s.errorBanner} accessibilityRole="alert">
           <Text style={s.errorTexto}>{error}</Text>
-          <TouchableOpacity onPress={recargar} accessibilityRole="button" accessibilityLabel="Reintentar">
+          <TouchableOpacity onPress={recargar} style={s.reintentarBtn} accessibilityRole="button" accessibilityLabel="Reintentar">
             <Text style={s.reintentar}>Reintentar</Text>
           </TouchableOpacity>
         </View>
@@ -243,7 +250,7 @@ const s = StyleSheet.create({
 
   selectorScroll:  { flexGrow: 0, marginBottom: 12 },
   selectorContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row', alignItems: 'center' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
+  pill:            { paddingHorizontal: 14, paddingVertical: 7, minHeight: 44, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
   pillTextoActivo: { color: colors.sobreOro },
@@ -259,13 +266,15 @@ const s = StyleSheet.create({
   meta:            { fontFamily: fonts.label, fontSize: 13, color: MUTED },
   fueraRango:      { borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 3, paddingHorizontal: 5, paddingVertical: 1 },
   fueraRangoTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 0.8, color: colors.oroHondo },
-  moverBtn:        { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER },
+  moverBtn:        { paddingHorizontal: 12, paddingVertical: 8, minHeight: 44, justifyContent: 'center', borderRadius: 4, borderWidth: 1.5, borderColor: DIVIDER },
   moverBtnTexto:   { fontFamily: fonts.label, fontSize: 14, color: colors.oro, letterSpacing: 0.5 },
 
   exitoBanner: { marginHorizontal: 20, marginTop: 10, backgroundColor: '#0F2A18', borderLeftWidth: 3, borderLeftColor: VERDE, borderRadius: 4, padding: 12 },
   exitoTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: '#A7F3C0' },
   errorBanner: { marginHorizontal: 20, marginTop: 10, backgroundColor: '#2A1010', borderLeftWidth: 3, borderLeftColor: ROJO, borderRadius: 4, padding: 12, gap: 6 },
   errorTexto:  { fontFamily: fonts.cuerpo, fontSize: 15, color: '#FFAAAA' },
+  // 44 pt de alto (antes ~17): el margen negativo mantiene el espacio del banner.
+  reintentarBtn: { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start', marginVertical: -8 },
   reintentar:  { fontFamily: fonts.label, fontSize: 14, color: colors.oro, letterSpacing: 0.5 },
 
   listaVacia:   { flex: 1 },

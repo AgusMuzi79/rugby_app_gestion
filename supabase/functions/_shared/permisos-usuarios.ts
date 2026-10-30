@@ -5,13 +5,15 @@
 // borrar una cuenta arrastra su socio, cuotas y pagos (cascade). Lógica pura,
 // sin imports, para poder chequearla con tsx (permisos-usuarios.check.ts).
 
+// 'colaborador' (auditoría entrenador T23): sólo toma asistencia en sus
+// divisiones; se crea y se le asignan divisiones igual que a un entrenador.
 export type RolCreable =
-  | 'coordinador' | 'entrenador' | 'manager' | 'secretaria'
+  | 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria'
   | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 
 export const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
-  subcomision: ['coordinador', 'entrenador', 'manager', 'subcomision'],
-  admin:       ['coordinador', 'entrenador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision'],
+  subcomision: ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision'],
+  admin:       ['coordinador', 'entrenador', 'colaborador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision'],
 }
 
 export type AccionSobreUsuario = 'deactivate' | 'reactivate' | 'delete' | 'getUser' | 'remove-role'

@@ -7,11 +7,13 @@ import { callEdgeFunction } from '@/lib/edgeFunction'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-const ROLES_SUBCO  = ['coordinador', 'entrenador', 'manager', 'subcomision']
+// Colaborador (auditoría entrenador T23): sólo toma asistencia; divisiones
+// como un entrenador.
+const ROLES_SUBCO  = ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision']
 const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
-  entrenador: 'Entrenador', manager: 'Manager',
+  entrenador: 'Entrenador', colaborador: 'Colaborador', manager: 'Manager',
   secretaria: 'Secretaría', porteria: 'Gimnasio', canchero: 'Canchero', buffet: 'Buffet',
 }
 

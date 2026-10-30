@@ -6,7 +6,8 @@
 // 1. reclamar_recordatorios_eventos() marca de forma atómica los eventos que arrancan en los
 //    próximos 30 minutos (hora de Argentina) y los devuelve con sus destinatarios: los socios
 //    jugadores de la división que pasan la regla de la Agenda (servicio del deporte o beca) y los
-//    entrenadores con la división asignada. Un evento reclamado no se vuelve a reclamar salvo que
+//    entrenadores y colaboradores con la división asignada (colaboradores desde la migración
+//    20261106000000; vienen en entrenador_profile_ids). Un evento reclamado no se vuelve a reclamar salvo que
 //    cambien su fecha u hora, así que dos corridas superpuestas nunca avisan dos veces.
 // 2. Cada socio suma su profile y los de sus tutores (igual que el push de cancelación).
 // 3. La misma sesión cargada en varias divisiones (p. ej. "Gimnasio 20:30" para M19…Mayores) sale

@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { esErrorDeRed } from '@/lib/offlineSync'
+import { SIN_CONEXION } from '@/lib/errorFunction'
 
 export interface UseMoverJugadorReturn {
   moviendo: boolean
@@ -27,7 +29,12 @@ export function useMoverJugador(): UseMoverJugadorReturn {
 
     setMoviendo(false)
     if (rpcError) {
-      setError(rpcError.message || 'No se pudo mover al jugador.')
+      // Las validaciones del RPC (raise exception, P0001) ya vienen en español
+      // y se muestran tal cual; un corte de red o cualquier otro error, no
+      // ("Network request failed" no le dice nada al coordinador).
+      if (esErrorDeRed(rpcError)) setError(SIN_CONEXION)
+      else if (rpcError.code === 'P0001' && rpcError.message) setError(rpcError.message)
+      else setError('No se pudo mover al jugador. Probá de nuevo.')
       return false
     }
     return true

@@ -8,6 +8,7 @@ import {
   TextInput,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useLocalSearchParams } from 'expo-router'
 import {
   usePartido,
   RolEnMesa,
@@ -15,9 +16,14 @@ import {
   JugadorPartido,
   ConteoMesa,
   Equipo,
+  DivisionPartido,
 } from '@/hooks/usePartido'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
+import { useAnuncioAccesible } from '@/components/shared/useAnuncioAccesible'
+import { leerPedidoPartido, seccionarPartidos, DIAS_ATRAS_PARTIDOS, DIAS_ADELANTE_PARTIDOS } from '@/lib/partidosEntrenador'
+import { fechaLocal } from '@/lib/fecha'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +65,41 @@ function ConteoBar({ conteo }: { conteo: ConteoMesa }) {
   )
 }
 
+// ─── Resultado de un guardado ─────────────────────────────────────────────────
+
+// Error u "✓ … guardada" de cada paso, anunciado al lector de pantalla. La vista
+// queda montada aunque esté vacía: la live region de Android avisa al cambiar.
+function EstadoGuardado({ error, ok }: { error: string | null; ok: string | null }) {
+  useAnuncioAccesible(error ?? ok)
+  return (
+    <View accessibilityLiveRegion="polite">
+      {error ? (
+        <View style={s.bannerError}>
+          <Text style={s.bannerErrorTexto}>{error}</Text>
+        </View>
+      ) : ok ? (
+        <Text style={s.bannerOkTexto} accessibilityLabel={ok}>✓ {ok}</Text>
+      ) : null}
+    </View>
+  )
+}
+
+// ─── Botón volver ─────────────────────────────────────────────────────────────
+
+function BotonVolver({ texto, etiqueta, onPress }: { texto: string; etiqueta: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity
+      style={s.volverBtn}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={etiqueta}
+    >
+      <Text style={s.volverTexto}>{texto}</Text>
+    </TouchableOpacity>
+  )
+}
+
 // ─── Fila asistencia (partido) ────────────────────────────────────────────────
 
 function FilaAsistencia({
@@ -75,11 +116,18 @@ function FilaAsistencia({
     <View style={s.fila}>
       <Text style={s.numero}>{numero}</Text>
       <Text style={s.nombre} numberOfLines={1}>{jugador.nombre_completo}</Text>
-      <View style={s.badgesRow}>
+      <View
+        style={s.badgesRow}
+        accessibilityRole="radiogroup"
+        accessibilityLabel={`Asistencia de ${jugador.nombre_completo}`}
+      >
         <TouchableOpacity
           style={[s.badge, jugador.presente ? s.badgePres : s.badgeInactivo]}
           onPress={() => { if (!jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: jugador.presente, checked: jugador.presente }}
+          accessibilityLabel={`Presente, ${jugador.nombre_completo}`}
         >
           <Text style={[s.badgeTexto, jugador.presente ? s.badgeTextoPres : s.badgeTextoInactivo]}>
             PRES
@@ -89,6 +137,9 @@ function FilaAsistencia({
           style={[s.badge, !jugador.presente ? s.badgeAus : s.badgeInactivo]}
           onPress={() => { if (jugador.presente) onToggle(jugador.id) }}
           activeOpacity={0.75}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: !jugador.presente, checked: !jugador.presente }}
+          accessibilityLabel={`Ausente, ${jugador.nombre_completo}`}
         >
           <Text style={[s.badgeTexto, !jugador.presente ? s.badgeTextoAus : s.badgeTextoInactivo]}>
             AUS
@@ -118,6 +169,9 @@ function FilaMesa({
         style={s.mesaCardDark}
         onPress={() => onAsignar(jugador.id, jugador.rolEnMesa!)}
         activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`Sacar a ${jugador.nombre_completo} de la mesa`}
+        accessibilityHint={jugador.rolEnMesa === 'titular' ? 'Está de titular' : 'Está de suplente'}
       >
         <Text style={s.mesaNombreDark} numberOfLines={1}>{jugador.nombre_completo}</Text>
         <Text style={s.mesaQuitarTexto}>✕</Text>
@@ -134,6 +188,9 @@ function FilaMesa({
           onPress={() => onAsignar(jugador.id, 'titular')}
           disabled={titularLleno}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Poner a ${jugador.nombre_completo} de titular`}
+          accessibilityState={{ disabled: titularLleno }}
         >
           <Text style={[s.mesaRolBtnTxt, titularLleno && s.mesaRolBtnTxtOff]}>T</Text>
         </TouchableOpacity>
@@ -142,6 +199,9 @@ function FilaMesa({
           onPress={() => onAsignar(jugador.id, 'suplente')}
           disabled={suplenteLleno}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Poner a ${jugador.nombre_completo} de suplente`}
+          accessibilityState={{ disabled: suplenteLleno }}
         >
           <Text style={[s.mesaRolBtnTxt, suplenteLleno && s.mesaRolBtnTxtOff]}>S</Text>
         </TouchableOpacity>
@@ -152,49 +212,125 @@ function FilaMesa({
 
 // ─── Selector de partidos ─────────────────────────────────────────────────────
 
+// Secciones (T7): SIN RESULTADO (pasados de la última semana sin resultado)
+// primero, después PRÓXIMOS y JUGADOS.
 function SelectorPartidos({
   partidos,
   seleccionado,
   onSelect,
+  registraResultado,
+  hayError,
 }: {
   partidos: PartidoEvento[]
   seleccionado: PartidoEvento | null
   onSelect: (p: PartidoEvento) => void
+  registraResultado: boolean
+  hayError: boolean
 }) {
   if (partidos.length === 0) {
+    // Con error de lectura, el aviso con REINTENTAR ya está arriba: no es "sin partidos".
+    if (hayError) return null
     return (
       <View style={s.emptyGap}>
-        <Text style={s.emptyTexto}>Sin partidos programados en los próximos 14 días.</Text>
+        <Text style={s.emptyTexto}>
+          Sin partidos entre los últimos {DIAS_ATRAS_PARTIDOS} días y los próximos {DIAS_ADELANTE_PARTIDOS}.
+        </Text>
         <Text style={s.emptySubtexto}>El Coordinador debe cargarlos en el calendario.</Text>
       </View>
     )
   }
   return (
     <View style={s.gap8}>
-      {partidos.map(p => {
-        const activo = seleccionado?.id === p.id
+      {seccionarPartidos(partidos, fechaLocal(), registraResultado).map(seccion => (
+        <View key={seccion.clave} style={s.gap8}>
+          <Text style={[s.subseccionLabel, seccion.clave === 'sin_resultado' && s.subseccionLabelAlerta]}>
+            {seccion.titulo}
+          </Text>
+          {seccion.partidos.map(p => (
+            <FilaPartido key={p.id} partido={p} activo={seleccionado?.id === p.id} onSelect={onSelect} />
+          ))}
+        </View>
+      ))}
+    </View>
+  )
+}
+
+function FilaPartido({
+  partido: p,
+  activo,
+  onSelect,
+}: {
+  partido: PartidoEvento
+  activo: boolean
+  onSelect: (p: PartidoEvento) => void
+}) {
+  return (
+    <TouchableOpacity
+      style={[s.card, activo && s.cardActivo]}
+      onPress={() => onSelect(p)}
+      activeOpacity={0.8}
+      accessibilityRole="radio"
+      accessibilityState={{ selected: activo, checked: activo }}
+      accessibilityLabel={`Partido contra ${p.rival ?? 'rival por confirmar'}, ${formatFecha(p.fecha)}${p.lugar ? `, ${p.lugar}` : ''}`}
+    >
+      <View style={s.cardRow}>
+        <View style={s.cardInfo}>
+          <Text style={[s.cardTitle, activo && s.cardTitleActivo]}>
+            vs {p.rival ?? 'Rival por confirmar'}
+          </Text>
+          <Text style={s.cardSub}>
+            {formatFecha(p.fecha)}{p.lugar ? ` · ${p.lugar}` : ''}
+          </Text>
+        </View>
+        {activo && <Text style={s.checkOro}>✓</Text>}
+      </View>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Selector de división ─────────────────────────────────────────────────────
+
+// Entrenador con varias divisiones (T7): igual que en Asistencia.
+function SelectorDivision({
+  divisiones,
+  divisionId,
+  onSeleccionar,
+  deshabilitado,
+}: {
+  divisiones: DivisionPartido[]
+  divisionId: string | null
+  onSeleccionar: (id: string) => void
+  deshabilitado: boolean
+}) {
+  if (divisiones.length < 2) return null
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.divisionChips}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
+    >
+      {divisiones.map(div => {
+        const activo = div.id === divisionId
         return (
           <TouchableOpacity
-            key={p.id}
-            style={[s.card, activo && s.cardActivo]}
-            onPress={() => onSelect(p)}
+            key={div.id}
+            style={[s.divisionChip, activo && s.divisionChipActivo]}
+            onPress={() => onSeleccionar(div.id)}
+            disabled={deshabilitado}
             activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo, checked: activo, disabled: deshabilitado }}
+            accessibilityLabel={`División ${div.nombre}`}
           >
-            <View style={s.cardRow}>
-              <View style={s.cardInfo}>
-                <Text style={[s.cardTitle, activo && s.cardTitleActivo]}>
-                  vs {p.rival ?? 'Rival por confirmar'}
-                </Text>
-                <Text style={s.cardSub}>
-                  {formatFecha(p.fecha)}{p.lugar ? ` · ${p.lugar}` : ''}
-                </Text>
-              </View>
-              {activo && <Text style={s.checkOro}>✓</Text>}
-            </View>
+            <Text style={[s.divisionChipTexto, activo && s.divisionChipTextoActivo]}>
+              {div.nombre.toUpperCase()}
+            </Text>
           </TouchableOpacity>
         )
       })}
-    </View>
+    </ScrollView>
   )
 }
 
@@ -205,17 +341,20 @@ function SelectorEquipos({
   equipoObligatorio,
   seleccionado,
   onSelect,
+  hayError,
 }: {
   equipos: Equipo[]
   equipoObligatorio: Equipo | null
   seleccionado: Equipo | null
   onSelect: (e: Equipo) => void
+  hayError: boolean
 }) {
   if (equipos.length === 0) {
+    if (hayError) return null
     return <Text style={s.emptyTexto}>Preparando equipos...</Text>
   }
   return (
-    <View style={s.gap8}>
+    <View style={s.gap8} accessibilityRole="radiogroup" accessibilityLabel="Equipo">
       {equipos.map(e => {
         const activo       = seleccionado?.id === e.id
         const esObligatorio = e.id === equipoObligatorio?.id
@@ -225,6 +364,9 @@ function SelectorEquipos({
             style={[s.card, activo && s.cardActivo]}
             onPress={() => onSelect(e)}
             activeOpacity={0.8}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: activo, checked: activo }}
+            accessibilityLabel={`${e.nombre}, ${esObligatorio ? 'obligatorio' : 'opcional'}`}
           >
             <View style={s.cardRow}>
               <Text style={[s.cardTitle, s.cardTitleFlex, activo && s.cardTitleActivo]}>
@@ -256,6 +398,8 @@ function PasoEquipo({
   onSeleccionarEquipo,
   onContinuar,
   cargandoTransicion,
+  registraResultado,
+  hayError,
 }: {
   partidos: PartidoEvento[]
   partidoSeleccionado: PartidoEvento | null
@@ -266,6 +410,8 @@ function PasoEquipo({
   onSeleccionarEquipo: (e: Equipo) => void
   onContinuar: () => void
   cargandoTransicion: boolean
+  registraResultado: boolean
+  hayError: boolean
 }) {
   const puedeAvanzar = equipoSeleccionado !== null && partidoSeleccionado !== null
 
@@ -277,6 +423,8 @@ function PasoEquipo({
           partidos={partidos}
           seleccionado={partidoSeleccionado}
           onSelect={onSeleccionarPartido}
+          registraResultado={registraResultado}
+          hayError={hayError}
         />
       </View>
 
@@ -289,6 +437,7 @@ function PasoEquipo({
           equipoObligatorio={equipoObligatorio}
           seleccionado={equipoSeleccionado}
           onSelect={onSeleccionarEquipo}
+          hayError={hayError}
         />
       </View>
 
@@ -335,9 +484,7 @@ function PasoAsistencia({
 
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER" etiqueta="Volver a elegir partido y equipo" onPress={onVolver} />
 
       <View style={s.contadores}>
         <View style={[s.contadorBox, s.contadorBoxVerde]}>
@@ -360,14 +507,10 @@ function PasoAsistencia({
       ))}
 
       <View style={s.bloqueMt2}>
-        {errorAsistencia && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorAsistencia}</Text>
-          </View>
-        )}
-        {asistenciaGuardada && !guardandoAsistencia && esInfantil && (
-          <Text style={s.bannerOkTexto}>✓ Asistencia guardada</Text>
-        )}
+        <EstadoGuardado
+          error={errorAsistencia}
+          ok={asistenciaGuardada && !guardandoAsistencia && esInfantil ? 'Asistencia guardada' : null}
+        />
         <TouchableOpacity
           style={[s.botonPrimario, (!puedeGuardar || guardandoAsistencia) && s.botonOff]}
           onPress={onGuardar}
@@ -419,9 +562,7 @@ function PasoMesa({
 
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER A ASISTENCIA</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER A ASISTENCIA" etiqueta="Volver a asistencia" onPress={onVolver} />
 
       <View style={s.conteoRow}>
         <ConteoBar conteo={conteoMesa} />
@@ -493,14 +634,7 @@ function PasoMesa({
       )}
 
       <View style={s.bloqueMt3}>
-        {errorMesa && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorMesa}</Text>
-          </View>
-        )}
-        {mesaGuardada && !guardandoMesa && (
-          <Text style={s.bannerOkTexto}>✓ Mesa guardada</Text>
-        )}
+        <EstadoGuardado error={errorMesa} ok={mesaGuardada && !guardandoMesa ? 'Mesa guardada' : null} />
         <TouchableOpacity
           style={[s.botonGuardarMesa, guardandoMesa && s.botonOff]}
           onPress={onGuardar}
@@ -555,9 +689,7 @@ function PasoResultado({
 }) {
   return (
     <View>
-      <TouchableOpacity style={s.volverBtn} onPress={onVolver} activeOpacity={0.7}>
-        <Text style={s.volverTexto}>← VOLVER A MESA</Text>
-      </TouchableOpacity>
+      <BotonVolver texto="← VOLVER A MESA" etiqueta="Volver a la mesa" onPress={onVolver} />
 
       <View style={s.bloque}>
         <View style={s.resultadoRow}>
@@ -567,6 +699,7 @@ function PasoResultado({
               style={s.inputNumero}
               value={puntosPropios}
               onChangeText={onChangePropios}
+              accessibilityLabel="Puntos nuestros"
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={MUTED}
@@ -580,6 +713,7 @@ function PasoResultado({
               style={[s.inputNumero, s.inputNumeroRight]}
               value={puntosRival}
               onChangeText={onChangeRival}
+              accessibilityLabel="Puntos del rival"
               keyboardType="number-pad"
               placeholder="0"
               placeholderTextColor={MUTED}
@@ -594,19 +728,16 @@ function PasoResultado({
             style={s.inputTexto}
             value={rivalNombre}
             onChangeText={onChangeRivalNombre}
+            accessibilityLabel="Nombre del rival"
             placeholder="Nombre del rival"
             placeholderTextColor={MUTED}
           />
         </View>
 
-        {errorResultado && (
-          <View style={s.bannerError}>
-            <Text style={s.bannerErrorTexto}>{errorResultado}</Text>
-          </View>
-        )}
-        {resultadoGuardado && !guardandoResultado && (
-          <Text style={s.bannerOkTexto}>✓ Resultado guardado</Text>
-        )}
+        <EstadoGuardado
+          error={errorResultado}
+          ok={resultadoGuardado && !guardandoResultado ? 'Resultado guardado' : null}
+        />
 
         <TouchableOpacity
           style={[s.botonPrimarioMt, guardandoResultado && s.botonOff]}
@@ -628,8 +759,11 @@ function PasoResultado({
 // ─── Screen principal ─────────────────────────────────────────────────────────
 
 export default function PartidoScreen() {
+  // Desde el Inicio (tarea RESULTADO / MESA o tarjeta del próximo partido).
+  const params = useLocalSearchParams<{ eventoId?: string; divisionId?: string; paso?: string; pedido?: string }>()
   const {
-    loading, divisionNombre, sinDivision, esInfantil,
+    loading, errorCarga, reintentar, divisionNombre, sinDivision, esInfantil,
+    divisiones, divisionId, seleccionarDivision, cargandoDivision,
     equipos, equipoObligatorio, equipoSeleccionado, seleccionarEquipo,
     partidos, partidoSeleccionado, seleccionarPartido,
     jugadores, paso, cargandoTransicion, irAAsistencia, irAEquipo, irAMesa, irAResultado,
@@ -640,7 +774,7 @@ export default function PartidoScreen() {
     puntosPropios, puntosRival, rivalNombre,
     setPuntosPropios, setPuntosRival, setRivalNombre,
     guardandoResultado, resultadoGuardado, errorResultado, guardarResultado,
-  } = usePartido()
+  } = usePartido(leerPedidoPartido(params))
 
   const pasoTitulo: Record<typeof paso, string> = {
     equipo:     'Equipo · Partido',
@@ -678,10 +812,26 @@ export default function PartidoScreen() {
         </View>
         <AvatarPerfil />
       </View>
+      {paso === 'equipo' && (
+        <SelectorDivision
+          divisiones={divisiones}
+          divisionId={divisionId}
+          onSeleccionar={seleccionarDivision}
+          deshabilitado={cargandoDivision}
+        />
+      )}
       <View style={s.divider} />
 
       <ScrollView contentContainerStyle={s.scrollContent}>
-        {paso === 'equipo' && (
+        {errorCarga && (
+          <ErrorCarga mensaje={errorCarga} onReintentar={reintentar} />
+        )}
+
+        {cargandoDivision && (
+          <ActivityIndicator color={colors.oro} size="large" style={s.cargandoDivision} />
+        )}
+
+        {paso === 'equipo' && !cargandoDivision && (
           <PasoEquipo
             partidos={partidos}
             partidoSeleccionado={partidoSeleccionado}
@@ -692,6 +842,8 @@ export default function PartidoScreen() {
             onSeleccionarEquipo={seleccionarEquipo}
             onContinuar={irAAsistencia}
             cargandoTransicion={cargandoTransicion}
+            registraResultado={!esInfantil}
+            hayError={!!errorCarga}
           />
         )}
 
@@ -792,6 +944,22 @@ const s = StyleSheet.create({
   emptyTexto:    { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic' },
   emptyTextoMx:  { fontFamily: fonts.titulo, fontSize: 16, color: MUTED, fontStyle: 'italic', marginHorizontal: 20, marginTop: 16 },
   emptySubtexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 0.5, color: MUTED, marginTop: 4 },
+  subseccionLabel:       { fontFamily: fonts.label, fontSize: 11, letterSpacing: 2, color: MUTED, marginTop: 6 },
+  subseccionLabelAlerta: { color: colors.rojoTexto },
+  cargandoDivision:      { marginTop: 40 },
+
+  // Selector de división
+  divisionChips:      { paddingHorizontal: 20, paddingBottom: 12, gap: 8 },
+  divisionChip: {
+    minHeight: 44, justifyContent: 'center',
+    borderWidth: 1, borderColor: DIVIDER, borderRadius: 3,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  divisionChipActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
+  divisionChipTexto: {
+    fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, color: MUTED,
+  },
+  divisionChipTextoActivo: { color: colors.sobreOro, fontWeight: '700' },
 
   // Equipo badges
   equipoBadge:          { borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3 },
@@ -808,8 +976,9 @@ const s = StyleSheet.create({
   mesaPadding:{ paddingHorizontal: 20 },
 
   // Badges asistencia
-  badgesRow:          { flexDirection: 'row', gap: 5 },
-  badge:              { paddingHorizontal: 7, paddingVertical: 4, borderRadius: 2, borderWidth: 1 },
+  // 48×44 pt con 8 pt entre sí, como en Asistencia (antes ~22 pt a 5 pt).
+  badgesRow:          { flexDirection: 'row', gap: 8 },
+  badge:              { minWidth: 48, minHeight: 44, paddingHorizontal: 6, justifyContent: 'center', alignItems: 'center', borderRadius: 2, borderWidth: 1 },
   badgeInactivo:      { borderColor: DIVIDER, backgroundColor: 'transparent' },
   badgePres:          { backgroundColor: VERDE, borderColor: VERDE },
   badgeAus:           { backgroundColor: ROJO, borderColor: ROJO },
@@ -852,8 +1021,10 @@ const s = StyleSheet.create({
     borderRadius: 2, paddingHorizontal: 14, paddingVertical: 12,
   },
   mesaNombreLight: { flex: 1, fontFamily: fonts.cuerpo, fontSize: 17, color: TEXTO, marginRight: 10 },
-  mesaBotones:     { flexDirection: 'row', gap: 6 },
-  mesaRolBtn:      { width: 34, height: 34, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
+  // T / S de 44 pt con 8 pt entre sí (antes 34 a 6 pt). El margen negativo
+  // evita que la tarjeta crezca.
+  mesaBotones:     { flexDirection: 'row', gap: 8, marginVertical: -5 },
+  mesaRolBtn:      { width: 44, height: 44, borderRadius: 2, borderWidth: 1, borderColor: TEXTO, justifyContent: 'center', alignItems: 'center' },
   mesaRolBtnOff:   { borderColor: DIVIDER, opacity: 0.4 },
   mesaRolBtnTxt:   { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: TEXTO },
   mesaRolBtnTxtOff:{ color: MUTED },
@@ -867,7 +1038,8 @@ const s = StyleSheet.create({
   botonSecundarioTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
   botonOff:           { opacity: 0.4 },
 
-  volverBtn:  { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  // 44 pt de alto (antes ~36), ocupando el mismo lugar.
+  volverBtn:  { paddingHorizontal: 20, marginTop: 6, minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
   volverTexto:{ fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oroHondo },
 
   // Banners

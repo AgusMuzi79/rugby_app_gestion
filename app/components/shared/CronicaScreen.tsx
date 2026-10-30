@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useState } from 'react'
 import { Header } from '@/components/shared/Header'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { useCronica, type FeedItem, type FeedTipo } from '@/hooks/useCronica'
 import { colors, fonts } from '@/constants/theme'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -80,7 +81,7 @@ function FilaFeed({ item, onPress }: { item: FeedItem; onPress?: () => void }) {
 export function CronicaScreen() {
   const router  = useRouter()
   const insets  = useSafeAreaInsets()
-  const { loading, refrescando, items, rol, refetch } = useCronica()
+  const { loading, refrescando, items, errorCarga, rol, refetch } = useCronica()
   const { colors: tc } = useTheme()
   const esSubcomision = ['subcomision', 'admin'].includes(rol)
 
@@ -132,12 +133,17 @@ export function CronicaScreen() {
         )}
 
         {/* Feed */}
+        {/* Error de lectura: nunca "sin novedades". Si había una lista de antes, queda debajo. */}
+        {!loading && errorCarga ? <ErrorCarga mensaje={errorCarga} onReintentar={refetch} /> : null}
+
         {loading ? (
           <ActivityIndicator color={colors.oro} style={{ marginTop: 48 }} />
         ) : items.length === 0 ? (
-          <View style={s.emptyContainer}>
-            <Text style={s.emptyText}>Sin novedades en los últimos 7 días.</Text>
-          </View>
+          errorCarga ? null : (
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyText}>Sin novedades en los últimos 7 días.</Text>
+            </View>
+          )
         ) : (
           <View style={s.feedList}>
             {items.map(item => (
@@ -160,6 +166,8 @@ export function CronicaScreen() {
             <TouchableOpacity
               onPress={() => setDetalle(null)}
               hitSlop={{ top: 10, bottom: 10, left: 16, right: 16 }}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar"
             >
               <Text style={s.modalCerrar}>✕</Text>
             </TouchableOpacity>

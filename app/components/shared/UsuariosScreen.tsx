@@ -29,6 +29,7 @@ const ROL_COLOR: Record<string, string> = {
   subcomision: '#7C3AED',
   coordinador: '#2563EB',
   entrenador:  '#059669',
+  colaborador: '#4D7C0F',
   manager:     '#D97706',
   secretaria:  '#0891B2',
   porteria:    '#65A30D',
@@ -354,6 +355,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 const ROLES_CREABLES_SUBCO: { value: RolCreable; label: string }[] = [
   { value: 'coordinador', label: 'Coordinador' },
   { value: 'entrenador',  label: 'Entrenador'  },
+  { value: 'colaborador', label: 'Colaborador' },
   { value: 'manager',     label: 'Manager'     },
   { value: 'subcomision', label: 'Subcomisión' },
 ]
@@ -361,6 +363,7 @@ const ROLES_CREABLES_SUBCO: { value: RolCreable; label: string }[] = [
 const ROLES_CREABLES_ADMIN: { value: RolCreable; label: string }[] = [
   { value: 'coordinador', label: 'Coordinador' },
   { value: 'entrenador',  label: 'Entrenador'  },
+  { value: 'colaborador', label: 'Colaborador' },
   { value: 'manager',     label: 'Manager'     },
   { value: 'secretaria',  label: 'Secretaría'  },
   { value: 'porteria',    label: 'Gimnasio'    },

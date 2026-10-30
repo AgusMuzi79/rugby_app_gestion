@@ -30,10 +30,17 @@ caso('cada rol va al mismo inicio que el mapa que reemplazó (_layout.tsx)', () 
     admin: '/(admin)/usuarios', secretaria: '/(secretaria)/diario',
     porteria: '/(porteria)/scanner', canchero: '/(porteria)/scanner', buffet: '/(porteria)/scanner',
     cliente_gimnasio: '/(cliente-gimnasio)/carnet', socio: '/(socio)/carnet', tutor: '/(tutor)/carnet',
+    // T23: sólo toma asistencia, entra directo a la lista.
+    colaborador: '/(colaborador)/asistencia',
   }
   for (const [rol, ruta] of Object.entries(antes)) {
     assert.equal(destinoGuard({ ...base, rol: rol as EstadoGuard['rol'] }), ruta, rol)
   }
+})
+
+caso('colaborador en su Mi perfil (refresh de token): NO redirige', () => {
+  assert.equal(yaEstaEnDestino('/(colaborador)/asistencia', ['(colaborador)', 'sobre']), true)
+  assert.equal(yaEstaEnDestino('/(colaborador)/asistencia', ['(entrenador)', 'asistencia']), false)
 })
 
 caso('sin sesión: login, salvo durante el registro de tutor', () => {

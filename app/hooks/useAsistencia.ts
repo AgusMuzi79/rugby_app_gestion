@@ -1,11 +1,33 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import NetInfo from '@react-native-community/netinfo'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { encolar, resolverNoEnviadas } from '@/lib/offlineQueue'
 import { esErrorDeRed } from '@/lib/offlineSync'
-import { actualizarPendientes } from '@/hooks/useSincronizacionOffline'
+import { actualizarPendientes, verificarCuartaAusencia } from '@/hooks/useSincronizacionOffline'
+import type { MarcaGuardada } from '@/lib/ausenciasConsecutivas'
 import { fechaLocal } from '@/lib/fecha'
+import type { EntrenamientoHoy } from '@/lib/entrenamientoHoy'
+import { cantidadSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardar'
+import { marcarTodosPresentes } from '@/lib/marcadoAsistencia'
+import { claveDivisiones, clavePlantel, leerGuardado, resolverCarga, serializarGuardado } from '@/lib/plantelGuardado'
+import {
+  actualizarCopiaDia,
+  armarJugadores,
+  claveDia,
+  leerCopiaDia,
+  marcasParaGuardar,
+  payloadCola,
+  resolverEntrenamientos,
+  resolverMarcas,
+  type CopiaDia,
+  type MarcasResueltas,
+} from '@/lib/copiaDelDia'
+import { actualizarCopiaGuardada } from '@/lib/copiaDelDiaGuardada'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { mensajeError } from '@/lib/mensajeError'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 export type EstadoAsistencia = 'presente' | 'ausente' | 'justificado'
 
@@ -13,6 +35,8 @@ export interface JugadorConEstado {
   id: string
   nombre_completo: string
   estado: EstadoAsistencia | null
+  // Lo guardado (en la base o en la cola): distinto de `estado` = sin guardar.
+  estadoGuardado: EstadoAsistencia | null
 }
 
 export interface DivisionOpcion {
@@ -33,13 +57,54 @@ export interface UseAsistenciaReturn {
   divisionId: string | null
   divisionNombre: string
   sinDivision: boolean
+  // Falló una lectura y no hay copia: mensaje con REINTENTAR (recargar).
+  errorCarga: string | null
+  // Sin señal: se marca sobre la copia del plantel guardada a esta hora (ms).
+  listaGuardadaEn: number | null
+  recargar: () => void
   marcados: number
+  sinGuardar: number
+  // Entrenamientos de hoy de la división (doble turno: más de uno) y el elegido.
+  // eventoId null = no hay ninguno hoy: se crea al guardar.
+  entrenamientos: EntrenamientoHoy[]
+  eventoId: string | null
   seleccionarDivision: (id: string) => void
+  seleccionarEntrenamiento: (id: string) => void
   marcarEstado: (jugadorId: string, estado: EstadoAsistencia) => void
-  guardarAsistencia: () => Promise<void>
+  marcarTodos: () => void
+  // true si quedó guardada (en la base o en el teléfono).
+  guardarAsistencia: () => Promise<boolean>
 }
 
-export function useAsistencia(): UseAsistenciaReturn {
+// Lo que llega desde el Inicio ("TOMAR ASISTENCIA" del entrenamiento de hoy).
+export interface PedidoAsistencia {
+  eventoId?: string
+  divisionId?: string
+}
+
+type PlantelJugador = { id: string; nombre_completo: string }
+
+// Copia local del plantel y de las divisiones (lib/plantelGuardado.ts). Si
+// AsyncStorage falla, se sigue sin copia: nunca frena la pantalla.
+async function leerLocal(clave: string): Promise<string | null> {
+  try { return await AsyncStorage.getItem(clave) } catch { return null }
+}
+async function guardarLocal(clave: string, valor: string): Promise<void> {
+  try { await AsyncStorage.setItem(clave, valor) } catch { /* sin copia */ }
+}
+
+// Toda escritura de la copia del día lee, mezcla y escribe dentro del candado
+// de su clave (lib/copiaDelDiaGuardada.ts): nunca sobre una base vieja.
+function actualizarCopiaDelDia(divId: string, cambiar: (actual: CopiaDia | null) => CopiaDia | null) {
+  return actualizarCopiaGuardada(AsyncStorage, claveDia(divId), cambiar)
+}
+
+function minutosAhora(): number {
+  const d = new Date()
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+export function useAsistencia(pedido: PedidoAsistencia = {}): UseAsistenciaReturn {
   const { session } = useAuthStore()
   const [jugadores, setJugadores] = useState<JugadorConEstado[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,9 +116,20 @@ export function useAsistencia(): UseAsistenciaReturn {
   const [divisionId, setDivisionId] = useState<string | null>(null)
   const [sinDivision, setSinDivision] = useState(false)
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null)
+  const [entrenamientos, setEntrenamientos] = useState<EntrenamientoHoy[]>([])
+  const [eventoId, setEventoId] = useState<string | null>(null)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  const [listaGuardadaEn, setListaGuardadaEn] = useState<number | null>(null)
+
+  // Pedido del Inicio todavía sin aplicar: lo consume la próxima carga.
+  const eventoPedido = useRef<string | null>(pedido.eventoId ?? null)
+  const divisionPedida = useRef<string | null>(pedido.divisionId ?? null)
+  // Sólo la última lectura escribe (cambio rápido de división o de turno).
+  const ultimaLectura = useRef(0)
 
   const fecha = fechaLocal()
   const marcados = jugadores.filter(j => j.estado !== null).length
+  const sinGuardar = cantidadSinGuardar(jugadores)
   const divisionNombre = divisiones.find(d => d.id === divisionId)?.nombre ?? ''
 
   // Divisiones asignadas al entrenador — puede tener más de una.
@@ -61,11 +137,15 @@ export function useAsistencia(): UseAsistenciaReturn {
     if (session) fetchDivisiones()
   }, [session])
 
+  // Un error de lectura no es "sin división": se muestra con REINTENTAR (o,
+  // sin señal, se sigue con la copia guardada en el teléfono).
   async function fetchDivisiones() {
     if (!session) return
     setLoading(true)
+    setErrorCarga(null)
+    const clave = claveDivisiones(session.user.id)
 
-    const { data: profile } = await supabase
+    const { data: profile, error: errProfile } = await supabase
       .from('profiles')
       .select('divisiones')
       .eq('id', session.user.id)
@@ -73,79 +153,268 @@ export function useAsistencia(): UseAsistenciaReturn {
 
     const divIds = (profile?.divisiones as string[] | null) ?? []
 
-    if (divIds.length === 0) {
+    if (!errProfile && divIds.length === 0) {
       setSinDivision(true)
       setLoading(false)
       return
     }
 
-    const { data: divsData } = await supabase
-      .from('divisiones')
-      .select('id, nombre')
-      .in('id', divIds)
-      .order('nombre')
+    const divsRes = errProfile
+      ? { data: null, error: errProfile }
+      : await supabase.from('divisiones').select('id, nombre').in('id', divIds).order('nombre')
 
-    const divs = divsData ?? []
+    const carga = resolverCarga<DivisionOpcion>({
+      error: divsRes.error,
+      remoto: divsRes.data,
+      guardado: divsRes.error ? leerGuardado(await leerLocal(clave)) : null,
+    })
+    if (carga.tipo === 'error') {
+      setErrorCarga(mensajeErrorCarga('tus divisiones', carga.error))
+      setLoading(false)
+      return
+    }
+    if (carga.tipo === 'remoto') void guardarLocal(clave, serializarGuardado(carga.datos, Date.now()))
+
+    const divs = carga.datos
+    if (divs.length === 0) {
+      setSinDivision(true)
+      setLoading(false)
+      return
+    }
+    setSinDivision(false)
     setDivisiones(divs)
-    setDivisionId(prev => (prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)))
+    const pedida = divisionPedida.current
+    divisionPedida.current = null
+    setDivisionId(prev => {
+      if (pedida && divs.some(d => d.id === pedida)) return pedida
+      return prev && divs.some(d => d.id === prev) ? prev : (divs[0]?.id ?? null)
+    })
   }
 
-  // Jugadores + asistencia de hoy de la división seleccionada.
+  // Volver desde el Inicio con otro entrenamiento (la pestaña ya estaba montada).
+  useEffect(() => {
+    if (!pedido.eventoId && !pedido.divisionId) return
+    if (divisiones.length === 0) {
+      // Todavía cargando: fetchDivisiones / fetchJugadores lo toman de los refs.
+      divisionPedida.current = pedido.divisionId ?? null
+      eventoPedido.current = pedido.eventoId ?? null
+      return
+    }
+    const divPedida = pedido.divisionId
+    if (divPedida && divPedida !== divisionId && divisiones.some(d => d.id === divPedida)) {
+      cambiarSinPerderMarcas(() => {
+        eventoPedido.current = pedido.eventoId ?? null
+        setDivisionId(divPedida)
+      })
+      return
+    }
+    const evPedido = pedido.eventoId
+    if (evPedido && evPedido !== eventoId && entrenamientos.some(e => e.id === evPedido)) {
+      cambiarSinPerderMarcas(() => { void cargarMarcas(evPedido) })
+    }
+  }, [pedido.eventoId, pedido.divisionId])
+
+  // Jugadores + entrenamientos de hoy de la división seleccionada.
   useEffect(() => {
     if (divisionId) fetchJugadores(divisionId)
   }, [divisionId])
 
+  async function leerMarcas(evId: string): Promise<{ marcas: Record<string, EstadoAsistencia>; error: unknown }> {
+    const { data, error } = await supabase
+      .from('asistencias')
+      .select('jugador_id, estado')
+      .eq('evento_id', evId)
+    const estadoMap: Record<string, EstadoAsistencia> = {}
+    ;(data ?? []).forEach(a => {
+      estadoMap[a.jugador_id] = a.estado as EstadoAsistencia
+    })
+    return { marcas: estadoMap, error }
+  }
+
   async function fetchJugadores(divId: string) {
+    const lectura = ++ultimaLectura.current
     setLoading(true)
     setGuardado(false)
     setAlertas([])
     setErrorGuardado(null)
+    setErrorCarga(null)
+    setListaGuardadaEn(null)
+    // Antes de ir a la red: un guardado que entre a la copia después de esto es
+    // más nuevo que lo que se lea (copiaDelDia.ts, `leidoEn`).
+    const leidoEn = Date.now()
 
-    const { data: jgsRes } = await supabase
-      .from('jugadores')
-      .select('id, nombre_completo')
-      .eq('division_id', divId)
-      .eq('activo', true)
-      .order('nombre_completo')
+    // Nunca `.maybeSingle()` por (división, fecha, tipo): con doble turno tira
+    // error y se creaba un tercer entrenamiento. Se listan todos los de hoy.
+    const [jgsRes, eventosRes] = await Promise.all([
+      supabase
+        .from('jugadores')
+        .select('id, nombre_completo')
+        .eq('division_id', divId)
+        .eq('activo', true)
+        .order('nombre_completo'),
+      supabase
+        .from('eventos')
+        .select('id, hora')
+        .eq('tipo', 'entrenamiento')
+        .eq('division_id', divId)
+        .eq('fecha', fecha)
+        .eq('cancelado', false)
+        .order('hora', { nullsFirst: false })
+        .order('created_at'),
+    ])
 
-    const jugadoresBase: JugadorConEstado[] = (jgsRes ?? []).map(j => ({
-      id: j.id,
-      nombre_completo: j.nombre_completo,
-      estado: null,
-    }))
+    // Cada parte se resuelve sola: sin señal, lo que no llegó sale de la copia
+    // del teléfono (plantel: plantelGuardado.ts; turnos y marcas de hoy:
+    // copiaDelDia.ts) y lo que sí llegó se usa tal cual. Con otro error,
+    // REINTENTAR.
+    const clave = clavePlantel(divId)
+    const claveD = claveDia(divId)
+    const copia = leerCopiaDia(await leerLocal(claveD))
+    const plantel = resolverCarga<PlantelJugador>({
+      error: jgsRes.error,
+      remoto: jgsRes.data,
+      guardado: jgsRes.error ? leerGuardado(await leerLocal(clave)) : null,
+    })
+    const turnos = resolverEntrenamientos({
+      error: eventosRes.error,
+      remoto: eventosRes.data,
+      copia,
+      fecha,
+      pedidoId: eventoPedido.current,
+      ahoraMin: minutosAhora(),
+    })
+    eventoPedido.current = null
 
-    // Pre-cargar asistencias de hoy si ya existe el evento
-    const { data: eventoHoy } = await supabase
-      .from('eventos')
-      .select('id')
-      .eq('tipo', 'entrenamiento')
-      .eq('division_id', divId)
-      .eq('fecha', fecha)
-      .eq('cancelado', false)
-      .maybeSingle()
-
-    if (eventoHoy) {
-      const { data: asistenciasHoy } = await supabase
-        .from('asistencias')
-        .select('jugador_id, estado')
-        .eq('evento_id', eventoHoy.id)
-
-      const estadoMap: Record<string, EstadoAsistencia> = {}
-      ;(asistenciasHoy ?? []).forEach(a => {
-        estadoMap[a.jugador_id] = a.estado as EstadoAsistencia
-      })
-      jugadoresBase.forEach(j => {
-        if (estadoMap[j.id]) j.estado = estadoMap[j.id]
+    // Si los turnos salieron de la copia no hay señal: las marcas también.
+    let marcas: MarcasResueltas<EstadoAsistencia> = { tipo: 'ok', marcas: {}, deCopia: false }
+    if (plantel.tipo !== 'error' && turnos.tipo !== 'error') {
+      const leidas = turnos.eventoId && turnos.tipo === 'remoto'
+        ? await leerMarcas(turnos.eventoId)
+        : { marcas: null, error: turnos.tipo === 'guardado' ? eventosRes.error : null }
+      marcas = resolverMarcas<EstadoAsistencia>({
+        eventoId: turnos.eventoId,
+        error: leidas.error,
+        remoto: leidas.error ? null : leidas.marcas,
+        copia,
+        fecha,
       })
     }
 
-    setJugadores(jugadoresBase)
+    if (lectura !== ultimaLectura.current) return
+    if (plantel.tipo === 'error' || turnos.tipo === 'error' || marcas.tipo === 'error') {
+      const error = plantel.tipo === 'error' ? plantel.error
+        : turnos.tipo === 'error' ? turnos.error
+          : marcas.tipo === 'error' ? marcas.error : null
+      setEntrenamientos([])
+      setEventoId(null)
+      setJugadores([])
+      setErrorCarga(mensajeErrorCarga('la lista de jugadores', error))
+      setLoading(false)
+      return
+    }
+
+    const ahora = Date.now()
+    if (plantel.tipo === 'remoto') {
+      void guardarLocal(clave, serializarGuardado(plantel.datos.map(j => ({ id: j.id, nombre_completo: j.nombre_completo })), ahora))
+    }
+    // Lo que llegó de la base actualiza la copia del día. Se mezcla sobre la
+    // copia que se lee dentro del candado, no sobre `copia` (leída antes de la
+    // red), y con `leidoEn`: las marcas de un guardado hecho en el medio (que la
+    // lectura no trae, p. ej. las de la cola) no se pisan con las leídas.
+    const marcasLeidas = marcas.tipo === 'ok' && !marcas.deCopia && turnos.eventoId ? marcas.marcas : null
+    if (turnos.tipo === 'remoto' || marcasLeidas) {
+      void actualizarCopiaDelDia(divId, actual => actualizarCopiaDia(actual, {
+        fecha,
+        ahora,
+        leidoEn,
+        ...(turnos.tipo === 'remoto' ? { entrenamientos: turnos.lista } : {}),
+        ...(marcasLeidas && turnos.eventoId ? { eventoId: turnos.eventoId, marcas: marcasLeidas } : {}),
+      }))
+    }
+
+    const deCopia = turnos.tipo === 'guardado' || (marcas.tipo === 'ok' && marcas.deCopia)
+    setListaGuardadaEn(
+      plantel.tipo === 'guardado' ? plantel.guardadoEn
+        : deCopia && copia ? copia.guardadoEn
+          : null,
+    )
+    setEntrenamientos(turnos.lista)
+    setEventoId(turnos.eventoId)
+    // Sin señal y sin copia de ese turno no se sabe qué había: se arranca vacío.
+    setJugadores(armarJugadores(plantel.datos, marcas.tipo === 'ok' ? marcas.marcas : {}))
     setLoading(false)
+  }
+
+  // Suma a la copia del día lo que se acaba de guardar (en la base o en la cola).
+  async function anotarEnCopia(divId: string, evId: string, enviadas: Record<string, EstadoAsistencia>) {
+    await actualizarCopiaDelDia(divId, actual => actualizarCopiaDia(actual, {
+      fecha, ahora: Date.now(), eventoId: evId, marcas: enviadas, mezclar: true,
+    }))
+  }
+
+  // Cambiar de turno (doble entrenamiento): mismas personas, marcas de ese evento.
+  async function cargarMarcas(evId: string) {
+    const lectura = ++ultimaLectura.current
+    setLoading(true)
+    setGuardado(false)
+    setAlertas([])
+    setErrorGuardado(null)
+    const leidoEn = Date.now()
+    const leidas = await leerMarcas(evId)
+    const claveD = divisionId ? claveDia(divisionId) : null
+    const copia = leidas.error && claveD ? leerCopiaDia(await leerLocal(claveD)) : null
+    const r = resolverMarcas<EstadoAsistencia>({
+      eventoId: evId,
+      error: leidas.error,
+      remoto: leidas.error ? null : leidas.marcas,
+      copia,
+      fecha,
+    })
+    if (lectura !== ultimaLectura.current) return
+    if (r.tipo !== 'ok') {
+      // Se queda en el turno anterior, con sus marcas (sin señal y sin copia de
+      // ese turno no se sabe qué había guardado: tampoco se cambia).
+      setErrorGuardado(mensajeErrorCarga('las marcas de ese entrenamiento', r.tipo === 'error' ? r.error : leidas.error))
+      setLoading(false)
+      return
+    }
+    if (!r.deCopia && divisionId) {
+      void actualizarCopiaDelDia(divisionId, actual => actualizarCopiaDia(actual, {
+        fecha, ahora: Date.now(), leidoEn, eventoId: evId, marcas: r.marcas,
+      }))
+    }
+    const estadoMap = r.marcas
+    setEventoId(evId)
+    setJugadores(prev => prev.map(j => ({ ...j, estado: estadoMap[j.id] ?? null, estadoGuardado: estadoMap[j.id] ?? null })))
+    setLoading(false)
+  }
+
+  // Volver a leer lo que falló (REINTENTAR).
+  function recargar() {
+    if (divisiones.length === 0 || !divisionId) { void fetchDivisiones(); return }
+    void fetchJugadores(divisionId)
+  }
+
+  // Cambiar de división o de turno recarga la lista: con marcas sin guardar,
+  // primero se pregunta (antes se perdían sin aviso).
+  function cambiarSinPerderMarcas(cambiar: () => void) {
+    if (sinGuardar === 0) { cambiar(); return }
+    const donde = [divisionNombre, entrenamientos.length > 1 ? 'este turno' : ''].filter(Boolean).join(', ')
+    confirmarDescarte({
+      mensaje: textoSinGuardar(sinGuardar, donde),
+      onGuardar: () => { void guardarAsistencia().then(ok => { if (ok) cambiar() }) },
+      onDescartar: cambiar,
+    })
   }
 
   function seleccionarDivision(id: string) {
     if (id === divisionId) return
-    setDivisionId(id)
+    cambiarSinPerderMarcas(() => setDivisionId(id))
+  }
+
+  function seleccionarEntrenamiento(id: string) {
+    if (id === eventoId) return
+    cambiarSinPerderMarcas(() => { void cargarMarcas(id) })
   }
 
   function marcarEstado(jugadorId: string, estado: EstadoAsistencia) {
@@ -153,49 +422,68 @@ export function useAsistencia(): UseAsistenciaReturn {
     setJugadores(prev => prev.map(j => (j.id === jugadorId ? { ...j, estado } : j)))
   }
 
-  async function guardarAsistencia() {
-    if (!session || !divisionId) return
+  // Un toque para el caso común: después se marcan sólo los ausentes.
+  function marcarTodos() {
+    setGuardado(false)
+    setJugadores(prev => marcarTodosPresentes(prev))
+  }
+
+  async function guardarAsistencia(): Promise<boolean> {
+    if (!session || !divisionId) return false
     setGuardando(true)
     setPendienteSync(false)
     setAlertas([])
     setErrorGuardado(null)
 
+    // Lo que se manda: al terminar bien queda como "guardado" (sin cambios).
+    const enviadas: Record<string, EstadoAsistencia> = {}
+    jugadores.forEach(j => { if (j.estado !== null) enviadas[j.id] = j.estado })
+    const marcarGuardadas = () => setJugadores(prev => prev.map(j => (
+      enviadas[j.id] ? { ...j, estadoGuardado: enviadas[j.id] } : j
+    )))
+    // Para la alerta de 4 faltas: lo que había antes en el evento.
+    const marcasGuardadas: MarcaGuardada[] = marcasParaGuardar(jugadores)
+
     // Sin señal (o si la red se cae a mitad): queda en el teléfono y
-    // useSincronizacionOffline la manda cuando vuelve la conexión.
-    const guardarEnTelefono = async () => {
+    // useSincronizacionOffline la manda cuando vuelve la conexión. Con el turno
+    // elegido va su evento; sin evento hoy, la sync usa el primero del día de
+    // la división o lo crea (igual que online).
+    const guardarEnTelefono = async (): Promise<boolean> => {
       await encolar({
         tipo: 'asistencia',
-        payload: {
-          division_id: divisionId,
-          fecha,
-          registrado_por: session.user.id,
-          jugadores: jugadores
-            .filter(j => j.estado !== null)
-            .map(j => ({ jugador_id: j.id, estado: j.estado })),
-        },
+        payload: payloadCola({ eventoId, divisionId, fecha, registradoPor: session.user.id, marcas: marcasGuardadas }),
       })
       await actualizarPendientes()
+      if (eventoId) await anotarEnCopia(divisionId, eventoId, enviadas)
+      marcarGuardadas()
       setPendienteSync(true)
       setGuardado(true)
       setGuardando(false)
+      return true
     }
 
     const { isConnected } = await NetInfo.fetch()
-    if (!isConnected) { await guardarEnTelefono(); return }
+    if (!isConnected) return guardarEnTelefono()
 
-    const evento = await obtenerOCrearEvento(divisionId)
+    const evento = eventoId ? { id: eventoId, error: null } : await obtenerOCrearEvento(divisionId)
     if (!evento.id) {
-      if (esErrorDeRed(evento.error)) { await guardarEnTelefono(); return }
-      setErrorGuardado('No se pudo crear el evento. Verificá tu conexión o permisos.')
+      if (esErrorDeRed(evento.error)) return guardarEnTelefono()
+      console.warn('crear entrenamiento:', evento.error)
+      setErrorGuardado(mensajeError(evento.error, 'No se pudo crear el entrenamiento de hoy. Probá de nuevo.'))
       setGuardando(false)
-      return
+      return false
     }
-    const eventoId = evento.id
+    const eventoGuardado = evento.id
+    if (!eventoId) {
+      // El que se creó (o apareció) queda elegido: el próximo guardado no crea otro.
+      setEventoId(eventoGuardado)
+      setEntrenamientos(prev => (prev.some(e => e.id === eventoGuardado) ? prev : [...prev, { id: eventoGuardado, hora: null }]))
+    }
 
     const asistencias = jugadores
       .filter(j => j.estado !== null)
       .map(j => ({
-        evento_id: eventoId,
+        evento_id: eventoGuardado,
         jugador_id: j.id,
         division_id: divisionId,
         estado: j.estado!,
@@ -207,14 +495,16 @@ export function useAsistencia(): UseAsistenciaReturn {
         .from('asistencias')
         .upsert(asistencias, { onConflict: 'evento_id,jugador_id' })
       if (asistError) {
-        if (esErrorDeRed(asistError)) { await guardarEnTelefono(); return }
-        setErrorGuardado('Error al guardar asistencias: ' + asistError.message)
+        if (esErrorDeRed(asistError)) return guardarEnTelefono()
+        console.warn('guardar asistencias:', asistError)
+        setErrorGuardado(mensajeError(asistError, 'No se pudo guardar la asistencia. Probá de nuevo.'))
         setGuardando(false)
-        return
+        return false
       }
     }
 
-    await verificarAusenciasConsecutivas(divisionId)
+    marcarGuardadas()
+    void anotarEnCopia(divisionId, eventoGuardado, enviadas)
     // Si había una de esta división y fecha que no se pudo enviar, esta la
     // reemplaza. Es limpieza local: si falla, el guardado ya llegó a la base.
     try {
@@ -225,20 +515,40 @@ export function useAsistencia(): UseAsistenciaReturn {
     }
     setGuardado(true)
     setGuardando(false)
+    // Después de mostrar "guardada": la alerta no demora la confirmación.
+    void avisarCuartaAusencia(divisionId, eventoGuardado, marcasGuardadas)
+    return true
   }
 
+  // Alerta de 4 faltas seguidas: sólo a quienes esta carga les completa la 4ª.
+  async function avisarCuartaAusencia(divId: string, evId: string, marcas: MarcaGuardada[]) {
+    const lectura = ultimaLectura.current
+    try {
+      const nombres = Object.fromEntries(jugadores.map(j => [j.id, j.nombre_completo]))
+      const llegaron = await verificarCuartaAusencia({ divisionId: divId, eventoId: evId, marcas, divisionNombre, nombres })
+      // Si mientras tanto cambió la lista (otra división o turno), no se marca.
+      if (lectura === ultimaLectura.current) setAlertas(llegaron)
+    } catch (e) {
+      console.warn('alerta 4 ausencias:', e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Sin entrenamiento hoy al abrir: el primero que haya aparecido (mismo criterio
+  // que la sync offline, lib/offlineSync.ts) o uno nuevo.
   async function obtenerOCrearEvento(divId: string): Promise<{ id: string | null; error: unknown }> {
-    const { data: existente, error: errorBusqueda } = await supabase
+    const { data: existentes, error: errorBusqueda } = await supabase
       .from('eventos')
       .select('id')
       .eq('tipo', 'entrenamiento')
       .eq('division_id', divId)
       .eq('fecha', fecha)
       .eq('cancelado', false)
-      .maybeSingle()
+      .order('created_at')
+      .limit(1)
 
+    const existente = existentes?.[0]
     if (existente) return { id: existente.id, error: null }
-    if (errorBusqueda && esErrorDeRed(errorBusqueda)) return { id: null, error: errorBusqueda }
+    if (errorBusqueda) return { id: null, error: errorBusqueda }
 
     const { data: nuevo, error } = await supabase
       .from('eventos')
@@ -247,43 +557,6 @@ export function useAsistencia(): UseAsistenciaReturn {
       .single()
 
     return error ? { id: null, error } : { id: nuevo.id, error: null }
-  }
-
-  async function verificarAusenciasConsecutivas(divId: string) {
-    if (jugadores.length === 0) return
-
-    const resultados = await Promise.all(
-      jugadores.map(j =>
-        supabase
-          .from('asistencias')
-          .select('estado')
-          .eq('jugador_id', j.id)
-          .eq('division_id', divId)
-          .order('created_at', { ascending: false })
-          .limit(4),
-      ),
-    )
-
-    const conAlertas: string[] = []
-    resultados.forEach((res, i) => {
-      const ultimas = res.data ?? []
-      if (ultimas.length === 4 && ultimas.every(a => a.estado === 'ausente')) {
-        conAlertas.push(jugadores[i].nombre_completo)
-        void supabase.functions.invoke('notifications', {
-          body: {
-            type: 'ausencias_consecutivas',
-            payload: {
-              jugadorNombre:  jugadores[i].nombre_completo,
-              jugadorId:      jugadores[i].id,
-              divisionNombre,
-              divisionId:     divId,
-            },
-          },
-        })
-      }
-    })
-
-    setAlertas(conAlertas)
   }
 
   return {
@@ -299,9 +572,17 @@ export function useAsistencia(): UseAsistenciaReturn {
     divisionId,
     divisionNombre,
     sinDivision,
+    errorCarga,
+    listaGuardadaEn,
+    recargar,
     marcados,
+    sinGuardar,
+    entrenamientos,
+    eventoId,
     seleccionarDivision,
+    seleccionarEntrenamiento,
     marcarEstado,
+    marcarTodos,
     guardarAsistencia,
   }
 }

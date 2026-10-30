@@ -26,7 +26,7 @@ export interface EventoReclamado {
   division_nombre: string
   /** Socios jugadores activos de la división que pasan la regla de la Agenda. */
   socio_ids: string[]
-  /** Entrenadores activos con la división asignada. */
+  /** Entrenadores y colaboradores activos con la división asignada (la clave conserva el nombre histórico). */
   entrenador_profile_ids: string[]
 }
 

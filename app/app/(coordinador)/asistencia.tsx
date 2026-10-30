@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAsistenciaCoordinador, JugadorAsistencia } from '@/hooks/useAsistenciaCoordinador'
 import { colors, fonts } from '@/constants/theme'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
 
@@ -41,22 +42,22 @@ function FilaJugador({ jugador }: { jugador: JugadorAsistencia }) {
         <View style={styles.filaNombreRow}>
           <Text style={styles.nombreJugador} numberOfLines={1}>{nombre_completo}</Text>
           {ausenciasConsecutivas && (
-            <View style={styles.alerta}>
+            <View style={styles.alerta} accessible accessibilityLabel="4 ausencias seguidas">
               <Text style={styles.alertaTexto}>4 AUST.</Text>
             </View>
           )}
         </View>
         <Text style={styles.detalle}>
           {totalEventos > 0
-            ? `${totalPresentes} de ${totalEventos} eventos (últimos 30 días)`
-            : 'Sin eventos registrados en últimos 30 días'}
+            ? `${totalPresentes} de ${totalEventos} con lista (últimos 30 días)`
+            : 'Sin listas tomadas en los últimos 30 días'}
         </Text>
       </View>
       <View style={styles.porcentajeContainer}>
         {porcentaje !== null ? (
-          <Text style={[styles.porcentaje, { color }]}>{porcentaje}%</Text>
+          <Text style={[styles.porcentaje, { color }]} accessibilityLabel={`${porcentaje} por ciento de asistencia`}>{porcentaje}%</Text>
         ) : (
-          <Text style={[styles.porcentaje, { color: MUTED }]}>—</Text>
+          <Text style={[styles.porcentaje, { color: MUTED }]} accessibilityLabel="Sin porcentaje">—</Text>
         )}
       </View>
     </View>
@@ -79,6 +80,8 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorD
       showsHorizontalScrollIndicator={false}
       style={styles.selectorScroll}
       contentContainerStyle={styles.selectorContent}
+      accessibilityRole="radiogroup"
+      accessibilityLabel="División"
     >
       {divisiones.map(d => (
         <TouchableOpacity
@@ -86,6 +89,9 @@ function SelectorDivision({ divisiones, seleccionada, onSeleccionar }: SelectorD
           style={[styles.pill, d.id === seleccionada && styles.pillActiva]}
           onPress={() => onSeleccionar(d.id)}
           activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: d.id === seleccionada, checked: d.id === seleccionada }}
+          accessibilityLabel={`División ${d.nombre}`}
         >
           <Text style={[styles.pillTexto, d.id === seleccionada && styles.pillTextoActivo]}>
             {d.nombre}
@@ -107,6 +113,7 @@ export default function AsistenciaCoordinadorScreen() {
     loading,
     refrescando,
     sinDivisiones,
+    errorCarga,
     seleccionarDivision,
     recargar,
   } = useAsistenciaCoordinador()
@@ -148,6 +155,8 @@ export default function AsistenciaCoordinadorScreen() {
         <View style={styles.centrado}>
           <ActivityIndicator color={colors.oro} size="large" />
         </View>
+      ) : errorCarga ? (
+        <ErrorCarga mensaje={errorCarga} onReintentar={recargar} />
       ) : (
         <>
           {conAlerta > 0 && (
@@ -205,7 +214,7 @@ const styles = StyleSheet.create({
 
   selectorScroll:  { marginBottom: 12 },
   selectorContent: { paddingHorizontal: 20, gap: 8, flexDirection: 'row', alignItems: 'center' },
-  pill:            { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: DIVIDER },
+  pill:            { paddingHorizontal: 14, paddingVertical: 7, minHeight: 44, justifyContent: 'center', borderRadius: 22, borderWidth: 1.5, borderColor: DIVIDER },
   pillActiva:      { backgroundColor: colors.oro, borderColor: colors.oro },
   pillTexto:       { fontFamily: fonts.cuerpo, fontSize: 15, color: MUTED },
   pillTextoActivo: { color: colors.sobreOro },
