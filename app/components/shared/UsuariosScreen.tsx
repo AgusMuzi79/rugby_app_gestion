@@ -228,7 +228,12 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   return (
     <View style={s.root}>
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => pedirVolverALista(hook)} style={s.backBtn}>
+        <TouchableOpacity
+          onPress={() => pedirVolverALista(hook)}
+          style={s.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a Usuarios"
+        >
           <Text style={s.backTexto}>‹ Usuarios</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Detalle</Text>
@@ -406,7 +411,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
       <KeyboardAvoidingView style={s.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.modalHeader}>
           <Text style={s.modalTitulo}>{titulo}</Text>
-          <TouchableOpacity onPress={hook.cerrarModal}>
+          <TouchableOpacity
+            onPress={hook.cerrarModal}
+            style={s.modalCerrarBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar"
+          >
             <Text style={s.modalCerrar}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -758,7 +768,8 @@ const s = StyleSheet.create({
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },
-  backBtn:     { marginBottom: 4 },
+  // 44 pt de área táctil; los márgenes negativos mantienen el título en su lugar.
+  backBtn:     { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: -12, marginBottom: -8 },
   backTexto:   { fontFamily: fonts.label, color: colors.oro, fontSize: 16 },
 
   // Scroll
@@ -817,6 +828,7 @@ const s = StyleSheet.create({
   modalRoot:   { flex: 1, backgroundColor: colors.fondo },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 24, backgroundColor: colors.fondo },
   modalTitulo: { fontFamily: fonts.titulo, fontSize: 19, fontWeight: '700', color: colors.texto },
+  modalCerrarBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12, marginVertical: -12 },
   modalCerrar: { fontFamily: fonts.titulo, fontSize: 21, color: colors.oro, fontWeight: '600' },
   modalBody:   { padding: 20, gap: 12, paddingBottom: 48 },
 
