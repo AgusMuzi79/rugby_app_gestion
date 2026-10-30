@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Session } from '@supabase/supabase-js'
 import { Rol } from '@/constants/roles'
+import type { AvisoLink } from '@/lib/linkAuth'
 
 interface AuthState {
   session: Session | null
@@ -15,6 +16,10 @@ interface AuthState {
   // True mientras _layout.tsx abre la sesión de un link de recupero o alta:
   // el guard raíz no mueve a nadie hasta que se marque el flag del link.
   procesandoLink: boolean
+  // Un link de recupero o alta no abrió (sin sesión): el guard raíz lleva a
+  // forgot-password, que muestra el texto fijo del código y lo limpia.
+  avisoLink: AvisoLink | null
+  setAvisoLink: (aviso: AvisoLink | null) => void
   // Por qué la persona volvió (o quedó) en el login: el perfil no cargó, etc.
   // La pantalla de login lo muestra en su banner de error.
   avisoAuth: string | null
@@ -39,6 +44,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isNuevoUsuario: false,
   registroSinSesion: false,
   procesandoLink: false,
+  avisoLink: null,
+  setAvisoLink: (avisoLink) => set({ avisoLink }),
   avisoAuth: null,
   setAvisoAuth: (avisoAuth) => set({ avisoAuth }),
   setSession: (session) => set({ session, loading: false }),

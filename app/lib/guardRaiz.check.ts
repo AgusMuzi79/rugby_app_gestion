@@ -14,7 +14,7 @@ function caso(nombre: string, fn: () => void) {
 const base: EstadoGuard = {
   haySesion: true, rol: 'socio',
   nuevoUsuario: false, recuperandoPassword: false, registroSinSesion: false,
-  procesandoLink: false,
+  procesandoLink: false, avisoLinkPendiente: false,
   restringido: false, restringidoLoading: false,
   terminosPendiente: false, terminosLoading: false,
   mailPendiente: false, mailLoading: false,
@@ -114,6 +114,29 @@ caso('abierto el link: primero el flag, después se libera el guard → reset-pa
   assert.equal(destinoGuard({ ...base, nuevoUsuario: true, procesandoLink: false }), '/(auth)/registro')
   // Falló el link: flags y pendiente limpios, sin sesión → login.
   assert.equal(destinoGuard({ ...base, haySesion: false, rol: null }), '/(auth)/login')
+})
+
+caso('link vencido sin sesión: el guard lleva a pedir otro (auth review)', () => {
+  const sinSesion = { ...base, haySesion: false, rol: null, avisoLinkPendiente: true }
+  assert.equal(destinoGuard(sinSesion), '/(auth)/forgot-password')
+  // También desde el registro de tutor: el aviso es lo último que pasó.
+  assert.equal(destinoGuard({ ...sinSesion, registroSinSesion: true }), '/(auth)/forgot-password')
+  // Estando ahí, no se mueve; desde el login, sí.
+  assert.equal(yaEstaEnDestino('/(auth)/forgot-password', ['(auth)', 'forgot-password']), true)
+  assert.equal(yaEstaEnDestino('/(auth)/forgot-password', ['(auth)', 'login']), false)
+  // La pantalla ya mostró el aviso y lo limpió: destino login, y forgot-password cuenta como login.
+  const despues = destinoGuard({ ...sinSesion, avisoLinkPendiente: false })
+  assert.equal(despues, '/(auth)/login')
+  assert.equal(yaEstaEnDestino(despues!, ['(auth)', 'forgot-password']), true)
+})
+
+caso('link vencido con sesión: no se saca a nadie de la app', () => {
+  assert.equal(destinoGuard({ ...base, avisoLinkPendiente: true }), '/(socio)/carnet')
+  assert.equal(yaEstaEnDestino('/(socio)/carnet', ['(socio)', 'cuotas']), true)
+})
+
+caso('mientras se abre un link, el aviso tampoco mueve', () => {
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, avisoLinkPendiente: true, procesandoLink: true }), null)
 })
 
 console.log(`\n${casos} casos ok`)

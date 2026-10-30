@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useRouter } from 'expo-router'
 import { useForgotPassword } from '@/hooks/useForgotPassword'
+import { useAuthStore } from '@/stores/authStore'
+import { textoAvisoLink } from '@/lib/linkAuth'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -20,7 +22,18 @@ export default function ForgotPasswordScreen() {
   const [dniOMail, setDniOMail] = useState('')
   const { enviarLink, loading, error, enviado } = useForgotPassword()
   const router = useRouter()
-  const { aviso } = useLocalSearchParams<{ aviso?: string }>()
+  // Aviso de un link de recupero o alta que no abrió. Sale del store como
+  // código y se muestra sólo su texto fijo (lib/linkAuth.ts): nunca texto de
+  // los parámetros de la ruta, que cualquiera puede armar en un link.
+  // Mostrado, se limpia del store para que el guard deje de traer acá.
+  const avisoLink = useAuthStore(s => s.avisoLink)
+  const setAvisoLink = useAuthStore(s => s.setAvisoLink)
+  const [aviso, setAviso] = useState<string | null>(() => textoAvisoLink(avisoLink))
+  useEffect(() => {
+    if (avisoLink === null) return
+    setAviso(textoAvisoLink(avisoLink))
+    setAvisoLink(null)
+  }, [avisoLink])
 
   return (
     <KeyboardAvoidingView
@@ -68,7 +81,7 @@ export default function ForgotPasswordScreen() {
             /* ── Formulario ── */
             <>
               {/* Aviso al llegar desde un link de reset vencido o ya usado */}
-              {!!aviso && (
+              {aviso !== null && (
                 <View style={styles.avisoBanner}>
                   <Text style={styles.avisoText}>{aviso}</Text>
                 </View>

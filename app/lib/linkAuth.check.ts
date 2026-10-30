@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/linkAuth.check.ts
 
 import assert from 'node:assert/strict'
-import { AVISO_LINK_SIN_RED, AVISO_LINK_VENCIDO, avisoFallaLink, parsearLinkAuth } from './linkAuth'
+import { AVISO_LINK_SIN_RED, AVISO_LINK_VENCIDO, avisoFallaLink, parsearLinkAuth, textoAvisoLink } from './linkAuth'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -78,11 +78,25 @@ caso('code (PKCE) en la query, decodificado, con su flujo', () => {
   assert.deepEqual(parsearLinkAuth('uncasrugby://x?code=xyz'), { tipo: 'codigo', code: 'xyz', flujo: null })
 })
 
-caso('aviso: sin red no es "venció"', () => {
+caso('aviso: sin red no es "venció" (códigos fijos, no texto)', () => {
   assert.equal(AVISO_LINK_VENCIDO, 'El link venció o ya se usó. Pedí uno nuevo.')
-  assert.equal(avisoFallaLink(false), AVISO_LINK_VENCIDO)
-  assert.equal(avisoFallaLink(true), AVISO_LINK_SIN_RED)
+  assert.equal(avisoFallaLink(false), 'vencido')
+  assert.equal(avisoFallaLink(true), 'sin_red')
+  assert.equal(textoAvisoLink('vencido'), AVISO_LINK_VENCIDO)
+  assert.equal(textoAvisoLink('sin_red'), AVISO_LINK_SIN_RED)
   assert.match(AVISO_LINK_SIN_RED, /conexión/)
+})
+
+caso('el aviso nunca muestra texto de afuera: códigos desconocidos se ignoran (auth review)', () => {
+  // Un link armado (uncasrugby://forgot-password?aviso=...) no puede poner
+  // texto propio en el banner.
+  assert.equal(textoAvisoLink('Tu cuenta fue bloqueada. Escribí al +54 9 11 5555-5555'), null)
+  assert.equal(textoAvisoLink(''), null)
+  assert.equal(textoAvisoLink(null), null)
+  assert.equal(textoAvisoLink(undefined), null)
+  assert.equal(textoAvisoLink(['vencido']), null)
+  assert.equal(textoAvisoLink('toString'), null)
+  assert.equal(textoAvisoLink('__proto__'), null)
 })
 
 console.log(`\n${casos} casos ok`)

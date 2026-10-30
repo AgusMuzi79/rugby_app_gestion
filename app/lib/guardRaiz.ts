@@ -16,7 +16,8 @@ export interface EstadoGuard {
   recuperandoPassword: boolean
   registroSinSesion:   boolean
   procesandoLink:      boolean
-  restringido:        boolean
+  avisoLinkPendiente:  boolean
+  restringido:       boolean
   restringidoLoading:  boolean
   terminosPendiente:   boolean
   terminosLoading:     boolean
@@ -33,6 +34,9 @@ export function destinoGuard(e: EstadoGuard): string | null {
   if (e.nuevoUsuario && e.haySesion) return '/(auth)/registro'
   if (e.recuperandoPassword) return '/(auth)/reset-password'
   if (!e.haySesion) {
+    // Un link de recupero o alta no abrió (vencido, sin red): a pedir otro,
+    // donde la pantalla muestra el aviso y lo limpia. Con sesión no se mueve.
+    if (e.avisoLinkPendiente) return '/(auth)/forgot-password'
     // registro-tutor corre sin sesión y cierra la del menor restringido al
     // montarse: ese cierre no tiene que rebotarlo al login.
     return e.registroSinSesion ? null : '/(auth)/login'

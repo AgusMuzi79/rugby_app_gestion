@@ -17,6 +17,22 @@ export type LinkAuth =
 export const AVISO_LINK_VENCIDO = 'El link venció o ya se usó. Pedí uno nuevo.'
 export const AVISO_LINK_SIN_RED = 'No hay conexión: no pudimos abrir el link. Revisá internet y volvé a tocarlo.'
 
+// Por qué no abrió un link. Viaja como código (authStore.avisoLink), nunca
+// como texto: el banner de forgot-password sólo muestra estas constantes, así
+// un link armado no puede poner texto propio en una pantalla de confianza.
+export type AvisoLink = 'vencido' | 'sin_red'
+
+const TEXTOS_AVISO_LINK: Record<AvisoLink, string> = {
+  vencido: AVISO_LINK_VENCIDO,
+  sin_red: AVISO_LINK_SIN_RED,
+}
+
+// Texto del banner para un código conocido; cualquier otra cosa, null.
+export function textoAvisoLink(codigo: unknown): string | null {
+  if (typeof codigo !== 'string' || !Object.prototype.hasOwnProperty.call(TEXTOS_AVISO_LINK, codigo)) return null
+  return TEXTOS_AVISO_LINK[codigo as AvisoLink]
+}
+
 function flujoDe(type: string | null): FlujoLink {
   if (type === 'recovery') return 'recovery'
   if (type === 'invite' || type === 'signup' || type === 'magiclink') return 'nuevo'
@@ -46,6 +62,6 @@ export function parsearLinkAuth(url: string): LinkAuth {
 }
 
 // El link no pudo abrir la sesión: sin red no es que haya vencido.
-export function avisoFallaLink(sinRed: boolean): string {
-  return sinRed ? AVISO_LINK_SIN_RED : AVISO_LINK_VENCIDO
+export function avisoFallaLink(sinRed: boolean): AvisoLink {
+  return sinRed ? 'sin_red' : 'vencido'
 }

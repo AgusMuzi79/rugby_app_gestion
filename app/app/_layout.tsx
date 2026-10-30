@@ -21,7 +21,7 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
-import { AVISO_LINK_VENCIDO, avisoFallaLink, parsearLinkAuth } from '@/lib/linkAuth'
+import { avisoFallaLink, parsearLinkAuth, type AvisoLink } from '@/lib/linkAuth'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
@@ -53,9 +53,9 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const {
-    session, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink,
+    session, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink, avisoLink,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
-    setProcesandoLink,
+    setProcesandoLink, setAvisoLink,
   } = useAuthStore()
   // Perfil (rol) de la sesión. Si no carga, la persona quedaba en el login sin
   // ninguna explicación. Sin red: se avisa y se reintenta solo con espera
@@ -153,19 +153,22 @@ export default function RootLayout() {
   // reset-password sin sesión para siempre. Mientras se abre, `procesandoLink`
   // frena el guard: la sesión del link les llega a los listeners antes que el
   // flag, y sin eso el guard la mandaba al inicio del rol.
+  // Si falla, no se navega desde acá (el navegador puede no estar montado y
+  // competiría con el guard): se deja el código en el store y el guard lleva
+  // a forgot-password a quien no tiene sesión. Con sesión no se la saca.
   useEffect(() => {
-    function avisarFalla(aviso: string) {
+    function avisarFalla(aviso: AvisoLink) {
       setPasswordRecovery(false)
       setNuevoUsuario(false)
+      if (!useAuthStore.getState().session) setAvisoLink(aviso)
       setProcesandoLink(false)
-      router.replace({ pathname: '/(auth)/forgot-password', params: { aviso } })
     }
 
     async function handleUrl(url: string) {
       const link = parsearLinkAuth(url)
       if (link.tipo === 'nada') return
       if (link.tipo === 'error') {
-        avisarFalla(AVISO_LINK_VENCIDO)
+        avisarFalla('vencido')
         return
       }
       setProcesandoLink(true)
@@ -187,8 +190,17 @@ export default function RootLayout() {
       setProcesandoLink(false)
     }
 
-    Linking.getInitialURL().then(url => { if (url) handleUrl(url) })
-    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url))
+    // Ningún rechazo queda suelto ni deja el guard frenado.
+    function abrirLink(url: string) {
+      handleUrl(url).catch(e => {
+        console.warn('link de auth:', e)
+        avisarFalla(avisoFallaLink(esErrorDeRed(e)))
+      })
+    }
+    Linking.getInitialURL()
+      .then(url => { if (url) abrirLink(url) })
+      .catch(e => console.warn('getInitialURL:', e))
+    const sub = Linking.addEventListener('url', ({ url }) => abrirLink(url))
     return () => sub.remove()
   }, [])
 
@@ -206,6 +218,9 @@ export default function RootLayout() {
           clearAuth()
           return
         }
+        // Con sesión el aviso de un link fallido ya no aplica (p. ej. el link
+        // falló mientras se restauraba la sesión guardada).
+        setAvisoLink(null)
         // Setea la sesión ANTES de esperar el perfil — useTerminos depende
         // de `session` en el store, así que dispara su query en paralelo
         // con la de perfil en vez de esperarla (antes eran secuenciales).
@@ -244,6 +259,7 @@ export default function RootLayout() {
       // re-runs the guard by itself.
       registroSinSesion: useAuthStore.getState().registroSinSesion,
       procesandoLink,
+      avisoLinkPendiente: avisoLink !== null,
       restringido, restringidoLoading,
       terminosPendiente, terminosLoading,
       mailPendiente: mailSinteticoPendiente, mailLoading: mailSinteticoLoading,
@@ -251,7 +267,7 @@ export default function RootLayout() {
     if (!destino || yaEstaEnDestino(destino, segments)) return
     router.replace(destino as Parameters<typeof router.replace>[0])
   }, [
-    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink,
+    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink, avisoLink,
     terminosPendiente, terminosLoading, restringido, restringidoLoading,
     mailSinteticoPendiente, mailSinteticoLoading, segments[0],
   ])
