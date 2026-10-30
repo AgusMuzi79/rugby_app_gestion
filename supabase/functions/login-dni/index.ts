@@ -135,20 +135,12 @@ Deno.serve(async (req: Request) => {
   if (identificador.tipo === 'email') {
     email = identificador.email
   } else {
-    const { data: profile, error: profileErr } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('dni', identificador.dni)
-      .maybeSingle()
-
-    // Una falla de la base no es "credenciales incorrectas".
-    if (profileErr) return jsonError(500, 'No se pudo verificar el usuario')
-    if (!profile) return jsonError(401, GENERIC_ERROR)
-
-    const { data: userData, error: userErr } = await supabaseAdmin.auth.admin.getUserById(profile.id)
-    if (userErr || !userData?.user?.email) return jsonError(401, GENERIC_ERROR)
-
-    email = userData.user.email
+    // La misma búsqueda que el recupero. Una falla de la base o de Auth no es
+    // "credenciales incorrectas"; sin cuenta o sin mail, sí.
+    const cuenta = await emailDeDni(identificador.dni)
+    if (cuenta.fallo) return jsonError(500, 'No se pudo verificar el usuario')
+    if (!cuenta.email) return jsonError(401, GENERIC_ERROR)
+    email = cuenta.email
   }
 
   const supabaseAnon = clienteAnon()
