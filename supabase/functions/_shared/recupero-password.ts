@@ -24,15 +24,16 @@ export function emailParaRecupero(email: string | null | undefined): string | nu
   return limpio
 }
 
-// Falla de resetPasswordForEmail. null = sin error.
-export function respuestaErrorRecupero(
+// Cierre del pedido después de resetPasswordForEmail. Sólo una cuenta real con
+// mail real llega a ese envío, así que su falla (429 de GoTrue u otra) no puede
+// llegarle al cliente: dos pedidos seguidos (ok y después 429) delatarían que
+// la cuenta existe. El cliente recibe siempre RESPUESTA_RECUPERO y la falla
+// queda en el log del servidor (`aviso`), con el código y el status pero sin
+// el mensaje de GoTrue, que puede traer el mail.
+export function cierreRecupero(
   error: { code?: string; status?: number; message?: string } | null | undefined,
-): { status: number; mensaje: string } | null {
-  if (!error) return null
-  // Todos los pedidos salen de la IP de login-dni, y el envío de mails tiene
-  // su propio límite: decirlo, como en el login.
-  if (error.status === 429 || error.code === 'over_request_rate_limit' || error.code === 'over_email_send_rate_limit') {
-    return { status: 429, mensaje: 'Demasiados intentos' }
-  }
-  return { status: 500, mensaje: 'No se pudo enviar el mail' }
+): { respuesta: typeof RESPUESTA_RECUPERO; aviso: string | null } {
+  if (!error) return { respuesta: RESPUESTA_RECUPERO, aviso: null }
+  const aviso = `login-dni reset: falló el envío del mail (code=${error.code ?? '-'}, status=${error.status ?? '-'})`
+  return { respuesta: RESPUESTA_RECUPERO, aviso }
 }

@@ -32,8 +32,8 @@ import { respuestaErrorLogin } from '../_shared/login-errores.ts'
 import {
   REDIRECT_RECUPERO,
   RESPUESTA_RECUPERO,
+  cierreRecupero,
   emailParaRecupero,
-  respuestaErrorRecupero,
 } from '../_shared/recupero-password.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
@@ -79,13 +79,12 @@ async function recuperar(identificador: Identificador): Promise<Response> {
   // GoTrue tampoco revela si el mail existe: con un mail tipeado que no es de
   // nadie responde OK sin mandar nada. Flujo implícito (tokens en el
   // fragmento), el que entiende el deep link de la app.
+  // Una falla del envío (429 u otra) sólo pasa con una cuenta real: no se le
+  // dice al cliente (cierreRecupero), sólo queda en el log.
   const { error } = await clienteAnon().auth.resetPasswordForEmail(destino, { redirectTo: REDIRECT_RECUPERO })
-  const falla = respuestaErrorRecupero(error)
-  if (falla) {
-    console.error('login-dni reset:', error?.code ?? error?.status, error?.message)
-    return jsonError(falla.status, falla.mensaje)
-  }
-  return jsonOk(RESPUESTA_RECUPERO)
+  const { respuesta, aviso } = cierreRecupero(error)
+  if (aviso) console.warn(aviso)
+  return jsonOk(respuesta)
 }
 
 Deno.serve(async (req: Request) => {
