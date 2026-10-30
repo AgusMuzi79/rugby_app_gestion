@@ -33,9 +33,9 @@ import { normalizarIdentificador, passwordAProbar, type Identificador } from '..
 import { respuestaErrorLogin } from '../_shared/login-errores.ts'
 import {
   REDIRECT_RECUPERO,
-  RESPUESTA_RECUPERO,
-  cierreRecupero,
-  emailParaRecupero,
+  cuentaDeUsuarioAuth,
+  manejarRecupero,
+  type CuentaDni,
 } from '../_shared/recupero-password.ts'
 import { clavesRecupero, decisionRecupero, ipCliente } from '../_shared/recupero-intentos.ts'
 
@@ -50,19 +50,25 @@ function clienteAnon() {
 }
 
 // Mail de la cuenta de un DNI. `email: null` = no hay cuenta (o no tiene
-// mail); `fallo` = la base o Auth no respondieron (no es "no existe").
-async function emailDeDni(dni: string): Promise<{ email: string | null; fallo: boolean }> {
+// mail, o el perfil no tiene usuario de Auth); `fallo` = la base o Auth no
+// respondieron (no es "no existe"). Las fallas quedan en el log con código y
+// mensaje, nunca con el DNI.
+async function emailDeDni(dni: string): Promise<CuentaDni> {
   const { data: profile, error: profileErr } = await supabaseAdmin
     .from('profiles')
     .select('id')
     .eq('dni', dni)
     .maybeSingle()
-  if (profileErr) return { email: null, fallo: true }
+  if (profileErr) {
+    console.error('login-dni: búsqueda de perfil', profileErr.code, profileErr.message)
+    return { email: null, fallo: true }
+  }
   if (!profile) return { email: null, fallo: false }
 
   const { data: userData, error: userErr } = await supabaseAdmin.auth.admin.getUserById(profile.id)
-  if (userErr) return { email: null, fallo: true }
-  return { email: userData?.user?.email ?? null, fallo: false }
+  const cuenta = cuentaDeUsuarioAuth(userErr, userData?.user)
+  if (userErr) console.error('login-dni: getUserById', userErr.code ?? '-', userErr.status ?? '-', userErr.message)
+  return cuenta
 }
 
 // Límite propio por identificador y por IP (_shared/recupero-intentos.ts). Va
@@ -83,34 +89,21 @@ async function limiteRecupero(identificador: Identificador, ip: string | null) {
   return decisionRecupero(resultados)
 }
 
-async function recuperar(identificador: Identificador, ip: string | null): Promise<Response> {
-  const limite = await limiteRecupero(identificador, ip)
-  if (limite === 'error') return jsonError(500, 'No se pudo verificar el usuario')
-  // Pasado el límite: la misma respuesta, sin mandar nada.
-  if (limite === 'limitado') return jsonOk(RESPUESTA_RECUPERO)
-
-  let email: string | null
-  if (identificador.tipo === 'email') {
-    email = identificador.email
-  } else {
-    const cuenta = await emailDeDni(identificador.dni)
-    if (cuenta.fallo) return jsonError(500, 'No se pudo verificar el usuario')
-    email = cuenta.email
-  }
-
-  // Sin cuenta o con mail sintético: no hay a dónde mandar. Misma respuesta.
-  const destino = emailParaRecupero(email)
-  if (!destino) return jsonOk(RESPUESTA_RECUPERO)
-
-  // GoTrue tampoco revela si el mail existe: con un mail tipeado que no es de
-  // nadie responde OK sin mandar nada. Flujo implícito (tokens en el
-  // fragmento), el que entiende el deep link de la app.
-  // Una falla del envío (429 u otra) sólo pasa con una cuenta real: no se le
-  // dice al cliente (cierreRecupero), sólo queda en el log.
-  const { error } = await clienteAnon().auth.resetPasswordForEmail(destino, { redirectTo: REDIRECT_RECUPERO })
-  const { respuesta, aviso } = cierreRecupero(error)
-  if (aviso) console.warn(aviso)
-  return jsonOk(respuesta)
+// Recupero: la lógica (y cada rama, probada) vive en manejarRecupero
+// (_shared/recupero-password.ts); acá sólo se conectan la base y GoTrue.
+async function recuperar(raw: string, ip: string | null): Promise<Response> {
+  const r = await manejarRecupero(raw, {
+    limite: (identificador) => limiteRecupero(identificador, ip),
+    emailDeDni,
+    // GoTrue tampoco revela si el mail existe: con un mail tipeado que no es
+    // de nadie responde OK sin mandar nada. Flujo implícito (tokens en el
+    // fragmento), el que entiende el deep link de la app.
+    enviar: (email) => clienteAnon().auth.resetPasswordForEmail(email, { redirectTo: REDIRECT_RECUPERO }),
+    log: (mensaje) => console.warn(mensaje),
+  })
+  return r.status === 200
+    ? jsonOk(r.body)
+    : jsonError(r.status, String(r.body.error))
 }
 
 Deno.serve(async (req: Request) => {
@@ -127,12 +120,12 @@ Deno.serve(async (req: Request) => {
   // DNI con puntos o espacios ("30.123.456") se busca sin ellos: profiles.dni
   // guarda sólo dígitos.
   const raw = typeof body.dni === 'string' ? body.dni : ''
-  const identificador = normalizarIdentificador(raw)
 
   if (body.action === 'reset') {
-    if (!identificador) return jsonError(400, 'Faltan datos')
-    return await recuperar(identificador, ipCliente(req.headers.get('x-forwarded-for')))
+    return await recuperar(raw, ipCliente(req.headers.get('x-forwarded-for')))
   }
+
+  const identificador = normalizarIdentificador(raw)
 
   const password = body.password as string | undefined
   if (!identificador || !password) return jsonError(400, 'Faltan datos')
