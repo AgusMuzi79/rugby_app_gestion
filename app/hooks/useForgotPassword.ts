@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { mensajeRecupero, statusErrorFunction } from '@/lib/errorFunction'
+import { cuerpoErrorFunction, fallaRecupero, mensajeRecupero } from '@/lib/errorFunction'
+import { faltaPedidoRecupero } from '@/lib/validacionAuth'
+
+// Espera máxima del pedido. Pasada, se corta de verdad (AbortController): antes
+// sólo se dejaba de esperar, el pedido seguía y se mostraba "sin conexión"
+// aunque el mail pudiera llegar, y el reintento mandaba otro link.
+const ESPERA_MAXIMA_MS = 15_000
 
 export function useForgotPassword() {
   const [loading, setLoading] = useState(false)
@@ -12,37 +18,33 @@ export function useForgotPassword() {
   // si su mail es sintético (siempre { ok: true }).
   async function enviarLink(dniOMail: string): Promise<void> {
     setError(null)
-    if (!dniOMail.trim()) {
-      setError(mensajeRecupero({ status: 400 }))
+    const falta = faltaPedidoRecupero(dniOMail)
+    if (falta) {
+      setError(mensajeRecupero({ motivo: falta }))
       return
     }
     setLoading(true)
 
+    const controller = new AbortController()
+    let tardo = false
+    const timer = setTimeout(() => { tardo = true; controller.abort() }, ESPERA_MAXIMA_MS)
+
     try {
-      const timeout = new Promise<{ data: null; error: { name: string } }>(resolve =>
-        setTimeout(() => resolve({ data: null, error: { name: 'FunctionsFetchError' } }), 15000)
-      )
-      const { data, error: resetError } = await Promise.race([
-        supabase.functions.invoke('login-dni', {
-          body: { action: 'reset', dni: dniOMail },
-        }),
-        timeout,
-      ])
-
-      if (resetError) {
-        const sinRed = (resetError as { name?: string }).name === 'FunctionsFetchError'
-        setError(mensajeRecupero({ sinRed, status: statusErrorFunction(resetError) }))
+      const { data, error: resetError } = await supabase.functions.invoke('login-dni', {
+        body: { action: 'reset', dni: dniOMail },
+        signal: controller.signal,
+      })
+      const cuerpo = resetError && !tardo ? await cuerpoErrorFunction(resetError) : null
+      const falla = fallaRecupero({ tardo, error: resetError, data, cuerpo })
+      if (falla) {
+        setError(mensajeRecupero(falla))
         return
       }
-      if (!data?.ok) {
-        setError(mensajeRecupero({ status: 500 }))
-        return
-      }
-
       setEnviado(true)
     } catch {
-      setError('Ocurrió un error. Intentá de nuevo.')
+      setError(tardo ? mensajeRecupero({ motivo: 'tardo' }) : 'Ocurrió un error. Intentá de nuevo.')
     } finally {
+      clearTimeout(timer)
       setLoading(false)
     }
   }

@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import {
   erroresVisibles,
+  faltaPedidoRecupero,
   fechaAIso,
   formatearFechaTipeada,
   hayErrores,
@@ -83,6 +84,17 @@ caso('fecha DD/MM/AAAA: se formatea al tipear y sólo vale una fecha real y pasa
   assert.equal(fechaAIso('01/01/1899'), null)
   assert.equal(fechaAIso('01/01/2999'), null)
   assert.equal(fechaAIso('1/1/1980'), null)
+})
+
+caso('pedido de recupero: vacío, mail mal escrito o válido (auth review)', () => {
+  assert.equal(faltaPedidoRecupero(''), 'vacio')
+  assert.equal(faltaPedidoRecupero('   '), 'vacio')
+  assert.equal(faltaPedidoRecupero('ana1@gmail'), 'mail_invalido')
+  assert.equal(faltaPedidoRecupero('ana @gmail.com'), 'mail_invalido')
+  assert.equal(faltaPedidoRecupero('ana@gmail.com'), null)
+  assert.equal(faltaPedidoRecupero(' Ana@Gmail.com '), null)
+  // Sin @ es un DNI: lo valida el servidor.
+  assert.equal(faltaPedidoRecupero('30.123.456'), null)
 })
 
 console.log(`\n${casos} casos ok`)

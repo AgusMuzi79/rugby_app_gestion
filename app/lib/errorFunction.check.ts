@@ -2,7 +2,7 @@
 //   npx --yes tsx app/lib/errorFunction.check.ts
 
 import assert from 'node:assert/strict'
-import { mensajeErrorAuth, mensajeErrorFunction, mensajeLogin, mensajeRecupero, statusErrorFunction } from './errorFunction'
+import { fallaRecupero, mensajeErrorAuth, mensajeErrorFunction, mensajeLogin, mensajeRecupero, statusErrorFunction } from './errorFunction'
 
 let casos = 0
 async function caso(nombre: string, fn: () => Promise<void> | void) {
@@ -51,11 +51,42 @@ async function main() {
   })
 
   await caso('recupero de contraseña: cada falla dice algo distinto, sin revelar si la cuenta existe', () => {
-    assert.match(mensajeRecupero({ status: 400 }), /DNI o tu mail/)
-    assert.match(mensajeRecupero({ status: 429 }), /Demasiados intentos/)
-    assert.match(mensajeRecupero({ sinRed: true }), /No hay conexión/)
-    assert.match(mensajeRecupero({ status: 500 }), /No se pudo enviar/)
-    assert.match(mensajeRecupero({}), /No se pudo enviar/)
+    assert.match(mensajeRecupero({ motivo: 'vacio' }), /DNI o tu mail/)
+    assert.equal(mensajeRecupero({ motivo: 'mail_invalido' }), 'Revisá el mail.')
+    assert.match(mensajeRecupero({ motivo: 'servidor', status: 400 }), /DNI o tu mail/)
+    assert.equal(mensajeRecupero({ motivo: 'servidor', status: 400, error: 'Revisá el mail.' }), 'Revisá el mail.')
+    assert.match(mensajeRecupero({ motivo: 'servidor', status: 429 }), /Demasiados intentos/)
+    assert.match(mensajeRecupero({ motivo: 'sin_red' }), /No hay conexión/)
+    assert.match(mensajeRecupero({ motivo: 'servidor', status: 500 }), /No se pudo enviar/)
+    assert.match(mensajeRecupero({ motivo: 'servidor' }), /No se pudo enviar/)
+    assert.match(mensajeRecupero({ motivo: 'respuesta_invalida' }), /No se pudo enviar/)
+    // Un texto cualquiera del servidor no se muestra tal cual.
+    assert.match(mensajeRecupero({ motivo: 'servidor', status: 400, error: 'otra cosa' }), /DNI o tu mail/)
+  })
+
+  await caso('recupero: si tarda no es "sin conexión" (el pedido puede haber salido) (auth review)', () => {
+    assert.equal(
+      mensajeRecupero({ motivo: 'tardo' }),
+      'Está tardando más de lo normal. Si te llega el mail, usá el link más nuevo; si no, probá en unos minutos.',
+    )
+    assert.doesNotMatch(mensajeRecupero({ motivo: 'tardo' }), /conexión/)
+  })
+
+  await caso('recupero: la falla sale del resultado del invoke, con motivos explícitos', () => {
+    const fetchError = { name: 'FunctionsFetchError', message: 'Failed to send a request' }
+    assert.deepEqual(fallaRecupero({ tardo: true, error: fetchError, data: null }), { motivo: 'tardo' })
+    assert.deepEqual(fallaRecupero({ tardo: false, error: fetchError, data: null }), { motivo: 'sin_red' })
+    assert.deepEqual(
+      fallaRecupero({ tardo: false, error: httpError(400, { error: 'Revisá el mail.' }), data: null, cuerpo: { error: 'Revisá el mail.' } }),
+      { motivo: 'servidor', status: 400, error: 'Revisá el mail.' },
+    )
+    assert.deepEqual(
+      fallaRecupero({ tardo: false, error: httpError(500, {}), data: null, cuerpo: null }),
+      { motivo: 'servidor', status: 500, error: undefined },
+    )
+    assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: { algo: 1 } }), { motivo: 'respuesta_invalida' })
+    assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: null }), { motivo: 'respuesta_invalida' })
+    assert.equal(fallaRecupero({ tardo: false, error: null, data: { ok: true } }), null)
   })
 
   await caso('errores de GoTrue en castellano (antes el inglés crudo en registro)', () => {

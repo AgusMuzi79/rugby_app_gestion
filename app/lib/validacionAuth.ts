@@ -10,7 +10,18 @@ import { MIN_PASSWORD } from './errorFunction'
 export type Errores<K extends string> = Partial<Record<K, string>>
 export type Tocados<K extends string> = Partial<Record<K, boolean>>
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// ── Pedido de recupero (forgot-password) ────────────────────────────────────
+
+// Lo que falta antes de mandar: vacío, o quiso tipear un mail (tiene @) y no
+// tiene forma de mail (si no, login-dni lo tomaba como DNI). Sin @ es un DNI.
+export function faltaPedidoRecupero(texto: string): 'vacio' | 'mail_invalido' | null {
+  const limpio = texto.trim()
+  if (!limpio) return 'vacio'
+  if (limpio.includes('@') && !EMAIL_RE.test(limpio)) return 'mail_invalido'
+  return null
+}
 
 // ── Fecha DD/MM/AAAA ────────────────────────────────────────────────────────
 

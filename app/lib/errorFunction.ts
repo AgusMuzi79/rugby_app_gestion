@@ -92,10 +92,51 @@ export function mensajeLogin(r: { status?: number; sinRed?: boolean }): string {
 }
 
 // Recupero de contraseña (login-dni, action 'reset'). El éxito es siempre el
-// mismo; acá sólo las fallas del pedido, que no dicen nada de la cuenta.
-export function mensajeRecupero(r: { status?: number; sinRed?: boolean }): string {
-  if (r.sinRed) return SIN_CONEXION
-  if (r.status === 400) return 'Ingresá tu DNI o tu mail.'
-  if (r.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
-  return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+// mismo; acá sólo las fallas del pedido, que no dicen nada de la cuenta. Cada
+// falla tiene su motivo explícito (antes se inventaban status HTTP).
+export type FallaRecupero =
+  | { motivo: 'vacio' }
+  | { motivo: 'mail_invalido' }
+  | { motivo: 'sin_red' }
+  // Se cortó la espera: el pedido pudo haber salido y el mail llegar igual.
+  | { motivo: 'tardo' }
+  // 200 sin { ok: true }.
+  | { motivo: 'respuesta_invalida' }
+  | { motivo: 'servidor'; status?: number; error?: string }
+
+const REVISA_MAIL = 'Revisá el mail.'
+
+export function mensajeRecupero(f: FallaRecupero): string {
+  switch (f.motivo) {
+    case 'vacio':         return 'Ingresá tu DNI o tu mail.'
+    case 'mail_invalido': return REVISA_MAIL
+    case 'sin_red':       return SIN_CONEXION
+    case 'tardo':
+      return 'Está tardando más de lo normal. Si te llega el mail, usá el link más nuevo; si no, probá en unos minutos.'
+    case 'servidor':
+      // Sólo textos conocidos de login-dni; cualquier otro, el genérico.
+      if (f.status === 400) return f.error === REVISA_MAIL ? REVISA_MAIL : 'Ingresá tu DNI o tu mail.'
+      if (f.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
+      return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+    case 'respuesta_invalida':
+      return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+  }
+}
+
+// Falla del invoke a login-dni, o null si salió bien. `tardo` = la app cortó
+// la espera; `cuerpo` = body del non-2xx (cuerpoErrorFunction).
+export function fallaRecupero(r: {
+  tardo: boolean
+  error: unknown
+  data: unknown
+  cuerpo?: Record<string, unknown> | null
+}): FallaRecupero | null {
+  if (r.tardo) return { motivo: 'tardo' }
+  if (r.error) {
+    if (comoError(r.error)?.name === 'FunctionsFetchError') return { motivo: 'sin_red' }
+    const error = typeof r.cuerpo?.error === 'string' ? r.cuerpo.error : undefined
+    return { motivo: 'servidor', status: statusErrorFunction(r.error), error }
+  }
+  if ((comoError(r.data) as { ok?: unknown } | null)?.ok !== true) return { motivo: 'respuesta_invalida' }
+  return null
 }
