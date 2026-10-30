@@ -175,7 +175,7 @@ export default function LoginScreen() {
 
           {/* Olvidé contraseña */}
           <Link href="/(auth)/forgot-password" asChild>
-            <TouchableOpacity style={s.forgotWrap} disabled={loading}>
+            <TouchableOpacity style={s.forgotWrap} disabled={loading} accessibilityRole="link">
               <Text style={s.forgotText}>Olvidé mi contraseña</Text>
             </TouchableOpacity>
           </Link>
@@ -183,7 +183,7 @@ export default function LoginScreen() {
           {/* Alta de familiar o tutor de un socio menor de 13 (no socio).
               Antes sólo se llegaba entrando con la cuenta del menor. */}
           <Link href="/(auth)/registro-tutor" asChild>
-            <TouchableOpacity style={s.forgotWrap} disabled={loading}>
+            <TouchableOpacity style={s.linkWrap} disabled={loading} accessibilityRole="link">
               <Text style={s.forgotText}>Crear cuenta de familiar o tutor</Text>
             </TouchableOpacity>
           </Link>
@@ -362,9 +362,19 @@ const s = StyleSheet.create({
     textAlign: 'center',
     color: '#2D6A2D',
   },
+  // Links de texto: 44 pt de alto como mínimo para el dedo.
   forgotWrap: {
     alignItems: 'center',
-    marginTop: 24,
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  linkWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    minHeight: 44,
   },
   forgotText: {
     fontFamily: fonts.label,

@@ -182,7 +182,7 @@ export default function RegistroTutorScreen() {
 
               <View style={s.fieldWrap}>
                 <Text style={s.label}>RELACIÓN CON EL SOCIO</Text>
-                <View style={s.chipsRow}>
+                <View style={s.chipsRow} accessibilityRole="radiogroup" accessibilityLabel="Relación con el socio">
                   {RELACIONES.map(r => {
                     const activo = relacion === r.value
                     return (
@@ -192,8 +192,9 @@ export default function RegistroTutorScreen() {
                         onPress={() => setRelacion(r.value)}
                         disabled={loading}
                         activeOpacity={0.75}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: activo }}
+                        accessibilityRole="radio"
+                        accessibilityLabel={r.label}
+                        accessibilityState={{ checked: activo, disabled: loading }}
                       >
                         <Text style={[s.chipTexto, activo && s.chipTextoActivo]}>{r.label.toUpperCase()}</Text>
                       </TouchableOpacity>
@@ -368,7 +369,12 @@ export default function RegistroTutorScreen() {
           </TouchableOpacity>
 
           {paso === 'codigo' && (
-            <TouchableOpacity style={s.linkWrap} onPress={() => enviarCodigo(true)} disabled={loading}>
+            <TouchableOpacity
+              style={s.linkWrap}
+              onPress={() => enviarCodigo(true)}
+              disabled={loading}
+              accessibilityRole="button"
+            >
               <Text style={s.linkText}>Reenviar código</Text>
             </TouchableOpacity>
           )}
@@ -377,6 +383,7 @@ export default function RegistroTutorScreen() {
             style={s.linkWrap}
             onPress={() => (paso === 'codigo' ? volverADatos() : router.replace('/(auth)/login'))}
             disabled={loading}
+            accessibilityRole="button"
           >
             <Text style={s.linkText}>{paso === 'codigo' ? 'Volver' : 'Volver al inicio'}</Text>
           </TouchableOpacity>
@@ -456,6 +463,8 @@ const s = StyleSheet.create({
   eyeButton: { paddingBottom: 4, paddingLeft: 8 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
+    minHeight: 44,
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -504,7 +513,7 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   successText: { fontFamily: fonts.cuerpo, fontSize: 15, textAlign: 'center', color: '#2D6A2D' },
-  linkWrap: { alignItems: 'center', marginTop: 20 },
+  linkWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 8, paddingVertical: 12, minHeight: 44 },
   linkText: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1, color: PLACEHOLDER },
   footer: {
     fontFamily: fonts.label,

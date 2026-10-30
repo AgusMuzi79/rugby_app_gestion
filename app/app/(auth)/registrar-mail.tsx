@@ -93,6 +93,8 @@ export default function RegistrarMailScreen() {
             onPress={handleOmitir}
             disabled={guardando || omitiendo}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ahora no"
           >
             {omitiendo
               ? <ActivityIndicator color={colors.textoSecundario} size="small" />
@@ -181,8 +183,11 @@ const styles = StyleSheet.create({
     color: colors.sobreOro,
   },
   skipButton: {
-    marginTop: 20,
+    marginTop: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    minHeight: 44,
   },
   skipButtonText: {
     fontFamily: fonts.cuerpo,

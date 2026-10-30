@@ -121,6 +121,7 @@ export default function ResetPasswordScreen() {
           {/* Salida: si no, el guard devuelve siempre a esta pantalla */}
           <TouchableOpacity
             style={styles.cancelWrap}
+            accessibilityRole="button"
             onPress={async () => {
               await cancelar()
               router.replace('/(auth)/login')
@@ -249,8 +250,10 @@ const styles = StyleSheet.create({
   },
   cancelWrap: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 20,
     paddingVertical: 12,
+    minHeight: 44,
   },
   cancelText: {
     fontFamily: fonts.label,

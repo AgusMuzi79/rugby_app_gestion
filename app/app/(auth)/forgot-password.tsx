@@ -125,6 +125,7 @@ export default function ForgotPasswordScreen() {
           {/* Volver al login */}
           <TouchableOpacity
             style={styles.backWrap}
+            accessibilityRole="button"
             // Llegando desde un link vencido (replace) no hay a dónde volver.
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
             disabled={loading}
@@ -278,7 +279,10 @@ const styles = StyleSheet.create({
   },
   backWrap: {
     alignItems: 'center',
-    marginTop: 32,
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   backText: {
     fontFamily: fonts.label,
