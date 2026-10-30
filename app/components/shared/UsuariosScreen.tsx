@@ -20,6 +20,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { ROL_LABELS } from '@/constants/roles'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
+import { divisionesCambiaron } from '@/lib/usuariosForm'
 
 const MUTED = colors.muted
 const ROJO  = '#EF4444'
@@ -65,6 +68,11 @@ function agruparPorDeporte(divisiones: DivisionOpcion[]) {
 
 export function UsuariosScreen() {
   const hook = useUsuarios()
+  // Interino (auditoría auth T12): el detalle es un estado `paso`, no una ruta
+  // de Stack, así que el Back de Android salía de la pestaña. Con el detalle
+  // abierto vuelve a la lista, igual que "‹ Usuarios". Pendiente: pasar el
+  // detalle a una ruta real `usuarios/[id]`.
+  useBackDelDetalle(hook.paso === 'detalle', () => pedirVolverALista(hook))
 
   if (hook.loading) {
     return (
@@ -79,6 +87,22 @@ export function UsuariosScreen() {
   }
 
   return <VistaLista hook={hook} />
+}
+
+// Volver del detalle a la lista; si hay divisiones tildadas sin guardar,
+// pregunta antes de descartarlas.
+function pedirVolverALista(hook: ReturnType<typeof useUsuarios>) {
+  const u = hook.usuarioSeleccionado
+  if (u && divisionesCambiaron(u.divisiones, hook.divisionesEditDetalle)) {
+    confirmarDescarte({
+      titulo:      'Cambios sin guardar',
+      textoSeguir: 'Seguir editando',
+      mensaje:     `Cambiaste las divisiones de ${u.nombre} y no las guardaste. ¿Descartar los cambios?`,
+      onDescartar: hook.volverALista,
+    })
+    return
+  }
+  hook.volverALista()
 }
 
 // ─── Vista lista ──────────────────────────────────────────────────────────────
@@ -204,7 +228,7 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   return (
     <View style={s.root}>
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={hook.volverALista} style={s.backBtn}>
+        <TouchableOpacity onPress={() => pedirVolverALista(hook)} style={s.backBtn}>
           <Text style={s.backTexto}>‹ Usuarios</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Detalle</Text>
