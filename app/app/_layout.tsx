@@ -168,6 +168,7 @@ export default function RootLayout() {
       const link = parsearLinkAuth(url)
       if (link.tipo === 'nada') return
       if (link.tipo === 'error') {
+        console.warn('link de auth con error:', link.codigoError)
         avisarFalla('vencido')
         return
       }

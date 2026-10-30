@@ -9,7 +9,8 @@
 export type FlujoLink = 'recovery' | 'nuevo' | null
 
 export type LinkAuth =
-  | { tipo: 'error'; codigo: string }
+  // codigoError: el error_code (o error) de GoTrue, sólo para el log.
+  | { tipo: 'error'; codigoError: string }
   | { tipo: 'tokens'; accessToken: string; refreshToken: string; flujo: FlujoLink }
   | { tipo: 'codigo'; code: string; flujo: FlujoLink }
   | { tipo: 'nada' }
@@ -48,7 +49,7 @@ export function parsearLinkAuth(url: string): LinkAuth {
   // El error gana sobre cualquier token; el del fragmento sobre el de la query.
   const codigoError =
     f.get('error_code') ?? f.get('error') ?? q.get('error_code') ?? q.get('error')
-  if (codigoError) return { tipo: 'error', codigo: codigoError }
+  if (codigoError) return { tipo: 'error', codigoError }
 
   const code = q.get('code')
   if (code) return { tipo: 'codigo', code, flujo: flujoDe(q.get('type')) }

@@ -13,22 +13,22 @@ function caso(nombre: string, fn: () => void) {
 
 caso('link vencido con el error en el fragmento (lo que manda GoTrue)', () => {
   const url = 'uncasrugby://reset-password#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired'
-  assert.deepEqual(parsearLinkAuth(url), { tipo: 'error', codigo: 'otp_expired' })
+  assert.deepEqual(parsearLinkAuth(url), { tipo: 'error', codigoError: 'otp_expired' })
 })
 
 caso('error en la query', () => {
   assert.deepEqual(
     parsearLinkAuth('uncasrugby://reset-password?error=access_denied&error_code=otp_expired'),
-    { tipo: 'error', codigo: 'otp_expired' },
+    { tipo: 'error', codigoError: 'otp_expired' },
   )
 })
 
 caso('error en la query y en el fragmento: gana el fragmento; sólo `error` sin código también es error', () => {
   assert.deepEqual(
     parsearLinkAuth('uncasrugby://reset-password?error=server_error#error=access_denied&error_code=otp_expired'),
-    { tipo: 'error', codigo: 'otp_expired' },
+    { tipo: 'error', codigoError: 'otp_expired' },
   )
-  assert.deepEqual(parsearLinkAuth('uncasrugby://reset-password#error=access_denied'), { tipo: 'error', codigo: 'access_denied' })
+  assert.deepEqual(parsearLinkAuth('uncasrugby://reset-password#error=access_denied'), { tipo: 'error', codigoError: 'access_denied' })
 })
 
 caso('un error gana aunque vengan tokens', () => {
