@@ -1,6 +1,8 @@
 -- Pruebas de escenario para la migración 20261026000000_recordatorio_eventos
 -- (eventos.recordatorio_enviado_at, trigger que lo rearma al cambiar fecha/hora,
--- helper socio_habilitado_deporte y RPC reclamar_recordatorios_eventos).
+-- helper socio_habilitado_deporte y RPC reclamar_recordatorios_eventos) y para
+-- 20261106000000_recordatorio_colaborador (los colaboradores de la división
+-- también reciben el recordatorio).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name recordatorio-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -79,10 +81,13 @@ create or replace function get_socio_id() returns uuid language sql security def
   select id from socios where profile_id = auth.uid()
 $$;
 
--- ─── Migración bajo prueba ────────────────────────────────────────────────────
--- Si todavía no existe, el \ir aborta el script (RED).
+-- ─── Migraciones bajo prueba ──────────────────────────────────────────────────
+-- Si todavía no existen, el \ir aborta el script (RED). 20261106000000 sólo
+-- reescribe reclamar_recordatorios_eventos (no necesita 20261105000000: el
+-- stub de profiles no tiene los CHECK de roles).
 
 \ir ../migrations/20261026000000_recordatorio_eventos.sql
+\ir ../migrations/20261106000000_recordatorio_colaborador.sql
 
 -- ─── Datos ────────────────────────────────────────────────────────────────────
 -- Divisiones: M15 (rugby), Vieja (rugby, inactiva), Sub 14 (hockey).
@@ -93,6 +98,8 @@ $$;
 -- s5: servicio Hockey, juega M15 y Sub 14 → sólo Sub 14.
 -- Entrenadores: pe1 (M15 y Sub 14), pe2 (sólo Sub 14), pe3 (divisiones NULL),
 -- pe4 (M15 pero inactivo), pm (manager con M15, no es entrenador).
+-- Colaboradores: pc1 (M15), pc2 (sólo Sub 14), pc3 (entrenador y colaborador
+-- con M15: aparece una sola vez).
 
 insert into profiles (id, roles, divisiones, activo) values
   ('a0000000-0000-0000-0000-000000000001', '{socio}', null, true),
@@ -104,7 +111,10 @@ insert into profiles (id, roles, divisiones, activo) values
   ('b0000000-0000-0000-0000-000000000002', '{entrenador}', '{d0000000-0000-0000-0000-000000000003}', true),
   ('b0000000-0000-0000-0000-000000000003', '{entrenador}', null, true),
   ('b0000000-0000-0000-0000-000000000004', '{entrenador}', '{d0000000-0000-0000-0000-000000000001}', false),
-  ('b0000000-0000-0000-0000-000000000005', '{manager}', '{d0000000-0000-0000-0000-000000000001}', true);
+  ('b0000000-0000-0000-0000-000000000005', '{manager}', '{d0000000-0000-0000-0000-000000000001}', true),
+  ('b0000000-0000-0000-0000-000000000006', '{colaborador}', '{d0000000-0000-0000-0000-000000000001}', true),
+  ('b0000000-0000-0000-0000-000000000007', '{colaborador}', '{d0000000-0000-0000-0000-000000000003}', true),
+  ('b0000000-0000-0000-0000-000000000008', '{entrenador,colaborador}', '{d0000000-0000-0000-0000-000000000001}', true);
 
 insert into categorias_socio values
   ('c0000000-0000-0000-0000-000000000001', 'Activo'),
@@ -208,12 +218,28 @@ select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-00
   'destinatarios de Sub 14: el de servicio Hockey');
 
 select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-000000000001')->'entrenador_profile_ids')::text,
-  '["b0000000-0000-0000-0000-000000000001"]',
-  'entrenadores de M15: sólo el activo con M15 asignada (no NULL, no inactivo, no manager)');
+  '["b0000000-0000-0000-0000-000000000001", "b0000000-0000-0000-0000-000000000006", "b0000000-0000-0000-0000-000000000008"]',
+  'staff de M15: entrenador activo, colaborador y entrenador-colaborador con M15 (no NULL, no inactivo, no manager, no colaborador de otra división)');
 
 select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-00000000000b')->'entrenador_profile_ids')::text,
-  '["b0000000-0000-0000-0000-000000000001", "b0000000-0000-0000-0000-000000000002"]',
-  'entrenadores de Sub 14: los dos que la tienen asignada');
+  '["b0000000-0000-0000-0000-000000000001", "b0000000-0000-0000-0000-000000000002", "b0000000-0000-0000-0000-000000000007"]',
+  'staff de Sub 14: los dos entrenadores y el colaborador que la tienen asignada');
+
+-- Colaboradores (20261106000000).
+select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-000000000001')->'entrenador_profile_ids'
+                 ? 'b0000000-0000-0000-0000-000000000006')::text, 'true',
+  'colaborador con la división asignada recibe el recordatorio');
+select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-000000000001')->'entrenador_profile_ids'
+                 ? 'b0000000-0000-0000-0000-000000000007')::text, 'false',
+  'colaborador sin esa división no lo recibe');
+select t_espera((t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-000000000001')->'entrenador_profile_ids'
+                 ? 'b0000000-0000-0000-0000-000000000001')::text, 'true',
+  'el entrenador de la división lo sigue recibiendo');
+select t_espera(
+  (select count(*)::text
+     from jsonb_array_elements_text(t_fila((select r from t_corrida where n = 1), 'e1000000-0000-0000-0000-000000000001')->'entrenador_profile_ids') x
+    where x = 'b0000000-0000-0000-0000-000000000008'), '1',
+  'un profile entrenador y colaborador aparece una sola vez');
 
 select t_espera((select count(*)::text from eventos where recordatorio_enviado_at = '2026-11-02 23:05:00+00'), '4',
   'marca recordatorio_enviado_at en los reclamados');
