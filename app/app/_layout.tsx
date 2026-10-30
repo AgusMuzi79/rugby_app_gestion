@@ -53,8 +53,9 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const {
-    session, rol, loading, isPasswordRecovery, isNuevoUsuario,
+    session, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
+    setProcesandoLink,
   } = useAuthStore()
   // Perfil (rol) de la sesión. Si no carga, la persona quedaba en el login sin
   // ninguna explicación. Sin red: se avisa y se reintenta solo con espera
@@ -149,11 +150,14 @@ export default function RootLayout() {
   // o ya usado llega con error_code (otp_expired): se manda a pedir uno nuevo.
   // Los flags de recovery / usuario nuevo se marcan recién cuando la sesión
   // del link abrió: antes se marcaban primero y, si fallaba, todo redirigía a
-  // reset-password sin sesión para siempre.
+  // reset-password sin sesión para siempre. Mientras se abre, `procesandoLink`
+  // frena el guard: la sesión del link les llega a los listeners antes que el
+  // flag, y sin eso el guard la mandaba al inicio del rol.
   useEffect(() => {
     function avisarFalla(aviso: string) {
       setPasswordRecovery(false)
       setNuevoUsuario(false)
+      setProcesandoLink(false)
       router.replace({ pathname: '/(auth)/forgot-password', params: { aviso } })
     }
 
@@ -164,6 +168,7 @@ export default function RootLayout() {
         avisarFalla(AVISO_LINK_VENCIDO)
         return
       }
+      setProcesandoLink(true)
       try {
         const { error } = link.tipo === 'codigo'
           ? await supabase.auth.exchangeCodeForSession(link.code)
@@ -176,8 +181,10 @@ export default function RootLayout() {
         avisarFalla(avisoFallaLink(esErrorDeRed(e)))
         return
       }
+      // Primero el flag, después se libera el guard.
       if (link.flujo === 'recovery') setPasswordRecovery(true)
       if (link.flujo === 'nuevo') setNuevoUsuario(true)
+      setProcesandoLink(false)
     }
 
     Linking.getInitialURL().then(url => { if (url) handleUrl(url) })
@@ -236,6 +243,7 @@ export default function RootLayout() {
       // from getState(), not as a dependency, so toggling the flag never
       // re-runs the guard by itself.
       registroSinSesion: useAuthStore.getState().registroSinSesion,
+      procesandoLink,
       restringido, restringidoLoading,
       terminosPendiente, terminosLoading,
       mailPendiente: mailSinteticoPendiente, mailLoading: mailSinteticoLoading,
@@ -243,7 +251,7 @@ export default function RootLayout() {
     if (!destino || yaEstaEnDestino(destino, segments)) return
     router.replace(destino as Parameters<typeof router.replace>[0])
   }, [
-    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario,
+    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink,
     terminosPendiente, terminosLoading, restringido, restringidoLoading,
     mailSinteticoPendiente, mailSinteticoLoading, segments[0],
   ])
