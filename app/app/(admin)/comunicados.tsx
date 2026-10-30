@@ -15,6 +15,8 @@ import {
   type AudienciaMostrada,
 } from '@/hooks/useComunicadosAdmin'
 import { colors, fonts } from '@/constants/theme'
+import { comunicadoTieneContenido } from '@/lib/comunicadosAdmin'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -104,9 +106,22 @@ function ModalNuevoComunicado({
     setAudiencia('cuerpo_tecnico')
   }
 
-  const handleClose = () => {
+  const insets = useSafeAreaInsets()
+
+  const cerrar = () => {
     limpiar()
     onClose()
+  }
+
+  // X o Back del sistema: si hay algo escrito, preguntar antes de perderlo.
+  const pedirCerrar = () => {
+    if (!comunicadoTieneContenido(titulo, cuerpo)) { cerrar(); return }
+    confirmarDescarte({
+      titulo:      '¿Descartar el comunicado?',
+      textoSeguir: 'Seguir escribiendo',
+      mensaje:     'Lo que escribiste no se guarda.',
+      onDescartar: cerrar,
+    })
   }
 
   const handlePublicar = () => {
@@ -119,7 +134,7 @@ function ModalNuevoComunicado({
         text: 'Publicar',
         onPress: async () => {
           const ok = await onPublicar(titulo, cuerpo, audiencia)
-          if (ok) handleClose()
+          if (ok) cerrar()
         },
       },
     ])
@@ -128,17 +143,17 @@ function ModalNuevoComunicado({
   const detalle = AUDIENCIAS.find(a => a.value === audiencia)?.detalle ?? ''
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={pedirCerrar}>
       <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={s.modal}
-          contentContainerStyle={s.modalContent}
+          contentContainerStyle={[s.modalContent, { paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>NUEVO COMUNICADO</Text>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
+            <TouchableOpacity onPress={pedirCerrar} activeOpacity={0.75}>
               <Feather name="x" size={20} color={TEXTO} />
             </TouchableOpacity>
           </View>

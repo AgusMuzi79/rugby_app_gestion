@@ -3,7 +3,7 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { normalizarAudiencia, resultadoBorrado } from './comunicadosAdmin'
+import { comunicadoTieneContenido, normalizarAudiencia, resultadoBorrado } from './comunicadosAdmin'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -42,6 +42,17 @@ caso('borrado sin error pero sin filas (RLS o ya eliminado) es sin_filas', () =>
 caso('borrado con error es error, aunque vengan filas', () => {
   assert.equal(resultadoBorrado({ message: 'boom' }, null), 'error')
   assert.equal(resultadoBorrado({ message: 'boom' }, [{ id: 'a' }]), 'error')
+})
+
+// ─── Descartar el borrador del modal ──────────────────────────────────────────
+
+caso('modal vacío o sólo con espacios se cierra sin preguntar', () => {
+  assert.equal(comunicadoTieneContenido('', ''), false)
+  assert.equal(comunicadoTieneContenido('  ', '\n  '), false)
+})
+caso('con título o con contenido hay algo para perder', () => {
+  assert.equal(comunicadoTieneContenido('Cena de fin de año', ''), true)
+  assert.equal(comunicadoTieneContenido('', 'El sábado a las 21'), true)
 })
 
 console.log(`\n${casos} casos ok`)
