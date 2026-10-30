@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router'
 import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
 import { ErrorCampo } from '@/components/ui/ErrorCampo'
 import { useResetPassword } from '@/hooks/useResetPassword'
+import { MIN_PASSWORD } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -59,13 +60,13 @@ export default function ResetPasswordScreen() {
                 onChangeText={setPassword}
                 onBlur={() => tocar('password')}
                 secureTextEntry={!mostrarPassword}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
                 accessibilityLabel="Nueva contraseña"
                 textContentType="newPassword"
                 autoComplete="new-password"
-                passwordRules="minlength: 8;"
+                passwordRules={`minlength: ${MIN_PASSWORD};`}
                 autoCapitalize="none"
                 returnKeyType="next"
                 submitBehavior="submit"
@@ -96,7 +97,7 @@ export default function ResetPasswordScreen() {
               accessibilityLabel="Confirmar contraseña"
               textContentType="newPassword"
               autoComplete="new-password"
-              passwordRules="minlength: 8;"
+              passwordRules={`minlength: ${MIN_PASSWORD};`}
               autoCapitalize="none"
               returnKeyType="go"
               onSubmitEditing={() => { if (!loading) void actualizarPassword(password, confirmacion) }}

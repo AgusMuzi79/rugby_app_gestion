@@ -20,7 +20,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
-import { mensajeErrorAuth } from '@/lib/errorFunction'
+import { MIN_PASSWORD, mensajeErrorAuth } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -149,13 +149,13 @@ export default function RegistroScreen() {
                 onChangeText={setPassword}
                 onBlur={() => tocar('password')}
                 secureTextEntry={!mostrarPassword}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
                 accessibilityLabel="Nueva contraseña"
                 textContentType="newPassword"
                 autoComplete="new-password"
-                passwordRules="minlength: 8;"
+                passwordRules={`minlength: ${MIN_PASSWORD};`}
                 autoCapitalize="none"
                 returnKeyType="next"
                 submitBehavior="submit"
@@ -186,7 +186,7 @@ export default function RegistroScreen() {
               accessibilityLabel="Confirmar contraseña"
               textContentType="newPassword"
               autoComplete="new-password"
-              passwordRules="minlength: 8;"
+              passwordRules={`minlength: ${MIN_PASSWORD};`}
               autoCapitalize="none"
               returnKeyType="go"
               onSubmitEditing={() => { if (!loading) void guardar() }}

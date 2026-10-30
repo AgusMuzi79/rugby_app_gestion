@@ -31,7 +31,6 @@ import { colors, fonts } from '@/constants/theme'
 // `registroSinSesion` is set (see app/_layout.tsx).
 
 const PLACEHOLDER = '#9B9A8F'
-const PASSWORD_MIN = MIN_PASSWORD
 
 const RELACIONES: { value: RelacionTutor; label: string }[] = [
   { value: 'madre', label: 'Madre' },
@@ -300,14 +299,14 @@ export default function RegistroTutorScreen() {
                     onChangeText={setPassword}
                     onBlur={() => tocarCodigo('password')}
                     secureTextEntry={!mostrarPassword}
-                    placeholder={`Mínimo ${PASSWORD_MIN} caracteres`}
+                    placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
                     placeholderTextColor={PLACEHOLDER}
                     autoCapitalize="none"
                     editable={!loading}
                     accessibilityLabel="Contraseña"
                     textContentType="newPassword"
                     autoComplete="new-password"
-                    passwordRules={`minlength: ${PASSWORD_MIN};`}
+                    passwordRules={`minlength: ${MIN_PASSWORD};`}
                     returnKeyType="next"
                     submitBehavior="submit"
                     onSubmitEditing={() => password2Ref.current?.focus()}
@@ -337,7 +336,7 @@ export default function RegistroTutorScreen() {
                   accessibilityLabel="Repetí la contraseña"
                   textContentType="newPassword"
                   autoComplete="new-password"
-                  passwordRules={`minlength: ${PASSWORD_MIN};`}
+                  passwordRules={`minlength: ${MIN_PASSWORD};`}
                   returnKeyType="go"
                   onSubmitEditing={() => { if (!loading) void confirmarCuenta() }}
                 />
