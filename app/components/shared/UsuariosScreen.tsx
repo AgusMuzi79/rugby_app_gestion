@@ -23,6 +23,7 @@ import { ROL_LABELS } from '@/constants/roles'
 import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
 import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 import { divisionesCambiaron } from '@/lib/usuariosForm'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
 
 const MUTED = colors.muted
 const ROJO  = '#EF4444'
@@ -580,10 +581,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.nombre}
                   onChangeText={hook.setNombre}
+                  onBlur={() => hook.tocarCampoNuevo('nombre')}
                   placeholder="Ej: Juan Pérez"
                   placeholderTextColor={MUTED}
                   autoCapitalize="words"
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.nombre} />
 
                 {/* Email */}
                 <Text style={s.inputLabel}>Email</Text>
@@ -591,12 +594,14 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.email}
                   onChangeText={hook.setEmail}
+                  onBlur={() => hook.tocarCampoNuevo('email')}
                   placeholder="correo@ejemplo.com"
                   placeholderTextColor={MUTED}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.email} />
 
                 {/* DNI */}
                 <Text style={s.inputLabel}>DNI</Text>
@@ -604,10 +609,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.dni}
                   onChangeText={hook.setDni}
+                  onBlur={() => hook.tocarCampoNuevo('dni')}
                   placeholder="Ej: 12345678"
                   placeholderTextColor={MUTED}
                   keyboardType="numeric"
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.dni} />
 
                 {/* Rol */}
                 <Text style={s.inputLabel}>Rol</Text>
@@ -617,6 +624,7 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   onElegir={hook.setRolSeleccionado}
                   etiqueta="Rol"
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.rol} />
 
                 {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
                 {rol === 'admin' && hook.rolSeleccionado === 'subcomision' && (

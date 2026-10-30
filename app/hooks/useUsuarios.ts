@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorFunction } from '@/lib/errorFunction'
+import { erroresVisibles, hayErrores, todosTocados, type Tocados } from '@/lib/validacionAuth'
+import { CAMPOS_NUEVO_USUARIO, validarFormNuevoUsuario, type CampoNuevoUsuario } from '@/lib/usuariosForm'
 
 export type RolCreable = 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
@@ -85,6 +87,9 @@ export function useUsuarios() {
   const [creando, setCreando]                           = useState(false)
   const [creadoOk, setCreadoOk]                         = useState(false)
   const [errorForm, setErrorForm]                       = useState<string | null>(null)
+  const [tocadosNuevo, setTocadosNuevo]                 = useState<Tocados<CampoNuevoUsuario>>({})
+  const erroresNuevoTodos = validarFormNuevoUsuario({ nombre, email, dni, rol: rolSeleccionado })
+  const erroresNuevo      = erroresVisibles(erroresNuevoTodos, tocadosNuevo)
 
   // Assign-role flow
   const [busquedaSocio, setBusquedaSocio]               = useState('')
@@ -178,6 +183,7 @@ export function useUsuarios() {
     setDivisionesSeleccionadas([])
     setDeporteSeleccionado(null)
     setErrorForm(null)
+    setTocadosNuevo({})
     setCreadoOk(false)
     setBusquedaSocio('')
     setSocioEncontrado(null)
@@ -199,6 +205,11 @@ export function useUsuarios() {
     setAsignadoOk(false)
     setErrorAsignacion(null)
     setResultadosBusqueda([])
+  }
+
+  // Al salir de un campo del formulario "Nuevo usuario" se muestra su error.
+  function tocarCampoNuevo(campo: CampoNuevoUsuario) {
+    setTocadosNuevo(prev => (prev[campo] ? prev : { ...prev, [campo]: true }))
   }
 
   function toggleDivision(divId: string) {
@@ -300,11 +311,10 @@ export function useUsuarios() {
 
     const dniTrim = dni.trim()
 
-    if (!nombreTrim) { setErrorForm('Ingresá el nombre completo.'); return }
-    if (!emailTrim)  { setErrorForm('Ingresá el email.'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) { setErrorForm('El email no es válido.'); return }
-    if (!dniTrim)    { setErrorForm('Ingresá el DNI.'); return }
-    if (!rolSeleccionado) { setErrorForm('Seleccioná un rol.'); return }
+    // Errores de validación: debajo de cada campo, todos a la vez. El banner
+    // de abajo queda sólo para errores del servidor.
+    setTocadosNuevo(todosTocados(CAMPOS_NUEVO_USUARIO))
+    if (hayErrores(erroresNuevoTodos) || !rolSeleccionado) { setErrorForm(null); return }
 
     setCreando(true)
     setErrorForm(null)
@@ -499,6 +509,8 @@ export function useUsuarios() {
     creando,
     creadoOk,
     errorForm,
+    erroresNuevo,
+    tocarCampoNuevo,
     crearUsuario,
     // Assign-role
     busquedaSocio,      setBusquedaSocio,
