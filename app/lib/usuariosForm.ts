@@ -1,9 +1,7 @@
 // Lógica pura de la pantalla de Usuarios (admin y subcomisión,
 // components/shared/UsuariosScreen.tsx). Verificada en usuariosForm.check.ts.
 
-import type { Errores } from './validacionAuth'
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { EMAIL_RE, sinVacios, type Errores } from './validacionAuth'
 
 // ── Formulario "Nuevo usuario" ──────────────────────────────────────────────
 // Antes devolvía sólo el primer error en un banner al pie del modal (auditoría
@@ -33,17 +31,12 @@ function errorDni(dni: string): string | undefined {
 export function validarFormNuevoUsuario(
   v: { nombre: string; email: string; dni: string; rol: string | null },
 ): Errores<CampoNuevoUsuario> {
-  const errores: Record<CampoNuevoUsuario, string | undefined> = {
+  return sinVacios<CampoNuevoUsuario>({
     nombre: v.nombre.trim() ? undefined : 'Ingresá el nombre completo.',
     email:  errorEmail(v.email),
     dni:    errorDni(v.dni),
     rol:    v.rol ? undefined : 'Seleccioná un rol.',
-  }
-  const out: Errores<CampoNuevoUsuario> = {}
-  for (const k of CAMPOS_NUEVO_USUARIO) {
-    if (errores[k]) out[k] = errores[k]
-  }
-  return out
+  })
 }
 
 // ── Detalle ─────────────────────────────────────────────────────────────────

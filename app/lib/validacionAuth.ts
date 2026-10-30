@@ -60,7 +60,8 @@ function errorConfirmacion(password: string, confirmacion: string): string | und
   return undefined
 }
 
-function sinVacios<K extends string>(errores: Record<K, string | undefined>): Errores<K> {
+// Saca los campos sin error (también lo usa lib/usuariosForm.ts).
+export function sinVacios<K extends string>(errores: Record<K, string | undefined>): Errores<K> {
   const out: Errores<K> = {}
   for (const k of Object.keys(errores) as K[]) {
     if (errores[k]) out[k] = errores[k]
