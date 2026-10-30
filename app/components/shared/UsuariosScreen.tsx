@@ -475,20 +475,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
                     {/* Rol */}
                     <Text style={s.inputLabel}>Rol a asignar</Text>
-                    <View style={s.rolSelector}>
-                      {rolesCreables.map(r => (
-                        <TouchableOpacity
-                          key={r.value}
-                          style={[s.rolBtn, hook.rolAsignacion === r.value && s.rolBtnActivo]}
-                          onPress={() => hook.setRolAsignacion(r.value)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[s.rolBtnTexto, hook.rolAsignacion === r.value && s.rolBtnTextoActivo]}>
-                            {r.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <RolSelector
+                      roles={rolesCreables}
+                      seleccionado={hook.rolAsignacion}
+                      onElegir={hook.setRolAsignacion}
+                      etiqueta="Rol a asignar"
+                    />
 
                     {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
                     {rol === 'admin' && hook.rolAsignacion === 'subcomision' && (
@@ -585,20 +577,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
                 {/* Rol */}
                 <Text style={s.inputLabel}>Rol</Text>
-                <View style={s.rolSelector}>
-                  {rolesCreables.map(r => (
-                    <TouchableOpacity
-                      key={r.value}
-                      style={[s.rolBtn, hook.rolSeleccionado === r.value && s.rolBtnActivo]}
-                      onPress={() => hook.setRolSeleccionado(r.value)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.rolBtnTexto, hook.rolSeleccionado === r.value && s.rolBtnTextoActivo]}>
-                        {r.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <RolSelector
+                  roles={rolesCreables}
+                  seleccionado={hook.rolSeleccionado}
+                  onElegir={hook.setRolSeleccionado}
+                  etiqueta="Rol"
+                />
 
                 {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
                 {rol === 'admin' && hook.rolSeleccionado === 'subcomision' && (
@@ -653,6 +637,44 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
+  )
+}
+
+// Selector de rol: hasta 9 opciones para admin. Antes iban todas en una fila
+// (`flex: 1`, ~33 pt cada una, etiquetas ilegibles); ahora bajan de renglón,
+// tres por fila, con 44 pt de alto y semántica de radio para el lector.
+function RolSelector({
+  roles,
+  seleccionado,
+  onElegir,
+  etiqueta,
+}: {
+  roles: { value: RolCreable; label: string }[]
+  seleccionado: RolCreable | null
+  onElegir: (rol: RolCreable) => void
+  etiqueta: string
+}) {
+  return (
+    <View style={s.rolSelector} accessibilityRole="radiogroup" accessibilityLabel={etiqueta}>
+      {roles.map(r => {
+        const activo = seleccionado === r.value
+        return (
+          <TouchableOpacity
+            key={r.value}
+            style={[s.rolBtn, activo && s.rolBtnActivo]}
+            onPress={() => onElegir(r.value)}
+            activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: activo }}
+            accessibilityLabel={r.label}
+          >
+            <Text style={[s.rolBtnTexto, activo && s.rolBtnTextoActivo]} numberOfLines={1}>
+              {r.label}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
   )
 }
 
@@ -796,8 +818,8 @@ const s = StyleSheet.create({
   input:      { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.borde, padding: 12, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.texto },
 
   // Selector de rol
-  rolSelector: { flexDirection: 'row', gap: 8 },
-  rolBtn:      { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
+  rolSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rolBtn:      { flexBasis: '30%', flexGrow: 1, minHeight: 44, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center', justifyContent: 'center' },
   rolBtnActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   rolBtnTexto:  { fontFamily: fonts.label, fontSize: 14, fontWeight: '600', color: MUTED },
   rolBtnTextoActivo: { color: colors.sobreOro },
