@@ -53,18 +53,16 @@ async function hmacHex(claveHmac: string, texto: string): Promise<string> {
 }
 
 // IP del cliente, o null si no se puede saber. `header` = req.headers.get.
-// - cf-connecting-ip: Supabase está detrás de Cloudflare, que pone ahí la IP
-//   desde la que le abrieron la conexión y pisa cualquier valor que mande el
-//   cliente (el gateway de Supabase lo registra en sus logs).
-// - Si no viene, la ÚLTIMA entrada de x-forwarded-for: cada proxy agrega la
-//   IP que lo llamó al final, así que la última la puso la plataforma. La
-//   primera (la que usan los ejemplos de Supabase) la escribe el cliente:
-//   cambiándola en cada pedido esquivaba el límite por IP.
+// Sólo cf-connecting-ip: Supabase está detrás de Cloudflare, que pone ahí la
+// IP desde la que le abrieron la conexión y pisa cualquier valor que mande el
+// cliente. x-forwarded-for no sirve: la primera entrada (la de los ejemplos de
+// Supabase) la escribe el cliente, y la última puede ser un proxy interno igual
+// para todos (un único cupo para el club entero). Sin IP confiable no hay
+// límite por IP; los límites por DNI/mail siguen. Verificar en los logs del
+// primer deploy que cf-connecting-ip llega a la función.
 export function ipCliente(header: (nombre: string) => string | null): string | null {
   const cf = (header('cf-connecting-ip') ?? '').trim()
-  if (cf) return cf
-  const ultima = (header('x-forwarded-for') ?? '').split(',').pop()?.trim()
-  return ultima || null
+  return cf || null
 }
 
 function clave(prefijo: string, limite: Limite, hash: string): ClaveRecupero {

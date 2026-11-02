@@ -29,26 +29,23 @@ const headers = (h: Record<string, string>) => (nombre: string) => h[nombre] ?? 
 // tsx compila a CJS: sin await de primer nivel.
 async function main() {
 
-await caso('IP del cliente: cf-connecting-ip (lo pone Cloudflare); si no viene, la última entrada de x-forwarded-for (auth review)', () => {
+await caso('IP del cliente: sólo cf-connecting-ip (lo pone Cloudflare); x-forwarded-for no se usa (auth review)', () => {
   assert.equal(ipCliente(headers({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '1.1.1.1, 203.0.113.7' })), '203.0.113.7')
-  assert.equal(ipCliente(headers({ 'x-forwarded-for': '10.0.0.1, 10.0.0.2, 203.0.113.7' })), '203.0.113.7')
-  assert.equal(ipCliente(headers({ 'x-forwarded-for': '  203.0.113.7  ' })), '203.0.113.7')
-  assert.equal(ipCliente(headers({ 'x-forwarded-for': '2001:db8::1' })), '2001:db8::1')
-  assert.equal(ipCliente(headers({ 'cf-connecting-ip': '  ', 'x-forwarded-for': '203.0.113.7' })), '203.0.113.7')
-  assert.equal(ipCliente(headers({ 'x-forwarded-for': '' })), null)
-  assert.equal(ipCliente(headers({ 'x-forwarded-for': '10.0.0.1, ' })), null)
+  assert.equal(ipCliente(headers({ 'cf-connecting-ip': '  2001:db8::1  ' })), '2001:db8::1')
+  // Sin el header confiable no hay IP: la primera entrada de x-forwarded-for la
+  // escribe el cliente y la última puede ser un proxy interno compartido por
+  // todos (un único cupo para el club entero). Quedan los límites por DNI/mail.
+  assert.equal(ipCliente(headers({ 'x-forwarded-for': '10.0.0.1, 10.0.0.2, 203.0.113.7' })), null)
+  assert.equal(ipCliente(headers({ 'cf-connecting-ip': '  ', 'x-forwarded-for': '203.0.113.7' })), null)
   assert.equal(ipCliente(headers({})), null)
 })
 
-await caso('un valor que el cliente antepone en x-forwarded-for no cambia la clave (auth review)', async () => {
-  const real = await clavesRecupero({ tipo: 'dni', dni: '1' }, ipCliente(headers({ 'x-forwarded-for': '203.0.113.7' })), CLAVE)
+await caso('lo que el cliente pone en x-forwarded-for no cambia la clave (auth review)', async () => {
+  const real = await clavesRecupero({ tipo: 'dni', dni: '1' }, ipCliente(headers({ 'cf-connecting-ip': '203.0.113.7' })), CLAVE)
   for (const falso of ['198.51.100.1', '198.51.100.1, 198.51.100.2', 'basura']) {
-    const ip = ipCliente(headers({ 'x-forwarded-for': `${falso}, 203.0.113.7` }))
+    const ip = ipCliente(headers({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': `${falso}, 203.0.113.7` }))
     assert.deepEqual(await clavesRecupero({ tipo: 'dni', dni: '1' }, ip, CLAVE), real, falso)
   }
-  // Con cf-connecting-ip, x-forwarded-for ni se mira.
-  const conCf = ipCliente(headers({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.1' }))
-  assert.deepEqual(await clavesRecupero({ tipo: 'dni', dni: '1' }, conCf, CLAVE), real)
 })
 
 await caso('límites: 1 por identificador cada 60 s, 3 por identificador por hora, 20 por IP por hora', () => {
