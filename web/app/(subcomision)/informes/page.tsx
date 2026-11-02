@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { informeAsistencia, fechaLocal, type EventoInforme } from '@/lib/informesAsistencia'
 
 type Tab = 'asistencia' | 'resultados' | 'fichajes' | 'financiero'
 
 interface Division { id: string; nombre: string; categoria: string }
 interface Jugador { id: string; nombre_completo: string; division_id: string }
-interface Evento { id: string; tipo: string; division_id: string; fecha: string; rival?: string }
+type Evento = EventoInforme
 interface AsistenciaDB { evento_id: string; jugador_id: string; estado: string }
 interface ResultadoDB { evento_id: string; puntos_propios: number; puntos_rival: number; eventos: { rival: string; division_id: string; fecha: string } }
 interface FichajeDB { id: string; jugador_id: string; fecha_fichaje: string; jugadores: { nombre_completo: string; division_id: string } }
@@ -43,7 +44,7 @@ export default function InformesPage() {
         supabase.from('divisiones').select('id, nombre, categoria').eq('activa', true).order('nombre'),
         supabase.from('jugadores').select('id, nombre_completo, division_id').eq('activo', true),
         // Only used for attendance: activities take none, so they stay out of % and the 4-absences check.
-        supabase.from('eventos').select('id, tipo, division_id, fecha, rival').eq('cancelado', false).neq('tipo', 'actividad'),
+        supabase.from('eventos').select('id, tipo, division_id, fecha, hora, created_at').eq('cancelado', false).neq('tipo', 'actividad'),
         supabase.from('asistencias').select('evento_id, jugador_id, estado'),
         supabase.from('resultados').select('evento_id, puntos_propios, puntos_rival, eventos(rival, division_id, fecha)'),
         supabase.from('fichajes').select('id, jugador_id, fecha_fichaje, jugadores(nombre_completo, division_id)').order('fecha_fichaje', { ascending: false }),
@@ -66,29 +67,18 @@ export default function InformesPage() {
     [jugadores, divFiltro]
   )
 
-  const eventosFiltrados = useMemo(() =>
-    divFiltro === 'all' ? eventos : eventos.filter(e => e.division_id === divFiltro),
-    [eventos, divFiltro]
+  // Cada jugador se mide contra los eventos de su propia división (lib/informesAsistencia.ts).
+  const asistenciaPorJugador = useMemo(
+    () => informeAsistencia(jugadores, eventos, asistencias, fechaLocal()),
+    [jugadores, eventos, asistencias]
   )
 
-  const asistenciaRows = useMemo(() => {
-    const evIds = new Set(eventosFiltrados.map(e => e.id))
-    return jugadoresFiltrados.map(j => {
-      const propios = asistencias.filter(a => a.jugador_id === j.id && evIds.has(a.evento_id))
-      const total = propios.length
-      const presentes = propios.filter(a => a.estado === 'presente').length
-      const pct = total > 0 ? Math.round((presentes / total) * 100) : null
-
-      // 4 consecutive absences
-      const sorted = eventosFiltrados.slice().sort((a, b) => b.fecha.localeCompare(a.fecha))
-      const last4 = sorted.slice(0, 4)
-      const cuatroConsec = last4.length === 4 && last4.every(ev => {
-        const a = asistencias.find(a => a.evento_id === ev.id && a.jugador_id === j.id)
-        return a?.estado === 'ausente'
-      })
-      return { jugador: j, total, presentes, pct, cuatroConsec }
-    }).sort((a, b) => a.jugador.nombre_completo.localeCompare(b.jugador.nombre_completo))
-  }, [jugadoresFiltrados, eventosFiltrados, asistencias])
+  const asistenciaRows = useMemo(() =>
+    jugadoresFiltrados
+      .map(j => ({ jugador: j, ...(asistenciaPorJugador.get(j.id) ?? { presentes: 0, total: 0, pct: null, cuatroConsec: false }) }))
+      .sort((a, b) => a.jugador.nombre_completo.localeCompare(b.jugador.nombre_completo)),
+    [jugadoresFiltrados, asistenciaPorJugador]
+  )
 
   const resultadoRows = useMemo(() => {
     const divIds = divFiltro === 'all'
