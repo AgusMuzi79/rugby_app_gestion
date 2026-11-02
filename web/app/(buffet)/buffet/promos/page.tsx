@@ -214,14 +214,16 @@ export default function BuffetPromosPage() {
                   </button>
                 </div>
               ) : (
-                <label className="flex items-center justify-center border border-dashed border-gris-claro py-6 cursor-pointer hover:border-tinta/40 transition-colors">
+                // sr-only en vez de hidden: el input sigue alcanzable con Tab, y
+                // el foco se ve en la etiqueta que hace de botón.
+                <label className="flex items-center justify-center border border-dashed border-gris-claro py-6 cursor-pointer hover:border-tinta/40 transition-colors focus-within:outline-2 focus-within:outline-oro focus-within:outline-offset-2">
                   <span className="font-lora text-xs tracking-widest text-oro">+ AGREGAR FOTO</span>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     onChange={handleElegirImagen}
-                    className="hidden"
+                    className="sr-only"
                   />
                 </label>
               )}
