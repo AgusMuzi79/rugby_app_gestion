@@ -19,6 +19,10 @@ interface Noticia {
   created_at:  string
   imagen_path: string | null
   imagenUrl:   string | null
+  autor_id:    string
+  autor:       string
+  publicada:   boolean
+  audiencia:   string
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -44,13 +48,20 @@ export default function SubcomisionNoticiasPage() {
   const [formError, setFormError]     = useState('')
   const [aviso, setAviso]             = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Por defecto sólo las noticias propias; "VER TODAS" muestra las del club
+  // (Secretaría, Buffet, otras disciplinas) sin poder borrarlas.
+  const [uid, setUid]             = useState<string | null>(null)
+  const [verTodas, setVerTodas]   = useState(false)
 
-  const fetchNoticias = useCallback(async () => {
-    const { data, error } = await supabase
+  const fetchNoticias = useCallback(async (autorId: string | null, todas: boolean) => {
+    if (!todas && !autorId) { setListError('Sesión expirada.'); setLoading(false); return }
+    let query = supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path')
+      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, autor_id, publicada, audiencia, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
       .limit(LIMITE)
+    if (!todas && autorId) query = query.eq('autor_id', autorId)
+    const { data, error } = await query
 
     if (error) {
       setListError(error.message)
@@ -69,6 +80,10 @@ export default function SubcomisionNoticiasPage() {
       imagenUrl:   n.imagen_path
         ? supabase.storage.from(BUCKET).getPublicUrl(n.imagen_path as string).data.publicUrl
         : null,
+      autor_id:    n.autor_id as string,
+      autor:       (n.profiles as { nombre?: string } | null)?.nombre ?? '—',
+      publicada:   n.publicada !== false,
+      audiencia:   (n.audiencia as string | null) ?? 'todos',
     })))
     setLoading(false)
   }, [])
@@ -77,6 +92,7 @@ export default function SubcomisionNoticiasPage() {
     const cargar = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        setUid(user.id)
         const { data, error } = await supabase
           .from('profiles')
           .select('deporte')
@@ -85,10 +101,19 @@ export default function SubcomisionNoticiasPage() {
         if (error) setListError(error.message)
         else setDeporte((data?.deporte as string | null) ?? null)
       }
-      await fetchNoticias()
+      await fetchNoticias(user?.id ?? null, false)
     }
     void cargar()
   }, [fetchNoticias])
+
+  const alternarVerTodas = () => {
+    const todas = !verTodas
+    setVerTodas(todas)
+    setLoading(true)
+    void fetchNoticias(uid, todas)
+  }
+
+  const publicadas = noticias.filter(n => n.publicada).length
 
   const handleElegirImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -110,7 +135,7 @@ export default function SubcomisionNoticiasPage() {
     if (error) { setAviso(`No se pudo eliminar: ${error.message}`); return }
     if (!data || data.length === 0) {
       setAviso('No se eliminó: no tenés permiso o la noticia ya no existe.')
-      await fetchNoticias()
+      await fetchNoticias(uid, verTodas)
       return
     }
     if (noticia.imagen_path) {
@@ -174,7 +199,7 @@ export default function SubcomisionNoticiasPage() {
     })
     if (pushErr) setAviso('La noticia se publicó, pero no se pudo enviar la notificación a los socios.')
 
-    await fetchNoticias()
+    await fetchNoticias(uid, verTodas)
     setPublicando(false)
     closeModal()
   }
@@ -184,15 +209,35 @@ export default function SubcomisionNoticiasPage() {
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Noticias</h1>
-          <p className="font-lora text-tinta/50 text-sm tracking-wide">{noticias.length} publicadas</p>
+          <p className="font-lora text-tinta/50 text-sm tracking-wide">
+            {publicadas} publicadas{verTodas ? ' en el club' : ' por vos'}
+          </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors"
-        >
-          + NUEVA NOTICIA
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={alternarVerTodas}
+            aria-pressed={verTodas}
+            className={`font-lora text-xs tracking-widest px-5 py-3 border transition-colors ${
+              verTodas ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
+            }`}
+          >
+            VER TODAS
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors"
+          >
+            + NUEVA NOTICIA
+          </button>
+        </div>
       </div>
+
+      {verTodas && (
+        <p className="font-lora text-xs text-texto-2 italic mb-4">
+          Estás viendo todas las noticias del club. Sólo podés eliminar las tuyas.
+        </p>
+      )}
 
       {aviso && <p className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
 
@@ -215,19 +260,29 @@ export default function SubcomisionNoticiasPage() {
                 <img src={n.imagenUrl} alt="" className="w-16 h-16 object-cover shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-lora text-sm text-tinta leading-snug mb-1">{n.titulo}</p>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <p className="font-lora text-sm text-tinta leading-snug">{n.titulo}</p>
+                  {!n.publicada && (
+                    <span className="font-lora text-[11px] tracking-widest text-tinta border border-borde-control px-1.5 py-0.5">BORRADOR</span>
+                  )}
+                  {n.audiencia === 'cuerpo_tecnico' && (
+                    <span className="font-lora text-[11px] tracking-widest text-tinta bg-gris-claro px-1.5 py-0.5">CUERPO TÉCNICO</span>
+                  )}
+                </div>
                 {n.cuerpo && <p className="font-lora text-xs text-tinta/50 mb-1 line-clamp-2">{n.cuerpo}</p>}
                 <p className="font-lora text-xs text-texto-2">
-                  {fechaCorta(n.created_at)}
+                  {fechaCorta(n.created_at)} · {n.autor}
                   {n.etiquetas.length > 0 && ` · ${n.etiquetas.join(', ').toUpperCase()}`}
                 </p>
               </div>
-              <button
-                onClick={() => handleEliminar(n)}
-                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
-              >
-                ELIMINAR
-              </button>
+              {n.autor_id === uid && (
+                <button
+                  onClick={() => handleEliminar(n)}
+                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
+                >
+                  ELIMINAR
+                </button>
+              )}
             </div>
           ))}
         </div>

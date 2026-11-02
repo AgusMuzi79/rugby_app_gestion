@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 
@@ -11,7 +11,14 @@ interface Promo {
   created_at:  string
   imagen_path: string | null
   imagenUrl:   string | null
+  autor_id:    string
+  autor:       string
+  publicada:   boolean
+  audiencia:   string
 }
+
+const BUCKET = 'noticias-imagenes'
+const LIMITE = 100
 
 function fechaCorta(iso: string) {
   return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -20,7 +27,13 @@ function fechaCorta(iso: string) {
 export default function BuffetPromosPage() {
   const [promos, setPromos]   = useState<Promo[]>([])
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState('')
+  const [aviso, setAviso]     = useState('')
   const [showModal, setShowModal] = useState(false)
+  // Por defecto sólo las promos propias; "VER TODAS" muestra todas las
+  // noticias del club sin poder borrarlas (antes un admin veía y borraba todo).
+  const [uid, setUid]           = useState<string | null>(null)
+  const [verTodas, setVerTodas] = useState(false)
 
   // form
   const [titulo, setTitulo]       = useState('')
@@ -31,28 +44,57 @@ export default function BuffetPromosPage() {
   const [formError, setFormError]   = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const fetchPromos = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+  const fetchPromos = useCallback(async (autorId: string | null, todas: boolean) => {
+    if (!todas && !autorId) { setListError('Sesión expirada.'); setLoading(false); return }
+    let query = supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, created_at, imagen_path')
+      .select('id, titulo, cuerpo, created_at, imagen_path, autor_id, publicada, audiencia, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
+      .limit(LIMITE)
+    if (!todas && autorId) query = query.eq('autor_id', autorId)
+    const { data, error } = await query
 
-    const conUrl: Promo[] = (data ?? []).map((n: Record<string, unknown>) => ({
+    if (error) {
+      setListError(error.message)
+      setLoading(false)
+      return
+    }
+
+    setListError('')
+    setPromos((data ?? []).map((n: Record<string, unknown>) => ({
       id:          n.id as string,
       titulo:      n.titulo as string,
       cuerpo:      n.cuerpo as string,
       created_at:  n.created_at as string,
       imagen_path: n.imagen_path as string | null,
       imagenUrl:   n.imagen_path
-        ? supabase.storage.from('noticias-imagenes').getPublicUrl(n.imagen_path as string).data.publicUrl
+        ? supabase.storage.from(BUCKET).getPublicUrl(n.imagen_path as string).data.publicUrl
         : null,
-    }))
-    setPromos(conUrl)
+      autor_id:    n.autor_id as string,
+      autor:       (n.profiles as { nombre?: string } | null)?.nombre ?? '—',
+      publicada:   n.publicada !== false,
+      audiencia:   (n.audiencia as string | null) ?? 'todos',
+    })))
     setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    const cargar = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUid(user?.id ?? null)
+      await fetchPromos(user?.id ?? null, false)
+    }
+    void cargar()
+  }, [fetchPromos])
+
+  const alternarVerTodas = () => {
+    const todas = !verTodas
+    setVerTodas(todas)
+    setLoading(true)
+    void fetchPromos(uid, todas)
   }
 
-  useEffect(() => { fetchPromos() }, [])
+  const publicadas = promos.filter(p => p.publicada).length
 
   const handleElegirImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -68,11 +110,19 @@ export default function BuffetPromosPage() {
   }
 
   const handleEliminar = async (promo: Promo) => {
-    if (!confirm(`¿Eliminar "${promo.titulo}"?`)) return
-    const { error } = await supabase.from('noticias').delete().eq('id', promo.id)
-    if (error) return
+    if (!confirm(`¿Eliminar "${promo.titulo}"? Los socios dejan de verla.`)) return
+    setAviso('')
+    const { data, error } = await supabase.from('noticias').delete().eq('id', promo.id).select('id')
+    if (error) { setAviso(`No se pudo eliminar: ${error.message}`); return }
+    if (!data || data.length === 0) {
+      setAviso('No se eliminó: no tenés permiso o la promoción ya no existe.')
+      await fetchPromos(uid, verTodas)
+      return
+    }
     if (promo.imagen_path) {
-      void supabase.storage.from('noticias-imagenes').remove([promo.imagen_path])
+      // Orphan image cleanup only — the promo is already gone.
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove([promo.imagen_path])
+      if (rmErr) console.warn('promos: image cleanup failed', rmErr.message)
     }
     setPromos(ps => ps.filter(p => p.id !== promo.id))
   }
@@ -80,7 +130,7 @@ export default function BuffetPromosPage() {
   const handlePublicar = async () => {
     if (!titulo.trim()) { setFormError('El título es obligatorio.'); return }
     if (!cuerpo.trim()) { setFormError('El detalle es obligatorio.'); return }
-    setPublicando(true); setFormError('')
+    setPublicando(true); setFormError(''); setAviso('')
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setFormError('Sesión expirada.'); setPublicando(false); return }
@@ -90,7 +140,7 @@ export default function BuffetPromosPage() {
       const ext  = imagenFile.name.split('.').pop() ?? 'jpg'
       const path = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadErr } = await supabase.storage
-        .from('noticias-imagenes')
+        .from(BUCKET)
         .upload(path, imagenFile, { contentType: imagenFile.type })
       if (uploadErr) { setFormError('No se pudo subir la imagen.'); setPublicando(false); return }
       imagenPath = path
@@ -110,14 +160,20 @@ export default function BuffetPromosPage() {
       .select('id')
       .single()
 
-    if (error || !data) { setFormError(error?.message ?? 'No se pudo publicar la promoción.'); setPublicando(false); return }
+    if (error || !data) {
+      setFormError(error?.message ?? 'No se pudo publicar la promoción.')
+      if (imagenPath) await supabase.storage.from(BUCKET).remove([imagenPath])
+      setPublicando(false)
+      return
+    }
 
-    // Push a los socios — fire & forget, un error acá no invalida la publicación.
-    supabase.functions.invoke('notifications', {
+    // La promo ya está publicada; si el push falla se avisa, pero no se deshace.
+    const { error: pushErr } = await supabase.functions.invoke('notifications', {
       body: { type: 'noticia_publicada', payload: { titulo: titulo.trim(), noticiaId: data.id, audiencia: 'todos' } },
-    }).catch(() => {})
+    })
+    if (pushErr) setAviso('La promoción se publicó, pero no se pudo enviar la notificación a los socios.')
 
-    await fetchPromos()
+    await fetchPromos(uid, verTodas)
     setPublicando(false)
     closeModal()
   }
@@ -133,18 +189,44 @@ export default function BuffetPromosPage() {
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Promociones</h1>
-          <p className="font-lora text-tinta/50 text-sm tracking-wide">{promos.length} publicadas</p>
+          <p className="font-lora text-tinta/50 text-sm tracking-wide">
+            {publicadas} publicadas{verTodas ? ' en el club' : ' por vos'}
+          </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors"
-        >
-          + NUEVA PROMO
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={alternarVerTodas}
+            aria-pressed={verTodas}
+            className={`font-lora text-xs tracking-widest px-5 py-3 border transition-colors ${
+              verTodas ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
+            }`}
+          >
+            VER TODAS
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="font-lora text-xs tracking-widest px-5 py-3 bg-oro text-papel hover:bg-oro/90 transition-colors"
+          >
+            + NUEVA PROMO
+          </button>
+        </div>
       </div>
+
+      {verTodas && (
+        <p className="font-lora text-xs text-texto-2 italic mb-4">
+          Estás viendo todas las noticias del club. Sólo podés eliminar las tuyas.
+        </p>
+      )}
+
+      {aviso && <p className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
+      ) : listError ? (
+        <div className="border border-gris-claro p-8 text-center">
+          <p className="font-lora text-rojo-texto text-sm">No se pudieron cargar las promociones: {listError}</p>
+        </div>
       ) : promos.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
           <p className="font-lora text-texto-2 text-sm tracking-widest">SIN PROMOCIONES TODAVÍA</p>
@@ -158,16 +240,26 @@ export default function BuffetPromosPage() {
                 <img src={p.imagenUrl} alt="" className="w-16 h-16 object-cover shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-lora text-sm text-tinta leading-snug mb-1">{p.titulo}</p>
-                <p className="font-lora text-xs text-tinta/50 mb-1 line-clamp-2">{p.cuerpo}</p>
-                <p className="font-lora text-xs text-texto-2">{fechaCorta(p.created_at)}</p>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <p className="font-lora text-sm text-tinta leading-snug">{p.titulo}</p>
+                  {!p.publicada && (
+                    <span className="font-lora text-[11px] tracking-widest text-tinta border border-borde-control px-1.5 py-0.5">BORRADOR</span>
+                  )}
+                  {p.audiencia === 'cuerpo_tecnico' && (
+                    <span className="font-lora text-[11px] tracking-widest text-tinta bg-gris-claro px-1.5 py-0.5">CUERPO TÉCNICO</span>
+                  )}
+                </div>
+                {p.cuerpo && <p className="font-lora text-xs text-tinta/50 mb-1 line-clamp-2">{p.cuerpo}</p>}
+                <p className="font-lora text-xs text-texto-2">{fechaCorta(p.created_at)} · {p.autor}</p>
               </div>
-              <button
-                onClick={() => handleEliminar(p)}
-                className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
-              >
-                ELIMINAR
-              </button>
+              {p.autor_id === uid && (
+                <button
+                  onClick={() => handleEliminar(p)}
+                  className="font-lora text-xs tracking-widest px-3 py-1.5 border border-gris-claro text-rojo-texto hover:border-rojo hover:text-rojo-texto transition-colors shrink-0"
+                >
+                  ELIMINAR
+                </button>
+              )}
             </div>
           ))}
         </div>
