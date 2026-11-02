@@ -117,11 +117,13 @@ export default function UsuariosPage() {
 
   // Se lista por roles[] (no por el rol activo): un staff que está en
   // "vista socio" (rol = 'socio') sigue apareciendo. Las cuentas admin no.
+  // También por rol, por si quedó un perfil viejo con roles[] sin el rol activo.
   const fetchData = useCallback(async (admin: boolean) => {
     setErrorCarga(null)
+    const staff = (admin ? ROLES_ADMIN : ROLES_SUBCO).join(',')
     const [profsRes, divsRes] = await Promise.all([
       supabase.from('profiles').select('id, nombre, rol, roles, divisiones, deporte, activo')
-        .overlaps('roles', admin ? ROLES_ADMIN : ROLES_SUBCO)
+        .or(`roles.ov.{${staff}},rol.in.(${staff})`)
         .not('roles', 'cs', '{admin}')
         .order('nombre'),
       supabase.from('divisiones').select('id, nombre, deporte').order('nombre'),

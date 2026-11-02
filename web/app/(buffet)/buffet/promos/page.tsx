@@ -44,8 +44,12 @@ export default function BuffetPromosPage() {
   const [publicando, setPublicando] = useState(false)
   const [formError, setFormError]   = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Número del último pedido: si se alterna VER TODAS rápido, una respuesta
+  // vieja que llega tarde se descarta en vez de pisar la lista nueva.
+  const pedidoRef = useRef(0)
 
   const fetchPromos = useCallback(async (autorId: string | null, todas: boolean) => {
+    const pedido = ++pedidoRef.current
     if (!todas && !autorId) { setListError('Sesión expirada.'); setLoading(false); return }
     let query = supabase
       .from('noticias')
@@ -54,6 +58,7 @@ export default function BuffetPromosPage() {
       .limit(LIMITE)
     if (!todas && autorId) query = query.eq('autor_id', autorId)
     const { data, error } = await query
+    if (pedido !== pedidoRef.current) return
 
     if (error) {
       setListError(error.message)
@@ -196,7 +201,7 @@ export default function BuffetPromosPage() {
         <div>
           <h1 className="font-playfair italic text-4xl text-tinta mb-1">Promociones</h1>
           <p className="font-lora text-tinta/50 text-sm tracking-wide">
-            {publicadas} publicadas{verTodas ? ' en el club' : ' por vos'}
+            {publicadas}{promos.length >= LIMITE ? '+' : ''} publicadas{verTodas ? ' en el club' : ' por vos'}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
