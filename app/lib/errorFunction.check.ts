@@ -85,9 +85,15 @@ async function main() {
       }),
       { motivo: 'servidor', status: 400, codigo: 'mail_invalido' },
     )
-    // Sin código, el texto solo no alcanza.
+    // Una login-dni deployada antes del código manda sólo el texto: mientras
+    // conviven versiones, el texto exacto también cuenta (auth review).
     assert.deepEqual(
       fallaRecupero({ tardo: false, error: httpError(400, {}), data: null, cuerpo: { error: 'Revisá el mail.' } }),
+      { motivo: 'servidor', status: 400, codigo: 'mail_invalido' },
+    )
+    // Otro texto sin código no.
+    assert.deepEqual(
+      fallaRecupero({ tardo: false, error: httpError(400, {}), data: null, cuerpo: { error: 'Faltan datos' } }),
       { motivo: 'servidor', status: 400, codigo: undefined },
     )
     assert.deepEqual(

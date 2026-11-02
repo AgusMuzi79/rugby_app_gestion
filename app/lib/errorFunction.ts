@@ -144,7 +144,11 @@ export function fallaRecupero(r: {
   if (r.tardo) return { motivo: 'tardo' }
   if (r.error) {
     if (comoError(r.error)?.name === 'FunctionsFetchError') return { motivo: 'sin_red' }
-    const codigo = typeof r.cuerpo?.codigo === 'string' ? r.cuerpo.codigo : undefined
+    // El código estable manda; el texto exacto sólo cubre una login-dni
+    // deployada antes del código (mientras conviven versiones).
+    const codigo = typeof r.cuerpo?.codigo === 'string'
+      ? r.cuerpo.codigo
+      : r.cuerpo?.error === 'Revisá el mail.' ? 'mail_invalido' : undefined
     return { motivo: 'servidor', status: statusErrorFunction(r.error), codigo }
   }
   if (!esRegistro(r.data) || r.data.ok !== true) return { motivo: 'respuesta_invalida' }
