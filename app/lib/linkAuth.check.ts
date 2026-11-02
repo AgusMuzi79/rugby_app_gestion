@@ -2,7 +2,10 @@
 //   npx --yes tsx app/lib/linkAuth.check.ts
 
 import assert from 'node:assert/strict'
-import { AVISO_LINK_SIN_RED, AVISO_LINK_VENCIDO, avisoFallaLink, parsearLinkAuth, textoAvisoLink } from './linkAuth'
+import {
+  AVISO_LINK_SIN_RED, AVISO_LINK_VENCIDO, ESPERA_LINK_MS,
+  accionLinkTardio, avisoFallaLink, conTiempoMaximo, parsearLinkAuth, textoAvisoLink,
+} from './linkAuth'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -99,4 +102,68 @@ caso('el aviso nunca muestra texto de afuera: códigos desconocidos se ignoran (
   assert.equal(textoAvisoLink('__proto__'), null)
 })
 
-console.log(`\n${casos} casos ok`)
+caso('la sesión del link se espera 15 s como máximo (auth review)', () => {
+  assert.equal(ESPERA_LINK_MS, 15_000)
+})
+
+caso('una sesión que llega después del tiempo máximo se cierra; si ya hay otro link en curso, o falló, se ignora', () => {
+  assert.equal(accionLinkTardio(true, true), 'cerrar_sesion_local')
+  assert.equal(accionLinkTardio(true, false), 'ignorar')
+  assert.equal(accionLinkTardio(false, true), 'ignorar')
+  assert.equal(accionLinkTardio(false, false), 'ignorar')
+})
+
+// Promesa que se resuelve (o rechaza) a mano.
+function diferida<T>() {
+  let resolver!: (v: T) => void
+  let rechazar!: (e: unknown) => void
+  const promesa = new Promise<T>((res, rej) => { resolver = res; rechazar = rej })
+  return { promesa, resolver, rechazar }
+}
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function asincronos() {
+  async function casoAsync(nombre: string, fn: () => Promise<void>) {
+    await fn()
+    casos++
+    console.log(`ok   - ${nombre}`)
+  }
+
+  await casoAsync('a tiempo: devuelve el resultado y no llama al aviso tardío', async () => {
+    const tarde: unknown[] = []
+    const r = await conTiempoMaximo(Promise.resolve({ error: null }), 50, (t) => { tarde.push(t) })
+    assert.deepEqual(r, { tipo: 'a_tiempo', valor: { error: null } })
+    await esperar(80)
+    assert.deepEqual(tarde, [])
+  })
+
+  await casoAsync('si rechaza a tiempo, el rechazo sigue de largo (lo maneja el catch de siempre)', async () => {
+    await assert.rejects(conTiempoMaximo(Promise.reject(new Error('red')), 50, () => {}), /red/)
+  })
+
+  await casoAsync('vencido: devuelve "vencido" sin esperar más, y el resultado tardío llega al aviso', async () => {
+    const d = diferida<{ error: null }>()
+    const tarde: unknown[] = []
+    const r = await conTiempoMaximo(d.promesa, 20, (t) => { tarde.push(t) })
+    assert.deepEqual(r, { tipo: 'vencido' })
+    assert.deepEqual(tarde, [])
+    d.resolver({ error: null })
+    await esperar(0)
+    assert.deepEqual(tarde, [{ valor: { error: null } }])
+  })
+
+  await casoAsync('vencido y después rechaza: el rechazo llega al aviso, no queda suelto', async () => {
+    const d = diferida<{ error: null }>()
+    const tarde: unknown[] = []
+    const r = await conTiempoMaximo(d.promesa, 20, (t) => { tarde.push(t) })
+    assert.deepEqual(r, { tipo: 'vencido' })
+    const e = new Error('red')
+    d.rechazar(e)
+    await esperar(0)
+    assert.deepEqual(tarde, [{ error: e }])
+  })
+}
+
+asincronos()
+  .then(() => console.log(`\n${casos} casos ok`))
+  .catch((e) => { console.error(e); process.exit(1) })

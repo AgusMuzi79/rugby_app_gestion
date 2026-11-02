@@ -21,7 +21,9 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
-import { avisoFallaLink, parsearLinkAuth, type AvisoLink } from '@/lib/linkAuth'
+import {
+  ESPERA_LINK_MS, accionLinkTardio, avisoFallaLink, conTiempoMaximo, parsearLinkAuth, type AvisoLink,
+} from '@/lib/linkAuth'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
@@ -157,6 +159,10 @@ export default function RootLayout() {
   // competiría con el guard): se deja el código en el store y el guard lleva
   // a forgot-password a quien no tiene sesión. Con sesión no se la saca.
   useEffect(() => {
+    // Número del último link en curso: una sesión tardía de un link anterior
+    // no cierra la de uno más nuevo.
+    let ultimoLink = 0
+
     function avisarFalla(aviso: AvisoLink) {
       setPasswordRecovery(false)
       setNuevoUsuario(false)
@@ -172,11 +178,27 @@ export default function RootLayout() {
         avisarFalla('vencido')
         return
       }
+      const intento = ++ultimoLink
       setProcesandoLink(true)
       try {
-        const { error } = link.tipo === 'codigo'
-          ? await supabase.auth.exchangeCodeForSession(link.code)
-          : await supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+        const abrir = link.tipo === 'codigo'
+          ? supabase.auth.exchangeCodeForSession(link.code)
+          : supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+        // Con tope (lib/linkAuth.ts): una red colgada no deja el guard frenado.
+        // Si la sesión abre después del tope, se cierra en este teléfono.
+        const carrera = await conTiempoMaximo(abrir, ESPERA_LINK_MS, (tarde) => {
+          const abrio = 'valor' in tarde && !tarde.valor.error
+          if (accionLinkTardio(abrio, intento === ultimoLink) !== 'cerrar_sesion_local') return
+          console.warn('link de auth: la sesión abrió después del tope, se cierra')
+          supabase.auth.signOut({ scope: 'local' }).catch(e => console.warn('link de auth: signOut tardío', e))
+        })
+        if (carrera.tipo === 'vencido') {
+          console.warn(`link de auth: no abrió en ${ESPERA_LINK_MS / 1000} s`)
+          // Si ya se abrió otro link, el estado (y el guard) es de ese.
+          if (intento === ultimoLink) avisarFalla('sin_red')
+          return
+        }
+        const { error } = carrera.valor
         if (error) {
           avisarFalla(avisoFallaLink(esErrorDeRed(error)))
           return

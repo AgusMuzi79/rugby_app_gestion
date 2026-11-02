@@ -66,3 +66,51 @@ export function parsearLinkAuth(url: string): LinkAuth {
 export function avisoFallaLink(sinRed: boolean): AvisoLink {
   return sinRed ? 'sin_red' : 'vencido'
 }
+
+// Espera máxima para abrir la sesión de un link (exchangeCodeForSession /
+// setSession). Mientras se abre, `procesandoLink` frena el guard raíz: sin un
+// tope, una red colgada dejaba la app frenada en la splash o en la pantalla
+// anterior para siempre. Vencido, se avisa como "sin red".
+export const ESPERA_LINK_MS = 15_000
+
+export type CarreraLink<T> = { tipo: 'a_tiempo'; valor: T } | { tipo: 'vencido' }
+export type LlegadaTardia<T> = { valor: T } | { error: unknown }
+
+// Espera `promesa` como máximo `ms`. Si vence, devuelve 'vencido' enseguida y
+// lo que la promesa dé después (valor o rechazo) va a `alLlegarTarde`, que
+// decide qué hacer con eso; ningún rechazo queda suelto. Un rechazo antes del
+// tope sigue de largo, como sin tope.
+export function conTiempoMaximo<T>(
+  promesa: Promise<T>,
+  ms: number,
+  alLlegarTarde: (llegada: LlegadaTardia<T>) => void,
+): Promise<CarreraLink<T>> {
+  return new Promise((resolve, reject) => {
+    let vencido = false
+    const timer = setTimeout(() => {
+      vencido = true
+      resolve({ tipo: 'vencido' })
+    }, ms)
+    promesa.then(
+      (valor) => {
+        if (vencido) alLlegarTarde({ valor })
+        else { clearTimeout(timer); resolve({ tipo: 'a_tiempo', valor }) }
+      },
+      (error) => {
+        if (vencido) alLlegarTarde({ error })
+        else { clearTimeout(timer); reject(error) }
+      },
+    )
+  })
+}
+
+// Qué hacer con una sesión de link que abrió después del tope. Ya se avisó la
+// falla y se soltó el guard sin marcar recovery / usuario nuevo: si la sesión
+// quedara, el guard la llevaría adentro de la app sin pasar por
+// reset-password (o registro). Lo seguro es cerrarla (sólo en este teléfono):
+// la persona vuelve a tocar el link o pide otro. Si mientras tanto se abrió
+// otro link (`vigente` = false), no se toca: esa sesión es del nuevo. Una
+// llegada tardía que falló no dejó sesión: se ignora.
+export function accionLinkTardio(abrioSesion: boolean, vigente: boolean): 'cerrar_sesion_local' | 'ignorar' {
+  return abrioSesion && vigente ? 'cerrar_sesion_local' : 'ignorar'
+}
