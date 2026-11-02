@@ -92,7 +92,8 @@ export default function DivisionesPage() {
     setErrorCarga(false)
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
-      const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
+      // maybeSingle: sin perfil no es un error de red, queda en sólo lectura.
+      const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).maybeSingle()
       if (error) {
         setErrorCarga(true)
         setLoading(false)
