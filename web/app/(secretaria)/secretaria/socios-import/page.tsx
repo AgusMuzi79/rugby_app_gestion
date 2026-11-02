@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { callEdgeFunction, TIMEOUT_IMPORT_MS } from '@/lib/edgeFunction'
 import ListaColapsable from '@/components/ListaColapsable'
-import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import ErrorCarga from '@/components/ErrorCarga'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
 import SeccionServicios from './seccion-servicios'
 

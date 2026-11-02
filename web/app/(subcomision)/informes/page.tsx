@@ -1,7 +1,10 @@
 ﻿'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { supabase, selectAllRows } from '@/lib/supabase'
+import { mensajeErrorCarga } from '@/lib/errorCarga'
+import { pctCobrado, resumenDe, resumenesPorEvento, type ResumenCobranza } from '@/lib/resumenCobranzas'
+import ErrorCarga from '@/components/ErrorCarga'
 import { informeAsistencia, fechaLocal, type EventoInforme } from '@/lib/informesAsistencia'
 
 type Tab = 'asistencia' | 'resultados' | 'fichajes' | 'financiero'
@@ -29,38 +32,59 @@ export default function InformesPage() {
   const [resultados, setResultados] = useState<ResultadoDB[]>([])
   const [fichajes, setFichajes] = useState<FichajeDB[]>([])
   const [eventosFinancieros, setEventosFinancieros] = useState<EventoFinanciero[]>([])
+  const [resumenesCobranza, setResumenesCobranza] = useState<Map<string, ResumenCobranza>>(new Map())
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      const [
-        { data: divs },
-        { data: jugs },
-        { data: evts },
-        { data: asis },
-        { data: ress },
-        { data: fichs },
-        { data: evsf },
-      ] = await Promise.all([
+  // Todas las lecturas paginadas (selectAllRows): PostgREST corta en 1000 filas
+  // y asistencias las supera. Si algo falla se muestra el error con REINTENTAR,
+  // nunca "sin datos". Pendiente (backend): RPC informe_asistencia() que
+  // devuelva los totales por jugador en vez de leer todas las filas.
+  const fetchAll = useCallback(async () => {
+    setLoading(true)
+    setErrorCarga(null)
+    try {
+      const [divsRes, jugs, evts, asis, ress, fichs, evsf] = await Promise.all([
         supabase.from('divisiones').select('id, nombre, categoria').eq('activa', true).order('nombre'),
-        supabase.from('jugadores').select('id, nombre_completo, division_id').eq('activo', true),
+        selectAllRows<Jugador>((from, to) =>
+          supabase.from('jugadores').select('id, nombre_completo, division_id').eq('activo', true).order('id').range(from, to)),
         // Only used for attendance: activities take none, so they stay out of % and the 4-absences check.
-        supabase.from('eventos').select('id, tipo, division_id, fecha, hora, created_at').eq('cancelado', false).neq('tipo', 'actividad'),
-        supabase.from('asistencias').select('evento_id, jugador_id, estado'),
-        supabase.from('resultados').select('evento_id, puntos_propios, puntos_rival, eventos(rival, division_id, fecha)'),
-        supabase.from('fichajes').select('id, jugador_id, fecha_fichaje, jugadores(nombre_completo, division_id)').order('fecha_fichaje', { ascending: false }),
-        supabase.from('eventos_financieros').select('id, nombre, tipo, division_id, estado, cobranzas(estado, monto, forma_de_pago), eventos_financieros_divisiones(division_id, divisiones(nombre))').eq('estado', 'activo'),
+        selectAllRows<Evento>((from, to) =>
+          supabase.from('eventos').select('id, tipo, division_id, fecha, hora, created_at').eq('cancelado', false).neq('tipo', 'actividad').order('id').range(from, to)),
+        selectAllRows<AsistenciaDB>((from, to) =>
+          supabase.from('asistencias').select('evento_id, jugador_id, estado').order('id').range(from, to)),
+        selectAllRows<ResultadoDB>((from, to) =>
+          supabase.from('resultados').select('evento_id, puntos_propios, puntos_rival, eventos(rival, division_id, fecha)').order('id').range(from, to) as unknown as PromiseLike<{ data: ResultadoDB[] | null; error: unknown }>),
+        selectAllRows<FichajeDB>((from, to) =>
+          supabase.from('fichajes').select('id, jugador_id, fecha_fichaje, jugadores(nombre_completo, division_id)').order('fecha_fichaje', { ascending: false }).order('id').range(from, to) as unknown as PromiseLike<{ data: FichajeDB[] | null; error: unknown }>),
+        selectAllRows<EventoFinanciero>((from, to) =>
+          supabase.from('eventos_financieros').select('id, nombre, tipo, division_id, estado, cobranzas(estado, monto, forma_de_pago), eventos_financieros_divisiones(division_id, divisiones(nombre))').eq('estado', 'activo').order('id').range(from, to) as unknown as PromiseLike<{ data: EventoFinanciero[] | null; error: unknown }>),
       ])
-      setDivisiones(divs ?? [])
-      setJugadores(jugs ?? [])
-      setEventos(evts ?? [])
-      setAsistencias(asis ?? [])
-      setResultados((ress ?? []) as unknown as ResultadoDB[])
-      setFichajes((fichs ?? []) as unknown as FichajeDB[])
-      setEventosFinancieros((evsf ?? []) as unknown as EventoFinanciero[])
-      setLoading(false)
+      if (divsRes.error) throw divsRes.error
+
+      // "% cobrado" sobre los jugadores del evento (RPC resumen_cobranzas_eventos,
+      // la misma fuente que la app), no sobre las filas de cobranzas.
+      let resumenes = new Map<string, ResumenCobranza>()
+      if (evsf.length > 0) {
+        const { data, error } = await supabase.rpc('resumen_cobranzas_eventos', { p_ids: evsf.map(e => e.id) })
+        if (error) throw error
+        resumenes = resumenesPorEvento(data)
+      }
+
+      setDivisiones(divsRes.data ?? [])
+      setJugadores(jugs)
+      setEventos(evts)
+      setAsistencias(asis)
+      setResultados(ress)
+      setFichajes(fichs)
+      setEventosFinancieros(evsf)
+      setResumenesCobranza(resumenes)
+    } catch (err) {
+      setErrorCarga(mensajeErrorCarga('los informes', err))
     }
-    fetchAll()
+    setLoading(false)
   }, [])
+
+  useEffect(() => { void fetchAll() }, [fetchAll])
 
   const jugadoresFiltrados = useMemo(() =>
     divFiltro === 'all' ? jugadores : jugadores.filter(j => j.division_id === divFiltro),
@@ -124,18 +148,21 @@ export default function InformesPage() {
       .filter(({ divs }) => divFiltro === 'all' || divs.length === 0 || divs.some(d => d.id === divFiltro))
       .map(({ e, divs }) => {
         const cobs = e.cobranzas ?? []
-        const total = cobs.length
-        const pagados = cobs.filter(c => c.estado === 'pagado').length
-        const montoCobrado = cobs.filter(c => c.estado === 'pagado').reduce((s, c) => s + (c.monto ?? 0), 0)
+        const resumen = resumenDe(resumenesCobranza, e.id)
+        const total = resumen.jugadores
+        const pagados = resumen.pagados
+        const montoCobrado = resumen.cobrado
+        const pct = pctCobrado(resumen)
+        // Formas de pago: conteo de las filas pagadas que ve la subcomisión.
         const formas: Record<string, number> = {}
         cobs.filter(c => c.estado === 'pagado').forEach(c => {
           const k = c.forma_de_pago ?? 'otro'
           formas[k] = (formas[k] ?? 0) + 1
         })
         const divNombre = divs.length > 0 ? divs.map(d => d.nombre).filter(Boolean).join(' · ') : 'Global'
-        return { ...e, total, pagados, montoCobrado, formas, divNombre }
+        return { ...e, total, pagados, montoCobrado, pct, formas, divNombre }
       })
-  }, [eventosFinancieros, divisiones, divFiltro])
+  }, [eventosFinancieros, resumenesCobranza, divisiones, divFiltro])
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'asistencia', label: 'ASISTENCIA' },
@@ -148,6 +175,16 @@ export default function InformesPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
+      </div>
+    )
+  }
+
+  if (errorCarga) {
+    return (
+      <div>
+        <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · INFORMES</p>
+        <h1 className="font-playfair italic text-4xl font-black text-tinta mb-6">Informes</h1>
+        <ErrorCarga mensaje={errorCarga} onReintentar={() => void fetchAll()} />
       </div>
     )
   }
@@ -334,12 +371,12 @@ export default function InformesPage() {
                     </div>
                   ))}
                 </div>
-                {ev.total > 0 && (
+                {ev.pct !== null && (
                   <div className="px-6 pb-4">
                     <div className="h-1 bg-gris-claro">
                       <div
                         className="h-1 bg-oro"
-                        style={{ width: `${Math.round((ev.pagados / ev.total) * 100)}%` }}
+                        style={{ width: `${ev.pct}%` }}
                       />
                     </div>
                   </div>

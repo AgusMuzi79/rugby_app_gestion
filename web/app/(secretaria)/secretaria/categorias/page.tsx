@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
-import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import ErrorCarga from '@/components/ErrorCarga'
 
 interface Categoria {
   id: string
