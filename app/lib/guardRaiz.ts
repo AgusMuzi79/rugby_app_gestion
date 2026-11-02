@@ -15,7 +15,9 @@ export interface EstadoGuard {
   nuevoUsuario:        boolean
   recuperandoPassword: boolean
   registroSinSesion:   boolean
-  restringido:         boolean
+  procesandoLink:      boolean
+  avisoLinkPendiente:  boolean
+  restringido:       boolean
   restringidoLoading:  boolean
   terminosPendiente:   boolean
   terminosLoading:     boolean
@@ -26,9 +28,15 @@ export interface EstadoGuard {
 // Ruta a la que tiene que ir la persona, o null si todavía no se sabe (algo
 // está cargando) o no hay que moverla.
 export function destinoGuard(e: EstadoGuard): string | null {
+  // Abriendo un link de recupero o alta: la sesión del link puede llegar antes
+  // que el flag de recovery / usuario nuevo. Hasta que se marque, no se mueve.
+  if (e.procesandoLink) return null
   if (e.nuevoUsuario && e.haySesion) return '/(auth)/registro'
   if (e.recuperandoPassword) return '/(auth)/reset-password'
   if (!e.haySesion) {
+    // Un link de recupero o alta no abrió (vencido, sin red): a pedir otro,
+    // donde la pantalla muestra el aviso y lo limpia. Con sesión no se mueve.
+    if (e.avisoLinkPendiente) return '/(auth)/forgot-password'
     // registro-tutor corre sin sesión y cierra la del menor restringido al
     // montarse: ese cierre no tiene que rebotarlo al login.
     return e.registroSinSesion ? null : '/(auth)/login'

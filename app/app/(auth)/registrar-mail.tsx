@@ -51,6 +51,7 @@ export default function RegistrarMailScreen() {
             hacerlo ahora o más tarde desde "Mi Perfil".
           </Text>
 
+          <Text style={styles.label}>TU MAIL</Text>
           <TextInput
             style={styles.input}
             value={email}
@@ -60,6 +61,13 @@ export default function RegistrarMailScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
+            accessibilityLabel="Tu mail"
+            textContentType="emailAddress"
+            autoComplete="email"
+            returnKeyType="go"
+            onSubmitEditing={() => {
+              if (email.trim() && !guardando && !omitiendo) void handleGuardar()
+            }}
           />
 
           {error !== null && (
@@ -85,6 +93,8 @@ export default function RegistrarMailScreen() {
             onPress={handleOmitir}
             disabled={guardando || omitiendo}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Ahora no"
           >
             {omitiendo
               ? <ActivityIndicator color={colors.textoSecundario} size="small" />
@@ -139,6 +149,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 32,
   },
+  label: {
+    fontFamily: fonts.label,
+    fontSize: 13,
+    letterSpacing: 2,
+    color: colors.texto,
+    marginBottom: 8,
+  },
   input: {
     borderWidth: 1,
     borderColor: colors.borde,
@@ -166,8 +183,11 @@ const styles = StyleSheet.create({
     color: colors.sobreOro,
   },
   skipButton: {
-    marginTop: 20,
+    marginTop: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    minHeight: 44,
   },
   skipButtonText: {
     fontFamily: fonts.cuerpo,

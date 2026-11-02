@@ -12,6 +12,12 @@ export function normalizarAudiencia(valor: unknown): AudienciaMostrada {
   return valor === 'cuerpo_tecnico' || valor === 'todos' ? valor : 'desconocida'
 }
 
+// Closing the "nuevo comunicado" modal (X or system Back) asks before
+// discarding only when something was typed; whitespace alone doesn't count.
+export function comunicadoTieneContenido(titulo: string, cuerpo: string): boolean {
+  return titulo.trim().length > 0 || cuerpo.trim().length > 0
+}
+
 export type ResultadoBorrado = 'ok' | 'sin_filas' | 'error'
 
 // A DELETE blocked by RLS (or on an already removed row) returns no error and

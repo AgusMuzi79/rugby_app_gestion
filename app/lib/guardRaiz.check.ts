@@ -14,6 +14,7 @@ function caso(nombre: string, fn: () => void) {
 const base: EstadoGuard = {
   haySesion: true, rol: 'socio',
   nuevoUsuario: false, recuperandoPassword: false, registroSinSesion: false,
+  procesandoLink: false, avisoLinkPendiente: false,
   restringido: false, restringidoLoading: false,
   terminosPendiente: false, terminosLoading: false,
   mailPendiente: false, mailLoading: false,
@@ -89,6 +90,53 @@ caso('pantallas de auth: la misma pantalla, o las que se recorren sin sesión', 
   assert.equal(yaEstaEnDestino('/(auth)/login', ['(auth)', 'registro-tutor']), true)
   assert.equal(yaEstaEnDestino('/(auth)/login', ['(auth)', 'terminos']), false)
   assert.equal(yaEstaEnDestino('/(auth)/acceso-restringido', ['(auth)', 'registro-tutor']), true)
+})
+
+caso('desde el login, sin sesión, al alta de familiar o tutor: el guard no lo saca (auth T9)', () => {
+  const destino = destinoGuard({ ...base, haySesion: false, rol: null })
+  assert.equal(destino, '/(auth)/login')
+  assert.equal(yaEstaEnDestino(destino!, ['(auth)', 'registro-tutor']), true)
+  // Y mientras la pantalla está abierta (registroSinSesion), ni siquiera hay destino.
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, registroSinSesion: true }), null)
+})
+
+caso('mientras se abre un link de recupero o alta, el guard no mueve a nadie (auth review)', () => {
+  // La sesión del link ya llegó (los listeners la ven) pero los flags todavía
+  // no se marcaron: antes iba al inicio del rol.
+  assert.equal(destinoGuard({ ...base, procesandoLink: true }), null)
+  assert.equal(destinoGuard({ ...base, rol: null, procesandoLink: true }), null)
+  // Todavía sin sesión: tampoco al login.
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, procesandoLink: true }), null)
+})
+
+caso('abierto el link: primero el flag, después se libera el guard → reset-password o registro', () => {
+  assert.equal(destinoGuard({ ...base, recuperandoPassword: true, procesandoLink: false }), '/(auth)/reset-password')
+  assert.equal(destinoGuard({ ...base, nuevoUsuario: true, procesandoLink: false }), '/(auth)/registro')
+  // Falló el link: flags y pendiente limpios, sin sesión → login.
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null }), '/(auth)/login')
+})
+
+caso('link vencido sin sesión: el guard lleva a pedir otro (auth review)', () => {
+  const sinSesion = { ...base, haySesion: false, rol: null, avisoLinkPendiente: true }
+  assert.equal(destinoGuard(sinSesion), '/(auth)/forgot-password')
+  // También desde el registro de tutor: el aviso es lo último que pasó.
+  assert.equal(destinoGuard({ ...sinSesion, registroSinSesion: true }), '/(auth)/forgot-password')
+  // Estando ahí, no se mueve; desde el login, sí.
+  assert.equal(yaEstaEnDestino('/(auth)/forgot-password', ['(auth)', 'forgot-password']), true)
+  assert.equal(yaEstaEnDestino('/(auth)/forgot-password', ['(auth)', 'login']), false)
+  // La pantalla ya mostró el aviso y lo limpió: destino login, y forgot-password cuenta como login.
+  const despues = destinoGuard({ ...sinSesion, avisoLinkPendiente: false })
+  assert.equal(despues, '/(auth)/login')
+  assert.equal(yaEstaEnDestino(despues!, ['(auth)', 'forgot-password']), true)
+})
+
+caso('link vencido con sesión: no se saca a nadie de la app', () => {
+  assert.equal(destinoGuard({ ...base, avisoLinkPendiente: true }), '/(socio)/carnet')
+  assert.equal(yaEstaEnDestino('/(socio)/carnet', ['(socio)', 'cuotas']), true)
+})
+
+caso('mientras se abre un link, el aviso tampoco mueve', () => {
+  assert.equal(destinoGuard({ ...base, haySesion: false, rol: null, avisoLinkPendiente: true, procesandoLink: true }), null)
 })
 
 console.log(`\n${casos} casos ok`)

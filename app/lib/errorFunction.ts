@@ -20,6 +20,11 @@ function comoError(e: unknown): ErrorConContexto | null {
   return e && typeof e === 'object' ? (e as ErrorConContexto) : null
 }
 
+// Un objeto JSON común (no null, no array).
+function esRegistro(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 export function statusErrorFunction(error: unknown): number | undefined {
   const ctx = comoError(error)?.context
   if (ctx && typeof ctx === 'object' && 'status' in ctx && typeof (ctx as { status: unknown }).status === 'number') {
@@ -89,4 +94,63 @@ export function mensajeLogin(r: { status?: number; sinRed?: boolean }): string {
   if (r.status === 403) return 'Tu cuenta está dada de baja. Consultá en Secretaría.'
   if (r.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
   return 'El servidor no respondió. Probá de nuevo en un rato.'
+}
+
+// Recupero de contraseña (login-dni, action 'reset'). El éxito es siempre el
+// mismo; acá sólo las fallas del pedido, que no dicen nada de la cuenta. Cada
+// falla tiene su motivo explícito (antes se inventaban status HTTP).
+export type FallaRecupero =
+  | { motivo: 'vacio' }
+  | { motivo: 'mail_invalido' }
+  | { motivo: 'sin_red' }
+  // Se cortó la espera: el pedido pudo haber salido y el mail llegar igual.
+  | { motivo: 'tardo' }
+  // 200 sin { ok: true }.
+  | { motivo: 'respuesta_invalida' }
+  // codigo: el `codigo` estable del body de login-dni, si vino.
+  | { motivo: 'servidor'; status?: number; codigo?: string }
+
+const REVISA_MAIL = 'Revisá el mail.'
+// Lo que manda login-dni en el 400 de mail mal escrito (CODIGO_MAIL_INVALIDO en
+// supabase/functions/_shared/recupero-password.ts). Se decide por el código,
+// no por el texto del servidor: el texto se muestra desde acá.
+const CODIGO_MAIL_INVALIDO = 'mail_invalido'
+
+export function mensajeRecupero(f: FallaRecupero): string {
+  switch (f.motivo) {
+    case 'vacio':         return 'Ingresá tu DNI o tu mail.'
+    case 'mail_invalido': return REVISA_MAIL
+    case 'sin_red':       return SIN_CONEXION
+    case 'tardo':
+      return 'Está tardando más de lo normal. Si te llega el mail, usá el link más nuevo; si no, probá en unos minutos.'
+    case 'servidor':
+      // Nunca el texto del servidor tal cual: sólo códigos conocidos.
+      if (f.status === 400) return f.codigo === CODIGO_MAIL_INVALIDO ? REVISA_MAIL : 'Ingresá tu DNI o tu mail.'
+      if (f.status === 429) return 'Demasiados intentos. Esperá unos minutos y probá de nuevo.'
+      return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+    case 'respuesta_invalida':
+      return 'No se pudo enviar el link. Probá de nuevo en un rato.'
+  }
+}
+
+// Falla del invoke a login-dni, o null si salió bien. `tardo` = la app cortó
+// la espera; `cuerpo` = body del non-2xx (cuerpoErrorFunction).
+export function fallaRecupero(r: {
+  tardo: boolean
+  error: unknown
+  data: unknown
+  cuerpo?: Record<string, unknown> | null
+}): FallaRecupero | null {
+  if (r.tardo) return { motivo: 'tardo' }
+  if (r.error) {
+    if (comoError(r.error)?.name === 'FunctionsFetchError') return { motivo: 'sin_red' }
+    // El código estable manda; el texto exacto sólo cubre una login-dni
+    // deployada antes del código (mientras conviven versiones).
+    const codigo = typeof r.cuerpo?.codigo === 'string'
+      ? r.cuerpo.codigo
+      : r.cuerpo?.error === 'Revisá el mail.' ? 'mail_invalido' : undefined
+    return { motivo: 'servidor', status: statusErrorFunction(r.error), codigo }
+  }
+  if (!esRegistro(r.data) || r.data.ok !== true) return { motivo: 'respuesta_invalida' }
+  return null
 }

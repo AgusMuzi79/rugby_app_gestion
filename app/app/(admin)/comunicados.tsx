@@ -15,6 +15,8 @@ import {
   type AudienciaMostrada,
 } from '@/hooks/useComunicadosAdmin'
 import { colors, fonts } from '@/constants/theme'
+import { comunicadoTieneContenido } from '@/lib/comunicadosAdmin'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
@@ -74,8 +76,14 @@ function FilaComunicado({
         <Text style={s.rowCuerpo} numberOfLines={2}>{comunicado.cuerpo}</Text>
         <Text style={s.rowMeta}>{fechaCorta(comunicado.created_at)}</Text>
       </View>
-      <TouchableOpacity style={s.actionBtn} onPress={confirmarEliminar} activeOpacity={0.75}>
-        <Feather name="trash-2" size={14} color={colors.rojoUrgente} />
+      <TouchableOpacity
+        style={s.actionBtn}
+        onPress={confirmarEliminar}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel={`Eliminar "${comunicado.titulo}"`}
+      >
+        <Feather name="trash-2" size={18} color={colors.rojoUrgente} />
       </TouchableOpacity>
     </View>
   )
@@ -104,9 +112,22 @@ function ModalNuevoComunicado({
     setAudiencia('cuerpo_tecnico')
   }
 
-  const handleClose = () => {
+  const insets = useSafeAreaInsets()
+
+  const cerrar = () => {
     limpiar()
     onClose()
+  }
+
+  // X o Back del sistema: si hay algo escrito, preguntar antes de perderlo.
+  const pedirCerrar = () => {
+    if (!comunicadoTieneContenido(titulo, cuerpo)) { cerrar(); return }
+    confirmarDescarte({
+      titulo:      '¿Descartar el comunicado?',
+      textoSeguir: 'Seguir escribiendo',
+      mensaje:     'Lo que escribiste no se guarda.',
+      onDescartar: cerrar,
+    })
   }
 
   const handlePublicar = () => {
@@ -119,7 +140,7 @@ function ModalNuevoComunicado({
         text: 'Publicar',
         onPress: async () => {
           const ok = await onPublicar(titulo, cuerpo, audiencia)
-          if (ok) handleClose()
+          if (ok) cerrar()
         },
       },
     ])
@@ -128,18 +149,24 @@ function ModalNuevoComunicado({
   const detalle = AUDIENCIAS.find(a => a.value === audiencia)?.detalle ?? ''
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={pedirCerrar}>
       <KeyboardAvoidingView style={s.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={s.modal}
-          contentContainerStyle={s.modalContent}
+          contentContainerStyle={[s.modalContent, { paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>NUEVO COMUNICADO</Text>
-            <TouchableOpacity onPress={handleClose} activeOpacity={0.75}>
-              <Feather name="x" size={20} color={TEXTO} />
+            <TouchableOpacity
+              style={s.cerrarBtn}
+              onPress={pedirCerrar}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar sin publicar"
+            >
+              <Feather name="x" size={22} color={TEXTO} />
             </TouchableOpacity>
           </View>
 
@@ -248,7 +275,13 @@ export default function ComunicadosAdminScreen() {
         />
       )}
 
-      <TouchableOpacity style={s.fab} onPress={() => setModalVisible(true)} activeOpacity={0.85}>
+      <TouchableOpacity
+        style={s.fab}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Nuevo comunicado"
+      >
         <Feather name="plus" size={22} color={colors.sobreOro} />
       </TouchableOpacity>
 
@@ -316,7 +349,16 @@ const s = StyleSheet.create({
   rowTitulo: { fontFamily: fonts.cuerpo, fontSize: 16, color: TEXTO },
   rowCuerpo: { fontFamily: fonts.cuerpo, fontSize: 13, color: MUTED },
   rowMeta:   { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: MUTED },
-  actionBtn: { borderWidth: 1, borderRadius: 4, padding: 8, borderColor: DIVIDER, marginTop: 4 },
+  // 44 pt de área táctil (auditoría auth T11).
+  actionBtn: {
+    minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderRadius: 4, borderColor: DIVIDER, marginTop: 4,
+  },
+  // Margen negativo: el área crece a 44 pt sin correr la X del borde.
+  cerrarBtn: {
+    minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center',
+    marginRight: -12, marginVertical: -12,
+  },
 
   fab: {
     position: 'absolute', bottom: 24, right: 24,

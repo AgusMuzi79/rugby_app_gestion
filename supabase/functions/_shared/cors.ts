@@ -9,8 +9,9 @@ export function jsonOk(data: unknown): Response {
   })
 }
 
-export function jsonError(status: number, message: string): Response {
-  return new Response(JSON.stringify({ error: message }), {
+// `extra`: campos además de `error` (p. ej. un `codigo` estable para el cliente).
+export function jsonError(status: number, message: string, extra?: Record<string, unknown>): Response {
+  return new Response(JSON.stringify({ ...extra, error: message }), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })

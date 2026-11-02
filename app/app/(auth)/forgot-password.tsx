@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -12,14 +12,28 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useForgotPassword } from '@/hooks/useForgotPassword'
+import { useAuthStore } from '@/stores/authStore'
+import { textoAvisoLink } from '@/lib/linkAuth'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
 
 export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState('')
+  const [dniOMail, setDniOMail] = useState('')
   const { enviarLink, loading, error, enviado } = useForgotPassword()
   const router = useRouter()
+  // Aviso de un link de recupero o alta que no abrió. Sale del store como
+  // código y se muestra sólo su texto fijo (lib/linkAuth.ts): nunca texto de
+  // los parámetros de la ruta, que cualquiera puede armar en un link.
+  // Mostrado, se limpia del store para que el guard deje de traer acá.
+  const avisoLink = useAuthStore(s => s.avisoLink)
+  const setAvisoLink = useAuthStore(s => s.setAvisoLink)
+  const [aviso, setAviso] = useState<string | null>(() => textoAvisoLink(avisoLink))
+  useEffect(() => {
+    if (avisoLink === null) return
+    setAviso(textoAvisoLink(avisoLink))
+    setAvisoLink(null)
+  }, [avisoLink])
 
   return (
     <KeyboardAvoidingView
@@ -45,33 +59,56 @@ export default function ForgotPasswordScreen() {
             /* ── Estado de éxito ── */
             <View style={styles.successWrap}>
               <Text style={styles.successIcon}>✓</Text>
-              <Text style={styles.successTitle}>Link enviado</Text>
+              <Text style={styles.successTitle}>Pedido recibido</Text>
+              {/* Genérico a propósito: no dice si la cuenta existe ni si su
+                  mail es real. Sí dice qué hacer si no llega nada. */}
               <Text style={styles.successBody}>
-                Si el email está registrado, vas a recibir un link para
-                restablecer tu contraseña.
+                Si tu cuenta tiene un mail registrado, en unos minutos te
+                llega un link para elegir una contraseña nueva.
+              </Text>
+              <Text style={styles.successPaso}>
+                · Abrí el link desde este teléfono: en la compu no funciona.
+              </Text>
+              <Text style={styles.successPaso}>
+                · Si no lo ves, revisá la carpeta de spam o correo no deseado.
+              </Text>
+              <Text style={styles.successPaso}>
+                · Si nunca registraste un mail, acercate a Secretaría con tu
+                DNI.
               </Text>
             </View>
           ) : (
             /* ── Formulario ── */
             <>
+              {/* Aviso al llegar desde un link de reset vencido o ya usado */}
+              {aviso !== null && (
+                <View style={styles.avisoBanner}>
+                  <Text style={styles.avisoText}>{aviso}</Text>
+                </View>
+              )}
+
               <Text style={styles.subtitle}>
-                Ingresá tu email y te enviamos un link para restablecer tu
-                contraseña.
+                Ingresá tu DNI o tu mail y te mandamos un link al mail de tu
+                cuenta para elegir una contraseña nueva.
               </Text>
 
-              {/* Campo EMAIL */}
+              {/* Campo DNI o mail (lo mismo que en el login) */}
               <View style={styles.fieldWrap}>
-                <Text style={styles.label}>EMAIL</Text>
+                <Text style={styles.label}>DNI (SIN PUNTOS) O MAIL</Text>
                 <TextInput
                   style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
+                  value={dniOMail}
+                  onChangeText={setDniOMail}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType="email-address"
-                  placeholder="correo@club.com"
+                  placeholder="DNI o tu mail"
                   placeholderTextColor={PLACEHOLDER}
                   editable={!loading}
+                  accessibilityLabel="DNI sin puntos o mail"
+                  textContentType="username"
+                  autoComplete="username"
+                  returnKeyType="go"
+                  onSubmitEditing={() => { if (!loading) void enviarLink(dniOMail) }}
                 />
               </View>
 
@@ -85,7 +122,7 @@ export default function ForgotPasswordScreen() {
               {/* Botón principal */}
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonLoading]}
-                onPress={() => enviarLink(email)}
+                onPress={() => enviarLink(dniOMail)}
                 disabled={loading}
                 activeOpacity={0.85}
               >
@@ -101,7 +138,9 @@ export default function ForgotPasswordScreen() {
           {/* Volver al login */}
           <TouchableOpacity
             style={styles.backWrap}
-            onPress={() => router.back()}
+            accessibilityRole="button"
+            // Llegando desde un link vencido (replace) no hay a dónde volver.
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
             disabled={loading}
           >
             <Text style={styles.backText}>← Volver al inicio de sesión</Text>
@@ -189,6 +228,21 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     color: colors.sobreOro,
   },
+  avisoBanner: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.oro,
+    borderRadius: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  avisoText: {
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.texto,
+    textAlign: 'center',
+  },
   errorBanner: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -222,15 +276,26 @@ const styles = StyleSheet.create({
   },
   successBody: {
     fontFamily: fonts.cuerpo,
-    fontStyle: 'italic',
     fontSize: 15,
-    color: PLACEHOLDER,
+    color: colors.texto,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 21,
+    marginBottom: 16,
+  },
+  successPaso: {
+    alignSelf: 'stretch',
+    fontFamily: fonts.cuerpo,
+    fontSize: 15,
+    color: colors.textoSecundario,
+    lineHeight: 21,
+    marginBottom: 8,
   },
   backWrap: {
     alignItems: 'center',
-    marginTop: 32,
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+    minHeight: 44,
   },
   backText: {
     fontFamily: fonts.label,

@@ -20,6 +20,10 @@ import { useAuthStore } from '@/stores/authStore'
 import { colors, fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { ROL_LABELS } from '@/constants/roles'
+import { useBackDelDetalle } from '@/components/shared/useBackDelDetalle'
+import { confirmarDescarte } from '@/components/shared/confirmarDescarte'
+import { divisionesCambiaron } from '@/lib/usuariosForm'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
 
 const MUTED = colors.muted
 const ROJO  = '#EF4444'
@@ -65,6 +69,11 @@ function agruparPorDeporte(divisiones: DivisionOpcion[]) {
 
 export function UsuariosScreen() {
   const hook = useUsuarios()
+  // Interino (auditoría auth T12): el detalle es un estado `paso`, no una ruta
+  // de Stack, así que el Back de Android salía de la pestaña. Con el detalle
+  // abierto vuelve a la lista, igual que "‹ Usuarios". Pendiente: pasar el
+  // detalle a una ruta real `usuarios/[id]`.
+  useBackDelDetalle(hook.paso === 'detalle', () => pedirVolverALista(hook))
 
   if (hook.loading) {
     return (
@@ -79,6 +88,22 @@ export function UsuariosScreen() {
   }
 
   return <VistaLista hook={hook} />
+}
+
+// Volver del detalle a la lista; si hay divisiones tildadas sin guardar,
+// pregunta antes de descartarlas.
+function pedirVolverALista(hook: ReturnType<typeof useUsuarios>) {
+  const u = hook.usuarioSeleccionado
+  if (u && divisionesCambiaron(u.divisiones, hook.divisionesEditDetalle)) {
+    confirmarDescarte({
+      titulo:      'Cambios sin guardar',
+      textoSeguir: 'Seguir editando',
+      mensaje:     `Cambiaste las divisiones de ${u.nombre} y no las guardaste. ¿Descartar los cambios?`,
+      onDescartar: hook.volverALista,
+    })
+    return
+  }
+  hook.volverALista()
 }
 
 // ─── Vista lista ──────────────────────────────────────────────────────────────
@@ -204,7 +229,12 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
   return (
     <View style={s.root}>
       <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={hook.volverALista} style={s.backBtn}>
+        <TouchableOpacity
+          onPress={() => pedirVolverALista(hook)}
+          style={s.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Volver a Usuarios"
+        >
           <Text style={s.backTexto}>‹ Usuarios</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Detalle</Text>
@@ -382,7 +412,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
       <KeyboardAvoidingView style={s.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={s.modalHeader}>
           <Text style={s.modalTitulo}>{titulo}</Text>
-          <TouchableOpacity onPress={hook.cerrarModal}>
+          <TouchableOpacity
+            onPress={hook.cerrarModal}
+            style={s.modalCerrarBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar"
+          >
             <Text style={s.modalCerrar}>✕</Text>
           </TouchableOpacity>
         </View>
@@ -475,20 +510,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
                     {/* Rol */}
                     <Text style={s.inputLabel}>Rol a asignar</Text>
-                    <View style={s.rolSelector}>
-                      {rolesCreables.map(r => (
-                        <TouchableOpacity
-                          key={r.value}
-                          style={[s.rolBtn, hook.rolAsignacion === r.value && s.rolBtnActivo]}
-                          onPress={() => hook.setRolAsignacion(r.value)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[s.rolBtnTexto, hook.rolAsignacion === r.value && s.rolBtnTextoActivo]}>
-                            {r.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
+                    <RolSelector
+                      roles={rolesCreables}
+                      seleccionado={hook.rolAsignacion}
+                      onElegir={hook.setRolAsignacion}
+                      etiqueta="Rol a asignar"
+                    />
 
                     {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
                     {rol === 'admin' && hook.rolAsignacion === 'subcomision' && (
@@ -554,10 +581,12 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.nombre}
                   onChangeText={hook.setNombre}
+                  onBlur={() => hook.tocarCampoNuevo('nombre')}
                   placeholder="Ej: Juan Pérez"
                   placeholderTextColor={MUTED}
                   autoCapitalize="words"
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.nombre} />
 
                 {/* Email */}
                 <Text style={s.inputLabel}>Email</Text>
@@ -565,12 +594,14 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.email}
                   onChangeText={hook.setEmail}
+                  onBlur={() => hook.tocarCampoNuevo('email')}
                   placeholder="correo@ejemplo.com"
                   placeholderTextColor={MUTED}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.email} />
 
                 {/* DNI */}
                 <Text style={s.inputLabel}>DNI</Text>
@@ -578,27 +609,22 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                   style={s.input}
                   value={hook.dni}
                   onChangeText={hook.setDni}
+                  onBlur={() => hook.tocarCampoNuevo('dni')}
                   placeholder="Ej: 12345678"
                   placeholderTextColor={MUTED}
                   keyboardType="numeric"
                 />
+                <ErrorCampo mensaje={hook.erroresNuevo.dni} />
 
                 {/* Rol */}
                 <Text style={s.inputLabel}>Rol</Text>
-                <View style={s.rolSelector}>
-                  {rolesCreables.map(r => (
-                    <TouchableOpacity
-                      key={r.value}
-                      style={[s.rolBtn, hook.rolSeleccionado === r.value && s.rolBtnActivo]}
-                      onPress={() => hook.setRolSeleccionado(r.value)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.rolBtnTexto, hook.rolSeleccionado === r.value && s.rolBtnTextoActivo]}>
-                        {r.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <RolSelector
+                  roles={rolesCreables}
+                  seleccionado={hook.rolSeleccionado}
+                  onElegir={hook.setRolSeleccionado}
+                  etiqueta="Rol"
+                />
+                <ErrorCampo mensaje={hook.erroresNuevo.rol} />
 
                 {/* Disciplina — sólo admin, sólo si se elige rol subcomisión */}
                 {rol === 'admin' && hook.rolSeleccionado === 'subcomision' && (
@@ -647,12 +673,55 @@ function ModalNuevoUsuario({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
                     <Text style={s.botonPrimarioTexto}>Crear usuario</Text>
                   )}
                 </TouchableOpacity>
+                {hook.avisoValidacionNuevo && (
+                  <Text style={s.avisoValidacion} accessibilityLiveRegion="polite" accessibilityRole="alert">
+                    {hook.avisoValidacionNuevo}
+                  </Text>
+                )}
               </>
             )
           )}
         </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
+  )
+}
+
+// Selector de rol: hasta 9 opciones para admin. Antes iban todas en una fila
+// (`flex: 1`, ~33 pt cada una, etiquetas ilegibles); ahora bajan de renglón,
+// tres por fila, con 44 pt de alto y semántica de radio para el lector.
+function RolSelector({
+  roles,
+  seleccionado,
+  onElegir,
+  etiqueta,
+}: {
+  roles: { value: RolCreable; label: string }[]
+  seleccionado: RolCreable | null
+  onElegir: (rol: RolCreable) => void
+  etiqueta: string
+}) {
+  return (
+    <View style={s.rolSelector} accessibilityRole="radiogroup" accessibilityLabel={etiqueta}>
+      {roles.map(r => {
+        const activo = seleccionado === r.value
+        return (
+          <TouchableOpacity
+            key={r.value}
+            style={[s.rolBtn, activo && s.rolBtnActivo]}
+            onPress={() => onElegir(r.value)}
+            activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: activo }}
+            accessibilityLabel={r.label}
+          >
+            <Text style={[s.rolBtnTexto, activo && s.rolBtnTextoActivo]} numberOfLines={1}>
+              {r.label}
+            </Text>
+          </TouchableOpacity>
+        )
+      })}
+    </View>
   )
 }
 
@@ -712,7 +781,9 @@ const s = StyleSheet.create({
   headerLabel: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2.5, color: colors.oro, marginBottom: 4 },
   headerTitle: { fontFamily: fonts.titulo, fontSize: 28, color: colors.texto },
   headerSub:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.muted, marginTop: 4 },
-  backBtn:     { marginBottom: 4 },
+  // 44 pt de área táctil, todos del botón: sube sobre el padding del header
+  // (no hay nada arriba) y el título va debajo, sin pisarlo.
+  backBtn:     { minHeight: 44, minWidth: 44, justifyContent: 'center', alignSelf: 'flex-start', marginTop: -12 },
   backTexto:   { fontFamily: fonts.label, color: colors.oro, fontSize: 16 },
 
   // Scroll
@@ -752,6 +823,7 @@ const s = StyleSheet.create({
   // Feedback banners
   bannerOk:    { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12 },
   bannerOkMt:  { backgroundColor: VERDE + '22', borderRadius: 8, padding: 12, marginTop: 8 },
+  avisoValidacion: { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.rojoTexto, textAlign: 'center', marginTop: 8 },
   bannerError: { backgroundColor: ROJO   + '22', borderRadius: 8, padding: 12 },
   bannerTexto: { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
 
@@ -771,6 +843,7 @@ const s = StyleSheet.create({
   modalRoot:   { flex: 1, backgroundColor: colors.fondo },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 24, backgroundColor: colors.fondo },
   modalTitulo: { fontFamily: fonts.titulo, fontSize: 19, fontWeight: '700', color: colors.texto },
+  modalCerrarBtn: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -12, marginVertical: -12 },
   modalCerrar: { fontFamily: fonts.titulo, fontSize: 21, color: colors.oro, fontWeight: '600' },
   modalBody:   { padding: 20, gap: 12, paddingBottom: 48 },
 
@@ -796,8 +869,8 @@ const s = StyleSheet.create({
   input:      { backgroundColor: colors.card, borderRadius: 8, borderWidth: 1, borderColor: colors.borde, padding: 12, fontFamily: fonts.cuerpo, fontSize: 17, color: colors.texto },
 
   // Selector de rol
-  rolSelector: { flexDirection: 'row', gap: 8 },
-  rolBtn:      { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center' },
+  rolSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rolBtn:      { flexBasis: '30%', flexGrow: 1, minHeight: 44, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 8, backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.borde, alignItems: 'center', justifyContent: 'center' },
   rolBtnActivo: { backgroundColor: colors.oro, borderColor: colors.oro },
   rolBtnTexto:  { fontFamily: fonts.label, fontSize: 14, fontWeight: '600', color: MUTED },
   rolBtnTextoActivo: { color: colors.sobreOro },

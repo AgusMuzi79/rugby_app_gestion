@@ -6,7 +6,14 @@
 // tipeada con puntos tampoco coincidía. ~1500 socios entran por primera vez
 // así. Lógica pura (login-identificador.check.ts).
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// Quiso tipear un mail (tiene @) pero no tiene forma de mail. Sin esto,
+// normalizarIdentificador lo tomaba como DNI con los dígitos que tuviera.
+export function mailMalEscrito(raw: string): boolean {
+  const limpio = raw.trim()
+  return limpio.includes('@') && !EMAIL_RE.test(limpio)
+}
 
 export type Identificador =
   | { tipo: 'email'; email: string }

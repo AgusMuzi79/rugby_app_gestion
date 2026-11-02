@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -11,8 +11,10 @@ import {
   StyleSheet,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { BotonVerPassword } from '@/components/ui/BotonVerPassword'
+import { ErrorCampo } from '@/components/ui/ErrorCampo'
 import { useResetPassword } from '@/hooks/useResetPassword'
+import { MIN_PASSWORD } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
 const PLACEHOLDER = '#9B9A8F'
@@ -21,8 +23,10 @@ export default function ResetPasswordScreen() {
   const [password, setPassword]           = useState('')
   const [confirmacion, setConfirmacion]   = useState('')
   const [mostrarPassword, setMostrarPassword] = useState(false)
-  const { actualizarPassword, loading, error, completado } = useResetPassword()
+  const confirmacionRef = useRef<TextInput>(null)
+  const { actualizarPassword, cancelar, tocar, errores, loading, cancelando, error, completado } = useResetPassword()
   const router = useRouter()
+  const errs = errores(password, confirmacion)
 
   useEffect(() => {
     if (completado) {
@@ -51,40 +55,54 @@ export default function ResetPasswordScreen() {
             <Text style={styles.label}>NUEVA CONTRASEÑA</Text>
             <View style={styles.passwordRow}>
               <TextInput
-                style={styles.passwordInput}
+                style={[styles.passwordInput, !!errs.password && styles.inputConError]}
                 value={password}
                 onChangeText={setPassword}
+                onBlur={() => tocar('password')}
                 secureTextEntry={!mostrarPassword}
-                placeholder="Mínimo 8 caracteres"
+                placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
                 placeholderTextColor={PLACEHOLDER}
                 editable={!loading}
+                accessibilityLabel="Nueva contraseña"
+                textContentType="newPassword"
+                autoComplete="new-password"
+                passwordRules={`minlength: ${MIN_PASSWORD};`}
+                autoCapitalize="none"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => confirmacionRef.current?.focus()}
               />
-              <TouchableOpacity
+              <BotonVerPassword
                 style={styles.eyeButton}
-                onPress={() => setMostrarPassword(v => !v)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name={mostrarPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={PLACEHOLDER}
-                />
-              </TouchableOpacity>
+                visible={mostrarPassword}
+                onToggle={() => setMostrarPassword(v => !v)}
+              />
             </View>
+            <ErrorCampo mensaje={errs.password} />
           </View>
 
           {/* Confirmar contraseña */}
           <View style={styles.fieldWrapLast}>
             <Text style={styles.label}>CONFIRMAR CONTRASEÑA</Text>
             <TextInput
-              style={styles.input}
+              ref={confirmacionRef}
+              style={[styles.input, !!errs.confirmacion && styles.inputConError]}
               value={confirmacion}
               onChangeText={setConfirmacion}
+              onBlur={() => tocar('confirmacion')}
               secureTextEntry={!mostrarPassword}
               placeholder="Repetí tu contraseña"
               placeholderTextColor={PLACEHOLDER}
               editable={!loading}
+              accessibilityLabel="Confirmar contraseña"
+              textContentType="newPassword"
+              autoComplete="new-password"
+              passwordRules={`minlength: ${MIN_PASSWORD};`}
+              autoCapitalize="none"
+              returnKeyType="go"
+              onSubmitEditing={() => { if (!loading) void actualizarPassword(password, confirmacion) }}
             />
+            <ErrorCampo mensaje={errs.confirmacion} />
           </View>
 
           {/* Error */}
@@ -98,12 +116,29 @@ export default function ResetPasswordScreen() {
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonLoading]}
             onPress={() => actualizarPassword(password, confirmacion)}
-            disabled={loading}
+            disabled={loading || cancelando}
             activeOpacity={0.85}
           >
             {loading
               ? <ActivityIndicator color={colors.oro} size="small" />
               : <Text style={styles.buttonText}>GUARDAR CONTRASEÑA →</Text>
+            }
+          </TouchableOpacity>
+
+          {/* Salida: si no, el guard devuelve siempre a esta pantalla */}
+          <TouchableOpacity
+            style={styles.cancelWrap}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: loading || cancelando, busy: cancelando }}
+            onPress={async () => {
+              await cancelar()
+              router.replace('/(auth)/login')
+            }}
+            disabled={loading || cancelando}
+          >
+            {cancelando
+              ? <ActivityIndicator color={colors.oro} size="small" />
+              : <Text style={styles.cancelText}>Cancelar y volver al inicio</Text>
             }
           </TouchableOpacity>
 
@@ -176,6 +211,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.oro,
     backgroundColor: 'transparent',
   },
+  inputConError: {
+    borderBottomColor: colors.rojoTexto,
+  },
   passwordRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -223,6 +261,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     color: colors.texto,
+  },
+  cancelWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    paddingVertical: 12,
+    minHeight: 44,
+  },
+  cancelText: {
+    fontFamily: fonts.label,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.textoSecundario,
   },
   footer: {
     fontFamily: fonts.label,

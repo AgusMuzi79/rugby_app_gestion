@@ -21,6 +21,9 @@ import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
 import type { Rol } from '@/constants/roles'
 import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
+import {
+  ESPERA_LINK_MS, accionLinkTardio, avisoFallaLink, conTiempoMaximo, parsearLinkAuth, type AvisoLink,
+} from '@/lib/linkAuth'
 import { ThemeProvider } from '@/contexts/ThemeContext'
 import { registerPushToken } from '@/lib/notifications'
 import { useTerminos } from '@/hooks/useTerminos'
@@ -52,8 +55,9 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
   const {
-    session, rol, loading, isPasswordRecovery, isNuevoUsuario,
+    session, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink, avisoLink,
     setSession, setRol, setRoles, clearAuth, setPasswordRecovery, setNuevoUsuario, setAvisoAuth,
+    setProcesandoLink, setAvisoLink,
   } = useAuthStore()
   // Perfil (rol) de la sesión. Si no carga, la persona quedaba en el login sin
   // ninguna explicación. Sin red: se avisa y se reintenta solo con espera
@@ -144,33 +148,82 @@ export default function RootLayout() {
     return () => clearTimeout(timer)
   }, [])
 
-  // Parsear deep links de recovery/invite
+  // Parsear deep links de recovery/invite (lib/linkAuth.ts). Un link vencido
+  // o ya usado llega con error_code (otp_expired): se manda a pedir uno nuevo.
+  // Los flags de recovery / usuario nuevo se marcan recién cuando la sesión
+  // del link abrió: antes se marcaban primero y, si fallaba, todo redirigía a
+  // reset-password sin sesión para siempre. Mientras se abre, `procesandoLink`
+  // frena el guard: la sesión del link les llega a los listeners antes que el
+  // flag, y sin eso el guard la mandaba al inicio del rol.
+  // Si falla, no se navega desde acá (el navegador puede no estar montado y
+  // competiría con el guard): se deja el código en el store y el guard lleva
+  // a forgot-password a quien no tiene sesión. Con sesión no se la saca.
   useEffect(() => {
-    async function handleUrl(url: string) {
-      const codeMatch = url.match(/[?&]code=([^&#]+)/)
-      if (codeMatch) {
-        const queryType = url.match(/[?&]type=([^&#]+)/)?.[1]
-        if (queryType === 'invite' || queryType === 'signup' || queryType === 'magiclink') {
-          setNuevoUsuario(true)
-        }
-        await supabase.auth.exchangeCodeForSession(decodeURIComponent(codeMatch[1]))
-        return
-      }
-      const fragment = url.split('#')[1]
-      if (!fragment) return
-      const params       = new URLSearchParams(fragment)
-      const accessToken  = params.get('access_token')
-      const refreshToken = params.get('refresh_token')
-      const type         = params.get('type')
-      if (accessToken && refreshToken) {
-        if (type === 'recovery') setPasswordRecovery(true)
-        if (type === 'invite' || type === 'signup' || type === 'magiclink') setNuevoUsuario(true)
-        await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-      }
+    // Número del último link en curso: una sesión tardía de un link anterior
+    // no cierra la de uno más nuevo.
+    let ultimoLink = 0
+
+    function avisarFalla(aviso: AvisoLink) {
+      setPasswordRecovery(false)
+      setNuevoUsuario(false)
+      if (!useAuthStore.getState().session) setAvisoLink(aviso)
+      setProcesandoLink(false)
     }
 
-    Linking.getInitialURL().then(url => { if (url) handleUrl(url) })
-    const sub = Linking.addEventListener('url', ({ url }) => handleUrl(url))
+    async function handleUrl(url: string) {
+      const link = parsearLinkAuth(url)
+      if (link.tipo === 'nada') return
+      if (link.tipo === 'error') {
+        console.warn('link de auth con error:', link.codigoError)
+        avisarFalla('vencido')
+        return
+      }
+      const intento = ++ultimoLink
+      setProcesandoLink(true)
+      try {
+        const abrir = link.tipo === 'codigo'
+          ? supabase.auth.exchangeCodeForSession(link.code)
+          : supabase.auth.setSession({ access_token: link.accessToken, refresh_token: link.refreshToken })
+        // Con tope (lib/linkAuth.ts): una red colgada no deja el guard frenado.
+        // Si la sesión abre después del tope, se cierra en este teléfono.
+        const carrera = await conTiempoMaximo(abrir, ESPERA_LINK_MS, (tarde) => {
+          const abrio = 'valor' in tarde && !tarde.valor.error
+          if (accionLinkTardio(abrio, intento === ultimoLink) !== 'cerrar_sesion_local') return
+          console.warn('link de auth: la sesión abrió después del tope, se cierra')
+          supabase.auth.signOut({ scope: 'local' }).catch(e => console.warn('link de auth: signOut tardío', e))
+        })
+        if (carrera.tipo === 'vencido') {
+          console.warn(`link de auth: no abrió en ${ESPERA_LINK_MS / 1000} s`)
+          // Si ya se abrió otro link, el estado (y el guard) es de ese.
+          if (intento === ultimoLink) avisarFalla('sin_red')
+          return
+        }
+        const { error } = carrera.valor
+        if (error) {
+          avisarFalla(avisoFallaLink(esErrorDeRed(error)))
+          return
+        }
+      } catch (e) {
+        avisarFalla(avisoFallaLink(esErrorDeRed(e)))
+        return
+      }
+      // Primero el flag, después se libera el guard.
+      if (link.flujo === 'recovery') setPasswordRecovery(true)
+      if (link.flujo === 'nuevo') setNuevoUsuario(true)
+      setProcesandoLink(false)
+    }
+
+    // Ningún rechazo queda suelto ni deja el guard frenado.
+    function abrirLink(url: string) {
+      handleUrl(url).catch(e => {
+        console.warn('link de auth:', e)
+        avisarFalla(avisoFallaLink(esErrorDeRed(e)))
+      })
+    }
+    Linking.getInitialURL()
+      .then(url => { if (url) abrirLink(url) })
+      .catch(e => console.warn('getInitialURL:', e))
+    const sub = Linking.addEventListener('url', ({ url }) => abrirLink(url))
     return () => sub.remove()
   }, [])
 
@@ -188,6 +241,9 @@ export default function RootLayout() {
           clearAuth()
           return
         }
+        // Con sesión el aviso de un link fallido ya no aplica (p. ej. el link
+        // falló mientras se restauraba la sesión guardada).
+        setAvisoLink(null)
         // Setea la sesión ANTES de esperar el perfil — useTerminos depende
         // de `session` en el store, así que dispara su query en paralelo
         // con la de perfil en vez de esperarla (antes eran secuenciales).
@@ -225,6 +281,8 @@ export default function RootLayout() {
       // from getState(), not as a dependency, so toggling the flag never
       // re-runs the guard by itself.
       registroSinSesion: useAuthStore.getState().registroSinSesion,
+      procesandoLink,
+      avisoLinkPendiente: avisoLink !== null,
       restringido, restringidoLoading,
       terminosPendiente, terminosLoading,
       mailPendiente: mailSinteticoPendiente, mailLoading: mailSinteticoLoading,
@@ -232,7 +290,7 @@ export default function RootLayout() {
     if (!destino || yaEstaEnDestino(destino, segments)) return
     router.replace(destino as Parameters<typeof router.replace>[0])
   }, [
-    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario,
+    mounted, session?.access_token, rol, loading, isPasswordRecovery, isNuevoUsuario, procesandoLink, avisoLink,
     terminosPendiente, terminosLoading, restringido, restringidoLoading,
     mailSinteticoPendiente, mailSinteticoLoading, segments[0],
   ])
