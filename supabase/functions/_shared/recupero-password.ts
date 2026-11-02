@@ -11,6 +11,10 @@ import { mailMalEscrito, normalizarIdentificador, type Identificador } from './l
 const DOMINIO_SINTETICO = '@uncas.local'
 
 const REVISA_MAIL = 'Revisá el mail.'
+// Código estable del 400 por mail mal escrito: la app decide por él
+// (fallaRecupero / mensajeRecupero en app/lib/errorFunction.ts), no por el
+// texto, que es sólo para mostrar.
+export const CODIGO_MAIL_INVALIDO = 'mail_invalido'
 const NO_SE_PUDO_VERIFICAR = 'No se pudo verificar el usuario'
 
 type ErrorGoTrue = { code?: string; status?: number; message?: string }
@@ -35,14 +39,11 @@ export function emailParaRecupero(email: string | null | undefined): string | nu
 // mail real llega a ese envío, así que su falla (429 de GoTrue u otra) no puede
 // llegarle al cliente: dos pedidos seguidos (ok y después 429) delatarían que
 // la cuenta existe. El cliente recibe siempre RESPUESTA_RECUPERO y la falla
-// queda en el log del servidor (`aviso`), con el código y el status pero sin
-// el mensaje de GoTrue, que puede traer el mail.
-export function cierreRecupero(
-  error: ErrorGoTrue | null | undefined,
-): { respuesta: typeof RESPUESTA_RECUPERO; aviso: string | null } {
-  if (!error) return { respuesta: RESPUESTA_RECUPERO, aviso: null }
-  const aviso = `login-dni reset: falló el envío del mail (code=${error.code ?? '-'}, status=${error.status ?? '-'})`
-  return { respuesta: RESPUESTA_RECUPERO, aviso }
+// queda en el log del servidor: esto devuelve ese aviso (null = no falló), con
+// el código y el status pero sin el mensaje de GoTrue, que puede traer el mail.
+export function cierreRecupero(error: ErrorGoTrue | null | undefined): string | null {
+  if (!error) return null
+  return `login-dni reset: falló el envío del mail (code=${error.code ?? '-'}, status=${error.status ?? '-'})`
 }
 
 // Mail de la cuenta según auth.admin.getUserById. Un perfil sin usuario de
@@ -80,12 +81,13 @@ export interface DepsRecupero {
 
 const ok = (): ResultadoHttp => ({ status: 200, body: { ...RESPUESTA_RECUPERO } })
 const falla = (status: number, error: string): ResultadoHttp => ({ status, body: { error } })
+const mailInvalido = (): ResultadoHttp => ({ status: 400, body: { error: REVISA_MAIL, codigo: CODIGO_MAIL_INVALIDO } })
 
 // Pedido de recupero (login-dni, action 'reset'). Las únicas respuestas que no
 // son la genérica salen de algo que no depende de la cuenta: el formato de lo
 // tipeado, o una falla nuestra antes de decidir (límite o búsqueda).
 export async function manejarRecupero(raw: string, deps: DepsRecupero): Promise<ResultadoHttp> {
-  if (mailMalEscrito(raw)) return falla(400, REVISA_MAIL)
+  if (mailMalEscrito(raw)) return mailInvalido()
   const identificador = normalizarIdentificador(raw)
   if (!identificador) return falla(400, 'Faltan datos')
 
@@ -109,15 +111,16 @@ export async function manejarRecupero(raw: string, deps: DepsRecupero): Promise<
 
   let error: ErrorGoTrue | null
   try {
-    ;({ error } = await deps.enviar(destino))
+    const envio = await deps.enviar(destino)
+    error = envio.error
   } catch (e) {
     // Sólo el tipo: el mensaje puede traer el mail.
     error = { code: `excepcion:${(e as Error)?.name ?? 'desconocida'}` }
   }
-  if (error && identificador.tipo === 'email' && esErrorDeFormatoMail(error)) return falla(400, REVISA_MAIL)
+  if (error && identificador.tipo === 'email' && esErrorDeFormatoMail(error)) return mailInvalido()
 
   // Cualquier otra falla del envío sólo pasa con una cuenta real: al log, no al cliente.
-  const { aviso } = cierreRecupero(error)
+  const aviso = cierreRecupero(error)
   if (aviso) deps.log(aviso)
   return ok()
 }

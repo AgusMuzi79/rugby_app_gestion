@@ -21,6 +21,8 @@ async function caso(nombre: string, fn: () => void | Promise<void>) {
 }
 
 const OK = { status: 200, body: { ok: true } }
+// El cliente decide por `codigo` (app/lib/errorFunction.ts); el texto es para mostrar.
+const MAIL_INVALIDO = { status: 400, body: { error: 'Revisá el mail.', codigo: 'mail_invalido' } }
 
 // Deps falsas: registran a quién se le mandó el mail y qué se logueó.
 function deps(sobre: Partial<DepsRecupero> = {}) {
@@ -52,21 +54,21 @@ async function main() {
     assert.equal(emailParaRecupero(undefined), null)
   })
 
-  await caso('la respuesta es siempre la misma: no dice si el DNI existe, si el mail es sintético ni si el envío falló', () => {
+  await caso('la respuesta es siempre la misma: no dice si el DNI existe, si el mail es sintético ni si el envío falló', async () => {
     assert.deepEqual(RESPUESTA_RECUPERO, { ok: true })
     // Sólo una cuenta real con mail real llega a pedirle el mail a GoTrue: si
     // su falla (429 u otra) llegara al cliente, dos pedidos seguidos (ok y
     // después 429) delatarían que la cuenta existe.
     const fallas = [
       null,
-      undefined,
       { status: 429, code: 'over_email_send_rate_limit' },
       { code: 'over_request_rate_limit' },
       { status: 500, message: 'Error sending recovery email' },
       { status: 400, code: 'validation_failed' },
     ]
     for (const error of fallas) {
-      assert.deepEqual(cierreRecupero(error).respuesta, { ok: true })
+      const { d } = deps({ enviar: async () => ({ error }) })
+      assert.deepEqual(await manejarRecupero('30123456', d), OK)
     }
   })
 
@@ -75,13 +77,14 @@ async function main() {
   })
 
   await caso('una falla del envío queda en el log del servidor, con el código y sin el mail', () => {
-    assert.equal(cierreRecupero(null).aviso, null)
-    assert.equal(cierreRecupero(undefined).aviso, null)
-    const limitado = cierreRecupero({ status: 429, code: 'over_email_send_rate_limit', message: 'ana@gmail.com: rate limit' }).aviso
+    // Sólo devuelve el aviso: la respuesta al cliente la arma manejarRecupero.
+    assert.equal(cierreRecupero(null), null)
+    assert.equal(cierreRecupero(undefined), null)
+    const limitado = cierreRecupero({ status: 429, code: 'over_email_send_rate_limit', message: 'ana@gmail.com: rate limit' })
     assert.ok(limitado?.includes('over_email_send_rate_limit'))
     assert.ok(limitado?.includes('429'))
     assert.ok(!limitado?.includes('ana@gmail.com'), 'el mensaje de GoTrue puede traer el mail: no se loguea')
-    const otra = cierreRecupero({ status: 500, message: 'Error sending recovery email to ana@gmail.com' }).aviso
+    const otra = cierreRecupero({ status: 500, message: 'Error sending recovery email to ana@gmail.com' })
     assert.ok(otra?.includes('500'))
     assert.ok(!otra?.includes('ana@gmail.com'))
   })
@@ -146,7 +149,7 @@ async function main() {
         limite: async () => { paso = true; return 'enviar' },
         emailDeDni: async () => { paso = true; return { email: 'ana@gmail.com', fallo: false } },
       })
-      assert.deepEqual(await manejarRecupero(raw, d), { status: 400, body: { error: 'Revisá el mail.' } }, raw)
+      assert.deepEqual(await manejarRecupero(raw, d), MAIL_INVALIDO, raw)
       assert.equal(paso, false, raw)
     }
   })
@@ -154,7 +157,7 @@ async function main() {
   await caso('mail tipeado que GoTrue rechaza por formato: 400 "Revisá el mail." (no depende de la cuenta)', async () => {
     for (const error of [{ status: 400, code: 'validation_failed' }, { status: 400, code: 'email_address_invalid' }]) {
       const { d } = deps({ enviar: async () => ({ error }) })
-      assert.deepEqual(await manejarRecupero('ana@gmail.con', d), { status: 400, body: { error: 'Revisá el mail.' } })
+      assert.deepEqual(await manejarRecupero('ana@gmail.con', d), MAIL_INVALIDO)
     }
     // El mail de una cuenta buscada por DNI viene de la base: su falla no se dice.
     const porDni = deps({ enviar: async () => ({ error: { status: 400, code: 'validation_failed' } }) })

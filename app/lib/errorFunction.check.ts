@@ -54,14 +54,16 @@ async function main() {
     assert.match(mensajeRecupero({ motivo: 'vacio' }), /DNI o tu mail/)
     assert.equal(mensajeRecupero({ motivo: 'mail_invalido' }), 'Revisá el mail.')
     assert.match(mensajeRecupero({ motivo: 'servidor', status: 400 }), /DNI o tu mail/)
-    assert.equal(mensajeRecupero({ motivo: 'servidor', status: 400, error: 'Revisá el mail.' }), 'Revisá el mail.')
+    // El 400 de mail mal escrito se reconoce por el código estable de login-dni
+    // (CODIGO_MAIL_INVALIDO en supabase/functions/_shared/recupero-password.ts), no por el texto.
+    assert.equal(mensajeRecupero({ motivo: 'servidor', status: 400, codigo: 'mail_invalido' }), 'Revisá el mail.')
     assert.match(mensajeRecupero({ motivo: 'servidor', status: 429 }), /Demasiados intentos/)
     assert.match(mensajeRecupero({ motivo: 'sin_red' }), /No hay conexión/)
     assert.match(mensajeRecupero({ motivo: 'servidor', status: 500 }), /No se pudo enviar/)
     assert.match(mensajeRecupero({ motivo: 'servidor' }), /No se pudo enviar/)
     assert.match(mensajeRecupero({ motivo: 'respuesta_invalida' }), /No se pudo enviar/)
-    // Un texto cualquiera del servidor no se muestra tal cual.
-    assert.match(mensajeRecupero({ motivo: 'servidor', status: 400, error: 'otra cosa' }), /DNI o tu mail/)
+    // Otro código, o ninguno: el genérico del 400.
+    assert.match(mensajeRecupero({ motivo: 'servidor', status: 400, codigo: 'otra cosa' }), /DNI o tu mail/)
   })
 
   await caso('recupero: si tarda no es "sin conexión" (el pedido puede haber salido) (auth review)', () => {
@@ -77,15 +79,26 @@ async function main() {
     assert.deepEqual(fallaRecupero({ tardo: true, error: fetchError, data: null }), { motivo: 'tardo' })
     assert.deepEqual(fallaRecupero({ tardo: false, error: fetchError, data: null }), { motivo: 'sin_red' })
     assert.deepEqual(
-      fallaRecupero({ tardo: false, error: httpError(400, { error: 'Revisá el mail.' }), data: null, cuerpo: { error: 'Revisá el mail.' } }),
-      { motivo: 'servidor', status: 400, error: 'Revisá el mail.' },
+      fallaRecupero({
+        tardo: false, error: httpError(400, {}), data: null,
+        cuerpo: { error: 'Revisá el mail.', codigo: 'mail_invalido' },
+      }),
+      { motivo: 'servidor', status: 400, codigo: 'mail_invalido' },
+    )
+    // Sin código, el texto solo no alcanza.
+    assert.deepEqual(
+      fallaRecupero({ tardo: false, error: httpError(400, {}), data: null, cuerpo: { error: 'Revisá el mail.' } }),
+      { motivo: 'servidor', status: 400, codigo: undefined },
     )
     assert.deepEqual(
       fallaRecupero({ tardo: false, error: httpError(500, {}), data: null, cuerpo: null }),
-      { motivo: 'servidor', status: 500, error: undefined },
+      { motivo: 'servidor', status: 500, codigo: undefined },
     )
     assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: { algo: 1 } }), { motivo: 'respuesta_invalida' })
     assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: null }), { motivo: 'respuesta_invalida' })
+    assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: 'ok' }), { motivo: 'respuesta_invalida' })
+    assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: [true] }), { motivo: 'respuesta_invalida' })
+    assert.deepEqual(fallaRecupero({ tardo: false, error: null, data: { ok: 'true' } }), { motivo: 'respuesta_invalida' })
     assert.equal(fallaRecupero({ tardo: false, error: null, data: { ok: true } }), null)
   })
 

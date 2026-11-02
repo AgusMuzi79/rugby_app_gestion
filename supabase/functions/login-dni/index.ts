@@ -19,8 +19,16 @@
 // `action: 'reset'` (body { action, dni }): recupero de contraseña por DNI o
 // mail. Resuelve el mail de la cuenta igual que el login y le manda el link
 // de GoTrue; si no hay cuenta o el mail es sintético (@uncas.local) no manda
-// nada. Siempre responde { ok: true } — misma regla anti-enumeración. Tiene
-// límite propio por identificador y por IP (registrar_intento_recupero).
+// nada. Respuestas (ninguna depende de que la cuenta exista — misma regla
+// anti-enumeración):
+// - 200 { ok: true }: la genérica. También sin cuenta, con mail sintético,
+//   pasado el límite o si falla el envío del mail (queda en el log).
+// - 400 { error: 'Revisá el mail.', codigo: 'mail_invalido' }: un mail tipeado
+//   mal escrito (o que GoTrue rechaza por formato). La app decide por `codigo`.
+// - 400 { error: 'Faltan datos' }: vacío o sin dígitos.
+// - 500 { error: 'No se pudo verificar el usuario' }: falló el límite o la
+//   búsqueda de la cuenta (nuestra base o Auth), antes de decidir nada.
+// Tiene límite propio por identificador y por IP (registrar_intento_recupero).
 //
 // Deploy: aplicar antes la migración 20261107000000_recupero_password_intentos.
 // Opcional: supabase secrets set RECUPERO_HMAC_KEY=<valor al azar> (clave de
@@ -113,9 +121,9 @@ async function recuperar(raw: string, ip: string | null): Promise<Response> {
     enviar: (email) => clienteAnon().auth.resetPasswordForEmail(email, { redirectTo: REDIRECT_RECUPERO }),
     log: (mensaje) => console.warn(mensaje),
   })
-  return r.status === 200
-    ? jsonOk(r.body)
-    : jsonError(r.status, String(r.body.error))
+  if (r.status === 200) return jsonOk(r.body)
+  const { error, ...extra } = r.body
+  return jsonError(r.status, String(error), extra)
 }
 
 Deno.serve(async (req: Request) => {
