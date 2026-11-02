@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { supabase, selectAllRows } from '@/lib/supabase'
 import SortableTh, { type SortDirection } from '@/components/secretaria/SortableTh'
 import VerMas from '@/components/secretaria/VerMas'
-import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import ErrorCarga from '@/components/ErrorCarga'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
 import { PAGINA_LISTA, paginar, ordenarCon } from '@/lib/listaPaginada'
 import { filtrarDeudas, mensajeVacioDeudas, nombresSocio, SEMAFORO_LABEL, type Semaforo } from '@/lib/busquedaSocios'

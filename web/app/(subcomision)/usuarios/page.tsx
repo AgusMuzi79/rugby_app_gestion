@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import { callEdgeFunction } from '@/lib/edgeFunction'
+import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
+import { rolStaffDe, reemplazarRolStaff } from '@/lib/rolesStaff'
+import ErrorCarga from '@/components/ErrorCarga'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +71,8 @@ function DivisionesPillSelector({
               return (
                 <button
                   key={d.id}
+                  type="button"
+                  aria-pressed={sel}
                   onClick={() => onToggle(d.id)}
                   className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                     sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -103,33 +108,53 @@ export default function UsuariosPage() {
   const [busqueda, setBusqueda]     = useState('')
   const [modalOpen, setModalOpen]   = useState(false)
   const [isAdmin, setIsAdmin]       = useState(false)
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
+  // Resultado de la última acción: los errores se anuncian (role="alert").
+  const [aviso, setAviso]           = useState<{ tipo: 'error' | 'ok'; texto: string } | null>(null)
 
   const rolesDisponibles = isAdmin ? ROLES_ADMIN : ROLES_SUBCO
+  const avisarError = (texto: string) => setAviso({ tipo: 'error', texto })
 
+  // Se lista por roles[] (no por el rol activo): un staff que está en
+  // "vista socio" (rol = 'socio') sigue apareciendo. Las cuentas admin no.
+  // También por rol, por si quedó un perfil viejo con roles[] sin el rol activo.
   const fetchData = useCallback(async (admin: boolean) => {
-    let query = supabase.from('profiles').select('id, nombre, rol, roles, divisiones, deporte')
-      .neq('rol', 'socio').neq('rol', 'admin').neq('rol', 'cliente_gimnasio').order('nombre')
-    if (!admin) {
-      query = query.neq('rol', 'secretaria').neq('rol', 'porteria').neq('rol', 'canchero').neq('rol', 'buffet')
-    }
-    const [{ data: profs }, { data: divs }] = await Promise.all([
-      query,
+    setErrorCarga(null)
+    const staff = (admin ? ROLES_ADMIN : ROLES_SUBCO).join(',')
+    const [profsRes, divsRes] = await Promise.all([
+      supabase.from('profiles').select('id, nombre, rol, roles, divisiones, deporte, activo')
+        .or(`roles.ov.{${staff}},rol.in.(${staff})`)
+        .not('roles', 'cs', '{admin}')
+        .order('nombre'),
       supabase.from('divisiones').select('id, nombre, deporte').order('nombre'),
     ])
-    setProfiles(profs ?? [])
-    setDivisiones(divs ?? [])
+    const error = primerError(profsRes.error, divsRes.error)
+    if (error) setErrorCarga(mensajeErrorCarga('los usuarios', error))
+    else {
+      setProfiles(profsRes.data ?? [])
+      setDivisiones(divsRes.data ?? [])
+    }
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { fetchData(false); return }
-      const { data: prof } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
-      const admin = prof?.rol === 'admin'
-      setIsAdmin(admin)
-      fetchData(admin)
-    })
+  const cargar = useCallback(async () => {
+    setLoading(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { await fetchData(false); return }
+    // Si falla el propio perfil se muestra el error: un admin no tiene que
+    // caer en silencio a la vista de subcomisión (lista y roles recortados).
+    const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).maybeSingle()
+    if (error) {
+      setErrorCarga(mensajeErrorCarga('tu perfil', error))
+      setLoading(false)
+      return
+    }
+    const admin = prof?.rol === 'admin'
+    setIsAdmin(admin)
+    await fetchData(admin)
   }, [fetchData])
+
+  useEffect(() => { void cargar() }, [cargar])
 
   const getEmail = async (id: string) => {
     setProfiles(ps => ps.map(p => p.id === id ? { ...p, loadingEmail: true } : p))
@@ -148,20 +173,31 @@ export default function UsuariosPage() {
     if (expanding && !current?.email && !current?.loadingEmail) getEmail(id)
   }
 
+  // UPDATE de profiles que avisa si falló o si la RLS no dejó tocar la fila.
+  const actualizarPerfil = async (id: string, cambios: Record<string, unknown>, que: string): Promise<boolean> => {
+    setAviso(null)
+    const { data, error } = await supabase.from('profiles').update(cambios).eq('id', id).select('id')
+    if (error) { avisarError(`No se pudo guardar ${que}: ${error.message}`); return false }
+    if (!data || data.length === 0) { avisarError(`No se guardó ${que}: no tenés permiso sobre esta cuenta.`); return false }
+    return true
+  }
+
   const saveRol = async (p: ProfileRow) => {
-    if (!p.tempRol) return
-    await supabase.from('profiles').update({ rol: p.tempRol }).eq('id', p.id)
-    setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, rol: p.tempRol!, editingRol: false } : r))
+    const viejo = rolStaffDe(p.rol, p.roles, rolesDisponibles)
+    const cerrar = () => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: false } : r))
+    if (!p.tempRol || !viejo || p.tempRol === viejo) { cerrar(); return }
+    const cambio = reemplazarRolStaff({ rol: p.rol, roles: p.roles }, viejo, p.tempRol)
+    if (!await actualizarPerfil(p.id, cambio, 'el rol')) return
+    setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, ...cambio, editingRol: false } : r))
   }
 
   const saveDeporte = async (p: ProfileRow, deporte: string | null) => {
-    const { error } = await supabase.from('profiles').update({ deporte }).eq('id', p.id)
-    if (error) { alert('Error al guardar la disciplina: ' + error.message); return }
+    if (!await actualizarPerfil(p.id, { deporte }, 'la disciplina')) return
     setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, deporte } : r))
   }
 
   const saveDiv = async (p: ProfileRow) => {
-    await supabase.from('profiles').update({ divisiones: p.tempDiv ?? [] }).eq('id', p.id)
+    if (!await actualizarPerfil(p.id, { divisiones: p.tempDiv ?? [] }, 'las divisiones')) return
     setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, divisiones: p.tempDiv ?? [], editingDiv: false } : r))
   }
 
@@ -175,43 +211,58 @@ export default function UsuariosPage() {
 
   const eliminar = async (id: string, nombre: string) => {
     if (!confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return
+    setAviso(null)
     const json = await callEdgeFunction('admin-usuarios', { action: 'delete', userId: id })
-    if (json.error) { alert(json.error); return }
+    if (json.error) { avisarError(`No se pudo eliminar a ${nombre}: ${json.error}`); return }
     setProfiles(ps => ps.filter(p => p.id !== id))
+    setAviso({ tipo: 'ok', texto: `${nombre} fue eliminado.` })
   }
 
   // Cuenta de socio con rol de staff: se le saca el rol y vuelve a su vista de
   // socio. La cuenta no se elimina (arrastraría su socio, cuotas y pagos).
   const quitarRol = async (id: string, nombre: string) => {
     if (!confirm(`¿Quitarle el rol de staff a ${nombre}? Su cuenta de socio sigue igual.`)) return
+    setAviso(null)
     const json = await callEdgeFunction('admin-usuarios', { action: 'remove-role', userId: id })
-    if (json.error) { alert(json.error); return }
+    if (json.error) { avisarError(`No se pudo quitar el rol a ${nombre}: ${json.error}`); return }
     setProfiles(ps => ps.filter(p => p.id !== id))
+    setAviso({ tipo: 'ok', texto: `${nombre} ya no tiene rol de staff.` })
   }
 
-  const desactivar = async (id: string) => {
-    if (!confirm('¿Desactivar este usuario?')) return
-    const json = await callEdgeFunction('admin-usuarios', { action: 'deactivate', userId: id })
-    if (json.error) { alert(json.error); return }
-    setProfiles(ps => ps.map(p => p.id === id ? { ...p, activo: false } : p))
-  }
-
-  const reactivar = async (id: string) => {
-    const json = await callEdgeFunction('admin-usuarios', { action: 'reactivate', userId: id })
-    if (json.error) { alert(json.error); return }
-    setProfiles(ps => ps.map(p => p.id === id ? { ...p, activo: true } : p))
+  // Un solo botón: DESACTIVAR si la cuenta está activa, REACTIVAR si no.
+  const alternarActivo = async (p: ProfileRow) => {
+    const desactivando = p.activo !== false
+    if (desactivando && !confirm(`¿Desactivar a ${p.nombre}?`)) return
+    setAviso(null)
+    const json = await callEdgeFunction('admin-usuarios', { action: desactivando ? 'deactivate' : 'reactivate', userId: p.id })
+    if (json.error) { avisarError(`No se pudo ${desactivando ? 'desactivar' : 'reactivar'} a ${p.nombre}: ${json.error}`); return }
+    setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, activo: !desactivando } : r))
+    setAviso({ tipo: 'ok', texto: `${p.nombre} fue ${desactivando ? 'desactivado' : 'reactivado'}.` })
   }
 
   const getNombreDivision = (id: string) => divisiones.find(d => d.id === id)?.nombre ?? id
 
-  const filtrados = profiles.filter(p =>
-    p.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.rol?.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const rolDe = (p: ProfileRow) => rolStaffDe(p.rol, p.roles, rolesDisponibles) ?? p.rol
+
+  const q = busqueda.toLowerCase()
+  const filtrados = profiles.filter(p => {
+    const rol = rolDe(p)
+    return p.nombre?.toLowerCase().includes(q) ||
+      rol.toLowerCase().includes(q) ||
+      (ROL_LABEL[rol] ?? '').toLowerCase().includes(q)
+  })
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
+    </div>
+  )
+
+  if (errorCarga) return (
+    <div>
+      <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · USUARIOS</p>
+      <h1 className="font-playfair italic text-4xl text-tinta mb-8">Gestión de Usuarios</h1>
+      <ErrorCarga mensaje={errorCarga} onReintentar={() => void cargar()} />
     </div>
   )
 
@@ -234,25 +285,42 @@ export default function UsuariosPage() {
       {/* Búsqueda */}
       <input
         type="text"
+        aria-label="Buscar usuarios por nombre o rol"
         placeholder="Buscar por nombre o rol…"
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
         className="font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 w-full max-w-sm outline-none focus:border-tinta transition-colors mb-6"
       />
 
+      {aviso && (
+        <p
+          role={aviso.tipo === 'error' ? 'alert' : 'status'}
+          className={`font-lora text-sm mb-4 ${aviso.tipo === 'error' ? 'text-rojo-texto' : 'text-tinta'}`}
+        >
+          {aviso.texto}
+        </p>
+      )}
+
       {/* Lista */}
       <div className="flex flex-col gap-2">
         {filtrados.map(p => (
           <div key={p.id} className="bg-card border border-gris-claro">
             <button
+              type="button"
+              aria-expanded={!!p.expanded}
               onClick={() => toggleExpand(p.id)}
               className="w-full text-left px-6 py-4 flex items-center justify-between hover:bg-papel/50 transition-colors"
             >
               <div className="flex items-center gap-6">
                 <span className="font-playfair text-lg font-bold text-tinta">{p.nombre}</span>
                 <span className="font-lora text-xs tracking-widest text-tinta/50 bg-gris-claro px-2 py-1 uppercase">
-                  {ROL_LABEL[p.rol] ?? p.rol}
+                  {ROL_LABEL[rolDe(p)] ?? rolDe(p)}
                 </span>
+                {p.activo === false && (
+                  <span className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-2 py-1">
+                    DESACTIVADO
+                  </span>
+                )}
               </div>
               <span className="font-lora text-xs text-texto-2">{p.expanded ? '▲' : '▼'}</span>
             </button>
@@ -265,13 +333,19 @@ export default function UsuariosPage() {
                     <p className="font-lora text-sm text-tinta">{p.loadingEmail ? 'Cargando…' : (p.email ?? '—')}</p>
                   </div>
                   <div>
-                    <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</p>
+                    {p.editingRol ? (
+                      <label htmlFor={`rol-${p.id}`} className="block font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</label>
+                    ) : (
+                      <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</p>
+                    )}
                     {p.editingRol ? (
                       <div className="flex items-center gap-2">
+                        {/* Sin outline-none: el foco usa el :focus-visible global. */}
                         <select
-                          value={p.tempRol ?? p.rol}
+                          id={`rol-${p.id}`}
+                          value={p.tempRol ?? rolDe(p)}
                           onChange={e => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, tempRol: e.target.value } : r))}
-                          className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 outline-none"
+                          className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 focus:border-oro"
                         >
                           {rolesDisponibles.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
                         </select>
@@ -280,18 +354,20 @@ export default function UsuariosPage() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-3">
-                        <span className="font-lora text-sm text-tinta">{ROL_LABEL[p.rol] ?? p.rol}</span>
-                        <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: true, tempRol: r.rol } : r))} className="font-lora text-xs text-oro tracking-widest hover:underline">EDITAR</button>
+                        <span className="font-lora text-sm text-tinta">{ROL_LABEL[rolDe(p)] ?? rolDe(p)}</span>
+                        <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: true, tempRol: rolDe(r) } : r))} className="font-lora text-xs text-oro tracking-widest hover:underline">EDITAR</button>
                       </div>
                     )}
                   </div>
-                  {isAdmin && p.rol === 'subcomision' && (
+                  {isAdmin && rolDe(p) === 'subcomision' && (
                     <div className="col-span-2">
                       <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">DISCIPLINA</p>
                       <div className="flex flex-wrap gap-2">
                         {DEPORTE_SUBCO_OPCIONES.map(o => (
                           <button
                             key={o.label}
+                            type="button"
+                            aria-pressed={(p.deporte ?? null) === o.value}
                             onClick={() => saveDeporte(p, o.value)}
                             className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                               (p.deporte ?? null) === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -343,8 +419,11 @@ export default function UsuariosPage() {
                     )}
                   </div>
                   <div className="col-span-2 flex gap-3 pt-2 border-t border-gris-claro">
-                    <button onClick={() => desactivar(p.id)} className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-4 py-2 hover:bg-rojo hover:text-white transition-colors">DESACTIVAR</button>
-                    <button onClick={() => reactivar(p.id)} className="font-lora text-xs tracking-widest text-tinta/50 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">REACTIVAR</button>
+                    {p.activo === false ? (
+                      <button onClick={() => alternarActivo(p)} className="font-lora text-xs tracking-widest text-tinta border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">REACTIVAR</button>
+                    ) : (
+                      <button onClick={() => alternarActivo(p)} className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-4 py-2 hover:bg-rojo hover:text-white transition-colors">DESACTIVAR</button>
+                    )}
                     {(p.roles ?? []).includes('socio') ? (
                       <button onClick={() => quitarRol(p.id, p.nombre)} className="ml-auto font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-4 py-2 hover:border-tinta transition-colors">QUITAR ROL DE STAFF</button>
                     ) : isAdmin && (
@@ -487,10 +566,13 @@ function ModalNuevoUsuario({
     >
       {/* Tabs — solo admin puede crear usuarios nuevos */}
       {isAdmin && (
-        <div className="flex border-b border-gris-claro">
+        <div role="tablist" aria-label="Cómo dar de alta" className="flex border-b border-gris-claro">
           {(['asignar', 'crear'] as ModoModal[]).map(m => (
             <button
               key={m}
+              type="button"
+              role="tab"
+              aria-selected={modo === m}
               onClick={() => setModo(m)}
               className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
                 modo === m
@@ -517,9 +599,10 @@ function ModalNuevoUsuario({
             <>
               {/* Búsqueda */}
               <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
+                <label htmlFor="asignar-busqueda" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
                 <div className="flex gap-2">
                   <input
+                    id="asignar-busqueda"
                     type="text"
                     value={busqueda}
                     onChange={e => setBusqueda(e.target.value)}
@@ -537,7 +620,7 @@ function ModalNuevoUsuario({
                 </div>
               </div>
 
-              {errorBusqueda && <p className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
+              {errorBusqueda && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
 
               {/* Lista de resultados */}
               {resultados.length > 0 && (
@@ -562,12 +645,14 @@ function ModalNuevoUsuario({
                     <p className="font-lora text-sm text-tinta">✓ {socioElegido.nombre}</p>
                   </div>
 
-                  <div>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</label>
+                  <div role="group" aria-labelledby="asignar-rol">
+                    <p id="asignar-rol" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</p>
                     <div className="flex flex-wrap gap-2">
                       {rolesDisponibles.map(r => (
                         <button
                           key={r}
+                          type="button"
+                          aria-pressed={rolAsignacion === r}
                           onClick={() => setRolAsignacion(r)}
                           className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
                             rolAsignacion === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
@@ -580,12 +665,14 @@ function ModalNuevoUsuario({
                   </div>
 
                   {isAdmin && rolAsignacion === 'subcomision' && (
-                    <div>
-                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                    <div role="group" aria-labelledby="asignar-disciplina">
+                      <p id="asignar-disciplina" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</p>
                       <div className="flex flex-wrap gap-2">
                         {DEPORTE_SUBCO_OPCIONES.map(o => (
                           <button
                             key={o.label}
+                            type="button"
+                            aria-pressed={deporteAsignacion === o.value}
                             onClick={() => setDeporteAsignacion(o.value)}
                             className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                               deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -598,8 +685,8 @@ function ModalNuevoUsuario({
                     </div>
                   )}
 
-                  <div>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                  <div role="group" aria-labelledby="asignar-divisiones">
+                    <p id="asignar-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
                     <DivisionesPillSelector
                       divisiones={divisiones}
                       seleccionadas={divsAsignacion}
@@ -607,7 +694,7 @@ function ModalNuevoUsuario({
                     />
                   </div>
 
-                  {errorAsignacion && <p className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
+                  {errorAsignacion && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
 
                   <button
                     onClick={asignarRol}
@@ -629,13 +716,14 @@ function ModalNuevoUsuario({
           ) : (
             <>
               {[
-                { label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
-                { label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
-                { label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
+                { id: 'nuevo-nombre', label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
+                { id: 'nuevo-email', label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
+                { id: 'nuevo-dni', label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
               ].map(f => (
                 <div key={f.label}>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
+                  <label htmlFor={f.id} className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
                   <input
+                    id={f.id}
                     type={f.type ?? 'text'}
                     value={f.value}
                     onChange={e => f.set(e.target.value)}
@@ -645,12 +733,14 @@ function ModalNuevoUsuario({
                 </div>
               ))}
 
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</label>
+              <div role="group" aria-labelledby="nuevo-rol">
+                <p id="nuevo-rol" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</p>
                 <div className="flex flex-wrap gap-2">
                   {rolesDisponibles.map(r => (
                     <button
                       key={r}
+                      type="button"
+                      aria-pressed={rolNuevo === r}
                       onClick={() => setRolNuevo(r)}
                       className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
                         rolNuevo === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
@@ -663,12 +753,14 @@ function ModalNuevoUsuario({
               </div>
 
               {isAdmin && rolNuevo === 'subcomision' && (
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                <div role="group" aria-labelledby="nuevo-disciplina">
+                  <p id="nuevo-disciplina" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</p>
                   <div className="flex flex-wrap gap-2">
                     {DEPORTE_SUBCO_OPCIONES.map(o => (
                       <button
                         key={o.label}
+                        type="button"
+                        aria-pressed={deporteNuevo === o.value}
                         onClick={() => setDeporteNuevo(o.value)}
                         className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                           deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -681,8 +773,8 @@ function ModalNuevoUsuario({
                 </div>
               )}
 
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+              <div role="group" aria-labelledby="nuevo-divisiones">
+                <p id="nuevo-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
                 <DivisionesPillSelector
                   divisiones={divisiones}
                   seleccionadas={divsNuevo}
@@ -690,7 +782,7 @@ function ModalNuevoUsuario({
                 />
               </div>
 
-              {errorCrear && <p className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
+              {errorCrear && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
 
               <button
                 onClick={crearUsuario}

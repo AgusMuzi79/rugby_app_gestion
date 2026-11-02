@@ -78,10 +78,11 @@ export default function LoginPage() {
         <div className="bg-card border border-gris-claro p-8">
           <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             <div className="flex flex-col gap-1">
-              <label className="font-lora text-xs tracking-widest text-tinta/60">
+              <label htmlFor="login-email" className="font-lora text-xs tracking-widest text-tinta/60">
                 CORREO ELECTRÓNICO
               </label>
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -93,11 +94,12 @@ export default function LoginPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="font-lora text-xs tracking-widest text-tinta/60">
+              <label htmlFor="login-password" className="font-lora text-xs tracking-widest text-tinta/60">
                 CONTRASEÑA
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
@@ -109,6 +111,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(v => !v)}
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
                   className="absolute right-0 top-1/2 -translate-y-1/2 font-lora text-xs tracking-widest text-texto-2 hover:text-tinta transition-colors"
                 >
                   {showPassword ? 'OCULTAR' : 'VER'}
@@ -117,7 +121,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="font-lora text-rojo-texto text-sm">{error}</p>
+              <p role="alert" className="font-lora text-rojo-texto text-sm">{error}</p>
             )}
 
             <button

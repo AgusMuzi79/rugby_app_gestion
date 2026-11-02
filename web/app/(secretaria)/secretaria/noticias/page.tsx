@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import { mensajeErrorCarga } from '@/lib/errorCarga'
-import ErrorCarga from '@/components/secretaria/ErrorCarga'
+import ErrorCarga from '@/components/ErrorCarga'
 import { confirmacionPublicar, mensajeResultadoAviso } from '@/lib/avisoNoticia'
 
 interface Noticia {

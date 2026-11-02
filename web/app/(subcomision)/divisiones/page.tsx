@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { validarRecibeAdultos, avisoRama } from '@/lib/validacionDivision'
+import ErrorCarga from '@/components/ErrorCarga'
 
 interface Division {
   id: string
@@ -66,25 +68,67 @@ export default function DivisionesPage() {
   const [nuevaRecibeAdultos, setNuevaRecibeAdultos] = useState(false)
   const [creando, setCreando] = useState(false)
   const [error, setError] = useState('')
+  // Crear, editar y activar/desactivar divisiones es sólo de admin (la RLS
+  // también lo exige); subcomisión ve la lista en sólo lectura.
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [errorLista, setErrorLista] = useState('')
+  const [errorCarga, setErrorCarga] = useState(false)
 
-  const fetchDivisiones = async () => {
-    const { data } = await supabase
+  // Devuelve false si la consulta falló (la lista queda como estaba).
+  const fetchDivisiones = async (): Promise<boolean> => {
+    const { data, error } = await supabase
       .from('divisiones')
       .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama, siguiente_division_id, recibe_adultos')
       .order('nombre')
+    if (error) return false
     setDivisiones(data ?? [])
+    return true
+  }
+
+  // Si falla el perfil o la lista se muestra el error con REINTENTAR: un admin
+  // no tiene que ver la vista de sólo lectura por una falla de red.
+  const cargar = async () => {
+    setLoading(true)
+    setErrorCarga(false)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      // maybeSingle: sin perfil no es un error de red, queda en sólo lectura.
+      const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).maybeSingle()
+      if (error) {
+        setErrorCarga(true)
+        setLoading(false)
+        return
+      }
+      setIsAdmin(prof?.rol === 'admin')
+    }
+    if (!(await fetchDivisiones())) setErrorCarga(true)
     setLoading(false)
   }
 
-  useEffect(() => { fetchDivisiones() }, [])
+  useEffect(() => {
+    void cargar()
+  }, [])
 
   const toggleActivo = async (div: Division) => {
-    const { error: err } = await supabase
+    setErrorLista('')
+    if (!div.activa) {
+      const msg = validarRecibeAdultos(
+        { id: div.id, deporte: div.deporte, rama: div.rama ?? '', activa: true, recibe_adultos: div.recibe_adultos },
+        divisiones)
+      if (msg) { setErrorLista(`No se puede reactivar ${div.nombre}. ${msg}`); return }
+    }
+
+    const { data, error: err } = await supabase
       .from('divisiones')
       .update({ activa: !div.activa })
       .eq('id', div.id)
+      .select('id')
 
-    if (!err) {
+    if (err) {
+      setErrorLista(`No se pudo ${div.activa ? 'desactivar' : 'reactivar'} ${div.nombre}: ${err.message}`)
+    } else if (!data || data.length === 0) {
+      setErrorLista(`No se guardó el cambio en ${div.nombre}: no tenés permiso.`)
+    } else {
       setDivisiones(ds => ds.map(d => d.id === div.id ? { ...d, activa: !d.activa } : d))
     }
   }
@@ -142,6 +186,19 @@ export default function DivisionesPage() {
       return
     }
 
+    const editada = editandoId ? divisiones.find(d => d.id === editandoId) : undefined
+    const errorAdultos = validarRecibeAdultos({
+      id: editandoId,
+      deporte: nuevaDeporte,
+      rama: nuevaRama,
+      activa: editada ? editada.activa : true,
+      recibe_adultos: nuevaRecibeAdultos,
+    }, divisiones)
+    if (errorAdultos) {
+      setError(errorAdultos)
+      return
+    }
+
     setCreando(true)
 
     const campos = {
@@ -156,15 +213,19 @@ export default function DivisionesPage() {
       recibe_adultos: nuevaRecibeAdultos,
     }
 
-    const { error: err } = editandoId
-      ? await supabase.from('divisiones').update(campos).eq('id', editandoId)
-      : await supabase.from('divisiones').insert({ ...campos, activa: true })
+    const { data, error: err } = editandoId
+      ? await supabase.from('divisiones').update(campos).eq('id', editandoId).select('id')
+      : await supabase.from('divisiones').insert({ ...campos, activa: true }).select('id')
 
     if (err) {
       setError(`Error al ${editandoId ? 'guardar' : 'crear'} la división: ${err.message}`)
+    } else if (!data || data.length === 0) {
+      setError('No se guardó la división: no tenés permiso.')
     } else {
       resetForm()
-      await fetchDivisiones()
+      if (!(await fetchDivisiones())) {
+        setErrorLista('La división se guardó, pero no se pudo actualizar la lista. Recargá la página.')
+      }
     }
     setCreando(false)
   }
@@ -180,6 +241,10 @@ export default function DivisionesPage() {
         <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
       </div>
     )
+  }
+
+  if (errorCarga) {
+    return <ErrorCarga mensaje="No se pudieron cargar las divisiones." onReintentar={() => void cargar()} />
   }
 
   const activas = divisiones.filter(d => d.activa)
@@ -211,10 +276,17 @@ export default function DivisionesPage() {
       <div className="mb-8">
         <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · DIVISIONES</p>
         <h1 className="font-playfair italic text-4xl font-black text-tinta">Divisiones</h1>
+        {!isAdmin && (
+          <p className="font-lora text-sm text-texto-2 mt-2">
+            Sólo lectura: las divisiones las crea y edita el administrador.
+          </p>
+        )}
       </div>
 
+      {errorLista && <p role="alert" className="font-lora text-rojo-texto text-xs mb-4">{errorLista}</p>}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 flex flex-col gap-6">
+        <div className={`${isAdmin ? 'lg:col-span-2' : 'lg:col-span-3'} flex flex-col gap-6`}>
           <div>
             <p className="font-lora text-xs tracking-widest text-texto-2 mb-3">ACTIVAS ({activas.length})</p>
             <div className="flex flex-col gap-1">
@@ -228,20 +300,22 @@ export default function DivisionesPage() {
                     <span className="font-lora text-xs text-texto-2 tracking-widest">{DEPORTE_LABEL[div.deporte] ?? div.deporte}</span>
                     <span className="font-lora text-xs text-tinta/60">{resumenDivision(div, divisiones)}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => empezarEdicion(div)}
-                      className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
-                    >
-                      EDITAR
-                    </button>
-                    <button
-                      onClick={() => toggleActivo(div)}
-                      className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-3 py-1 hover:bg-rojo hover:text-white transition-colors"
-                    >
-                      DESACTIVAR
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => empezarEdicion(div)}
+                        className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
+                      >
+                        EDITAR
+                      </button>
+                      <button
+                        onClick={() => toggleActivo(div)}
+                        className="font-lora text-xs tracking-widest text-rojo-texto border border-rojo px-3 py-1 hover:bg-rojo hover:text-white transition-colors"
+                      >
+                        DESACTIVAR
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {activas.length === 0 && (
@@ -260,20 +334,22 @@ export default function DivisionesPage() {
                       <span className="font-lora text-sm text-tinta line-through">{div.nombre}</span>
                       <span className="font-lora text-xs text-tinta/60">{resumenDivision(div, divisiones)}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => empezarEdicion(div)}
-                        className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
-                      >
-                        EDITAR
-                      </button>
-                      <button
-                        onClick={() => toggleActivo(div)}
-                        className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
-                      >
-                        REACTIVAR
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => empezarEdicion(div)}
+                          className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
+                        >
+                          EDITAR
+                        </button>
+                        <button
+                          onClick={() => toggleActivo(div)}
+                          className="font-lora text-xs tracking-widest text-tinta/60 border border-gris-claro px-3 py-1 hover:border-tinta hover:text-tinta transition-colors"
+                        >
+                          REACTIVAR
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -281,14 +357,15 @@ export default function DivisionesPage() {
           )}
         </div>
 
+        {isAdmin && (
         <div className="bg-card border border-gris-claro p-6 self-start">
           <p className="font-lora text-xs tracking-widest text-texto-2 mb-4">
             {editandoId ? 'EDITAR DIVISIÓN' : 'NUEVA DIVISIÓN'}
           </p>
           <form onSubmit={guardarDivision} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>NOMBRE</label>
-              <input
+              <label htmlFor="div-nombre" className={labelClass}>NOMBRE</label>
+              <input id="div-nombre"
                 type="text"
                 value={nuevaNombre}
                 onChange={e => setNuevaNombre(e.target.value)}
@@ -298,8 +375,8 @@ export default function DivisionesPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>CATEGORÍA</label>
-              <select
+              <label htmlFor="div-categoria" className={labelClass}>CATEGORÍA</label>
+              <select id="div-categoria"
                 value={nuevaCategoria}
                 onChange={e => setNuevaCategoria(e.target.value)}
                 className={selectClass}
@@ -314,8 +391,8 @@ export default function DivisionesPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>DEPORTE</label>
-              <select
+              <label htmlFor="div-deporte" className={labelClass}>DEPORTE</label>
+              <select id="div-deporte"
                 value={nuevaDeporte}
                 onChange={e => cambiarDeporte(e.target.value)}
                 className={selectClass}
@@ -329,8 +406,8 @@ export default function DivisionesPage() {
             <div className="flex flex-col gap-1">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className={labelClass}>EDAD DESDE</label>
-                  <input
+                  <label htmlFor="div-edad-min" className={labelClass}>EDAD DESDE</label>
+                  <input id="div-edad-min"
                     type="number"
                     min={0}
                     step={1}
@@ -341,8 +418,8 @@ export default function DivisionesPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className={labelClass}>EDAD HASTA</label>
-                  <input
+                  <label htmlFor="div-edad-max" className={labelClass}>EDAD HASTA</label>
+                  <input id="div-edad-max"
                     type="number"
                     min={0}
                     step={1}
@@ -364,8 +441,8 @@ export default function DivisionesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>LÍNEA</label>
-                <select
+                <label htmlFor="div-linea" className={labelClass}>LÍNEA</label>
+                <select id="div-linea"
                   value={nuevaLinea}
                   onChange={e => setNuevaLinea(e.target.value)}
                   className={selectClass}
@@ -376,8 +453,8 @@ export default function DivisionesPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>RAMA</label>
-                <select
+                <label htmlFor="div-rama" className={labelClass}>RAMA</label>
+                <select id="div-rama"
                   value={nuevaRama}
                   onChange={e => setNuevaRama(e.target.value)}
                   className={selectClass}
@@ -387,12 +464,15 @@ export default function DivisionesPage() {
                   <option value="caballeros">Caballeros</option>
                   <option value="mixto">Mixto</option>
                 </select>
+                {avisoRama(nuevaRama) && (
+                  <p className="font-lora text-xs text-texto-2 mt-1">{avisoRama(nuevaRama)}</p>
+                )}
               </div>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>DIVISIÓN SIGUIENTE</label>
-              <select
+              <label htmlFor="div-siguiente" className={labelClass}>DIVISIÓN SIGUIENTE</label>
+              <select id="div-siguiente"
                 value={nuevaSiguienteId}
                 onChange={e => setNuevaSiguienteId(e.target.value)}
                 className={selectClass}
@@ -447,6 +527,7 @@ export default function DivisionesPage() {
             )}
           </form>
         </div>
+        )}
       </div>
     </div>
   )
