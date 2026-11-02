@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { validarRecibeAdultos, avisoRama } from '@/lib/validacionDivision'
+import ErrorCarga from '@/components/ErrorCarga'
 
 interface Division {
   id: string
@@ -71,25 +72,39 @@ export default function DivisionesPage() {
   // también lo exige); subcomisión ve la lista en sólo lectura.
   const [isAdmin, setIsAdmin] = useState(false)
   const [errorLista, setErrorLista] = useState('')
+  const [errorCarga, setErrorCarga] = useState(false)
 
-  const fetchDivisiones = async () => {
-    const { data } = await supabase
+  // Devuelve false si la consulta falló (la lista queda como estaba).
+  const fetchDivisiones = async (): Promise<boolean> => {
+    const { data, error } = await supabase
       .from('divisiones')
       .select('id, nombre, activa, deporte, categoria, edad_min, edad_max, linea, rama, siguiente_division_id, recibe_adultos')
       .order('nombre')
+    if (error) return false
     setDivisiones(data ?? [])
+    return true
+  }
+
+  // Si falla el perfil o la lista se muestra el error con REINTENTAR: un admin
+  // no tiene que ver la vista de sólo lectura por una falla de red.
+  const cargar = async () => {
+    setLoading(true)
+    setErrorCarga(false)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
+      if (error) {
+        setErrorCarga(true)
+        setLoading(false)
+        return
+      }
+      setIsAdmin(prof?.rol === 'admin')
+    }
+    if (!(await fetchDivisiones())) setErrorCarga(true)
     setLoading(false)
   }
 
   useEffect(() => {
-    const cargar = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data: prof } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
-        setIsAdmin(prof?.rol === 'admin')
-      }
-      await fetchDivisiones()
-    }
     void cargar()
   }, [])
 
@@ -207,7 +222,9 @@ export default function DivisionesPage() {
       setError('No se guardó la división: no tenés permiso.')
     } else {
       resetForm()
-      await fetchDivisiones()
+      if (!(await fetchDivisiones())) {
+        setErrorLista('La división se guardó, pero no se pudo actualizar la lista. Recargá la página.')
+      }
     }
     setCreando(false)
   }
@@ -223,6 +240,10 @@ export default function DivisionesPage() {
         <p className="font-lora text-texto-2 tracking-widest text-sm">CARGANDO…</p>
       </div>
     )
+  }
+
+  if (errorCarga) {
+    return <ErrorCarga mensaje="No se pudieron cargar las divisiones." onReintentar={() => void cargar()} />
   }
 
   const activas = divisiones.filter(d => d.activa)
