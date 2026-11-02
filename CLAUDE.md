@@ -104,7 +104,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
   - El índice único `equipos_division_nombre_key` **no** se creó: hay 8 grupos de equipos duplicados (16 filas); la app cae a insert simple (`app/lib/equiposPartido.ts`, error 42P10) hasta correr la limpieza T16.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
-**Estado de las stores (actualizado 2026-11-02):**
+**Estado de las stores (actualizado 2026-10-18):**
 - **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10). **1.0.9** (2026-10-14, PR #28: copiar alias, `expo-image`): `.aab` del build EAS `fe0b89ca` subido a mano a Play Console por Agus (el submit de Android no está configurado en `eas.json`).
 - **iOS:** versión 1.0.8 (build 22) **publicada** en el App Store (8/10). **1.0.9 (build 23)** enviada a revisión 2026-10-14 con publicación automática al 100 % al aprobarse ("Automatically release this version").
 - **OTA sobre 1.0.8** (2026-10-08, `eas update --branch production`, Android + iOS): pestaña "Jugadores" del coordinador (divisiones por edad).
