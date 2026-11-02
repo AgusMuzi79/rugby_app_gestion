@@ -23,6 +23,8 @@
 // límite propio por identificador y por IP (registrar_intento_recupero).
 //
 // Deploy: aplicar antes la migración 20261107000000_recupero_password_intentos.
+// Opcional: supabase secrets set RECUPERO_HMAC_KEY=<valor al azar> (clave de
+// los hashes del límite; si falta se usa la service role key).
 // supabase functions deploy login-dni --no-verify-jwt
 // (se llama sin sesión — el usuario todavía no está logueado)
 
@@ -37,7 +39,13 @@ import {
   manejarRecupero,
   type CuentaDni,
 } from '../_shared/recupero-password.ts'
-import { clavesRecupero, decisionRecupero, ipCliente } from '../_shared/recupero-intentos.ts'
+import {
+  claveHmacRecupero,
+  clavesRecupero,
+  decisionRecupero,
+  ipCliente,
+  parametrosLimite,
+} from '../_shared/recupero-intentos.ts'
 
 const GENERIC_ERROR = 'Credenciales incorrectas'
 
@@ -73,20 +81,24 @@ async function emailDeDni(dni: string): Promise<CuentaDni> {
 
 // Límite propio por identificador y por IP (_shared/recupero-intentos.ts). Va
 // antes de buscar la cuenta, así que nada de lo que responde depende de que
-// exista.
+// exista. Una sola llamada: la base evalúa las claves en orden y corta en la
+// primera que rechaza.
 async function limiteRecupero(identificador: Identificador, ip: string | null) {
-  const claves = await clavesRecupero(identificador, ip)
-  const resultados = await Promise.all(claves.map(async ({ clave, ventana, maximo }) => {
-    const { data, error } = await supabaseAdmin.rpc('registrar_intento_recupero', {
-      p_clave: clave, p_ventana: ventana, p_maximo: maximo,
-    })
-    if (error) {
-      console.error('login-dni reset: registrar_intento_recupero', error.code, error.message)
-      return 'error' as const
-    }
-    return data === true
-  }))
-  return decisionRecupero(resultados)
+  const claveHmac = claveHmacRecupero((nombre) => Deno.env.get(nombre))
+  if (!claveHmac) {
+    console.error('login-dni reset: falta RECUPERO_HMAC_KEY y SUPABASE_SERVICE_ROLE_KEY')
+    return 'error' as const
+  }
+  const claves = await clavesRecupero(identificador, ip, claveHmac)
+  const { data, error } = await supabaseAdmin.rpc('registrar_intento_recupero', parametrosLimite(claves))
+  if (error) {
+    console.error('login-dni reset: registrar_intento_recupero', error.code, error.message)
+    return 'error' as const
+  }
+  const { decision, aviso } = decisionRecupero(data, claves)
+  if (aviso) console.info(aviso)
+  if (decision === 'error') console.error('login-dni reset: registrar_intento_recupero devolvió algo inesperado')
+  return decision
 }
 
 // Recupero: la lógica (y cada rama, probada) vive en manejarRecupero
@@ -122,7 +134,7 @@ Deno.serve(async (req: Request) => {
   const raw = typeof body.dni === 'string' ? body.dni : ''
 
   if (body.action === 'reset') {
-    return await recuperar(raw, ipCliente(req.headers.get('x-forwarded-for')))
+    return await recuperar(raw, ipCliente((nombre) => req.headers.get(nombre)))
   }
 
   const identificador = normalizarIdentificador(raw)
