@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
+import { errorTamano, prepararImagen } from '@/lib/imagenSubida'
 
 interface Promo {
   id:          string
@@ -99,6 +100,10 @@ export default function BuffetPromosPage() {
   const handleElegirImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    // Más de 10 MB no se acepta; lo demás se achica antes de subir (lib/imagenSubida.ts).
+    const errorPeso = errorTamano(file.size)
+    if (errorPeso) { setFormError(errorPeso); e.target.value = ''; return }
+    setFormError('')
     setImagenFile(file)
     setImagenPreview(URL.createObjectURL(file))
   }
@@ -137,11 +142,12 @@ export default function BuffetPromosPage() {
 
     let imagenPath: string | null = null
     if (imagenFile) {
-      const ext  = imagenFile.name.split('.').pop() ?? 'jpg'
+      const subir = await prepararImagen(imagenFile)
+      const ext  = subir.name.split('.').pop() ?? 'jpg'
       const path = `${user.id}/${Date.now()}.${ext}`
       const { error: uploadErr } = await supabase.storage
         .from(BUCKET)
-        .upload(path, imagenFile, { contentType: imagenFile.type })
+        .upload(path, subir, { contentType: subir.type })
       if (uploadErr) { setFormError('No se pudo subir la imagen.'); setPublicando(false); return }
       imagenPath = path
     }
@@ -237,7 +243,7 @@ export default function BuffetPromosPage() {
             <div key={p.id} className="border-b border-gris-claro py-5 flex gap-4 items-start hover:bg-gris-claro/20 transition-colors px-2">
               {p.imagenUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imagenUrl} alt="" className="w-16 h-16 object-cover shrink-0" />
+                <img src={p.imagenUrl} alt="" loading="lazy" width={64} height={64} className="w-16 h-16 object-cover shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
