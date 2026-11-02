@@ -141,7 +141,14 @@ export default function UsuariosPage() {
     setLoading(true)
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) { await fetchData(false); return }
-    const { data: prof } = await supabase.from('profiles').select('rol').eq('id', session.user.id).single()
+    // Si falla el propio perfil se muestra el error: un admin no tiene que
+    // caer en silencio a la vista de subcomisión (lista y roles recortados).
+    const { data: prof, error } = await supabase.from('profiles').select('rol').eq('id', session.user.id).maybeSingle()
+    if (error) {
+      setErrorCarga(mensajeErrorCarga('tu perfil', error))
+      setLoading(false)
+      return
+    }
     const admin = prof?.rol === 'admin'
     setIsAdmin(admin)
     await fetchData(admin)
