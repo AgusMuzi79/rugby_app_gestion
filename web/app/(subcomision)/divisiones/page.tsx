@@ -287,8 +287,8 @@ export default function DivisionesPage() {
           </p>
           <form onSubmit={guardarDivision} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>NOMBRE</label>
-              <input
+              <label htmlFor="div-nombre" className={labelClass}>NOMBRE</label>
+              <input id="div-nombre"
                 type="text"
                 value={nuevaNombre}
                 onChange={e => setNuevaNombre(e.target.value)}
@@ -298,8 +298,8 @@ export default function DivisionesPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>CATEGORÍA</label>
-              <select
+              <label htmlFor="div-categoria" className={labelClass}>CATEGORÍA</label>
+              <select id="div-categoria"
                 value={nuevaCategoria}
                 onChange={e => setNuevaCategoria(e.target.value)}
                 className={selectClass}
@@ -314,8 +314,8 @@ export default function DivisionesPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>DEPORTE</label>
-              <select
+              <label htmlFor="div-deporte" className={labelClass}>DEPORTE</label>
+              <select id="div-deporte"
                 value={nuevaDeporte}
                 onChange={e => cambiarDeporte(e.target.value)}
                 className={selectClass}
@@ -329,8 +329,8 @@ export default function DivisionesPage() {
             <div className="flex flex-col gap-1">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className={labelClass}>EDAD DESDE</label>
-                  <input
+                  <label htmlFor="div-edad-min" className={labelClass}>EDAD DESDE</label>
+                  <input id="div-edad-min"
                     type="number"
                     min={0}
                     step={1}
@@ -341,8 +341,8 @@ export default function DivisionesPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className={labelClass}>EDAD HASTA</label>
-                  <input
+                  <label htmlFor="div-edad-max" className={labelClass}>EDAD HASTA</label>
+                  <input id="div-edad-max"
                     type="number"
                     min={0}
                     step={1}
@@ -364,8 +364,8 @@ export default function DivisionesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>LÍNEA</label>
-                <select
+                <label htmlFor="div-linea" className={labelClass}>LÍNEA</label>
+                <select id="div-linea"
                   value={nuevaLinea}
                   onChange={e => setNuevaLinea(e.target.value)}
                   className={selectClass}
@@ -376,8 +376,8 @@ export default function DivisionesPage() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className={labelClass}>RAMA</label>
-                <select
+                <label htmlFor="div-rama" className={labelClass}>RAMA</label>
+                <select id="div-rama"
                   value={nuevaRama}
                   onChange={e => setNuevaRama(e.target.value)}
                   className={selectClass}
@@ -391,8 +391,8 @@ export default function DivisionesPage() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>DIVISIÓN SIGUIENTE</label>
-              <select
+              <label htmlFor="div-siguiente" className={labelClass}>DIVISIÓN SIGUIENTE</label>
+              <select id="div-siguiente"
                 value={nuevaSiguienteId}
                 onChange={e => setNuevaSiguienteId(e.target.value)}
                 className={selectClass}

@@ -195,6 +195,7 @@ export default function InformesPage() {
         <p className="font-lora text-xs tracking-widest text-texto-2 mb-1">SUBCOMISIÓN · INFORMES</p>
         <h1 className="font-playfair italic text-4xl font-black text-tinta mb-6">Informes</h1>
         <select
+          aria-label="Filtrar por división"
           value={divFiltro}
           onChange={e => setDivFiltro(e.target.value)}
           className="font-lora text-sm text-tinta bg-card border border-borde-control px-4 py-2 outline-none focus:border-tinta transition-colors"
@@ -207,10 +208,13 @@ export default function InformesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gris-claro mb-8 flex gap-8">
+      <div role="tablist" aria-label="Informes" className="border-b border-gris-claro mb-8 flex gap-8">
         {TABS.map(t => (
           <button
             key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={`font-lora text-xs tracking-widest pb-3 transition-colors ${
               tab === t.key

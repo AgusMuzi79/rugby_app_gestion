@@ -239,13 +239,13 @@ export default function SubcomisionNoticiasPage() {
         </p>
       )}
 
-      {aviso && <p className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
+      {aviso && <p role="alert" className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : listError ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-rojo-texto text-sm">No se pudieron cargar las noticias: {listError}</p>
+          <p role="alert" className="font-lora text-rojo-texto text-sm">No se pudieron cargar las noticias: {listError}</p>
         </div>
       ) : noticias.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
@@ -293,8 +293,9 @@ export default function SubcomisionNoticiasPage() {
         <Modal titulo="NUEVA NOTICIA" onClose={closeModal}>
           <div className="flex flex-col gap-5">
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
+              <label htmlFor="noticia-titulo" className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
               <input
+                id="noticia-titulo"
                 type="text"
                 value={titulo}
                 onChange={e => setTitulo(e.target.value)}
@@ -305,8 +306,9 @@ export default function SubcomisionNoticiasPage() {
             </div>
 
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DESCRIPCIÓN (OPCIONAL)</label>
+              <label htmlFor="noticia-descripcion" className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DESCRIPCIÓN (OPCIONAL)</label>
               <textarea
+                id="noticia-descripcion"
                 value={descripcion}
                 onChange={e => setDescripcion(e.target.value)}
                 rows={5}
@@ -316,7 +318,7 @@ export default function SubcomisionNoticiasPage() {
             </div>
 
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">IMAGEN (OPCIONAL)</label>
+              <p className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">IMAGEN (OPCIONAL)</p>
               {imagenPreview ? (
                 <div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -346,7 +348,7 @@ export default function SubcomisionNoticiasPage() {
             </div>
           </div>
 
-          {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
+          {formError && <p role="alert" className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
           <p className="font-lora text-xs text-texto-2 italic mt-4">
             Se publica en el momento para todos los socios

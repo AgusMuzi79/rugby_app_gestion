@@ -71,6 +71,8 @@ function DivisionesPillSelector({
               return (
                 <button
                   key={d.id}
+                  type="button"
+                  aria-pressed={sel}
                   onClick={() => onToggle(d.id)}
                   className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                     sel ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -274,6 +276,7 @@ export default function UsuariosPage() {
       {/* Búsqueda */}
       <input
         type="text"
+        aria-label="Buscar usuarios por nombre o rol"
         placeholder="Buscar por nombre o rol…"
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
@@ -294,6 +297,8 @@ export default function UsuariosPage() {
         {filtrados.map(p => (
           <div key={p.id} className="bg-card border border-gris-claro">
             <button
+              type="button"
+              aria-expanded={!!p.expanded}
               onClick={() => toggleExpand(p.id)}
               className="w-full text-left px-6 py-4 flex items-center justify-between hover:bg-papel/50 transition-colors"
             >
@@ -319,13 +324,19 @@ export default function UsuariosPage() {
                     <p className="font-lora text-sm text-tinta">{p.loadingEmail ? 'Cargando…' : (p.email ?? '—')}</p>
                   </div>
                   <div>
-                    <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</p>
+                    {p.editingRol ? (
+                      <label htmlFor={`rol-${p.id}`} className="block font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</label>
+                    ) : (
+                      <p className="font-lora text-xs tracking-widest text-texto-2 mb-2">ROL</p>
+                    )}
                     {p.editingRol ? (
                       <div className="flex items-center gap-2">
+                        {/* Sin outline-none: el foco usa el :focus-visible global. */}
                         <select
+                          id={`rol-${p.id}`}
                           value={p.tempRol ?? rolDe(p)}
                           onChange={e => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, tempRol: e.target.value } : r))}
-                          className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 outline-none"
+                          className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 focus:border-oro"
                         >
                           {rolesDisponibles.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
                         </select>
@@ -346,6 +357,8 @@ export default function UsuariosPage() {
                         {DEPORTE_SUBCO_OPCIONES.map(o => (
                           <button
                             key={o.label}
+                            type="button"
+                            aria-pressed={(p.deporte ?? null) === o.value}
                             onClick={() => saveDeporte(p, o.value)}
                             className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                               (p.deporte ?? null) === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -544,10 +557,13 @@ function ModalNuevoUsuario({
     >
       {/* Tabs — solo admin puede crear usuarios nuevos */}
       {isAdmin && (
-        <div className="flex border-b border-gris-claro">
+        <div role="tablist" aria-label="Cómo dar de alta" className="flex border-b border-gris-claro">
           {(['asignar', 'crear'] as ModoModal[]).map(m => (
             <button
               key={m}
+              type="button"
+              role="tab"
+              aria-selected={modo === m}
               onClick={() => setModo(m)}
               className={`flex-1 font-lora text-xs tracking-widest py-3 transition-colors ${
                 modo === m
@@ -574,9 +590,10 @@ function ModalNuevoUsuario({
             <>
               {/* Búsqueda */}
               <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
+                <label htmlFor="asignar-busqueda" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DNI O NOMBRE DEL SOCIO</label>
                 <div className="flex gap-2">
                   <input
+                    id="asignar-busqueda"
                     type="text"
                     value={busqueda}
                     onChange={e => setBusqueda(e.target.value)}
@@ -594,7 +611,7 @@ function ModalNuevoUsuario({
                 </div>
               </div>
 
-              {errorBusqueda && <p className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
+              {errorBusqueda && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorBusqueda}</p>}
 
               {/* Lista de resultados */}
               {resultados.length > 0 && (
@@ -619,12 +636,14 @@ function ModalNuevoUsuario({
                     <p className="font-lora text-sm text-tinta">✓ {socioElegido.nombre}</p>
                   </div>
 
-                  <div>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</label>
+                  <div role="group" aria-labelledby="asignar-rol">
+                    <p id="asignar-rol" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL A ASIGNAR</p>
                     <div className="flex flex-wrap gap-2">
                       {rolesDisponibles.map(r => (
                         <button
                           key={r}
+                          type="button"
+                          aria-pressed={rolAsignacion === r}
                           onClick={() => setRolAsignacion(r)}
                           className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
                             rolAsignacion === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
@@ -637,12 +656,14 @@ function ModalNuevoUsuario({
                   </div>
 
                   {isAdmin && rolAsignacion === 'subcomision' && (
-                    <div>
-                      <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                    <div role="group" aria-labelledby="asignar-disciplina">
+                      <p id="asignar-disciplina" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</p>
                       <div className="flex flex-wrap gap-2">
                         {DEPORTE_SUBCO_OPCIONES.map(o => (
                           <button
                             key={o.label}
+                            type="button"
+                            aria-pressed={deporteAsignacion === o.value}
                             onClick={() => setDeporteAsignacion(o.value)}
                             className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                               deporteAsignacion === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -655,8 +676,8 @@ function ModalNuevoUsuario({
                     </div>
                   )}
 
-                  <div>
-                    <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+                  <div role="group" aria-labelledby="asignar-divisiones">
+                    <p id="asignar-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
                     <DivisionesPillSelector
                       divisiones={divisiones}
                       seleccionadas={divsAsignacion}
@@ -664,7 +685,7 @@ function ModalNuevoUsuario({
                     />
                   </div>
 
-                  {errorAsignacion && <p className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
+                  {errorAsignacion && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
 
                   <button
                     onClick={asignarRol}
@@ -686,13 +707,14 @@ function ModalNuevoUsuario({
           ) : (
             <>
               {[
-                { label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
-                { label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
-                { label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
+                { id: 'nuevo-nombre', label: 'NOMBRE COMPLETO', value: nombre, set: setNombre, placeholder: 'Juan Pérez' },
+                { id: 'nuevo-email', label: 'EMAIL', value: email, set: setEmail, placeholder: 'juan@ejemplo.com', type: 'email' },
+                { id: 'nuevo-dni', label: 'DNI', value: dni, set: setDni, placeholder: '12345678' },
               ].map(f => (
                 <div key={f.label}>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
+                  <label htmlFor={f.id} className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">{f.label}</label>
                   <input
+                    id={f.id}
                     type={f.type ?? 'text'}
                     value={f.value}
                     onChange={e => f.set(e.target.value)}
@@ -702,12 +724,14 @@ function ModalNuevoUsuario({
                 </div>
               ))}
 
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</label>
+              <div role="group" aria-labelledby="nuevo-rol">
+                <p id="nuevo-rol" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</p>
                 <div className="flex flex-wrap gap-2">
                   {rolesDisponibles.map(r => (
                     <button
                       key={r}
+                      type="button"
+                      aria-pressed={rolNuevo === r}
                       onClick={() => setRolNuevo(r)}
                       className={`font-lora text-xs tracking-widest px-4 py-2 border transition-colors ${
                         rolNuevo === r ? 'bg-oro border-oro text-papel' : 'border-gris-claro text-tinta/50 hover:border-tinta/40'
@@ -720,12 +744,14 @@ function ModalNuevoUsuario({
               </div>
 
               {isAdmin && rolNuevo === 'subcomision' && (
-                <div>
-                  <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</label>
+                <div role="group" aria-labelledby="nuevo-disciplina">
+                  <p id="nuevo-disciplina" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DISCIPLINA</p>
                   <div className="flex flex-wrap gap-2">
                     {DEPORTE_SUBCO_OPCIONES.map(o => (
                       <button
                         key={o.label}
+                        type="button"
+                        aria-pressed={deporteNuevo === o.value}
                         onClick={() => setDeporteNuevo(o.value)}
                         className={`font-lora text-xs tracking-widest px-3 py-1.5 border transition-colors ${
                           deporteNuevo === o.value ? 'bg-oro/20 border-oro text-tinta' : 'border-gris-claro text-texto-2 hover:border-tinta/30'
@@ -738,8 +764,8 @@ function ModalNuevoUsuario({
                 </div>
               )}
 
-              <div>
-                <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</label>
+              <div role="group" aria-labelledby="nuevo-divisiones">
+                <p id="nuevo-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
                 <DivisionesPillSelector
                   divisiones={divisiones}
                   seleccionadas={divsNuevo}
@@ -747,7 +773,7 @@ function ModalNuevoUsuario({
                 />
               </div>
 
-              {errorCrear && <p className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
+              {errorCrear && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorCrear}</p>}
 
               <button
                 onClick={crearUsuario}

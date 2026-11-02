@@ -219,13 +219,13 @@ export default function BuffetPromosPage() {
         </p>
       )}
 
-      {aviso && <p className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
+      {aviso && <p role="alert" className="font-lora text-rojo-texto text-sm mb-4">{aviso}</p>}
 
       {loading ? (
         <p className="font-lora text-texto-2 text-sm tracking-widest text-center py-12">CARGANDO…</p>
       ) : listError ? (
         <div className="border border-gris-claro p-8 text-center">
-          <p className="font-lora text-rojo-texto text-sm">No se pudieron cargar las promociones: {listError}</p>
+          <p role="alert" className="font-lora text-rojo-texto text-sm">No se pudieron cargar las promociones: {listError}</p>
         </div>
       ) : promos.length === 0 ? (
         <div className="border border-gris-claro p-8 text-center">
@@ -270,8 +270,9 @@ export default function BuffetPromosPage() {
         <Modal titulo="NUEVA PROMOCIÓN" onClose={closeModal}>
           <div className="flex flex-col gap-5">
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
+              <label htmlFor="promo-titulo" className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">TÍTULO</label>
               <input
+                id="promo-titulo"
                 type="text"
                 value={titulo}
                 onChange={e => setTitulo(e.target.value)}
@@ -281,8 +282,9 @@ export default function BuffetPromosPage() {
             </div>
 
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DETALLE</label>
+              <label htmlFor="promo-detalle" className="font-lora text-xs tracking-widest text-tinta/50 block mb-1">DETALLE</label>
               <textarea
+                id="promo-detalle"
                 value={cuerpo}
                 onChange={e => setCuerpo(e.target.value)}
                 rows={4}
@@ -292,7 +294,7 @@ export default function BuffetPromosPage() {
             </div>
 
             <div>
-              <label className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">FOTO (OPCIONAL)</label>
+              <p className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">FOTO (OPCIONAL)</p>
               {imagenPreview ? (
                 <div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -322,7 +324,7 @@ export default function BuffetPromosPage() {
             </div>
           </div>
 
-          {formError && <p className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
+          {formError && <p role="alert" className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
           <p className="font-lora text-xs text-texto-2 italic mt-4">Se publica de una para todos los socios del club.</p>
 
