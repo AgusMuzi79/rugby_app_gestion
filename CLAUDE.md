@@ -102,6 +102,8 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
   - Portería: QR TOTP de un solo uso, accesos denegados y modo sin conexión.
   - `profiles` con fila de socio no se puede borrar (trigger).
   - Equipos duplicados (T16): limpieza corrida a mano el 2026-11-03 (backup `2026-11-02-22-48-24`). Se borraron los 8 duplicados, ninguno tenía mesas ni resultados, y quedó creado el índice único `equipos_division_nombre_key`. La app crea equipos con upsert (`app/lib/equiposPartido.ts`).
+  - Registros de lesiones (T22): borrados el 2026-11-03 después del export (3 registros, CSV en `~/backups-uncas/`). Las tablas, la RLS y los protocolos quedan.
+  - Auth (T17, 2026-11-03): el rate limit de inicios de sesión y altas pasó de 30 a 300 cada 5 min. Además se cargó `RECUPERO_HMAC_KEY`, la clave propia del límite de recupero.
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-10-18):**
@@ -122,10 +124,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Release 1.0.9: confirmar la aprobación de Apple y el estado del release en Play Console. Desde el merge del PR #28 (`runtimeVersion` = `appVersion`), las OTA desde `main` sólo llegan a la 1.0.9: la 1.0.8 ya no recibe updates. El agente de Chrome no puede leer Play Console con la sesión de agusmuzi79@gmail.com (la cuenta de desarrollador es otra).
 - Auditoría UX (deploy 2026-11-02), acciones de Agus:
-  - Borrado de lesiones (T22): export primero, revisarlo y recién ahí el `delete` (SQL en el mismo doc).
-  - Supabase → Auth → Rate Limits (T17): subir inicios de sesión/altas si siguen en el valor por defecto.
-  - Opcional: `supabase secrets set RECUPERO_HMAC_KEY=<random>` (sin él usa la service role key).
-  - Crear las cuentas de colaborador (ya tienen la OTA).
+  - Test de carga de T17 (35 logins en 5 min): después de migrar la base a la cuenta del club.
   - Probar en un teléfono: login y recupero por DNI, y mirar en los logs de `login-dni` que llegue `cf-connecting-ip` (sin él no hay límite por IP).
 - Auditoría UX, código pendiente:
   - `guard_profile_role_update()` deja que subcomisión escriba cualquier valor en `profiles.roles`, incluido `admin` (la UI no lo ofrece, la base no lo impide).
