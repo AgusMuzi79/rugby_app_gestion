@@ -37,7 +37,7 @@ Out of scope: the Usuarios "saveRol silent no-op" web bug (separate backlog item
 ## Tasks
 
 - [x] T1 — Migration + SQL scenario test (RED → GREEN). Route: delegated direct (writer trigger: 2 non-trivial files).
-- [ ] T2 — Docs: CLAUDE.md backlog item, deploy steps here.
+- [x] T2 — Docs: CLAUDE.md backlog item, deploy steps here. Route: inline (mechanical, 2 docs).
 
 ## Acceptance criteria
 
@@ -76,8 +76,15 @@ Strategy: ask-on-risk, single PR (forecast ~250 lines).
 
 ## Deploy (user)
 
-Pending T1.
+Run one step at a time:
+
+1. Backup: `node scripts/backup-supabase.mjs`.
+2. Precheck in the SQL editor: list every account with `admin`. It should be only the real admin. If anyone else shows up, stop: the hole may have been used, and those accounts must be reviewed before applying.
+   ```sql
+   select id, nombre, rol, roles from profiles where rol = 'admin' or 'admin' = any (roles);
+   ```
+3. `supabase db push` applies `20261109000000_guard_roles_subcomision`. No Edge Function, web deploy or OTA is needed; the web already shows the database error when a save is rejected.
 
 ## Next step
 
-T1.
+PR, then the deploy steps above (user).
