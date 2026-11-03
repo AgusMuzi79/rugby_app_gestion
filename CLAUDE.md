@@ -127,7 +127,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
   - Test de carga de T17 (35 logins en 5 min): después de migrar la base a la cuenta del club.
   - Probar en un teléfono: login y recupero por DNI, y mirar en los logs de `login-dni` que llegue `cf-connecting-ip` (sin él no hay límite por IP).
 - Auditoría UX, código pendiente:
-  - `guard_profile_role_update()` deja que subcomisión escriba cualquier valor en `profiles.roles`, incluido `admin` (la UI no lo ofrece, la base no lo impide).
+  - `guard_profile_role_update()` deja que subcomisión escriba cualquier valor en `profiles.roles`, incluido `admin`. Corregido en la migración `20261109000000_guard_roles_subcomision` (subco sólo pone o quita los roles de staff que gestiona y no toca cuentas admin), **sin aplicar todavía**: pasos de deploy en `odd/tasks/guard-roles-subcomision.md`.
   - Usuarios (web): cambiar un rol de staff que subcomisión no maneja cierra el editor sin guardar ni avisar.
   - Tanda 3 (build nativo): `expo-haptics` en el escaneo de portería y en la asistencia del entrenador.
 - Integración Banco Macro (reemplazaría el alias manual de pago).
