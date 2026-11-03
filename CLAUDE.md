@@ -101,7 +101,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
   - Divisiones: sólo admin las crea/edita (`20261108000000`, índice único de `recibe_adultos` por deporte + rama).
   - Portería: QR TOTP de un solo uso, accesos denegados y modo sin conexión.
   - `profiles` con fila de socio no se puede borrar (trigger).
-  - El índice único `equipos_division_nombre_key` **no** se creó: hay 8 grupos de equipos duplicados (16 filas); la app cae a insert simple (`app/lib/equiposPartido.ts`, error 42P10) hasta correr la limpieza T16.
+  - Equipos duplicados (T16): limpieza corrida a mano el 2026-11-03 (backup `2026-11-02-22-48-24`). Se borraron los 8 duplicados, ninguno tenía mesas ni resultados, y quedó creado el índice único `equipos_division_nombre_key`. La app crea equipos con upsert (`app/lib/equiposPartido.ts`).
 - Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-10-18):**
@@ -122,7 +122,6 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Release 1.0.9: confirmar la aprobación de Apple y el estado del release en Play Console. Desde el merge del PR #28 (`runtimeVersion` = `appVersion`), las OTA desde `main` sólo llegan a la 1.0.9: la 1.0.8 ya no recibe updates. El agente de Chrome no puede leer Play Console con la sesión de agusmuzi79@gmail.com (la cuenta de desarrollador es otra).
 - Auditoría UX (deploy 2026-11-02), acciones de Agus:
-  - Limpieza de los 8 grupos de equipos duplicados (T16): script de dos pasos en `odd/tasks/auditoria-ux-entrenador-coordinador.md`; después se crea `equipos_division_nombre_key`.
   - Borrado de lesiones (T22): export primero, revisarlo y recién ahí el `delete` (SQL en el mismo doc).
   - Supabase → Auth → Rate Limits (T17): subir inicios de sesión/altas si siguen en el valor por defecto.
   - Opcional: `supabase secrets set RECUPERO_HMAC_KEY=<random>` (sin él usa la service role key).
