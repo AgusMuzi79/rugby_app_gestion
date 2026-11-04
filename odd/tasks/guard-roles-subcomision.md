@@ -85,6 +85,14 @@ Run one step at a time:
    ```
 3. `supabase db push` applies `20261109000000_guard_roles_subcomision`. No Edge Function, web deploy or OTA is needed; the web already shows the database error when a save is rejected.
 
+Done in production (user):
+
+- Merged as PR #56 (`7905d39`) on 2026-11-03.
+- Backup `2026-11-03-19-31-06`.
+- Precheck: the only `admin` account is the real admin.
+- `supabase db push --dry-run`, then `supabase db push`, applied on 2026-11-04.
+- Check: `pg_proc.prosrc` of `guard_profile_role_update` contains the new message (`true`).
+
 ## Next step
 
-PR, then the deploy steps above (user).
+None. The feature is done.
