@@ -1,0 +1,48 @@
+# Feature: club-beneficios
+
+## Objective
+Benefits club for members: partner shops/places with discounts or promotions that members can browse in the app and redeem by showing their carnet.
+
+## Problem
+The club was asked to offer a benefits club. Today there is nowhere in the app to list partner shops and their promotions.
+
+## Why
+Adds value to the membership and pushes members to keep their fee up to date (benefits are for members "al día"; the shop checks the carnet traffic light).
+
+## Scope (approved UX, 2026-11-04)
+- Entry point from the member Carnet screen: a banner "Tus beneficios — N locales adheridos" below the QR (no 6th tab; the member is already on Carnet when paying in the shop).
+- List screen: search box, category (rubro) chips, featured carousel, cards with logo, name, discount label, rubro, short condition and area.
+- Detail screen: photo, big discount label, conditions (days, payment methods, valid until), address that opens Maps, WhatsApp / Instagram links, "MOSTRAR MI CARNET" button that goes back to the carnet.
+- Expired benefits (`vigente_hasta` in the past) or inactive ones are hidden automatically.
+- If the member is not "al día", the detail shows a notice that benefits require the fee to be up to date (no hard block in the app; the shop validates with the carnet).
+
+## Out of scope (decided 2026-11-04)
+- Loading UI: Secretaría will NOT load benefits. Who loads them and how is decided later. Until then only `admin` can write (RLS), via Supabase dashboard / SQL.
+- Push on new benefit (depends on the loading flow).
+- Map of nearby shops and usage metrics (phase 2).
+
+## Constraints
+- Migration must be applied to production only with Agus's OK. Mobile ships via OTA only when Agus asks.
+- Read access: authenticated users whose role sees the member carnet (socio, tutor). Write: admin only.
+- Images in a public-read Storage bucket `beneficios`, admin-only write.
+- Use semantic tokens from `app/constants/theme.ts`; UI copy in Spanish like the rest of the app.
+
+## Tasks
+- [x] T1 — Migration `beneficios` table + RLS + storage bucket, and pure helper `app/lib/beneficios.ts` (vigencia filter, rubro/search filtering, Maps/WhatsApp/Instagram URL builders) with `.check.ts`. Route: delegated (writer trigger, 2+ non-trivial files).
+- [ ] T2 — Mobile: `useBeneficios` hook, list + detail screens, Carnet banner, "MOSTRAR MI CARNET". Route: delegated (writer trigger).
+
+## Acceptance criteria
+- A member with active benefits loaded sees the banner on Carnet with the count, opens the list, filters by rubro and search, opens a detail, opens Maps/WhatsApp/Instagram and goes back to the carnet.
+- Expired/inactive benefits never appear. With zero benefits the banner is hidden.
+- Non-admin users cannot insert/update/delete `beneficios` or upload to the bucket.
+
+## Checks
+- `npx tsc --noEmit` in `app/`; helper `.check.ts` via `npx tsx`; migration reviewed (not applied).
+
+## Progress / evidence
+- Delivery strategy: single-pr (forecast ~600 authored lines, one cohesive feature, work-unit commits per task).
+
+- T1 (delegated writer) — migration `20261110000000_club_beneficios.sql` (NOT applied): table `beneficios`, rubro check `gastronomia, deportes, salud, belleza, indumentaria, educacion, servicios, otros` (mirrors `RUBROS` in the helper — change together), vigencia check, `set_updated_at()` trigger, RLS with `(select get_rol())`: socio/tutor read active + in-vigencia (Argentina date), admin reads all and is the only writer; bucket `beneficios` public read, 5 MB, jpeg/png/webp, admin-only write. Helper `app/lib/beneficios.ts`. RED observed (`Cannot find module './beneficios'`), GREEN `npm run -s test:beneficios` → 26 casos ok (re-run by parent); `npx tsc --noEmit` clean. Assumption: `urlWhatsapp` treats every number as Argentine.
+
+## Next step
+T2.
