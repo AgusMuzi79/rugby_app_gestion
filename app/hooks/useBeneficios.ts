@@ -58,7 +58,9 @@ export function useBeneficios() {
         setError('No se pudieron cargar los beneficios. Revisá tu conexión.')
       }
     } finally {
-      terminar()
+      // terminar() clears loading for everyone, so only the latest request may
+      // call it; an older overlapping fetch must not end the first load early.
+      if (consulta === ultimaConsulta.current) terminar()
     }
   }, [empezar, terminar])
 
@@ -99,15 +101,22 @@ export function useSocioAlDia(socioId?: string): boolean | null {
   // the previous minor's status, even if an older response arrives last.
   const ultimaConsulta = useRef(0)
 
+  // A different member (or session) never inherits the previous status; a
+  // plain focus refresh keeps it to avoid the notice flickering.
+  useEffect(() => { setFila(null) }, [userId, socioId])
+
   const fetch = useCallback(async () => {
     const consulta = ++ultimaConsulta.current
-    setFila(null)
     if (!userId) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const q = (supabase as any).from('socios').select('estado, semaforo')
-    const { data, error } = await (socioId ? q.eq('id', socioId) : q.eq('profile_id', userId)).maybeSingle()
-    if (consulta !== ultimaConsulta.current) return
-    setFila(error || !data ? null : (data as { estado: string; semaforo: string | null }))
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q = (supabase as any).from('socios').select('estado, semaforo')
+      const { data, error } = await (socioId ? q.eq('id', socioId) : q.eq('profile_id', userId)).maybeSingle()
+      if (consulta !== ultimaConsulta.current) return
+      setFila(error || !data ? null : (data as { estado: string; semaforo: string | null }))
+    } catch {
+      if (consulta === ultimaConsulta.current) setFila(null)
+    }
   }, [userId, socioId])
 
   useEffect(() => { void fetch() }, [fetch])

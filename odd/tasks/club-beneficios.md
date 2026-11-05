@@ -49,5 +49,7 @@ Adds value to the membership and pushes members to keep their fee up to date (be
 
 - T2 native review: medium, `slice_budget_reached`; consent granted by Agus; review-reliability → approved, acknowledged (lineage review-87850230c93b363d, authority burned). Follow-up applied inline after the review: `useSocioAlDia` clears the status on each fetch and ignores out-of-order responses (tutor switching minors); `useBeneficios` uses try/catch/finally and drops stale responses. `npx tsc --noEmit` clean, `test:beneficios` 31 ok. Pending (non-blocking): the "al día" rule and `urlImagen` live in hooks, not covered by checks.
 
+- Full-branch native review (stop-hook candidate vs main): consent granted by Agus; review-reliability → approved, acknowledged (lineage review-6662a7c965a0d9a9). Follow-up applied: only the latest benefits request calls `terminar()` (an older one could end the first load early and flash "ya no está disponible"); `useSocioAlDia` clears the status only when the member/session changes (no flicker on focus) and catches thrown errors. Still pending: RLS proof (after applying the migration) and checks for the "al día" rule / `urlImagen`.
+
 ## Next step
 Agus: apply migration `20261110000000_club_beneficios.sql` to production (only with OK), load a first benefit as admin, verify RLS as a socio, test on a phone, then OTA when asked. Decide who loads benefits (loader UI is out of scope).
