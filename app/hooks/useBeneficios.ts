@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSegments } from 'expo-router'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
@@ -30,25 +30,36 @@ export function useBeneficios() {
   const [error, setError] = useState<string | null>(null)
   const { loading, refrescando, empezar, terminar } = useEstadoCarga()
 
-  const fetch = useCallback(async () => {
-    empezar()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error: errLectura } = await (supabase as any).from('beneficios').select(COLUMNAS)
+  const ultimaConsulta = useRef(0)
 
-    // Without network is not the same as "no benefits": keep what was loaded
-    // and let the screen offer Reintentar.
-    if (errLectura) {
-      setError('No se pudieron cargar los beneficios. Revisá tu conexión.')
+  const fetch = useCallback(async () => {
+    const consulta = ++ultimaConsulta.current
+    empezar()
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error: errLectura } = await (supabase as any).from('beneficios').select(COLUMNAS)
+      // Mount, focus and retry can overlap: only the latest response is applied.
+      if (consulta !== ultimaConsulta.current) return
+
+      // Without network is not the same as "no benefits": keep what was loaded
+      // and let the screen offer Reintentar.
+      if (errLectura) {
+        setError('No se pudieron cargar los beneficios. Revisá tu conexión.')
+        return
+      }
+      setError(null)
+      const hoy = fechaLocal()
+      const lista = ((data ?? []) as Beneficio[])
+        .filter(b => esVigente(b, hoy))
+        .map(b => ({ ...b, logo_url: urlImagen(b.logo_url), imagen_url: urlImagen(b.imagen_url) }))
+      setBeneficios(ordenarBeneficios(lista))
+    } catch {
+      if (consulta === ultimaConsulta.current) {
+        setError('No se pudieron cargar los beneficios. Revisá tu conexión.')
+      }
+    } finally {
       terminar()
-      return
     }
-    setError(null)
-    const hoy = fechaLocal()
-    const lista = ((data ?? []) as Beneficio[])
-      .filter(b => esVigente(b, hoy))
-      .map(b => ({ ...b, logo_url: urlImagen(b.logo_url), imagen_url: urlImagen(b.imagen_url) }))
-    setBeneficios(ordenarBeneficios(lista))
-    terminar()
   }, [empezar, terminar])
 
   useEffect(() => { void fetch() }, [fetch])
@@ -84,12 +95,18 @@ export function useGrupoBeneficios(): '/(socio)' | '/(tutor)' {
 export function useSocioAlDia(socioId?: string): boolean | null {
   const userId = useAuthStore(s => s.session?.user.id)
   const [fila, setFila] = useState<{ estado: string; semaforo: string | null } | null>(null)
+  // Only the latest request may write: a tutor switching minors must never see
+  // the previous minor's status, even if an older response arrives last.
+  const ultimaConsulta = useRef(0)
 
   const fetch = useCallback(async () => {
+    const consulta = ++ultimaConsulta.current
+    setFila(null)
     if (!userId) return
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const q = (supabase as any).from('socios').select('estado, semaforo')
     const { data, error } = await (socioId ? q.eq('id', socioId) : q.eq('profile_id', userId)).maybeSingle()
+    if (consulta !== ultimaConsulta.current) return
     setFila(error || !data ? null : (data as { estado: string; semaforo: string | null }))
   }, [userId, socioId])
 
