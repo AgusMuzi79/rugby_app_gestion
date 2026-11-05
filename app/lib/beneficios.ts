@@ -127,14 +127,35 @@ export function urlWhatsapp(telefono: string | null | undefined): string | null 
   return `https://wa.me/549${d}`
 }
 
-const HANDLE_IG = /^[A-Za-z0-9._]{1,30}$/
+/**
+ * Website link for Linking.openURL: keeps http(s) URLs, adds https:// to a
+ * bare domain ('www.cafe.com.ar'). Any other scheme or text with spaces -> null.
+ */
+export function urlSitioWeb(sitio: string | null | undefined): string | null {
+  const s = (sitio ?? '').trim()
+  if (!s || /\s/.test(s)) return null
+  if (/^https?:\/\/[^/\s]+\.[^/\s]+/i.test(s)) return s
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return null
+  if (!/^[^/\s]+\.[a-z]{2,}(\/|$)/i.test(s)) return null
+  return `https://${s}`
+}
 
-/** Accepts '@handle', 'handle' or an instagram.com URL; returns the profile URL. */
+const HANDLE_IG =/^[A-Za-z0-9._]{1,30}$/
+// Host anchored at the start or right after the scheme, so 'notinstagram.com'
+// or a query string mentioning instagram.com never match.
+const URL_IG = /(^|\/\/)(www\.)?instagram\.com\/([^/?#\s]+)/i
+// First path segments that are not profiles (posts, reels, stories, ...).
+const RUTAS_NO_PERFIL = new Set(['p', 'reel', 'reels', 'stories', 'explore', 'tv'])
+
+/** Accepts '@handle', 'handle' or an instagram.com profile URL; returns the profile URL. */
 export function urlInstagram(handleOrUrl: string | null | undefined): string | null {
   let s = (handleOrUrl ?? '').trim()
   if (!s) return null
-  const m = s.match(/instagram\.com\/([^/?#\s]+)/i)
-  if (m) s = m[1]
+  const m = s.match(URL_IG)
+  if (m) {
+    if (RUTAS_NO_PERFIL.has(m[3].toLowerCase())) return null
+    s = m[3]
+  }
   s = s.replace(/^@/, '')
   if (!HANDLE_IG.test(s)) return null
   return `https://www.instagram.com/${s}/`

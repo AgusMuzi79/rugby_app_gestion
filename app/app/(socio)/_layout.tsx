@@ -42,6 +42,9 @@ export default function SocioLayout() {
           name="sobre"
           options={{ title: 'Mi perfil', href: null, tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
         />
+        {/* Club de beneficios: opened from the Carnet banner, not from the tab bar */}
+        <Tabs.Screen name="beneficios" options={{ title: 'Beneficios', href: null }} />
+        <Tabs.Screen name="beneficio/[id]" options={{ title: 'Beneficio', href: null }} />
       </Tabs>
     </AgendaContext.Provider>
   )

@@ -29,7 +29,7 @@ Adds value to the membership and pushes members to keep their fee up to date (be
 
 ## Tasks
 - [x] T1 — Migration `beneficios` table + RLS + storage bucket, and pure helper `app/lib/beneficios.ts` (vigencia filter, rubro/search filtering, Maps/WhatsApp/Instagram URL builders) with `.check.ts`. Route: delegated (writer trigger, 2+ non-trivial files).
-- [ ] T2 — Mobile: `useBeneficios` hook, list + detail screens, Carnet banner, "MOSTRAR MI CARNET". Route: delegated (writer trigger).
+- [x] T2 — Mobile: `useBeneficios` hook, list + detail screens, Carnet banner, "MOSTRAR MI CARNET". Route: delegated (writer trigger).
 
 ## Acceptance criteria
 - A member with active benefits loaded sees the banner on Carnet with the count, opens the list, filters by rubro and search, opens a detail, opens Maps/WhatsApp/Instagram and goes back to the carnet.
@@ -44,5 +44,8 @@ Adds value to the membership and pushes members to keep their fee up to date (be
 
 - T1 (delegated writer) — migration `20261110000000_club_beneficios.sql` (NOT applied): table `beneficios`, rubro check `gastronomia, deportes, salud, belleza, indumentaria, educacion, servicios, otros` (mirrors `RUBROS` in the helper — change together), vigencia check, `set_updated_at()` trigger, RLS with `(select get_rol())`: socio/tutor read active + in-vigencia (Argentina date), admin reads all and is the only writer; bucket `beneficios` public read, 5 MB, jpeg/png/webp, admin-only write. Helper `app/lib/beneficios.ts`. RED observed (`Cannot find module './beneficios'`), GREEN `npm run -s test:beneficios` → 26 casos ok (re-run by parent); `npx tsc --noEmit` clean. Assumption: `urlWhatsapp` treats every number as Argentine.
 
+- T1 native review (RDD on): medium, `slice_budget_reached`; consent granted by Agus; lens review-reliability → approved, acknowledged (lineage review-91fd9a07406f3a6d, authority burned). Non-blocking: RLS unproved until the migration is applied (verify as socio/non-admin after applying); Instagram non-profile URLs and test aggregation (fixed in T2); 4-digit area code case (added in T2).
+- T2 (delegated writer + parent inline for tutor routes) — `useBeneficios` / `useSocioAlDia` / `useGrupoBeneficios` hooks; hidden tabs `beneficios` and `beneficio/[id]` in `(socio)` and re-exported in `(tutor)` (root guard bounces cross-group navigation); Carnet banner (socio + tutor, not cliente gimnasio, hidden at 0/error); detail shows "Para usar los beneficios tenés que tener la cuota al día." when `estado != 'activo'` or `semaforo = 'rojo'` (same rule as carnet `estadoVisual` — change together). Back buttons navigate explicitly (Tabs `backBehavior: firstRoute`). New `urlSitioWeb` helper; Instagram host anchored + non-profile paths → null; beneficios check in `test:admin`. RED observed for new cases, GREEN `test:beneficios` → 31 casos ok; `test:admin` exit 0; `npx tsc --noEmit` clean (all re-run by parent). Not tested on a device.
+
 ## Next step
-T2.
+Agus: apply migration `20261110000000_club_beneficios.sql` to production (only with OK), load a first benefit as admin, verify RLS as a socio, test on a phone, then OTA when asked. Decide who loads benefits (loader UI is out of scope).

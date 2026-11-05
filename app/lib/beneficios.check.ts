@@ -12,6 +12,7 @@ import {
   urlMaps,
   urlWhatsapp,
   urlInstagram,
+  urlSitioWeb,
   type Beneficio,
 } from './beneficios'
 
@@ -183,6 +184,10 @@ caso('urlWhatsapp converts local formats with leading 0 and 15', () => {
   assert.equal(urlWhatsapp('(0249) 4123456'), 'https://wa.me/5492494123456')
 })
 
+caso('urlWhatsapp drops 15 after a 4-digit area code', () => {
+  assert.equal(urlWhatsapp('02972 15 412345'), 'https://wa.me/5492972412345')
+})
+
 caso('urlWhatsapp accepts a 10-digit national number without 0', () => {
   assert.equal(urlWhatsapp('2494123456'), 'https://wa.me/5492494123456')
 })
@@ -205,11 +210,41 @@ caso('urlInstagram normalizes a full or partial URL', () => {
   assert.equal(urlInstagram('instagram.com/cafe.martinez'), 'https://www.instagram.com/cafe.martinez/')
 })
 
+caso('urlInstagram only takes the path of a real instagram.com host', () => {
+  assert.equal(urlInstagram('https://instagram.com/cafe.martinez'), 'https://www.instagram.com/cafe.martinez/')
+  assert.equal(urlInstagram('https://notinstagram.com/cafe.martinez'), null)
+  assert.equal(urlInstagram('https://evil.com/?u=instagram.com/cafe.martinez'), null)
+})
+
+caso('urlInstagram returns null for post, reel, story and explore URLs', () => {
+  assert.equal(urlInstagram('https://www.instagram.com/p/Cx123abc/'), null)
+  assert.equal(urlInstagram('https://www.instagram.com/reel/Cx123abc/'), null)
+  assert.equal(urlInstagram('https://www.instagram.com/reels/Cx123abc/'), null)
+  assert.equal(urlInstagram('https://www.instagram.com/stories/cafe.martinez/123/'), null)
+  assert.equal(urlInstagram('https://www.instagram.com/explore/tags/cafe/'), null)
+  assert.equal(urlInstagram('https://www.instagram.com/tv/Cx123abc/'), null)
+})
+
 caso('urlInstagram returns null for empty or invalid input', () => {
   assert.equal(urlInstagram(null), null)
   assert.equal(urlInstagram('  '), null)
   assert.equal(urlInstagram('@'), null)
   assert.equal(urlInstagram('no válido!'), null)
+})
+
+// --- urlSitioWeb ------------------------------------------------------------
+
+caso('urlSitioWeb keeps http(s) URLs and adds https:// when missing', () => {
+  assert.equal(urlSitioWeb('https://cafe.com.ar/menu'), 'https://cafe.com.ar/menu')
+  assert.equal(urlSitioWeb('http://cafe.com.ar'), 'http://cafe.com.ar')
+  assert.equal(urlSitioWeb('  www.cafe.com.ar '), 'https://www.cafe.com.ar')
+})
+
+caso('urlSitioWeb returns null for empty, spaced or non-web schemes', () => {
+  assert.equal(urlSitioWeb(null), null)
+  assert.equal(urlSitioWeb('   '), null)
+  assert.equal(urlSitioWeb('no es un sitio'), null)
+  assert.equal(urlSitioWeb('javascript:alert(1)'), null)
 })
 
 console.log(`\n${casos} casos ok`)
