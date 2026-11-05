@@ -51,5 +51,7 @@ Adds value to the membership and pushes members to keep their fee up to date (be
 
 - Full-branch native review (stop-hook candidate vs main): consent granted by Agus; review-reliability → approved, acknowledged (lineage review-6662a7c965a0d9a9). Follow-up applied: only the latest benefits request calls `terminar()` (an older one could end the first load early and flash "ya no está disponible"); `useSocioAlDia` clears the status only when the member/session changes (no flicker on focus) and catches thrown errors. Still pending: RLS proof (after applying the migration) and checks for the "al día" rule / `urlImagen`.
 
+- Deploy (2026-11-05, Agus: "mandale con todo"): PR #58 opened; backup `~/backups-uncas/2026-11-05-02-43-56`; `supabase db push --dry-run` listed only `20261110000000_club_beneficios.sql`; `supabase db push` applied it. RLS proof in a rolled-back transaction as a real active socio (`get_rol()` = socio): with 3 test rows (active, inactive, expired) only the active one is visible; insert denied; update and delete affect 0 rows; upload to the `beneficios` bucket denied. Table left with 0 rows.
+
 ## Next step
-Agus: apply migration `20261110000000_club_beneficios.sql` to production (only with OK), load a first benefit as admin, verify RLS as a socio, test on a phone, then OTA when asked. Decide who loads benefits (loader UI is out of scope).
+Merge PR #58, then OTA from `main` (`eas update --branch production`, main checkout with `app/.env.local`). The banner stays hidden until a benefit exists, so the OTA is safe before loading data. Load the first benefits as admin (Supabase dashboard) once the club sends them, test on a phone, and decide who loads benefits (loader UI is out of scope).
