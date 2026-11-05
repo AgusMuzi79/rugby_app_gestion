@@ -53,5 +53,7 @@ Adds value to the membership and pushes members to keep their fee up to date (be
 
 - Deploy (2026-11-05, Agus: "mandale con todo"): PR #58 opened; backup `~/backups-uncas/2026-11-05-02-43-56`; `supabase db push --dry-run` listed only `20261110000000_club_beneficios.sql`; `supabase db push` applied it. RLS proof in a rolled-back transaction as a real active socio (`get_rol()` = socio): with 3 test rows (active, inactive, expired) only the active one is visible; insert denied; update and delete affect 0 rows; upload to the `beneficios` bucket denied. Table left with 0 rows.
 
+- Second full-branch review (stop hook): consent granted by Agus; approved, acknowledged (lineage review-95542effc2c0500a). Follow-up applied: the rubro filter only applies while its chip is on screen (a refresh that drops the selected rubro no longer leaves an empty list with no way back); the al-día status is tagged with its member so a tutor switching minors gets no notice instead of the previous minor's for one render. Still pending (non-blocking): checks for the al-día rule / `urlImagen`; the Carnet banner hides on a failed refresh while the list keeps the old data.
+
 ## Next step
 Merge PR #58, then OTA from `main` (`eas update --branch production`, main checkout with `app/.env.local`). The banner stays hidden until a benefit exists, so the OTA is safe before loading data. Load the first benefits as admin (Supabase dashboard) once the club sends them, test on a phone, and decide who loads benefits (loader UI is out of scope).

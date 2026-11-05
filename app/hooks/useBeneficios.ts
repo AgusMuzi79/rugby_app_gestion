@@ -101,9 +101,11 @@ export function useSocioAlDia(socioId?: string): boolean | null {
   // the previous minor's status, even if an older response arrives last.
   const ultimaConsulta = useRef(0)
 
-  // A different member (or session) never inherits the previous status; a
-  // plain focus refresh keeps it to avoid the notice flickering.
-  useEffect(() => { setFila(null) }, [userId, socioId])
+  // The status is tagged with the member it belongs to: a different member (or
+  // session) never sees the previous one, not even for one render; a plain
+  // focus refresh keeps it to avoid the notice flickering.
+  const clave = `${userId ?? ''}|${socioId ?? ''}`
+  const [claveFila, setClaveFila] = useState(clave)
 
   const fetch = useCallback(async () => {
     const consulta = ++ultimaConsulta.current
@@ -114,6 +116,7 @@ export function useSocioAlDia(socioId?: string): boolean | null {
       const { data, error } = await (socioId ? q.eq('id', socioId) : q.eq('profile_id', userId)).maybeSingle()
       if (consulta !== ultimaConsulta.current) return
       setFila(error || !data ? null : (data as { estado: string; semaforo: string | null }))
+      setClaveFila(`${userId}|${socioId ?? ''}`)
     } catch {
       if (consulta === ultimaConsulta.current) setFila(null)
     }
@@ -123,7 +126,7 @@ export function useSocioAlDia(socioId?: string): boolean | null {
   useRefreshOnFocus(fetch)
 
   return useMemo(() => {
-    if (!fila) return null
+    if (!fila || claveFila !== clave) return null
     return fila.estado === 'activo' && fila.semaforo !== 'rojo'
-  }, [fila])
+  }, [fila, claveFila, clave])
 }

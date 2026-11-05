@@ -94,12 +94,15 @@ export default function BeneficiosScreen() {
     () => RUBROS.filter(r => beneficios.some(b => b.rubro === r.value)),
     [beneficios],
   )
+  // A refresh can drop the selected rubro (or leave one rubro, which hides the
+  // chips): the filter only applies while its chip can still be shown and reset.
+  const rubroActivo = rubros.length > 1 && rubros.some(r => r.value === rubro) ? rubro : null
   const destacados = useMemo(() => beneficios.filter(b => b.destacado), [beneficios])
   const filtrados = useMemo(
-    () => filtrarBeneficios(beneficios, { rubro, busqueda }),
-    [beneficios, rubro, busqueda],
+    () => filtrarBeneficios(beneficios, { rubro: rubroActivo, busqueda }),
+    [beneficios, rubroActivo, busqueda],
   )
-  const filtrando = !!rubro || busqueda.trim() !== ''
+  const filtrando = !!rubroActivo || busqueda.trim() !== ''
 
   const abrir = (b: Beneficio) => router.navigate(`${grupo}/beneficio/${b.id}` as Href)
 
@@ -133,7 +136,7 @@ export default function BeneficiosScreen() {
       {rubros.length > 1 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
           {[{ value: null, label: 'Todos' }, ...rubros].map(r => {
-            const activo = rubro === r.value
+            const activo = rubroActivo === r.value
             return (
               <TouchableOpacity
                 key={r.value ?? 'todos'}
