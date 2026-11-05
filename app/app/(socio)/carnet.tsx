@@ -5,7 +5,7 @@ import {
 import { useRef, useState, useCallback } from 'react'
 import { Feather } from '@expo/vector-icons'
 const LOGO = require('@/assets/images/logo.png')
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
@@ -13,6 +13,7 @@ import { QRCarnet, CuentaRegresivaQR } from '@/components/socio/CarnetQR'
 import { TutorMenorSelector } from '@/components/shared/TutorMenorSelector'
 import { useCarnet, useDependientesMenores } from '@/hooks/useCarnet'
 import { useSocioObjetivo } from '@/hooks/useSocioObjetivo'
+import { useBeneficios, useGrupoBeneficios } from '@/hooks/useBeneficios'
 import { colors, fonts } from '@/constants/theme'
 import { SOCIOS_BADGE_J } from '@/constants/carnetBadge'
 
@@ -207,6 +208,10 @@ export default function CarnetScreen() {
   const esCarnetAjeno = esTutor || !!verComoId
   const [verTarjeta,  setVerTarjeta]  = useState(false)
   const [refreshing,  setRefreshing]  = useState(false)
+  // Club de beneficios banner: hidden while loading, on error or with none.
+  const { beneficios, error: errorBeneficios } = useBeneficios()
+  const grupoBeneficios = useGrupoBeneficios()
+  const cantBeneficios = errorBeneficios ? 0 : beneficios.length
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -359,6 +364,26 @@ export default function CarnetScreen() {
             <Text style={s.verCarnetText}>VER CARNET</Text>
           </TouchableOpacity>
 
+          {/* ── CLUB DE BENEFICIOS ── */}
+          {cantBeneficios > 0 && (
+            <TouchableOpacity
+              style={s.beneficiosCard}
+              onPress={() => router.navigate(`${grupoBeneficios}/beneficios` as Href)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Tus beneficios, ${cantBeneficios} ${cantBeneficios === 1 ? 'local adherido' : 'locales adheridos'}`}
+            >
+              <Feather name="gift" size={22} color={colors.oro} />
+              <View style={s.beneficiosTextos}>
+                <Text style={s.beneficiosTitulo}>Tus beneficios</Text>
+                <Text style={s.beneficiosSub}>
+                  {cantBeneficios} {cantBeneficios === 1 ? 'local adherido' : 'locales adheridos'}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+
           {/* ── CÓDIGO MANUAL ── */}
           <View style={s.sectionCodigo}>
             <View style={s.secRow}>
@@ -485,6 +510,15 @@ const s = StyleSheet.create({
     fontFamily: fonts.label, fontSize: 13, letterSpacing: 2,
     textTransform: 'uppercase', color: colors.oro,
   },
+
+  beneficiosCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    marginTop: 12, marginHorizontal: 20, padding: 16, minHeight: 44,
+    borderWidth: 1, borderColor: colors.oroHondo, borderRadius: 6, backgroundColor: colors.card,
+  },
+  beneficiosTextos: { flex: 1, gap: 2 },
+  beneficiosTitulo: { fontFamily: fonts.titulo, fontSize: 20, lineHeight: 24, color: colors.texto },
+  beneficiosSub:    { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: colors.textoSecundario },
 })
 
 // ─── Estilos tarjeta física ───────────────────────────────────────────────────

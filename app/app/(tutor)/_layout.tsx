@@ -65,6 +65,8 @@ export default function TutorLayout() {
         name="sobre"
         options={{ title: 'Mi perfil', href: null, tabBarIcon: ({ color, size }) => <Feather name="user" size={size} color={color} /> }}
       />
+      <Tabs.Screen name="beneficios" options={{ title: 'Beneficios', href: null }} />
+      <Tabs.Screen name="beneficio/[id]" options={{ title: 'Beneficio', href: null }} />
     </Tabs>
   )
 }
