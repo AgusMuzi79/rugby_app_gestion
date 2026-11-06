@@ -16,13 +16,19 @@ const JWT_INVALIDO = new Set(['PGRST301', 'PGRST302', 'PGRST303'])
 interface ErrorAuth { name?: string; status?: number }
 interface ErrorPerfil { code?: string; message?: string }
 
-export function decidirSesion({ user, userError, perfil, perfilError, excepcion, rolesPermitidos }: {
+export function decidirSesion({ user, userError, perfil, perfilError, excepcion, rolesPermitidos, rolesPorMembresia = [] }: {
   user: { id: string } | null
   userError?: ErrorAuth | null
-  perfil?: { rol: string } | null
+  perfil?: { rol: string; roles?: string[] | null } | null
   perfilError?: ErrorPerfil | null
   excepcion?: unknown
+  /** Roles checked against the active `profiles.rol`. */
   rolesPermitidos: string[]
+  /**
+   * Web-only roles (beneficios) checked against `profiles.roles[]`: the mobile
+   * app keeps their holders on rol 'socio', so the active rol says nothing.
+   */
+  rolesPorMembresia?: string[]
 }): DecisionSesion {
   if (excepcion) return { tipo: 'error' }
 
@@ -43,6 +49,9 @@ export function decidirSesion({ user, userError, perfil, perfilError, excepcion,
     if (perfilError.code && JWT_INVALIDO.has(perfilError.code)) return { tipo: 'login' }
     return { tipo: 'error' }
   }
-  if (!perfil || !rolesPermitidos.includes(perfil.rol)) return { tipo: 'cerrar' }
+  if (!perfil) return { tipo: 'cerrar' }
+  if (rolesPermitidos.includes(perfil.rol)) return { tipo: 'ok' }
+  if (rolesPorMembresia.some(r => (perfil.roles ?? []).includes(r))) return { tipo: 'ok' }
+  return { tipo: 'cerrar' }
   return { tipo: 'ok' }
 }

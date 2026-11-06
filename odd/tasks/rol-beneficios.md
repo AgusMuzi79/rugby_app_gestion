@@ -22,7 +22,7 @@ Benefits are a separate area of the club: they have nothing to do with Subcomisi
 
 ## Tasks
 - [x] T1 — DB migration `rol_beneficios` + test fixtures + `permisos-usuarios` (admin-only) + `admin-usuarios` keeps active rol for web-only roles. Route: delegated (writer trigger).
-- [ ] T2 — Web panel `(beneficios)` + login + PanelShell + Usuarios labels. Route: delegated (writer trigger).
+- [x] T2 — Web panel `(beneficios)` + login + PanelShell + Usuarios labels. Route: delegated (writer trigger).
 - [ ] T3 — Mobile web-only role normalization (pure helper + check, applied at profile load and logins, write back `rol = 'socio'`). Route: delegated (writer trigger).
 - [ ] T4 — Deploy: backup, `db push`, deploy `admin-usuarios`, merge (Vercel), OTA, then assign `beneficios` to Karina Ali (`f4ac10a6-3201-4e83-b386-38b7d1700049`) and Patricia Perrotta (`038af87b-81f0-47ba-a2b8-caf046869204`). Needs Agus's OK.
 
@@ -42,5 +42,14 @@ Benefits are a separate area of the club: they have nothing to do with Subcomisi
 
 - T1 native review: medium; consent granted by Agus; review-reliability → approved, acknowledged (lineage review-9b5fbf43762a674f). Accepted design change from its WARNING: one account has a single active `rol`, so RLS keyed on `get_rol() = 'beneficios'` breaks the web panel whenever the holder uses the mobile app (which keeps/normalizes `rol = 'socio'`). Now: policies check MEMBERSHIP with `tiene_rol_beneficios()` (SECURITY DEFINER, `activo` and `'beneficios' = ANY(roles)`); the web login does NOT overwrite `rol` for web-only roles and the beneficios panel guard checks `roles[]`. Consequence for T3: holders stay on `rol = 'socio'`; mobile only needs to hide web-only roles from the picker and normalize a stray `rol = 'beneficios'` (defensive). Committed SQL scenario test `supabase/tests/rol_beneficios.sql` requested by the review (delegated writer): 8 cases (holder with rol socio and with rol beneficios, inactive holder, plain socio, subcomisión/secretaría, admin, storage incl. admin SELECT fix, CHECKs) → "TODOS LOS CASOS OK" on a disposable postgres:17. Other follow-up: a check for the `create` 400 on web-only roles.
 
+- T2 (delegated writer, informed mid-task of the membership design) —  panel: list (destacado → orden → nombre, badges Activo/Pausado/Vencido/Programado, visible-today count), Modal form with all fields and validation, logo/foto upload via  + bucket limits check to  / , PAUSAR/ACTIVAR, ELIMINAR with Modal confirm; writes check affected rows.  gained  (beneficios panel = admin by rol or beneficios by ); login routes beneficios last and does not write  for it; Usuarios: admin-only, assign adds the role (no divisions), EDITAR ROL and NUEVO USUARIO do not offer it. Copies with sync comments:  (web/lib/beneficios.ts) and  (web/lib/rolesStaff.ts). RED → GREEN: beneficios 15, rolesStaff 12, sesionPanel 16 casos ok; [41m                                                                               [0m
+[41m[37m                This is not the tsc command you are looking for                [0m
+[41m                                                                               [0m
+
+To get access to the TypeScript compiler, [34mtsc[0m, from the command line either:
+
+- Use [1mnpm install typescript[0m to first add TypeScript to your project [1mbefore[0m using npx
+- Use [1myarn[0m to avoid accidentally running code from un-installed packages (web) clean (re-run by parent);  ok with placeholder Supabase env vars (fails without them on an unrelated page).
+
 ## Next step
-T2 (in progress, informed of the design change), SQL test, then T3.
+T3 (mobile).

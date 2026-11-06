@@ -31,7 +31,8 @@ export default function LoginPage() {
       .eq('id', data.user.id)
       .single()
 
-    const rolesPermitidos = ['subcomision', 'admin', 'secretaria', 'porteria', 'buffet']
+    // beneficios va al final: quien ya tenía otro rol de web sigue entrando a su panel.
+    const rolesPermitidos = ['subcomision', 'admin', 'secretaria', 'porteria', 'buffet', 'beneficios']
     const rolesArray = (profile?.roles as string[]) ?? []
 
     // Determinar el rol web activo: puede que profiles.rol esté en 'manager' u otro
@@ -42,6 +43,13 @@ export default function LoginPage() {
       await supabase.auth.signOut()
       setError('No tenés acceso al panel de gestión.')
       setLoading(false)
+      return
+    }
+
+    // Rol solo web (beneficios): el panel lo valida por roles[] y la app deja a
+    // la cuenta en 'socio'; pisar profiles.rol rompería la app en el teléfono.
+    if (rolWeb === 'beneficios') {
+      router.replace('/beneficios')
       return
     }
 

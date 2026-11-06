@@ -3,7 +3,7 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { rolStaffDe, reemplazarRolStaff } from './rolesStaff'
+import { rolStaffDe, reemplazarRolStaff, rolesParaEditar, rolesParaCrear, esRolSoloWeb } from './rolesStaff'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -60,6 +60,29 @@ caso('roles[] null: queda sólo el nuevo rol', () => {
     reemplazarRolStaff({ rol: 'entrenador', roles: null }, 'entrenador', 'manager'),
     { rol: 'manager', roles: ['manager'] },
   )
+})
+
+// Web-only roles (beneficios): granted through assign-role, which ADDS them to
+// roles[] and keeps the active rol. EDITAR ROL replaces a role, so it must not
+// turn another staff role into a web-only one, nor offer it on account creation
+// (admin-usuarios `create` rejects web-only roles).
+const ADMIN = [...STAFF, 'secretaria', 'porteria', 'canchero', 'buffet', 'beneficios']
+
+caso('EDITAR ROL does not offer a web-only role to replace another staff role', () => {
+  assert.deepEqual(rolesParaEditar(ADMIN, 'coordinador'), ADMIN.filter(r => r !== 'beneficios'))
+})
+
+caso('EDITAR ROL keeps the web-only role visible when it is the current one', () => {
+  assert.deepEqual(rolesParaEditar(ADMIN, 'beneficios'), ADMIN)
+})
+
+caso('new accounts cannot be created with a web-only role', () => {
+  assert.deepEqual(rolesParaCrear(ADMIN), ADMIN.filter(r => r !== 'beneficios'))
+})
+
+caso('esRolSoloWeb only marks beneficios', () => {
+  assert.equal(esRolSoloWeb('beneficios'), true)
+  assert.equal(esRolSoloWeb('buffet'), false)
 })
 
 console.log(`\n${casos} casos ok`)
