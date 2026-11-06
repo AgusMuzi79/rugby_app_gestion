@@ -11,9 +11,10 @@
 -- - Only admin grants or removes it. guard_profile_role_update()
 --   (20261109000000) is unchanged: 'beneficios' is not in subcomisión's
 --   v_gestionables, so subcomisión can neither add nor remove it.
--- - Switching the own active rol between 'socio' and 'beneficios' (the web
---   login does this) keeps working through the guard's generic branch:
---   NEW.rol must already be in OLD.roles.
+-- - Access is by MEMBERSHIP ('beneficios' = ANY(profiles.roles), via
+--   tiene_rol_beneficios()), not by the active rol (get_rol()): one account
+--   has a single active rol, the mobile app keeps holders on 'socio', and the
+--   web panel must keep working while the same person uses the app.
 --
 -- Only new policies are added; existing ones (socio/tutor read, admin all)
 -- are not modified. Idempotent.
@@ -42,29 +43,52 @@ ALTER TABLE profiles ADD CONSTRAINT profiles_roles_check
 
 
 -- ============================================================
+-- 1b. Membership helper (active, non-deleted account holding the role)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION tiene_rol_beneficios()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+      AND activo
+      AND 'beneficios' = ANY (roles)
+  );
+$$;
+
+REVOKE ALL ON FUNCTION tiene_rol_beneficios() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION tiene_rol_beneficios() TO authenticated;
+
+
+-- ============================================================
 -- 2. Table beneficios: full CRUD, including inactive and expired rows
 -- ============================================================
 
 DROP POLICY IF EXISTS "beneficios_select_rol_beneficios" ON beneficios;
 CREATE POLICY "beneficios_select_rol_beneficios" ON beneficios
   FOR SELECT TO authenticated
-  USING ((SELECT get_rol()) = 'beneficios');
+  USING ((SELECT tiene_rol_beneficios()));
 
 DROP POLICY IF EXISTS "beneficios_insert_rol_beneficios" ON beneficios;
 CREATE POLICY "beneficios_insert_rol_beneficios" ON beneficios
   FOR INSERT TO authenticated
-  WITH CHECK ((SELECT get_rol()) = 'beneficios');
+  WITH CHECK ((SELECT tiene_rol_beneficios()));
 
 DROP POLICY IF EXISTS "beneficios_update_rol_beneficios" ON beneficios;
 CREATE POLICY "beneficios_update_rol_beneficios" ON beneficios
   FOR UPDATE TO authenticated
-  USING ((SELECT get_rol()) = 'beneficios')
-  WITH CHECK ((SELECT get_rol()) = 'beneficios');
+  USING ((SELECT tiene_rol_beneficios()))
+  WITH CHECK ((SELECT tiene_rol_beneficios()));
 
 DROP POLICY IF EXISTS "beneficios_delete_rol_beneficios" ON beneficios;
 CREATE POLICY "beneficios_delete_rol_beneficios" ON beneficios
   FOR DELETE TO authenticated
-  USING ((SELECT get_rol()) = 'beneficios');
+  USING ((SELECT tiene_rol_beneficios()));
 
 
 -- ============================================================
@@ -80,7 +104,7 @@ CREATE POLICY "beneficios_storage_select_rol_beneficios"
   ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'beneficios'
-    AND (SELECT get_rol()) = 'beneficios'
+    AND (SELECT tiene_rol_beneficios())
   );
 
 -- Same gap for admin in 20261110000000 (already applied): without a SELECT
@@ -98,7 +122,7 @@ CREATE POLICY "beneficios_storage_insert_rol_beneficios"
   ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'beneficios'
-    AND (SELECT get_rol()) = 'beneficios'
+    AND (SELECT tiene_rol_beneficios())
   );
 
 DROP POLICY IF EXISTS "beneficios_storage_update_rol_beneficios" ON storage.objects;
@@ -106,11 +130,11 @@ CREATE POLICY "beneficios_storage_update_rol_beneficios"
   ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'beneficios'
-    AND (SELECT get_rol()) = 'beneficios'
+    AND (SELECT tiene_rol_beneficios())
   )
   WITH CHECK (
     bucket_id = 'beneficios'
-    AND (SELECT get_rol()) = 'beneficios'
+    AND (SELECT tiene_rol_beneficios())
   );
 
 DROP POLICY IF EXISTS "beneficios_storage_delete_rol_beneficios" ON storage.objects;
@@ -118,5 +142,5 @@ CREATE POLICY "beneficios_storage_delete_rol_beneficios"
   ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'beneficios'
-    AND (SELECT get_rol()) = 'beneficios'
+    AND (SELECT tiene_rol_beneficios())
   );
