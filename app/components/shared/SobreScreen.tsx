@@ -67,13 +67,15 @@ export function SelectorVistaActiva() {
     }
   }
 
-  if (roles.length <= 1) return null
+  // Only roles with a mobile label (web-only roles like beneficios never show).
+  const rolesMovil = roles.filter(r => Object.prototype.hasOwnProperty.call(ROL_LABELS, r))
+  if (rolesMovil.length <= 1) return null
 
   return (
     <View style={s.section}>
       <Text style={[s.sectionTitle, { color: colors.oro }]}>VISTA ACTIVA</Text>
       <View style={s.rolesRow}>
-        {roles.map((r) => (
+        {rolesMovil.map((r) => (
           <TouchableOpacity
             key={r}
             style={[

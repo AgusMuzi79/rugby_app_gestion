@@ -23,7 +23,7 @@ Benefits are a separate area of the club: they have nothing to do with Subcomisi
 ## Tasks
 - [x] T1 — DB migration `rol_beneficios` + test fixtures + `permisos-usuarios` (admin-only) + `admin-usuarios` keeps active rol for web-only roles. Route: delegated (writer trigger).
 - [x] T2 — Web panel `(beneficios)` + login + PanelShell + Usuarios labels. Route: delegated (writer trigger).
-- [ ] T3 — Mobile web-only role normalization (pure helper + check, applied at profile load and logins, write back `rol = 'socio'`). Route: delegated (writer trigger).
+- [x] T3 — Mobile web-only role normalization (pure helper + check, applied at profile load and logins, write back `rol = 'socio'`). Route: delegated (writer trigger).
 - [ ] T4 — Deploy: backup, `db push`, deploy `admin-usuarios`, merge (Vercel), OTA, then assign `beneficios` to Karina Ali (`f4ac10a6-3201-4e83-b386-38b7d1700049`) and Patricia Perrotta (`038af87b-81f0-47ba-a2b8-caf046869204`). Needs Agus's OK.
 
 ## Acceptance criteria
@@ -44,5 +44,8 @@ Benefits are a separate area of the club: they have nothing to do with Subcomisi
 
 - T2 (delegated writer, informed mid-task of the membership design) — commit d930f6f. `web/app/(beneficios)` panel: list (destacado → orden → nombre, badges Activo/Pausado/Vencido/Programado, visible-today count), Modal form with all fields and validation, logo/foto upload via `prepararImagen` + bucket limits check to `{id}/logo-{ts}` / `{id}/foto-{ts}`, PAUSAR/ACTIVAR, ELIMINAR with Modal confirm; writes check affected rows. `decidirSesion` gained `rolesPorMembresia` (beneficios panel = admin by rol, or beneficios by `roles[]`); login routes beneficios last and does not write `profiles.rol` for it; Usuarios: admin-only, assign adds the role (no divisions), EDITAR ROL and NUEVO USUARIO do not offer it. Copies with sync comments: `RUBROS` (`web/lib/beneficios.ts`) and `ROLES_SOLO_WEB` (`web/lib/rolesStaff.ts`). RED → GREEN: beneficios 15, rolesStaff 12, sesionPanel 16 casos ok; `npx tsc --noEmit` (web) clean (re-run by parent); `next build` ok with placeholder Supabase env vars (fails without them on an unrelated page).
 
+- T2 native review: approved, acknowledged (lineage review-84cb4020a4a2a182). Applied: dropped an unreachable `return` in `decidirSesion` (97028fe). Pending (non-blocking): the login role-choice / no-rol-write rule has no check (inline in `web/app/login/page.tsx`).
+- T3 (delegated writer) — `ROLES_SOLO_WEB` in `app/constants/roles.ts`; pure `app/lib/rolMovil.ts` (`esRolMovil` = key of `ROL_LABELS`, `normalizarRolesMovil` drops web-only/unknown roles and moves a web-only active rol to `socio` with `reescribir`, `aplicarPerfilMovil` with injected best-effort writer). Applied in `_layout.tsx` `cargarPerfil`, both `useLogin.ts` paths and `registro.tsx`; `SobreScreen` picker filters by `ROL_LABELS`. An account with only web roles (`['beneficios']`) has no mobile access: signed out with "Tu cuenta no tiene acceso a la app. Entrá desde uncasapp.com." RED → GREEN `rolMovil.check.ts` 13 casos ok; `test:admin` exit 0; `npx tsc --noEmit` clean (all re-run by parent).
+
 ## Next step
-T3 (mobile).
+T4 (deploy) with Agus's OK: backup → `db push` (`20261111000000`) → deploy `admin-usuarios` → merge (Vercel) → OTA → assign `beneficios` to Karina and Patricia (Usuarios page as admin or SQL) → check both log into the panel.

@@ -19,8 +19,8 @@ import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '@/lib/supabase'
 import { esErrorDeRed } from '@/lib/offlineSync'
 import { useAuthStore } from '@/stores/authStore'
-import type { Rol } from '@/constants/roles'
 import { destinoGuard, yaEstaEnDestino } from '@/lib/guardRaiz'
+import { aplicarPerfilMovil, SIN_ACCESO_MOVIL } from '@/lib/rolMovil'
 import {
   ESPERA_LINK_MS, accionLinkTardio, avisoFallaLink, conTiempoMaximo, parsearLinkAuth, type AvisoLink,
 } from '@/lib/linkAuth'
@@ -86,9 +86,19 @@ export default function RootLayout() {
     // La sesión cambió mientras se esperaba la respuesta: no es de esta cuenta.
     if (useAuthStore.getState().session?.user.id !== userId) return false
     if (profile && !error) {
+      // Web-only roles (beneficios) are dropped; a web-only active rol is
+      // written back as socio (lib/rolMovil.ts).
+      const movil = await aplicarPerfilMovil(profile, nuevoRol =>
+        supabase.from('profiles').update({ rol: nuevoRol }).eq('id', userId))
+      if (useAuthStore.getState().session?.user.id !== userId) return false
+      if (!movil.rol) {
+        await supabase.auth.signOut()
+        setAvisoAuth(SIN_ACCESO_MOVIL)
+        return false
+      }
       setAvisoAuth(null)
-      setRol((profile.rol as Rol) ?? null)
-      setRoles((profile.roles as Rol[]) ?? [profile.rol as Rol].filter(Boolean))
+      setRol(movil.rol)
+      setRoles(movil.roles)
       // Cubre login fresco, login biométrico Y sesión restaurada al abrir la
       // app — antes sólo se llamaba desde useLogin.ts, así que una sesión ya
       // activa cuando se instala una build nueva nunca registraba el token nuevo.

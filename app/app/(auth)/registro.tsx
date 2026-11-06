@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { ROL_RUTA_INICIAL, type Rol } from '@/constants/roles'
+import { normalizarRolesMovil } from '@/lib/rolMovil'
 import { MIN_PASSWORD, mensajeErrorAuth } from '@/lib/errorFunction'
 import { colors, fonts } from '@/constants/theme'
 
@@ -51,13 +52,14 @@ export default function RegistroScreen() {
     if (!session?.user) { setCargando(false); return }
     const { data } = await supabase
       .from('profiles')
-      .select('nombre, rol')
+      .select('nombre, rol, roles')
       .eq('id', session.user.id)
       .single()
     if (data) {
       setNombre(data.nombre ?? '')
       setNombreOriginal(data.nombre ?? '')
-      setRol(data.rol as Rol)
+      // Same mobile view as the root layout (web-only roles have no route here).
+      setRol(normalizarRolesMovil(data.rol, data.roles).rol)
     }
     setCargando(false)
   }
