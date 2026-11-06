@@ -3,7 +3,9 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { autorizarAccion, rolesTrasQuitarStaff, ROLES_POR_CALLER, type Destino } from './permisos-usuarios.ts'
+import {
+  autorizarAccion, esRolSoloWeb, rolesTrasAsignar, rolesTrasQuitarStaff, ROLES_POR_CALLER, type Destino,
+} from './permisos-usuarios.ts'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -101,6 +103,60 @@ caso('colaborador (T23): subcomisión gestiona la cuenta y quitarle el rol deja 
   assert.deepEqual(
     rolesTrasQuitarStaff('subcomision', ['socio', 'colaborador']),
     { roles: ['socio'], rol: 'socio' },
+  )
+})
+
+caso('beneficios: sólo admin lo asigna (subcomisión no)', () => {
+  assert.ok(ROLES_POR_CALLER.admin.includes('beneficios'))
+  assert.ok(!ROLES_POR_CALLER.subcomision.includes('beneficios'))
+})
+
+caso('beneficios es un rol sólo web; los roles de la app no', () => {
+  assert.ok(esRolSoloWeb('beneficios'))
+  for (const r of ['socio', 'entrenador', 'secretaria', 'subcomision', 'admin']) {
+    assert.ok(!esRolSoloWeb(r), r)
+  }
+})
+
+caso('asignar beneficios lo agrega a roles y deja el rol activo como estaba', () => {
+  assert.deepEqual(
+    rolesTrasAsignar(['socio'], 'socio', 'beneficios'),
+    { roles: ['socio', 'beneficios'], rol: 'socio' },
+  )
+  assert.deepEqual(
+    rolesTrasAsignar(['socio', 'entrenador'], 'entrenador', 'beneficios'),
+    { roles: ['socio', 'entrenador', 'beneficios'], rol: 'entrenador' },
+  )
+  // Sin rol activo conocido: queda socio (la app no puede usar un rol sólo web).
+  assert.deepEqual(
+    rolesTrasAsignar([], null, 'beneficios'),
+    { roles: ['socio', 'beneficios'], rol: 'socio' },
+  )
+})
+
+caso('asignar un rol de la app sigue pasándolo a rol activo (comportamiento previo)', () => {
+  assert.deepEqual(
+    rolesTrasAsignar(['socio'], 'socio', 'entrenador'),
+    { roles: ['socio', 'entrenador'], rol: 'entrenador' },
+  )
+  assert.deepEqual(
+    rolesTrasAsignar(['socio', 'beneficios'], 'socio', 'manager'),
+    { roles: ['socio', 'beneficios', 'manager'], rol: 'manager' },
+  )
+})
+
+caso('beneficios: admin gestiona la cuenta y quitarle el rol deja socio; subcomisión no', () => {
+  const socia = destino({ rol: 'socio', roles: ['socio', 'beneficios'], tieneSocio: true })
+  assert.equal(autorizarAccion(ADMIN, socia, 'remove-role'), null)
+  assert.deepEqual(
+    rolesTrasQuitarStaff('admin', ['socio', 'beneficios']),
+    { roles: ['socio'], rol: 'socio' },
+  )
+  assert.equal(autorizarAccion(SUBCO, socia, 'remove-role')?.status, 403)
+  // Si además tiene un rol de staff de subcomisión, ésta sólo le saca ese.
+  assert.deepEqual(
+    rolesTrasQuitarStaff('subcomision', ['socio', 'entrenador', 'beneficios']),
+    { roles: ['socio', 'beneficios'], rol: 'socio' },
   )
 })
 
