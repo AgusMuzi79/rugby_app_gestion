@@ -53,5 +53,4 @@ export function decidirSesion({ user, userError, perfil, perfilError, excepcion,
   if (rolesPermitidos.includes(perfil.rol)) return { tipo: 'ok' }
   if (rolesPorMembresia.some(r => (perfil.roles ?? []).includes(r))) return { tipo: 'ok' }
   return { tipo: 'cerrar' }
-  return { tipo: 'ok' }
 }
