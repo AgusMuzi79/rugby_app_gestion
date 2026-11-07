@@ -26,6 +26,8 @@ Benefits are a separate area of the club: they have nothing to do with Subcomisi
 - [x] T3 — Mobile web-only role normalization (pure helper + check, applied at profile load and logins, write back `rol = 'socio'`). Route: delegated (writer trigger).
 - [x] T4 — Deploy: backup, `db push`, deploy `admin-usuarios`, merge (Vercel), OTA, then assign `beneficios` to Karina Ali (`f4ac10a6-3201-4e83-b386-38b7d1700049`) and Patricia Perrotta (`038af87b-81f0-47ba-a2b8-caf046869204`). Needs Agus's OK.
 
+- [ ] T5 — Confirm with real use: Karina and Patricia log into `uncasapp.com`, land on Beneficios and save a benefit; their app still works as socio. Owner: Agus (ask them). Record the result here.
+
 ## Acceptance criteria
 - A `beneficios` user logs into `uncasapp.com` and lands on the Beneficios panel; can create, edit, pause and delete benefits with images; sees no other section.
 - The same user opening the mobile app acts as socio (carnet QR, cuotas, noticias) with no role picker entry for beneficios.
