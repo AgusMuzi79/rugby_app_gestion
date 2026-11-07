@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 import { callEdgeFunction } from '@/lib/edgeFunction'
 import { mensajeErrorCarga, primerError } from '@/lib/errorCarga'
-import { rolStaffDe, reemplazarRolStaff } from '@/lib/rolesStaff'
+import { rolStaffDe, reemplazarRolStaff, rolesParaEditar, rolesParaCrear, esRolSoloWeb } from '@/lib/rolesStaff'
 import ErrorCarga from '@/components/ErrorCarga'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -13,11 +13,14 @@ import ErrorCarga from '@/components/ErrorCarga'
 // Colaborador (auditoría entrenador T23): sólo toma asistencia; divisiones
 // como un entrenador.
 const ROLES_SUBCO  = ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision']
-const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet']
+// beneficios: rol solo web (panel del club de beneficios), sólo lo da admin.
+// Se asigna a un socio existente y se suma a sus roles (no reemplaza otro).
+const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet', 'beneficios']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', colaborador: 'Colaborador', manager: 'Manager',
   secretaria: 'Secretaría', porteria: 'Gimnasio', canchero: 'Canchero', buffet: 'Buffet',
+  beneficios: 'Beneficios',
 }
 
 interface Division { id: string; nombre: string; deporte: string }
@@ -347,7 +350,7 @@ export default function UsuariosPage() {
                           onChange={e => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, tempRol: e.target.value } : r))}
                           className="font-lora text-sm text-tinta bg-papel border border-borde-control px-2 py-1 focus:border-oro"
                         >
-                          {rolesDisponibles.map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
+                          {rolesParaEditar(rolesDisponibles, rolDe(p)).map(r => <option key={r} value={r}>{ROL_LABEL[r] ?? r}</option>)}
                         </select>
                         <button onClick={() => saveRol(p)} className="font-lora text-xs bg-oro text-papel px-3 py-1 tracking-widest">GUARDAR</button>
                         <button onClick={() => setProfiles(ps => ps.map(r => r.id === p.id ? { ...r, editingRol: false } : r))} className="font-lora text-xs text-texto-2 px-2 py-1">CANCELAR</button>
@@ -531,7 +534,7 @@ function ModalNuevoUsuario({
     setAsignando(true); setErrorAsignacion('')
     const json = await callEdgeFunction('admin-usuarios', {
       action: 'assign-role', socioId: socioElegido.id,
-      nuevoRol: rolAsignacion, divisiones: divsAsignacion, deporte: deporteAsignacion,
+      nuevoRol: rolAsignacion, divisiones: esRolSoloWeb(rolAsignacion) ? [] : divsAsignacion, deporte: deporteAsignacion,
     })
     setAsignando(false)
     if (json.error) { setErrorAsignacion(json.error); return }
@@ -685,14 +688,20 @@ function ModalNuevoUsuario({
                     </div>
                   )}
 
-                  <div role="group" aria-labelledby="asignar-divisiones">
-                    <p id="asignar-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
-                    <DivisionesPillSelector
-                      divisiones={divisiones}
-                      seleccionadas={divsAsignacion}
-                      onToggle={id => toggleDiv(id, divsAsignacion, setDivsAsignacion)}
-                    />
-                  </div>
+                  {esRolSoloWeb(rolAsignacion) ? (
+                    <p className="font-lora text-xs text-texto-2 italic">
+                      Se suma a los roles de la cuenta: sigue usando la app como socio y entra al panel web de Beneficios.
+                    </p>
+                  ) : (
+                    <div role="group" aria-labelledby="asignar-divisiones">
+                      <p id="asignar-divisiones" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">DIVISIONES</p>
+                      <DivisionesPillSelector
+                        divisiones={divisiones}
+                        seleccionadas={divsAsignacion}
+                        onToggle={id => toggleDiv(id, divsAsignacion, setDivsAsignacion)}
+                      />
+                    </div>
+                  )}
 
                   {errorAsignacion && <p role="alert" className="font-lora text-rojo-texto text-sm">{errorAsignacion}</p>}
 
@@ -736,7 +745,7 @@ function ModalNuevoUsuario({
               <div role="group" aria-labelledby="nuevo-rol">
                 <p id="nuevo-rol" className="font-lora text-xs tracking-widest text-tinta/50 block mb-2">ROL</p>
                 <div className="flex flex-wrap gap-2">
-                  {rolesDisponibles.map(r => (
+                  {rolesParaCrear(rolesDisponibles).map(r => (
                     <button
                       key={r}
                       type="button"

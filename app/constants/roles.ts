@@ -16,6 +16,12 @@ export const ROLES = {
 
 export type Rol = (typeof ROLES)[keyof typeof ROLES]
 
+// Roles that only exist in the web panel (migration 20261111000000_rol_beneficios).
+// They are NOT part of `Rol`: the app drops them from `roles[]` and never uses
+// them as the active view (lib/rolMovil.ts). Keep in sync with
+// supabase/functions/_shared/permisos-usuarios.ts and web/lib/rolesStaff.ts.
+export const ROLES_SOLO_WEB = ['beneficios'] as const
+
 export const ROL_LABELS: Record<Rol, string> = {
   subcomision: 'Subcomisión',
   coordinador: 'Coordinador',

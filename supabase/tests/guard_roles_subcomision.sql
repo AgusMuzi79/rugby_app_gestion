@@ -102,7 +102,8 @@ create trigger guard_profiles_role_update
 
 -- ─── Datos ────────────────────────────────────────────────────────────────────
 -- 01 subco (el caller), 02 admin, 03 coordinador, 04 coordinador en vista socio,
--- 05 secretaría, 06 coordinador viejo con roles[] vacío.
+-- 05 secretaría, 06 coordinador viejo con roles[] vacío, 07 socia con el rol
+-- web 'beneficios' (20261111000000) en vista socio.
 
 insert into profiles (id, nombre, rol, roles, deporte) values
   ('a0000000-0000-0000-0000-000000000001', 'Subco',       'subcomision', '{subcomision,socio}', 'rugby'),
@@ -110,7 +111,8 @@ insert into profiles (id, nombre, rol, roles, deporte) values
   ('a0000000-0000-0000-0000-000000000003', 'Coord',       'coordinador', '{coordinador}',       null),
   ('a0000000-0000-0000-0000-000000000004', 'Coord socio', 'socio',       '{coordinador,socio}', null),
   ('a0000000-0000-0000-0000-000000000005', 'Secretaria',  'secretaria',  '{secretaria}',        null),
-  ('a0000000-0000-0000-0000-000000000006', 'Coord viejo', 'coordinador', '{}',                  null);
+  ('a0000000-0000-0000-0000-000000000006', 'Coord viejo', 'coordinador', '{}',                  null),
+  ('a0000000-0000-0000-0000-000000000007', 'Beneficios',  'socio',       '{socio,beneficios}',  null);
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -184,6 +186,10 @@ select t_espera(t_error($q$ update profiles set roles = '{coordinador}', rol = '
   'No autorizado para asignar o quitar ese rol', 'subco: no reemplaza secretaria por coordinador');
 select t_espera(t_error($q$ update profiles set deporte = 'hockey' where id = 'a0000000-0000-0000-0000-000000000001' $q$),
   'No autorizado para modificar deporte', 'subco: sigue sin poder cambiar deporte');
+select t_espera(t_error($q$ update profiles set roles = roles || 'beneficios'::text where id = 'a0000000-0000-0000-0000-000000000004' $q$),
+  'No autorizado para asignar o quitar ese rol', 'subco: no agrega beneficios (sólo admin)');
+select t_espera(t_error($q$ update profiles set roles = '{socio}' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
+  'No autorizado para asignar o quitar ese rol', 'subco: no quita beneficios (sólo admin)');
 
 -- ─── Subcomisión: lo que sí puede ─────────────────────────────────────────────
 
@@ -216,6 +222,10 @@ select t_espera(t_error($q$ update profiles set roles = roles || 'admin'::text w
   'sin error', 'admin: agrega admin a otra cuenta');
 select t_espera(t_error($q$ update profiles set roles = '{secretaria,porteria}' where id = 'a0000000-0000-0000-0000-000000000005' $q$),
   'sin error', 'admin: agrega roles que subco no gestiona');
+select t_espera(t_error($q$ update profiles set roles = roles || 'beneficios'::text where id = 'a0000000-0000-0000-0000-000000000004' $q$),
+  'sin error', 'admin: agrega beneficios');
+select t_espera(t_error($q$ update profiles set roles = '{socio}' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
+  'sin error', 'admin: quita beneficios');
 select t_espera(t_error($q$ update profiles set activo = false, deporte = 'hockey' where id = 'a0000000-0000-0000-0000-000000000001' $q$),
   'sin error', 'admin: desactiva y cambia deporte');
 
@@ -234,6 +244,18 @@ select t_espera(t_error($q$ update profiles set rol = 'coordinador' where id = '
   'sin error', 'socio/coordinador: cambia a un rol que ya tiene');
 select t_espera(t_error($q$ update profiles set activo = false where id = 'a0000000-0000-0000-0000-000000000004' $q$),
   'No autorizado para modificar activo', 'socio/coordinador: no se desactiva');
+
+-- Rol web 'beneficios' (20261111000000): la cuenta cambia su propio rol activo
+-- entre socio y beneficios (login web / app), pero no toca roles[].
+select t_caller('a0000000-0000-0000-0000-000000000007', 'socio');
+select t_espera(t_error($q$ update profiles set rol = 'beneficios' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
+  'sin error', 'socio/beneficios: pasa su rol activo a beneficios');
+update profiles set rol = 'beneficios' where id = 'a0000000-0000-0000-0000-000000000007';
+select t_caller('a0000000-0000-0000-0000-000000000007', 'beneficios');
+select t_espera(t_error($q$ update profiles set rol = 'socio' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
+  'sin error', 'socio/beneficios: vuelve su rol activo a socio');
+select t_espera(t_error($q$ update profiles set roles = roles || 'admin'::text where id = 'a0000000-0000-0000-0000-000000000007' $q$),
+  'No autorizado para modificar roles', 'socio/beneficios: no se agrega roles');
 
 -- ─── Resultado ────────────────────────────────────────────────────────────────
 

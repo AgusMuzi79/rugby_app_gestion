@@ -7,6 +7,8 @@ import {
   type RolCreable,
   ROLES_POR_CALLER,
   autorizarAccion,
+  esRolSoloWeb,
+  rolesTrasAsignar,
   rolesTrasQuitarStaff,
 } from '../_shared/permisos-usuarios.ts'
 import { normalizarDni } from '../_shared/login-identificador.ts'
@@ -113,6 +115,11 @@ async function handleCreate(body: Record<string, unknown>, callerRol: string): P
   if (!rol || !rolesPermitidos.includes(rol)) {
     return jsonError(403, `No tenés permiso para crear usuarios con rol "${rol}"`)
   }
+  // Un rol sólo web no puede ser el rol activo de la app: se asigna a un socio
+  // existente (assign-role), que conserva su vista de socio.
+  if (esRolSoloWeb(rol)) {
+    return jsonError(400, `El rol "${rol}" se asigna a un socio existente, no se crea una cuenta nueva`)
+  }
 
   // Crear usuario con DNI como contraseña inicial (sin email de confirmación)
   const { data: userData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
@@ -193,7 +200,7 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   // Perfil existente — agregar rol al array
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('roles, divisiones')
+    .select('rol, roles, divisiones')
     .eq('id', socio.profile_id)
     .single()
 
@@ -202,7 +209,8 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
     return jsonError(409, 'El socio ya tiene ese rol asignado')
   }
 
-  const rolesNuevos = [...new Set(['socio', ...rolesActuales, nuevoRol])]
+  // Un rol sólo web (beneficios) se agrega a roles[] sin cambiar el rol activo.
+  const asignado = rolesTrasAsignar(rolesActuales, (profile?.rol as string | null) ?? null, nuevoRol)
 
   // `divisiones` es un solo array por perfil, compartido entre todos los roles
   // del usuario (no hay un array por rol). Si lo pisáramos acá, asignar un
@@ -220,8 +228,8 @@ async function handleAssignRole(body: Record<string, unknown>, callerRol: string
   const { error: updateErr } = await supabaseAdmin
     .from('profiles')
     .update({
-      roles:      rolesNuevos,
-      rol:        nuevoRol,
+      roles:      asignado.roles,
+      rol:        asignado.rol,
       divisiones: divisionesVal,
       ...(nuevoRol === 'subcomision' && deporte ? { deporte } : {}),
     })

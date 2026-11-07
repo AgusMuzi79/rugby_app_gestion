@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { Rol } from '@/constants/roles'
+import { aplicarPerfilMovil, SIN_ACCESO_MOVIL } from '@/lib/rolMovil'
 import { mensajeLogin, statusErrorFunction } from '@/lib/errorFunction'
 import { esErrorDeRed } from '@/lib/offlineSync'
 
@@ -113,14 +113,32 @@ export function useLogin() {
       // setSession dispara onAuthStateChange en _layout.tsx, que setea rol/roles
       // y registra el push token — centralizado ahí para cubrir también la
       // sesión restaurada al abrir la app, no sólo el login explícito.
+      if (!(await aplicarPerfil(data.user.id, profile))) return
       setSession(data.session)
-      setRol((profile?.rol as Rol) ?? null)
-      setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Applies the mobile roles of a freshly loaded profile (lib/rolMovil.ts):
+  // drops web-only roles and writes a web-only active rol back as socio. An
+  // account with no mobile role is signed out with an explanation (false).
+  async function aplicarPerfil(
+    userId: string,
+    profile: { rol?: string | null; roles?: string[] | null } | null,
+  ): Promise<boolean> {
+    const movil = await aplicarPerfilMovil(profile ?? {}, nuevoRol =>
+      supabase.from('profiles').update({ rol: nuevoRol }).eq('id', userId))
+    if (profile && !movil.rol) {
+      await supabase.auth.signOut()
+      setError(SIN_ACCESO_MOVIL)
+      return false
+    }
+    setRol(movil.rol)
+    setRoles(movil.roles)
+    return true
   }
 
   async function loginConBiometria(): Promise<void> {
@@ -167,9 +185,8 @@ export function useLogin() {
         .eq('id', data.user.id)
         .single()
 
+      if (!(await aplicarPerfil(data.user.id, profile))) return
       setSession(data.session)
-      setRol((profile?.rol as Rol) ?? null)
-      setRoles((profile?.roles as Rol[]) ?? [profile?.rol as Rol].filter(Boolean))
     } catch {
       setError('Ocurrió un error. Intentá de nuevo.')
     } finally {

@@ -6,16 +6,22 @@ import { supabase } from '@/lib/supabase'
 import PanelSidebar, { type NavItem } from '@/components/PanelSidebar'
 import { decidirSesion, type DecisionSesion } from '@/lib/sesionPanel'
 
-export type PanelId = 'subcomision' | 'buffet' | 'secretaria' | 'porteria'
+export type PanelId = 'subcomision' | 'buffet' | 'secretaria' | 'porteria' | 'beneficios'
 
 interface UserProfile {
   nombre: string
   rol: string
+  roles: string[] | null
 }
 
 interface ConfigPanel {
   /** Roles que pueden entrar al panel; cualquier otro cierra sesión. */
   roles: string[]
+  /**
+   * Roles solo web que habilitan el panel por estar en `profiles.roles[]`
+   * (la app deja a quien los tiene en rol 'socio'). Ver lib/sesionPanel.ts.
+   */
+  rolesPorMembresia?: string[]
   /** Nombre debajo del logo. */
   nombre: string
   items: NavItem[]
@@ -60,6 +66,16 @@ const PANELES: Record<PanelId, ConfigPanel> = {
       { href: '/secretaria/debito-automatico', label: 'Débito Automático' },
     ],
   },
+  // Club de beneficios: nada que ver con subcomisión ni secretaría.
+  beneficios: {
+    roles: ['admin'],
+    rolesPorMembresia: ['beneficios'],
+    nombre: 'Beneficios',
+    mostrarRol: false,
+    items: [
+      { href: '/beneficios', label: 'Beneficios' },
+    ],
+  },
   porteria: {
     roles: ['porteria', 'admin', 'subcomision'],
     nombre: 'Gimnasio',
@@ -84,21 +100,22 @@ export default function PanelShell({ panel, children }: { panel: PanelId; childr
     const checkAuth = async () => {
       let decision: DecisionSesion
       let perfil: UserProfile | null = null
+      const permisos = { rolesPermitidos: PANELES[panel].roles, rolesPorMembresia: PANELES[panel].rolesPorMembresia }
       try {
         const { data: { user }, error: userError } = await supabase.auth.getUser()
         if (!user) {
-          decision = decidirSesion({ user: null, userError, rolesPermitidos: PANELES[panel].roles })
+          decision = decidirSesion({ user: null, userError, ...permisos })
         } else {
           const { data, error: perfilError } = await supabase
             .from('profiles')
-            .select('nombre, rol')
+            .select('nombre, rol, roles')
             .eq('id', user.id)
             .single()
           perfil = data
-          decision = decidirSesion({ user, perfil: data, perfilError, rolesPermitidos: PANELES[panel].roles })
+          decision = decidirSesion({ user, perfil: data, perfilError, ...permisos })
         }
       } catch (e) {
-        decision = decidirSesion({ user: null, excepcion: e, rolesPermitidos: PANELES[panel].roles })
+        decision = decidirSesion({ user: null, excepcion: e, ...permisos })
       }
       if (cancelado) return
 

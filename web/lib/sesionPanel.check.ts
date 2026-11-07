@@ -85,4 +85,33 @@ caso('si la lectura tiró una excepción, muestra error', () => {
   assert.equal(d.tipo, 'error')
 })
 
+// Same config as PANELES.beneficios in components/PanelShell.tsx: admin by the
+// active rol, beneficios by membership in roles[] (the app keeps them on 'socio').
+const panelBeneficios = { rolesPermitidos: ['admin'], rolesPorMembresia: ['beneficios'] }
+
+caso('panel Beneficios: a socio-active account with beneficios in roles[] enters', () => {
+  const d = decidirSesion({ user, perfil: { rol: 'socio', roles: ['socio', 'beneficios'] }, ...panelBeneficios })
+  assert.equal(d.tipo, 'ok')
+})
+
+caso('panel Beneficios: admin enters by its active rol', () => {
+  assert.equal(decidirSesion({ user, perfil: { rol: 'admin', roles: ['admin'] }, ...panelBeneficios }).tipo, 'ok')
+})
+
+caso('panel Beneficios: plain socio, subcomisión and secretaría are signed out', () => {
+  for (const perfil of [
+    { rol: 'socio', roles: ['socio'] },
+    { rol: 'socio', roles: null },
+    { rol: 'subcomision', roles: ['socio', 'subcomision'] },
+    { rol: 'secretaria', roles: ['secretaria'] },
+  ]) {
+    assert.equal(decidirSesion({ user, perfil, ...panelBeneficios }).tipo, 'cerrar', perfil.rol)
+  }
+})
+
+caso('other panels still decide by the active rol only: roles[] does not open them', () => {
+  const d = decidirSesion({ user, perfil: { rol: 'socio', roles: ['socio', 'secretaria'] }, rolesPermitidos: roles })
+  assert.equal(d.tipo, 'cerrar')
+})
+
 console.log(`\n${casos} casos ok`)
