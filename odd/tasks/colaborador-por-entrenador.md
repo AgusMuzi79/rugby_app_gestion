@@ -26,8 +26,8 @@ The entrenador, not Subcomisión, designates the colaboradores of their division
   - Review (RDD, medium, lens reliability, lineage `review-a813718a0e4c755d`): consent granted, **approved and acknowledged** for `a9bde56`. Non-blocking findings: WARNING lost update on concurrent writes (`index.ts:213-219`), WARNING `null` JSON body → 500 (`index.ts:47-55`); SUGGESTIONS handler untested, `listar` filters only `roles[]`, padrón read error swallowed. The two warnings → T1b.
 - [x] T1b — Follow-up of the T1 review: reject non-object bodies with 400; conditional update in `asignar`/`quitar` (match the read `roles`, `rol` and `divisiones`, 409 "El perfil cambió, volvé a intentar" when 0 rows) so concurrent writes are not lost. Route: same writer as T2, own commit.
 - [x] T2 — Subcomisión loses colaborador. `_shared/permisos-usuarios.ts` (+ check), new migration recreating `guard_profile_role_update` without `colaborador` in `v_gestionables` (+ `supabase/tests/guard_roles_subcomision.sql`), app `UsuariosScreen.tsx` / `useUsuarios.ts`, web `usuarios/page.tsx` / `rolesStaff.check.ts`. Admin keeps it. Route: delegated writer.
-- [ ] T3 — Entrenador app screen "Colaboradores": hidden route `(entrenador)/colaboradores` opened from Inicio (diario); per division list, search + add, remove with confirmation. Route: delegated writer.
-- [ ] T4 — Docs: CLAUDE.md roles/colaborador line, this document's evidence.
+- [x] T3 — Entrenador app screen "Colaboradores": hidden route `(entrenador)/colaboradores` opened from Inicio (diario); per division list, search + add, remove with confirmation. Route: delegated writer.
+- [x] T4 — Docs: CLAUDE.md roles/colaborador line, this document's evidence. Route: same delegated writer as T3.
 
 ## Acceptance criteria
 
@@ -65,6 +65,17 @@ Strategy `ask-on-risk`. Forecast: ~1000 authored lines over T1–T3. T1 alone is
   - `deno check` `colaboradores` → exit 0; `admin-usuarios` → 2 pre-existing errors in the unchanged `index.ts` (`EdgeRuntime` global, `socio.profiles` join cast at :198).
   - `npx tsc --noEmit` in `app/` and `web/`: not run (no `node_modules` in the worktree).
   - Side effect: subcomisión no longer lists (web) nor deactivates/reactivates/reads the mail of (`admin-usuarios`) an account whose only staff role is `colaborador`; the app list still shows it, but those actions now answer 403.
+    - User, 2026-11-10: no colaborador account was ever created by Subcomisión, so nothing breaks; entrenador-designated colaboradores are socios (`socio` + `colaborador`), which Subcomisión did not manage anyway. No change needed.
+  - Parent spot check: `permisos-usuarios.check.ts` → 18 casos ok.
+- RDD assessments after T1's review (base = last reviewed boundary `a9bde56`): T1b (`3a7841e`) medium, 84 lines, `under_budget`; T1b+T2 (`d7d8346`) medium, 296 lines, `under_budget` → pending in the slice until T3.
+- T3 (delegated writer, trigger: 2+ non-trivial files; branch `feat/colaborador-pantalla-entrenador`, commit `9b13f60`). Files: `app/lib/colaboradores.ts` (+ `.check.ts`, added to `test:admin`), `app/hooks/useColaboradores.ts`, `app/app/(entrenador)/colaboradores.tsx` (hidden route, `href: null`), `app/app/(entrenador)/_layout.tsx`, `app/app/(entrenador)/diario.tsx` (atajo COLABORADORES in ATAJOS RÁPIDOS).
+  - Screen: division chips (only with 2+ divisions, same pattern as Asistencia), current colaboradores of the division with QUITAR (confirmation via `Alert.alert`, like the other destructive actions), AGREGAR COLABORADOR search (name or DNI, 400 ms debounce, stale responses discarded) with DESIGNAR, `motivo` for non-eligible results, COLABORADOR tag when already designated. Load and search errors use `ErrorCarga` + REINTENTAR; action errors show the server message via `mensajeErrorFunction` (includes the 409 concurrency message). "‹" goes back to Inicio; Android Back goes to the first tab (Tabs default).
+  - The client repeats the server's search rules (≥3 characters, digits-only = DNI) so it does not call the function with 1–2 letters; a comment in `app/lib/colaboradores.ts` says to keep both in sync.
+  - RED: `npx --yes tsx app/lib/colaboradores.check.ts` → `ERR_MODULE_NOT_FOUND` (module missing). GREEN: 11 casos OK. `perfilAvatar.check.ts` → 12 casos OK; `guardRaiz.check.ts` → 16 casos ok.
+  - `npx tsc --noEmit` in `app/` (junction to the main checkout's `node_modules`, removed afterwards) → exit 0, no errors.
+  - Size: ~706 authored lines (screen 302 + hook 214 + lib/check 184), over the ~400 heuristic because screen, hook and check are one coherent behavior; not split.
+  - Not verified on a device (no runner for screens/hooks).
+- T4 (same writer). `CLAUDE.md`: Colaborador row (designated by the entrenador from Inicio › Colaboradores among socios with an account; Subcomisión no longer assigns it, Admin does) and a deploy-pending line in "Pendiente / backlog".
 
 ## Deploy (user, after merge)
 
