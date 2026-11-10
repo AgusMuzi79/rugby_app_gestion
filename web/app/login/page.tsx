@@ -43,7 +43,16 @@ export default function LoginPage() {
     }
 
     if (panel.reescribirRol) {
-      await supabase.from('profiles').update({ rol: panel.rolWeb }).eq('id', data.user.id)
+      // The panel guard reads the active rol: if this write fails, routing
+      // would sign the user out with no explanation.
+      const { error: errorRol } = await supabase
+        .from('profiles').update({ rol: panel.rolWeb }).eq('id', data.user.id)
+      if (errorRol) {
+        await supabase.auth.signOut()
+        setError('No pudimos abrir tu panel. Probá de nuevo en unos minutos.')
+        setLoading(false)
+        return
+      }
     }
 
     router.replace(panel.destino)
