@@ -31,6 +31,11 @@ function rolesDe(c: { rol: string | null; roles: string[] | null }): string[] {
   return [...new Set([...(c.roles ?? []), ...(c.rol ? [c.rol] : [])])]
 }
 
+// El body tiene que ser un objeto JSON (no null, array ni primitivo).
+export function esCuerpoValido(body: unknown): body is Record<string, unknown> {
+  return typeof body === 'object' && body !== null && !Array.isArray(body)
+}
+
 // null = autorizado. `perfil` null = el caller no tiene profile.
 export function autorizarCaller(perfil: { rol: string | null; activo: boolean } | null): Rechazo | null {
   if (!perfil || perfil.rol !== 'entrenador' || !perfil.activo) {

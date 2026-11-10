@@ -23,6 +23,8 @@ The entrenador, not Subcomisión, designates the colaboradores of their division
 ## Tasks
 
 - [x] T1 — Backend. New Edge Function `colaboradores` (actions `listar`, `buscar`, `asignar`, `quitar`), pure rules in `supabase/functions/_shared/colaboradores.ts` + `colaboradores.check.ts`. Route: delegated writer (2+ non-trivial files).
+  - Review (RDD, medium, lens reliability, lineage `review-a813718a0e4c755d`): consent granted, **approved and acknowledged** for `a9bde56`. Non-blocking findings: WARNING lost update on concurrent writes (`index.ts:213-219`), WARNING `null` JSON body → 500 (`index.ts:47-55`); SUGGESTIONS handler untested, `listar` filters only `roles[]`, padrón read error swallowed. The two warnings → T1b.
+- [x] T1b — Follow-up of the T1 review: reject non-object bodies with 400; conditional update in `asignar`/`quitar` (match the read `roles`, `rol` and `divisiones`, 409 "El perfil cambió, volvé a intentar" when 0 rows) so concurrent writes are not lost. Route: same writer as T2, own commit.
 - [ ] T2 — Subcomisión loses colaborador. `_shared/permisos-usuarios.ts` (+ check), new migration recreating `guard_profile_role_update` without `colaborador` in `v_gestionables` (+ `supabase/tests/guard_roles_subcomision.sql`), app `UsuariosScreen.tsx` / `useUsuarios.ts`, web `usuarios/page.tsx` / `rolesStaff.check.ts`. Admin keeps it. Route: delegated writer.
 - [ ] T3 — Entrenador app screen "Colaboradores": hidden route `(entrenador)/colaboradores` opened from Inicio (diario); per division list, search + add, remove with confirmation. Route: delegated writer.
 - [ ] T4 — Docs: CLAUDE.md roles/colaborador line, this document's evidence.
@@ -42,13 +44,20 @@ The entrenador, not Subcomisión, designates the colaboradores of their division
 
 ## Delivery
 
-Strategy `ask-on-risk`. Forecast: ~600–800 authored lines over T1–T3, so a chain may be needed (ask before the commit that crosses ~400).
+Strategy `ask-on-risk`. Forecast: ~1000 authored lines over T1–T3. T1 alone is 608 lines (it crosses the ~400 budget by itself: rules + 21-case check). User chose (2026-11-10) chain strategy **`stacked-to-main`**:
+
+- PR1 `feat/colaborador-por-entrenador` → `main`: T1 (`a9bde56`) + T1b.
+- PR2 `feat/colaborador-sin-subco` (based on PR1) → T2.
+- PR3 `feat/colaborador-pantalla-entrenador` (based on PR2) → T3 + T4.
 
 ## Progress
 
 - T1 (delegated writer, trigger: 3 non-trivial new files). Files: `supabase/functions/colaboradores/index.ts`, `supabase/functions/_shared/colaboradores.ts`, `supabase/functions/_shared/colaboradores.check.ts`. No `supabase/config.toml` entry: no other function has one (default JWT verification applies).
   - RED: `colaboradores.check.ts` failed with module not found before the module existed. GREEN: `npx --yes tsx supabase/functions/_shared/colaboradores.check.ts` → 21 casos OK; `permisos-usuarios.check.ts` → 17 casos ok; `npx --yes deno check supabase/functions/colaboradores/index.ts` → exit 0 (deno via npm, not installed globally).
   - Assumptions taken: name search reuses the RPC `buscar_socios_por_nombre` through service_role, so it matches `profiles.nombre` (not `nombre_padron`) and returns at most 10 rows (under the 20 cap); DNI search is exact on `socios.dni`. The target must have a `socios` row; a `cliente_gimnasio` without `socio` is not eligible. Unknown birth date is not refused by age. `asignar` always adds `socio` to `roles[]` (same as `rolesTrasAsignar`); an idempotent `asignar` writes nothing and keeps the active role. `quitar` also refuses (403) a target with entrenador/coordinador/manager/subcomisión/admin, because removing the shared division would cut that role's access. Concurrent edits to the same profile are last-write-wins, same as `admin-usuarios`.
+- T1b (delegated writer, same as T2). Files: `supabase/functions/colaboradores/index.ts`, `supabase/functions/_shared/colaboradores.ts`, `supabase/functions/_shared/colaboradores.check.ts`.
+  - Body: `esCuerpoValido()` rejects `null`, arrays and primitives with 400 `Body inválido`. RED: `colaboradores.check.ts` → `TypeError: esCuerpoValido is not a function`. GREEN: 22 casos OK.
+  - Concurrency: `asignar`/`quitar` now write with `.eq('id').eq('updated_at', <read value>).select('id')`; 0 rows → 409 `El perfil cambió mientras lo editabas. Volvé a intentar.` `profiles.updated_at` is bumped by the `profiles_updated_at` trigger (`20260506000000_init_schema.sql`) on every UPDATE, so it works as an optimistic-lock version (simpler and safer than PostgREST equality on `uuid[]`/`text[]`). Not covered by an automated test (handler has no runner); `deno check` → exit 0.
 
 ## Deploy (user, after merge)
 

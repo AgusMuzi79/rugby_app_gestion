@@ -4,8 +4,8 @@
 
 import assert from 'node:assert/strict'
 import {
-  autorizarCaller, divisionesVisibles, estadoTrasAsignar, estadoTrasQuitar, interpretarBusqueda,
-  motivoNoElegible, verificarDivisionDelCaller, type Candidato,
+  autorizarCaller, divisionesVisibles, esCuerpoValido, estadoTrasAsignar, estadoTrasQuitar,
+  interpretarBusqueda, motivoNoElegible, verificarDivisionDelCaller, type Candidato,
 } from './colaboradores.ts'
 
 let casos = 0
@@ -26,6 +26,16 @@ function candidato(parcial: Partial<Candidato>): Candidato {
     fechaNacimiento: '2000-05-01', tieneSocio: true, ...parcial,
   }
 }
+
+// ─── Body ────────────────────────────────────────────────────────────────────
+
+caso('el body tiene que ser un objeto JSON', () => {
+  assert.equal(esCuerpoValido({ action: 'listar' }), true)
+  assert.equal(esCuerpoValido({}), true)
+  for (const b of [null, [], [{ action: 'listar' }], 'listar', 3, true, undefined]) {
+    assert.equal(esCuerpoValido(b), false, JSON.stringify(b))
+  }
+})
 
 // ─── Caller ──────────────────────────────────────────────────────────────────
 

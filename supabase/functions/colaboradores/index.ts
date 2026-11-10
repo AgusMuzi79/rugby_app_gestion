@@ -14,6 +14,7 @@ import {
   autorizarCaller,
   divisionesVisibles,
   esColaboradorDe,
+  esCuerpoValido,
   estadoTrasAsignar,
   estadoTrasQuitar,
   interpretarBusqueda,
@@ -22,6 +23,28 @@ import {
 } from '../_shared/colaboradores.ts'
 
 interface CallerCtx { id: string; divisiones: string[] }
+
+const PERFIL_CAMBIO = 'El perfil cambió mientras lo editabas. Volvé a intentar.'
+
+// Escribe roles/rol/divisiones sólo si el perfil sigue como se leyó
+// (updated_at lo actualiza el trigger profiles_updated_at en cada UPDATE).
+// Así dos ediciones simultáneas no se pisan: la segunda recibe 409.
+async function escribirPerfil(
+  id: string,
+  updatedAtLeido: string,
+  estado: { roles: string[]; rol: string; divisiones: string[] | null },
+  mensajeError: string,
+): Promise<Response | null> {
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ roles: estado.roles, rol: estado.rol, divisiones: estado.divisiones })
+    .eq('id', id)
+    .eq('updated_at', updatedAtLeido)
+    .select('id')
+  if (error) return jsonError(500, mensajeError)
+  if (!data || data.length === 0) return jsonError(409, PERFIL_CAMBIO)
+  return null
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -44,12 +67,14 @@ Deno.serve(async (req: Request) => {
   const rechazo = autorizarCaller(perfil ? { rol: perfil.rol, activo: perfil.activo } : null)
   if (rechazo) return jsonError(rechazo.status, rechazo.mensaje)
 
-  let body: Record<string, unknown>
+  let parsed: unknown
   try {
-    body = await req.json()
+    parsed = await req.json()
   } catch {
     return jsonError(400, 'Body inválido')
   }
+  if (!esCuerpoValido(parsed)) return jsonError(400, 'Body inválido')
+  const body = parsed
 
   const caller: CallerCtx = { id: user.id, divisiones: (perfil!.divisiones as string[] | null) ?? [] }
   const { action } = body
@@ -161,9 +186,9 @@ async function handleBuscar(body: Record<string, unknown>, caller: CallerCtx): P
 // Perfil + fila de socio de cada profileId. No devuelve DNI ni mail.
 async function cargarCandidatos(
   profileIds: string[],
-): Promise<{ candidato: Candidato; nombre: string }[] | Response> {
+): Promise<{ candidato: Candidato; nombre: string; updatedAt: string }[] | Response> {
   const [profilesRes, sociosRes] = await Promise.all([
-    supabaseAdmin.from('profiles').select('id, nombre, rol, roles, divisiones, activo').in('id', profileIds),
+    supabaseAdmin.from('profiles').select('id, nombre, rol, roles, divisiones, activo, updated_at').in('id', profileIds),
     supabaseAdmin.from('socios').select('profile_id, nombre_padron, fecha_nacimiento').in('profile_id', profileIds),
   ])
   if (profilesRes.error || sociosRes.error) return jsonError(500, 'Error leyendo las cuentas')
@@ -181,6 +206,7 @@ async function cargarCandidatos(
         tieneSocio: !!socio,
       },
       nombre: (socio?.nombre_padron as string | null) ?? (p.nombre as string),
+      updatedAt: p.updated_at as string,
     }
   })
 }
@@ -188,7 +214,7 @@ async function cargarCandidatos(
 async function cargarCandidato(
   body: Record<string, unknown>,
   caller: CallerCtx,
-): Promise<{ candidato: Candidato; nombre: string; divisionId: string } | Response> {
+): Promise<{ candidato: Candidato; nombre: string; updatedAt: string; divisionId: string } | Response> {
   const r = verificarDivisionDelCaller(body.divisionId, caller.divisiones)
   if (r) return jsonError(r.status, r.mensaje)
   const profileId = body.profileId
@@ -205,18 +231,15 @@ async function cargarCandidato(
 async function handleAsignar(body: Record<string, unknown>, caller: CallerCtx): Promise<Response> {
   const cargado = await cargarCandidato(body, caller)
   if (cargado instanceof Response) return cargado
-  const { candidato, nombre, divisionId } = cargado
+  const { candidato, nombre, updatedAt, divisionId } = cargado
 
   const motivo = motivoNoElegible(caller.id, candidato, new Date())
   if (motivo) return jsonError(403, motivo)
 
   const estado = estadoTrasAsignar(candidato, divisionId)
   if (estado.cambia) {
-    const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({ roles: estado.roles, rol: estado.rol, divisiones: estado.divisiones })
-      .eq('id', candidato.id)
-    if (error) return jsonError(500, 'No se pudo designar al colaborador')
+    const fallo = await escribirPerfil(candidato.id, updatedAt, estado, 'No se pudo designar al colaborador')
+    if (fallo) return fallo
   }
   return jsonOk({ ok: true, profileId: candidato.id, nombre, yaEstaba: !estado.cambia })
 }
@@ -226,16 +249,13 @@ async function handleAsignar(body: Record<string, unknown>, caller: CallerCtx): 
 async function handleQuitar(body: Record<string, unknown>, caller: CallerCtx): Promise<Response> {
   const cargado = await cargarCandidato(body, caller)
   if (cargado instanceof Response) return cargado
-  const { candidato, divisionId } = cargado
+  const { candidato, updatedAt, divisionId } = cargado
 
   if (candidato.id === caller.id) return jsonError(403, 'No podés quitarte a vos mismo')
   const estado = estadoTrasQuitar(candidato, divisionId)
   if ('status' in estado) return jsonError(estado.status, estado.mensaje)
 
-  const { error } = await supabaseAdmin
-    .from('profiles')
-    .update({ roles: estado.roles, rol: estado.rol, divisiones: estado.divisiones })
-    .eq('id', candidato.id)
-  if (error) return jsonError(500, 'No se pudo quitar al colaborador')
+  const fallo = await escribirPerfil(candidato.id, updatedAt, estado, 'No se pudo quitar al colaborador')
+  if (fallo) return fallo
   return jsonOk({ ok: true, profileId: candidato.id })
 }
