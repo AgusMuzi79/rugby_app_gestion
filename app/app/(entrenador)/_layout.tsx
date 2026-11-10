@@ -5,6 +5,7 @@ import { useSincronizacionOffline } from '@/hooks/useSincronizacionOffline'
 
 // Inicio · Asistencia · Partido · Crónica; Mi perfil se abre desde el avatar
 // del encabezado (X9). Lesiones queda oculta (FEATURES.lesiones).
+// Colaboradores (oculta) se abre desde el atajo del Inicio.
 export default function EntrenadorLayout() {
   // Manda la asistencia guardada sin señal cuando vuelve la conexión.
   useSincronizacionOffline()
@@ -30,6 +31,7 @@ export default function EntrenadorLayout() {
       <Tabs.Screen name="sobre" options={{ title: 'Mi perfil', href: null }} />
       <Tabs.Screen name="salir" options={{ href: null }} />
       <Tabs.Screen name="lesiones" options={{ href: null }} />
+      <Tabs.Screen name="colaboradores" options={{ title: 'Colaboradores', href: null }} />
     </Tabs>
   )
 }
