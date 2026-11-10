@@ -114,4 +114,33 @@ caso('other panels still decide by the active rol only: roles[] does not open th
   assert.equal(d.tipo, 'cerrar')
 })
 
+// Same config as PANELES.entrenador in components/PanelShell.tsx: the active rol
+// only (the login rewrites profiles.rol to 'entrenador', the RLS checks it).
+const panelEntrenador = { rolesPermitidos: ['entrenador'] }
+
+caso('panel Entrenador: an account with entrenador as its active rol enters', () => {
+  const d = decidirSesion({ user, perfil: { rol: 'entrenador', roles: ['socio', 'entrenador'] }, ...panelEntrenador })
+  assert.equal(d.tipo, 'ok')
+})
+
+caso('panel Entrenador: socio-only, coordinador-only and colaborador accounts are signed out', () => {
+  for (const perfil of [
+    { rol: 'socio', roles: ['socio'] },
+    { rol: 'coordinador', roles: ['coordinador'] },
+    { rol: 'colaborador', roles: ['colaborador'] },
+  ]) {
+    assert.equal(decidirSesion({ user, perfil, ...panelEntrenador }).tipo, 'cerrar', perfil.rol)
+  }
+})
+
+caso('panel Entrenador: entrenador in roles[] alone does not open it (active rol decides)', () => {
+  const d = decidirSesion({ user, perfil: { rol: 'socio', roles: ['socio', 'entrenador'] }, ...panelEntrenador })
+  assert.equal(d.tipo, 'cerrar')
+})
+
+caso('panel Subcomisión: an entrenador account is signed out', () => {
+  const d = decidirSesion({ user, perfil: { rol: 'entrenador', roles: ['entrenador'] }, rolesPermitidos: ['subcomision', 'admin'] })
+  assert.equal(d.tipo, 'cerrar')
+})
+
 console.log(`\n${casos} casos ok`)

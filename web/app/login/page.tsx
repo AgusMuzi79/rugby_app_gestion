@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { elegirPanelLogin } from '@/lib/panelLogin'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -31,41 +32,21 @@ export default function LoginPage() {
       .eq('id', data.user.id)
       .single()
 
-    // beneficios va al final: quien ya tenía otro rol de web sigue entrando a su panel.
-    const rolesPermitidos = ['subcomision', 'admin', 'secretaria', 'porteria', 'buffet', 'beneficios']
-    const rolesArray = (profile?.roles as string[]) ?? []
+    // Panel, destino y si hay que pisar profiles.rol: lib/panelLogin.ts.
+    const panel = elegirPanelLogin(profile ? { rol: profile.rol as string, roles: profile.roles as string[] | null } : null)
 
-    // Determinar el rol web activo: puede que profiles.rol esté en 'manager' u otro
-    // rol móvil si el usuario toggleó en la app. Buscar el primer rol de web en roles[].
-    const rolWeb = rolesPermitidos.find(r => rolesArray.includes(r)) ?? profile?.rol ?? ''
-
-    if (!rolWeb || !rolesPermitidos.includes(rolWeb)) {
+    if (!panel) {
       await supabase.auth.signOut()
       setError('No tenés acceso al panel de gestión.')
       setLoading(false)
       return
     }
 
-    // Rol solo web (beneficios): el panel lo valida por roles[] y la app deja a
-    // la cuenta en 'socio'; pisar profiles.rol rompería la app en el teléfono.
-    if (rolWeb === 'beneficios') {
-      router.replace('/beneficios')
-      return
+    if (panel.reescribirRol) {
+      await supabase.from('profiles').update({ rol: panel.rolWeb }).eq('id', data.user.id)
     }
 
-    if (profile?.rol !== rolWeb) {
-      await supabase.from('profiles').update({ rol: rolWeb }).eq('id', data.user.id)
-    }
-
-    if (rolWeb === 'secretaria') {
-      router.replace('/secretaria/socios')
-    } else if (rolWeb === 'porteria') {
-      router.replace('/porteria/accesos')
-    } else if (rolWeb === 'buffet') {
-      router.replace('/buffet/promos')
-    } else {
-      router.replace('/dashboard')
-    }
+    router.replace(panel.destino)
   }
 
   return (
