@@ -382,10 +382,11 @@ function VistaDetalle({ hook }: { hook: ReturnType<typeof useUsuarios> }) {
 
 // ─── Modal nuevo usuario ──────────────────────────────────────────────────────
 
+// Colaborador: lo designa el entrenador desde la app (2026-11-10); en Usuarios
+// sólo admin lo pone o lo quita (guard_profile_role_update, 20261112000000).
 const ROLES_CREABLES_SUBCO: { value: RolCreable; label: string }[] = [
   { value: 'coordinador', label: 'Coordinador' },
   { value: 'entrenador',  label: 'Entrenador'  },
-  { value: 'colaborador', label: 'Colaborador' },
   { value: 'manager',     label: 'Manager'     },
   { value: 'subcomision', label: 'Subcomisión' },
 ]

@@ -6,7 +6,9 @@
 // sin imports, para poder chequearla con tsx (permisos-usuarios.check.ts).
 
 // 'colaborador' (auditoría entrenador T23): sólo toma asistencia en sus
-// divisiones; se crea y se le asignan divisiones igual que a un entrenador.
+// divisiones. Desde 2026-11-10 lo designa el entrenador (function
+// `colaboradores`); en Usuarios sólo admin lo pone o lo quita (migración
+// 20261112000000: el guard tampoco se lo deja a subcomisión).
 // 'beneficios' (2026-11-06, migración 20261111000000): gestiona el club de
 // beneficios desde el panel web. Sólo admin lo asigna; subcomisión no (el guard
 // guard_profile_role_update tampoco se lo deja poner ni quitar).
@@ -15,7 +17,7 @@ export type RolCreable =
   | 'porteria' | 'canchero' | 'buffet' | 'subcomision' | 'beneficios'
 
 export const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
-  subcomision: ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision'],
+  subcomision: ['coordinador', 'entrenador', 'manager', 'subcomision'],
   admin:       ['coordinador', 'entrenador', 'colaborador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision', 'beneficios'],
 }
 

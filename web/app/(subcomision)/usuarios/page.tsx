@@ -10,12 +10,16 @@ import ErrorCarga from '@/components/ErrorCarga'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
+const ROLES_SUBCO  = ['coordinador', 'entrenador', 'manager', 'subcomision']
 // Colaborador (auditoría entrenador T23): sólo toma asistencia; divisiones
-// como un entrenador.
-const ROLES_SUBCO  = ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision']
+// como un entrenador. Desde 2026-11-10 lo designa el entrenador desde la app;
+// acá sólo admin lo pone o lo quita (guard_profile_role_update,
+// 20261112000000). EDITAR ROL de subcomisión reemplaza sólo el rol de staff que
+// gestiona (reemplazarRolStaff), así que un colaborador que la cuenta ya tenga
+// queda en roles[].
 // beneficios: rol solo web (panel del club de beneficios), sólo lo da admin.
 // Se asigna a un socio existente y se suma a sus roles (no reemplaza otro).
-const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet', 'beneficios']
+const ROLES_ADMIN  = [...ROLES_SUBCO, 'colaborador', 'secretaria', 'porteria', 'canchero', 'buffet', 'beneficios']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', colaborador: 'Colaborador', manager: 'Manager',

@@ -1,6 +1,8 @@
--- Pruebas de escenario para la migración 20261109000000_guard_roles_subcomision
+-- Pruebas de escenario para las migraciones 20261109000000_guard_roles_subcomision
 -- (subcomisión sólo pone o quita los roles que gestiona y no toca cuentas de
--- admin; admin, service_role y el resto de los roles sin cambios).
+-- admin; admin, service_role y el resto de los roles sin cambios) y
+-- 20261112000000_colaborador_fuera_de_subco (subcomisión ya no pone ni quita
+-- 'colaborador'; admin y service_role sí).
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name guard-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -9,7 +11,9 @@
 --   docker exec guard-pg psql -U postgres -v ON_ERROR_STOP=1 -f /work/tests/guard_roles_subcomision.sql
 --   docker rm -f guard-pg
 -- Con -v sin_migracion=1 corre contra el guard vigente (copia de
--- 20260914000000) sin cargar la migración: así se ve el RED.
+-- 20260914000000) sin cargar ninguna de las dos migraciones: así se ve el RED.
+-- Con -v sin_colaborador=1 carga sólo 20261109000000 (RED de los casos de
+-- 'colaborador').
 --
 -- Mismas convenciones que los otros archivos de esta carpeta: stubs mínimos,
 -- migración cargada con \ir (dos veces: es idempotente), cada fallo se anota en
@@ -103,7 +107,7 @@ create trigger guard_profiles_role_update
 -- ─── Datos ────────────────────────────────────────────────────────────────────
 -- 01 subco (el caller), 02 admin, 03 coordinador, 04 coordinador en vista socio,
 -- 05 secretaría, 06 coordinador viejo con roles[] vacío, 07 socia con el rol
--- web 'beneficios' (20261111000000) en vista socio.
+-- web 'beneficios' (20261111000000) en vista socio, 08 socio colaborador.
 
 insert into profiles (id, nombre, rol, roles, deporte) values
   ('a0000000-0000-0000-0000-000000000001', 'Subco',       'subcomision', '{subcomision,socio}', 'rugby'),
@@ -112,7 +116,8 @@ insert into profiles (id, nombre, rol, roles, deporte) values
   ('a0000000-0000-0000-0000-000000000004', 'Coord socio', 'socio',       '{coordinador,socio}', null),
   ('a0000000-0000-0000-0000-000000000005', 'Secretaria',  'secretaria',  '{secretaria}',        null),
   ('a0000000-0000-0000-0000-000000000006', 'Coord viejo', 'coordinador', '{}',                  null),
-  ('a0000000-0000-0000-0000-000000000007', 'Beneficios',  'socio',       '{socio,beneficios}',  null);
+  ('a0000000-0000-0000-0000-000000000007', 'Beneficios',  'socio',       '{socio,beneficios}',  null),
+  ('a0000000-0000-0000-0000-000000000008', 'Colab',       'colaborador', '{socio,colaborador}', null);
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -156,6 +161,12 @@ $$;
 \else
 \ir ../migrations/20261109000000_guard_roles_subcomision.sql
 \ir ../migrations/20261109000000_guard_roles_subcomision.sql
+\if :{?sin_colaborador}
+\echo '*** sin_colaborador: sin 20261112000000 (RED esperado en colaborador) ***'
+\else
+\ir ../migrations/20261112000000_colaborador_fuera_de_subco.sql
+\ir ../migrations/20261112000000_colaborador_fuera_de_subco.sql
+\endif
 \endif
 
 -- ─── Subcomisión: lo que no puede ─────────────────────────────────────────────
@@ -190,13 +201,19 @@ select t_espera(t_error($q$ update profiles set roles = roles || 'beneficios'::t
   'No autorizado para asignar o quitar ese rol', 'subco: no agrega beneficios (sólo admin)');
 select t_espera(t_error($q$ update profiles set roles = '{socio}' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
   'No autorizado para asignar o quitar ese rol', 'subco: no quita beneficios (sólo admin)');
+select t_espera(t_error($q$ update profiles set roles = '{colaborador}', rol = 'colaborador' where id = 'a0000000-0000-0000-0000-000000000003' $q$),
+  'No autorizado para asignar o quitar ese rol', 'subco: no pasa coordinador → colaborador (20261112000000)');
+select t_espera(t_error($q$ update profiles set roles = roles || 'colaborador'::text where id = 'a0000000-0000-0000-0000-000000000004' $q$),
+  'No autorizado para asignar o quitar ese rol', 'subco: no agrega colaborador (lo designa el entrenador)');
+select t_espera(t_error($q$ update profiles set roles = '{socio}', rol = 'socio' where id = 'a0000000-0000-0000-0000-000000000008' $q$),
+  'No autorizado para asignar o quitar ese rol', 'subco: no quita colaborador');
 
 -- ─── Subcomisión: lo que sí puede ─────────────────────────────────────────────
 
 select t_espera(t_error($q$ update profiles set roles = '{entrenador}', rol = 'entrenador' where id = 'a0000000-0000-0000-0000-000000000003' $q$),
   'sin error', 'subco: coordinador → entrenador (reemplazarRolStaff)');
-select t_espera(t_error($q$ update profiles set roles = '{colaborador}', rol = 'colaborador' where id = 'a0000000-0000-0000-0000-000000000003' $q$),
-  'sin error', 'subco: coordinador → colaborador');
+select t_espera(t_error($q$ update profiles set roles = '{socio,colaborador,entrenador}' where id = 'a0000000-0000-0000-0000-000000000008' $q$),
+  'sin error', 'subco: agrega entrenador a un colaborador conservándole el rol');
 select t_espera(t_error($q$ update profiles set roles = '{subcomision}', rol = 'subcomision' where id = 'a0000000-0000-0000-0000-000000000003' $q$),
   'sin error', 'subco: coordinador → subcomision');
 select t_espera(t_error($q$ update profiles set roles = '{manager,socio}' where id = 'a0000000-0000-0000-0000-000000000004' $q$),
@@ -226,12 +243,20 @@ select t_espera(t_error($q$ update profiles set roles = roles || 'beneficios'::t
   'sin error', 'admin: agrega beneficios');
 select t_espera(t_error($q$ update profiles set roles = '{socio}' where id = 'a0000000-0000-0000-0000-000000000007' $q$),
   'sin error', 'admin: quita beneficios');
+select t_espera(t_error($q$ update profiles set roles = roles || 'colaborador'::text where id = 'a0000000-0000-0000-0000-000000000004' $q$),
+  'sin error', 'admin: agrega colaborador');
+select t_espera(t_error($q$ update profiles set roles = '{socio}', rol = 'socio' where id = 'a0000000-0000-0000-0000-000000000008' $q$),
+  'sin error', 'admin: quita colaborador');
 select t_espera(t_error($q$ update profiles set activo = false, deporte = 'hockey' where id = 'a0000000-0000-0000-0000-000000000001' $q$),
   'sin error', 'admin: desactiva y cambia deporte');
 
 select t_caller('', '');
 select t_espera(t_error($q$ update profiles set roles = '{admin}', rol = 'admin' where id = 'a0000000-0000-0000-0000-000000000003' $q$),
   'sin error', 'service_role: el guard deja pasar cualquier cambio');
+select t_espera(t_error($q$ update profiles set roles = roles || 'colaborador'::text, rol = 'colaborador' where id = 'a0000000-0000-0000-0000-000000000004' $q$),
+  'sin error', 'service_role: agrega colaborador (function del entrenador)');
+select t_espera(t_error($q$ update profiles set roles = '{socio}', rol = 'socio' where id = 'a0000000-0000-0000-0000-000000000008' $q$),
+  'sin error', 'service_role: quita colaborador (function del entrenador)');
 
 -- ─── Otros roles: siguen sin tocar roles ──────────────────────────────────────
 

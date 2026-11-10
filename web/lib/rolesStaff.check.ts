@@ -85,4 +85,25 @@ caso('esRolSoloWeb only marks beneficios', () => {
   assert.equal(esRolSoloWeb('buffet'), false)
 })
 
+// Colaborador (2026-11-10): subcomisión ya no lo gestiona (lo designa el
+// entrenador). EDITAR ROL de subcomisión tiene que dejarlo en roles[]: si lo
+// sacara, guard_profile_role_update (20261112000000) rechazaría el UPDATE.
+const STAFF_SUBCO = ['coordinador', 'entrenador', 'manager', 'subcomision']
+
+caso('subcomisión: el rol de staff de un colaborador-entrenador es entrenador', () => {
+  assert.equal(rolStaffDe('colaborador', ['socio', 'colaborador', 'entrenador'], STAFF_SUBCO), 'entrenador')
+  assert.equal(rolStaffDe('colaborador', ['socio', 'colaborador'], STAFF_SUBCO), null)
+})
+
+caso('subcomisión: EDITAR ROL conserva colaborador en roles[] y como rol activo', () => {
+  assert.deepEqual(
+    reemplazarRolStaff({ rol: 'colaborador', roles: ['socio', 'colaborador', 'entrenador'] }, 'entrenador', 'manager'),
+    { rol: 'colaborador', roles: ['socio', 'colaborador', 'manager'] },
+  )
+  assert.deepEqual(
+    reemplazarRolStaff({ rol: 'entrenador', roles: ['socio', 'entrenador', 'colaborador'] }, 'entrenador', 'coordinador'),
+    { rol: 'coordinador', roles: ['socio', 'coordinador', 'colaborador'] },
+  )
+})
+
 console.log(`\n${casos} casos ok`)

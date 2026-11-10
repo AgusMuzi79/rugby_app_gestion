@@ -90,20 +90,30 @@ caso('quitar rol de staff deja socio y los roles que el caller no gestiona', () 
   assert.equal(rolesTrasQuitarStaff('admin', ['buffet']), null)
 })
 
-caso('colaborador (T23): subcomisión y admin lo crean, como a un entrenador', () => {
-  assert.ok(ROLES_POR_CALLER.subcomision.includes('colaborador'))
+caso('colaborador: sólo admin lo asigna; subcomisión ya no (lo designa el entrenador)', () => {
   assert.ok(ROLES_POR_CALLER.admin.includes('colaborador'))
+  assert.ok(!ROLES_POR_CALLER.subcomision.includes('colaborador'))
 })
 
-caso('colaborador (T23): subcomisión gestiona la cuenta y quitarle el rol deja socio', () => {
-  const colab = destino({ rol: 'colaborador', roles: ['colaborador'] })
-  for (const a of ['deactivate', 'reactivate', 'getUser'] as const) {
-    assert.equal(autorizarAccion(SUBCO, colab, a), null, a)
+caso('colaborador: admin gestiona la cuenta y quitarle el rol deja socio; subcomisión no', () => {
+  const colab = destino({ rol: 'colaborador', roles: ['socio', 'colaborador'], tieneSocio: true })
+  for (const a of ['deactivate', 'reactivate', 'getUser', 'remove-role'] as const) {
+    assert.equal(autorizarAccion(ADMIN, colab, a), null, a)
+    assert.equal(autorizarAccion(SUBCO, colab, a)?.status, 403, a)
   }
   assert.deepEqual(
-    rolesTrasQuitarStaff('subcomision', ['socio', 'colaborador']),
+    rolesTrasQuitarStaff('admin', ['socio', 'colaborador']),
     { roles: ['socio'], rol: 'socio' },
   )
+})
+
+caso('subcomisión quitando staff conserva colaborador', () => {
+  assert.deepEqual(
+    rolesTrasQuitarStaff('subcomision', ['socio', 'entrenador', 'colaborador']),
+    { roles: ['socio', 'colaborador'], rol: 'socio' },
+  )
+  const coachColab = destino({ rol: 'entrenador', roles: ['socio', 'entrenador', 'colaborador'], tieneSocio: true })
+  assert.equal(autorizarAccion(SUBCO, coachColab, 'remove-role'), null)
 })
 
 caso('beneficios: sólo admin lo asigna (subcomisión no)', () => {
