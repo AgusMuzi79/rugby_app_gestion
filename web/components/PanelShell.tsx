@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import PanelSidebar, { type NavItem } from '@/components/PanelSidebar'
 import { decidirSesion, type DecisionSesion } from '@/lib/sesionPanel'
 
-export type PanelId = 'subcomision' | 'buffet' | 'secretaria' | 'porteria' | 'beneficios'
+export type PanelId = 'subcomision' | 'buffet' | 'secretaria' | 'porteria' | 'beneficios' | 'entrenador'
 
 interface UserProfile {
   nombre: string
@@ -74,6 +74,16 @@ const PANELES: Record<PanelId, ConfigPanel> = {
     mostrarRol: false,
     items: [
       { href: '/beneficios', label: 'Beneficios' },
+    ],
+  },
+  // Entrenador: por el rol activo (el login lo deja en 'entrenador'); la RLS
+  // limita los datos a sus divisiones. Partidos se suma con su página.
+  entrenador: {
+    roles: ['entrenador'],
+    nombre: 'Entrenador',
+    mostrarRol: false,
+    items: [
+      { href: '/entrenador/asistencias', label: 'Asistencias' },
     ],
   },
   porteria: {
