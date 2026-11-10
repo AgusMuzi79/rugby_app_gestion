@@ -76,6 +76,8 @@ Strategy `ask-on-risk`. Forecast: ~1000 authored lines over T1–T3. T1 alone is
   - Size: ~706 authored lines (screen 302 + hook 214 + lib/check 184), over the ~400 heuristic because screen, hook and check are one coherent behavior; not split.
   - Not verified on a device (no runner for screens/hooks).
 - T4 (same writer). `CLAUDE.md`: Colaborador row (designated by the entrenador from Inicio › Colaboradores among socios with an account; Subcomisión no longer assigns it, Admin does) and a deploy-pending line in "Pendiente / backlog".
+- RDD slice review (base `a9bde56` → `70a96a3`, T1b+T2+T3+T4, medium, 1022 lines, `slice_budget_reached`; lineage `review-8029c9dcfce634d0`, lens reliability): consent granted, **approved and acknowledged**. Next reviewed boundary: `70a96a3`. Non-blocking findings: WARNING R3-001 `enCurso`/`buscando` stuck if `invoke` throws; WARNING R3-002 failed list refresh after asignar/quitar ignored; SUGGESTION R3-003 the `updated_at` optimistic lock round-trip has no test (accepted: PostgREST returns `timestamptz` at full microsecond precision, and the column is NOT NULL with a default; verify on device); SUGGESTION R3-004 `fetchTodo` can run twice on first mount (harmless, both write the same state).
+- Follow-up of the slice review (parent inline, 1 file, mechanical): `app/hooks/useColaboradores.ts` — asignar/quitar share `ejecutarAccion` with try/finally (R3-001), a failed refresh after a saved change shows "El cambio se guardó, pero no se pudo actualizar la lista…" (R3-002), `buscar` and `fetchColaboradores` catch thrown invokes. `npx tsc --noEmit` in `app/` (junction, removed) → exit 0; `colaboradores.check.ts` → 11 casos OK.
 
 ## Deploy (user, after merge)
 

@@ -89,12 +89,16 @@ export function useColaboradores() {
   }
 
   async function fetchColaboradores(): Promise<boolean> {
-    const { data, error } = await supabase.functions.invoke('colaboradores', {
-      body: { action: 'listar' },
-    })
-    if (error || !Array.isArray(data?.colaboradores)) return false
-    setColaboradores(data.colaboradores as ColaboradorListado[])
-    return true
+    try {
+      const { data, error } = await supabase.functions.invoke('colaboradores', {
+        body: { action: 'listar' },
+      })
+      if (error || !Array.isArray(data?.colaboradores)) return false
+      setColaboradores(data.colaboradores as ColaboradorListado[])
+      return true
+    } catch {
+      return false
+    }
   }
 
   useEffect(() => {
@@ -123,18 +127,23 @@ export function useColaboradores() {
   }, [busqueda.tipo === 'buscar' ? busqueda.q : '', divisionId])
 
   async function buscar(id: number, q: string, division: string) {
-    const { data, error } = await supabase.functions.invoke('colaboradores', {
-      body: { action: 'buscar', q, divisionId: division },
-    })
-    if (id !== ultimaBusqueda.current) return
-    if (error || !Array.isArray(data?.resultados)) {
-      const mensaje = await mensajeErrorFunction(error, 'No se pudo buscar. Probá de nuevo.', data)
-      if (id !== ultimaBusqueda.current) return
-      setErrorBusqueda(mensaje)
-      setResultados([])
-    } else {
-      setResultados(data.resultados as ResultadoBusqueda[])
+    let mensaje: string | null = null
+    let encontrados: ResultadoBusqueda[] = []
+    try {
+      const { data, error } = await supabase.functions.invoke('colaboradores', {
+        body: { action: 'buscar', q, divisionId: division },
+      })
+      if (error || !Array.isArray(data?.resultados)) {
+        mensaje = await mensajeErrorFunction(error, 'No se pudo buscar. Probá de nuevo.', data)
+      } else {
+        encontrados = data.resultados as ResultadoBusqueda[]
+      }
+    } catch {
+      mensaje = 'No se pudo buscar. Probá de nuevo.'
     }
+    if (id !== ultimaBusqueda.current) return
+    setErrorBusqueda(mensaje)
+    setResultados(encontrados)
     setBuscado(true)
     setBuscando(false)
   }
@@ -149,36 +158,43 @@ export function useColaboradores() {
 
   // ─── Asignar / quitar ──────────────────────────────────────────────────────
 
-  async function asignar(profileId: string) {
+  // enCurso is always cleared (try/finally), so a thrown invoke never leaves
+  // every DESIGNAR/QUITAR button disabled.
+  async function ejecutarAccion(
+    action: 'asignar' | 'quitar',
+    profileId: string,
+    mensajeFallo: string,
+    alGuardar: () => void,
+  ) {
     if (!divisionId || enCurso) return
     setEnCurso(profileId)
     setErrorAccion(null)
-    const { data, error } = await supabase.functions.invoke('colaboradores', {
-      body: { action: 'asignar', profileId, divisionId },
-    })
-    if (error || data?.ok !== true) {
-      setErrorAccion(await mensajeErrorFunction(error, 'No se pudo designar al colaborador. Probá de nuevo.', data))
-    } else {
-      setResultados(prev => marcarDesignado(prev, profileId))
-      await fetchColaboradores()
+    try {
+      const { data, error } = await supabase.functions.invoke('colaboradores', {
+        body: { action, profileId, divisionId },
+      })
+      if (error || data?.ok !== true) {
+        setErrorAccion(await mensajeErrorFunction(error, mensajeFallo, data))
+        return
+      }
+      alGuardar()
+      const ok = await fetchColaboradores()
+      if (!ok) setErrorAccion('El cambio se guardó, pero no se pudo actualizar la lista. Volvé a entrar para verla.')
+    } catch {
+      setErrorAccion(mensajeFallo)
+    } finally {
+      setEnCurso(null)
     }
-    setEnCurso(null)
   }
 
-  async function quitar(profileId: string) {
-    if (!divisionId || enCurso) return
-    setEnCurso(profileId)
-    setErrorAccion(null)
-    const { data, error } = await supabase.functions.invoke('colaboradores', {
-      body: { action: 'quitar', profileId, divisionId },
-    })
-    if (error || data?.ok !== true) {
-      setErrorAccion(await mensajeErrorFunction(error, 'No se pudo quitar al colaborador. Probá de nuevo.', data))
-    } else {
-      setResultados(prev => prev.map(r => (r.profileId === profileId ? { ...r, yaEsColaborador: false } : r)))
-      await fetchColaboradores()
-    }
-    setEnCurso(null)
+  function asignar(profileId: string) {
+    return ejecutarAccion('asignar', profileId, 'No se pudo designar al colaborador. Probá de nuevo.',
+      () => setResultados(prev => marcarDesignado(prev, profileId)))
+  }
+
+  function quitar(profileId: string) {
+    return ejecutarAccion('quitar', profileId, 'No se pudo quitar al colaborador. Probá de nuevo.',
+      () => setResultados(prev => prev.map(r => (r.profileId === profileId ? { ...r, yaEsColaborador: false } : r))))
   }
 
   function elegirDivision(id: string) {
