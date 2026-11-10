@@ -42,7 +42,7 @@ function nombreEvento(ev: ProximoEvento, divisionNombre: string): string {
 // Los de lesiones se ocultan con FEATURES.lesiones (no se borran).
 type Atajo = {
   label:      string
-  ruta:       '/(entrenador)/partido' | '/(entrenador)/lesiones'
+  ruta:       '/(entrenador)/partido' | '/(entrenador)/lesiones' | '/(entrenador)/colaboradores'
   destacado?: boolean
   lesiones?:  boolean
 }
@@ -51,6 +51,8 @@ const ATAJOS: Atajo[] = [
   { label: 'MESA PARTIDO', ruta: '/(entrenador)/partido' },
   { label: 'RESULTADO',    ruta: '/(entrenador)/partido' },
   { label: 'PROTOCOLOS',   ruta: '/(entrenador)/lesiones', lesiones: true },
+  // El entrenador designa a los colaboradores de sus divisiones.
+  { label: 'COLABORADORES', ruta: '/(entrenador)/colaboradores' },
 ]
 
 // De a dos por fila.

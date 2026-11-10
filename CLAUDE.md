@@ -20,7 +20,7 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 | **Subcomisión** | Órgano directivo. Visión global. Admin del sistema. |
 | **Coordinador** | Gestiona calendario y divisiones infantiles/juveniles. |
 | **Entrenador** | Toma asistencia, registra lesiones, carga resultados. |
-| **Colaborador** (rol interno `colaborador`) | Ayudante de una división: sólo toma asistencia y recibe el recordatorio de 30 min de entrenamientos y actividades; no recibe noticias de cuerpo técnico. |
+| **Colaborador** (rol interno `colaborador`) | Ayudante de una división: sólo toma asistencia y recibe el recordatorio de 30 min de entrenamientos y actividades; no recibe noticias de cuerpo técnico. Lo designa el entrenador desde la app (Inicio › Colaboradores) entre los socios que ya tienen cuenta; Subcomisión ya no lo asigna (Admin sí). |
 | **Manager** | Gestiona cobranzas y fichajes de su equipo. |
 | **Secretaría** | Gestiona socios (alta, categorías, servicios, foto, estado) y publica noticias (siempre a los socios, ya no puede elegir "cuerpo técnico"). |
 | **Gimnasio** (ex-Lector, ex-Portería, sólo el label — rol interno sigue siendo `porteria`) | Escanea carnets QR en el gimnasio (autoservicio, cámara frontal) para ver estado de cuota. |
@@ -128,6 +128,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
 - Release 1.0.9: confirmar la aprobación de Apple y el estado del release en Play Console. Desde el merge del PR #28 (`runtimeVersion` = `appVersion`), las OTA desde `main` sólo llegan a la 1.0.9: la 1.0.8 ya no recibe updates. El agente de Chrome no puede leer Play Console con la sesión de agusmuzi79@gmail.com (la cuenta de desarrollador es otra).
+- Colaborador designado por el entrenador (PR1–PR3): deploy pendiente — backup → `supabase db push` (`20261112000000`) → `supabase functions deploy colaboradores admin-usuarios` → web → OTA. Detalle en `odd/tasks/colaborador-por-entrenador.md`.
 - Auditoría UX (deploy 2026-11-02), acciones de Agus:
   - Test de carga de T17 (35 logins en 5 min): después de migrar la base a la cuenta del club.
   - Probar en un teléfono: login y recupero por DNI, y mirar en los logs de `login-dni` que llegue `cf-connecting-ip` (sin él no hay límite por IP).
