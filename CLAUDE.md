@@ -19,7 +19,7 @@ Aplicación interna para el cuerpo técnico y organizativo. Digitaliza procesos 
 |---|---|
 | **Subcomisión** | Órgano directivo. Visión global. Admin del sistema. |
 | **Coordinador** | Gestiona calendario y divisiones infantiles/juveniles. |
-| **Entrenador** | Toma asistencia, registra lesiones, carga resultados. |
+| **Entrenador** | Toma asistencia, registra lesiones, carga resultados. También usa el panel web: Asistencias (por jugador y por fecha) y Partidos (equipo, asistencia, mesa y resultado). |
 | **Colaborador** (rol interno `colaborador`) | Ayudante de una división: sólo toma asistencia y recibe el recordatorio de 30 min de entrenamientos y actividades; no recibe noticias de cuerpo técnico. |
 | **Manager** | Gestiona cobranzas y fichajes de su equipo. |
 | **Secretaría** | Gestiona socios (alta, categorías, servicios, foto, estado) y publica noticias (siempre a los socios, ya no puede elegir "cuerpo técnico"). |
@@ -107,7 +107,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
   - Guard de roles (PR #56, migración `20261109000000` aplicada el 2026-11-04): subcomisión sólo puede poner o quitar los roles de staff que gestiona (coordinador, entrenador, colaborador, manager, subcomisión) y no puede cambiar roles, rol ni activo de una cuenta admin. Antes podía darse `admin` a sí misma desde el panel web. Detalle en `odd/tasks/guard-roles-subcomision.md`.
 - Club de beneficios (2026-11-05, PR #58, migración `20261110000000` aplicada): tabla `beneficios` (locales adheridos con descuento, rubro, condiciones, vigencia, contactos) + bucket público `beneficios`. El socio y el tutor entran desde un aviso en el Carnet ("Tus beneficios · N locales adheridos", oculto si no hay ninguno) a la lista (búsqueda, rubros, destacados) y al detalle (Maps, WhatsApp, Instagram, web, "MOSTRAR MI CARNET", aviso si no está al día). En el local se valida mostrando el carnet. Mergeado y en OTA (grupo `fdec95c2`, 2026-11-05). Detalle en `odd/tasks/club-beneficios.md`.
 - Rol **`beneficios`** (2026-11-07, PR #60, migración `20261111000000` aplicada, `admin-usuarios` deployada, OTA `340de106`): las encargadas del club de beneficios (Karina Ali y Patricia Perrotta) cargan los beneficios desde `uncasapp.com/beneficios`. Rol sólo web: el acceso se decide por tener el rol en `roles[]` (`tiene_rol_beneficios()`), no por el rol activo, así que siguen con `rol = 'socio'` y la app las trata como socias. Sólo admin asigna el rol; Subcomisión y Secretaría no tienen nada que ver con beneficios. Detalle en `odd/tasks/rol-beneficios.md`.
-- Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos) y Buffet (promos) — Vercel, dominio `uncasapp.com`.
+- Paneles web Next.js separados para subcomisión, secretaría, Gimnasio (accesos), Buffet (promos) y Entrenador (asistencias y partidos) — Vercel, dominio `uncasapp.com`.
 
 **Estado de las stores (actualizado 2026-10-18):**
 - **Android:** versión 16 (1.0.8, familiar/tutor) **publicada** en el track de Producción de Google Play (7/10). **1.0.9** (2026-10-14, PR #28: copiar alias, `expo-image`): `.aab` del build EAS `fe0b89ca` subido a mano a Play Console por Agus (el submit de Android no está configurado en `eas.json`).
@@ -127,6 +127,7 @@ La app está **en producción** en ambas stores desde agosto 2026 y se sigue ite
 - URLs de la ficha de App Store migradas a `uncasapp.com` (2026-10-07): soporte `https://uncasapp.com/soporte` y política de privacidad `https://uncasapp.com/privacidad`.
 
 **Pendiente / backlog** (sin detalle acá — ver `historial.md` o memoria de proyecto):
+- Panel web del entrenador (PR #65 + PR B): falta probar con un entrenador real (login, asistencias, partido completo); deploy sólo web.
 - Release 1.0.9: confirmar la aprobación de Apple y el estado del release en Play Console. Desde el merge del PR #28 (`runtimeVersion` = `appVersion`), las OTA desde `main` sólo llegan a la 1.0.9: la 1.0.8 ya no recibe updates. El agente de Chrome no puede leer Play Console con la sesión de agusmuzi79@gmail.com (la cuenta de desarrollador es otra).
 - Auditoría UX (deploy 2026-11-02), acciones de Agus:
   - Test de carga de T17 (35 logins en 5 min): después de migrar la base a la cuenta del club.

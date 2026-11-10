@@ -77,13 +77,14 @@ const PANELES: Record<PanelId, ConfigPanel> = {
     ],
   },
   // Entrenador: por el rol activo (el login lo deja en 'entrenador'); la RLS
-  // limita los datos a sus divisiones. Partidos se suma con su página.
+  // limita los datos a sus divisiones.
   entrenador: {
     roles: ['entrenador'],
     nombre: 'Entrenador',
     mostrarRol: false,
     items: [
       { href: '/entrenador/asistencias', label: 'Asistencias' },
+      { href: '/entrenador/partidos',    label: 'Partidos'    },
     ],
   },
   porteria: {
