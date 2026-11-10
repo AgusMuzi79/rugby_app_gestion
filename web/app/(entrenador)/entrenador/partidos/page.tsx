@@ -91,6 +91,10 @@ export default function PartidosEntrenadorPage() {
   const reintento = useRef<(() => void) | null>(null)
   // Sólo la última lectura de división escribe (cambio rápido de división).
   const ultimaLectura = useRef(0)
+  // Same idea for the partido/equipo reads: changing the selection while a
+  // read is in flight must not apply the old answer (a later save would write
+  // the previous partido's marks or mesa under the new evento/equipo).
+  const lecturaPartido = useRef(0)
 
   const fallo = (que: string, err: unknown, repetir: () => void) => {
     setErrorCarga(mensajeErrorCarga(que, err))
@@ -122,6 +126,7 @@ export default function PartidosEntrenadorPage() {
   // ─── Carga ─────────────────────────────────────────────────────────────────
 
   const reiniciarPartido = () => {
+    lecturaPartido.current++
     setPartidoSel(null)
     setJugadores([])
     setPresenciaGuardada({})
@@ -247,6 +252,7 @@ export default function PartidosEntrenadorPage() {
   }
 
   const seleccionarEquipo = (e: Equipo) => {
+    lecturaPartido.current++
     setEquipoSel(e)
     setMesaGuardada(false)
     setErrorMesa(null)
@@ -255,7 +261,9 @@ export default function PartidosEntrenadorPage() {
   }
 
   // Lee la asistencia del partido y la mesa del equipo y las aplica a la lista.
-  const cargarPartido = async (partido: PartidoEvento, equipo: Equipo, base: JugadorBase[]): Promise<unknown> => {
+  const cargarPartido = async (
+    partido: PartidoEvento, equipo: Equipo, base: JugadorBase[], vigente: () => boolean,
+  ): Promise<unknown> => {
     setCargandoTransicion(true)
     const [asistRes, mesaRes] = await Promise.all([
       supabase.from('asistencias').select('jugador_id, estado').eq('evento_id', partido.id),
@@ -266,6 +274,8 @@ export default function PartidosEntrenadorPage() {
         .eq('equipo_id', equipo.id)
         .maybeSingle(),
     ])
+    // The selection changed meanwhile: drop this answer (irA checks it too).
+    if (!vigente()) { setCargandoTransicion(false); return null }
     const err = primerError(asistRes.error, mesaRes.error)
     if (err) { setCargandoTransicion(false); return err }
     limpiarError()
@@ -284,6 +294,7 @@ export default function PartidosEntrenadorPage() {
   }
 
   const irAResultado = async (partido: PartidoEvento, equipo: Equipo) => {
+    const lectura = lecturaPartido.current
     setCargandoTransicion(true)
     const { data, error } = await supabase
       .from('resultados')
@@ -291,6 +302,7 @@ export default function PartidosEntrenadorPage() {
       .eq('evento_id', partido.id)
       .eq('equipo_id', equipo.id)
       .maybeSingle()
+    if (lectura !== lecturaPartido.current) { setCargandoTransicion(false); return }
     // Si no se pudo leer, no se muestra un resultado vacío que pise el cargado.
     if (error) {
       fallo('el resultado del partido', error, () => { void irAResultado(partido, equipo) })
@@ -310,15 +322,19 @@ export default function PartidosEntrenadorPage() {
 
   // Abre ASISTENCIA (o RESULTADO) cargando antes lo guardado; si la lectura
   // falla, REINTENTAR repite esta misma carga (lib/cargaPartidoWeb.ts).
-  const abrirPartido = (partido: PartidoEvento, equipo: Equipo, destino: DestinoPartido) =>
-    abrirPaso({ partido, equipo, base: jugadoresBase, destino }, {
-      cargar: cargarPartido,
-      fallo: (err, repetir) => fallo('la asistencia y la mesa del partido', err, repetir),
+  const abrirPartido = (partido: PartidoEvento, equipo: Equipo, destino: DestinoPartido) => {
+    const lectura = ++lecturaPartido.current
+    const vigente = () => lectura === lecturaPartido.current
+    return abrirPaso({ partido, equipo, base: jugadoresBase, destino }, {
+      cargar: (p, e, b) => cargarPartido(p, e, b, vigente),
+      fallo: (err, repetir) => { if (vigente()) fallo('la asistencia y la mesa del partido', err, repetir) },
       irA: async (d, p, e) => {
+        if (!vigente()) return
         if (d === 'resultado') await irAResultado(p, e)
         else setPaso('asistencia')
       },
     })
+  }
 
   const continuarAAsistencia = () => {
     if (!partidoSel || !equipoSel) return
