@@ -180,14 +180,13 @@ export function PasoEquipo({
 // ─── Paso 2 — Asistencia ──────────────────────────────────────────────────────
 
 export function PasoAsistencia({
-  jugadores, guardando, guardada, error, esInfantil, alertas, onToggle, onGuardar, onVolver,
+  jugadores, guardando, guardada, error, esInfantil, onToggle, onGuardar, onVolver,
 }: {
   jugadores: JugadorPartido[]
   guardando: boolean
   guardada: boolean
   error: string | null
   esInfantil: boolean
-  alertas: string[]
   onToggle: (id: string, presente: boolean) => void
   onGuardar: () => void
   onVolver: () => void
@@ -245,11 +244,6 @@ export function PasoAsistencia({
         </ul>
       )}
 
-      {alertas.length > 0 && (
-        <p role="status" className="font-lora text-sm text-rojo-texto border border-rojo px-4 py-3 mb-4">
-          Con 4 ausencias seguidas: {alertas.join(', ')}. Se envió el aviso.
-        </p>
-      )}
       <EstadoGuardado error={error} ok={guardada && !guardando && esInfantil ? 'Asistencia guardada' : null} />
       <button type="button" onClick={onGuardar} disabled={!puedeGuardar || guardando} className={BOTON_PRIMARIO}>
         {guardando ? 'GUARDANDO…' : esInfantil ? 'GUARDAR ASISTENCIA' : 'GUARDAR Y CONTINUAR A MESA'}

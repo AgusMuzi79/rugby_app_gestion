@@ -6,7 +6,7 @@
 // los presentes) → resultado. Las divisiones infantiles sólo toman asistencia.
 // Al volver a abrir se ve lo guardado (también lo cargado desde la app). Las
 // reglas puras viven en web/lib (partidosWeb, equiposPartidoWeb, mesaPartido,
-// cargaPartidoWeb, ausenciasConsecutivasWeb, marcasSinGuardarWeb). La RLS
+// cargaPartidoWeb, marcasSinGuardarWeb). La RLS
 // limita lecturas y escrituras a las divisiones del entrenador.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -21,7 +21,6 @@ import {
   type JugadorPartido, type RolEnMesa,
 } from '@/lib/mesaPartido'
 import { abrirPaso, aplicarGuardado, aplicarResultado, type DestinoPartido } from '@/lib/cargaPartidoWeb'
-import { jugadoresQueLleganAlTope, marcasDelGuardado, VENTANA_EVENTOS, type MarcaGuardada } from '@/lib/ausenciasConsecutivasWeb'
 import { presenciasSinGuardar, mesaSinGuardar, textoSinGuardar } from '@/lib/marcasSinGuardarWeb'
 import { mensajeError } from '@/lib/mensajeErrorWeb'
 import { fechaLocal } from '@/lib/informesAsistencia'
@@ -48,47 +47,6 @@ const accesoEquipos: AccesoEquipos = {
   },
 }
 
-// Alerta de 4 ausencias seguidas (misma lectura y push que verificarCuartaAusencia
-// de la app). Devuelve los nombres de los jugadores avisados. Tira si falla una lectura.
-async function verificarCuartaAusencia(p: {
-  divisionId: string; divisionNombre: string; eventoId: string
-  marcas: MarcaGuardada[]; nombres: Record<string, string>
-}): Promise<string[]> {
-  if (!p.marcas.some(m => m.estado === 'ausente')) return []
-  const { data: eventos, error: errEventos } = await supabase
-    .from('eventos')
-    .select('id')
-    .eq('division_id', p.divisionId)
-    .eq('cancelado', false)
-    .neq('tipo', 'actividad')
-    .lte('fecha', fechaLocal())
-    .order('fecha', { ascending: false })
-    .order('hora', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .limit(VENTANA_EVENTOS)
-  if (errEventos) throw errEventos
-  const ids = (eventos ?? []).map(e => e.id as string)
-  if (!ids.includes(p.eventoId)) return []
-
-  const { data: filas, error: errFilas } = await supabase
-    .from('asistencias')
-    .select('jugador_id, evento_id, estado')
-    .in('evento_id', ids)
-    .in('jugador_id', p.marcas.map(m => m.jugador_id))
-  if (errFilas) throw errFilas
-
-  const llegan = jugadoresQueLleganAlTope(ids, filas ?? [], p.eventoId, p.marcas)
-  for (const id of llegan) {
-    void supabase.functions.invoke('notifications', {
-      body: {
-        type: 'ausencias_consecutivas',
-        payload: { jugadorNombre: p.nombres[id] ?? '', jugadorId: id, divisionNombre: p.divisionNombre, divisionId: p.divisionId },
-      },
-    })
-  }
-  return llegan.map(id => p.nombres[id] ?? '')
-}
-
 export default function PartidosEntrenadorPage() {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
@@ -110,13 +68,11 @@ export default function PartidosEntrenadorPage() {
 
   const [jugadores, setJugadores] = useState<JugadorPartido[]>([])
   const [presenciaGuardada, setPresenciaGuardada] = useState<Record<string, boolean>>({})
-  const [estadosPrevios, setEstadosPrevios] = useState<Record<string, string>>({})
   const [rolesGuardados, setRolesGuardados] = useState<Record<string, RolEnMesa>>({})
 
   const [guardandoAsistencia, setGuardandoAsistencia] = useState(false)
   const [asistenciaGuardada, setAsistenciaGuardada] = useState(false)
   const [errorAsistencia, setErrorAsistencia] = useState<string | null>(null)
-  const [alertas, setAlertas] = useState<string[]>([])
 
   const [guardandoMesa, setGuardandoMesa] = useState(false)
   const [mesaGuardada, setMesaGuardada] = useState(false)
@@ -169,7 +125,6 @@ export default function PartidosEntrenadorPage() {
     setPartidoSel(null)
     setJugadores([])
     setPresenciaGuardada({})
-    setEstadosPrevios({})
     setRolesGuardados({})
     setAsistenciaGuardada(false)
     setMesaGuardada(false)
@@ -177,7 +132,6 @@ export default function PartidosEntrenadorPage() {
     setErrorAsistencia(null)
     setErrorMesa(null)
     setErrorResultado(null)
-    setAlertas([])
     setPaso('equipo')
   }
 
@@ -322,7 +276,6 @@ export default function PartidosEntrenadorPage() {
     )
     setJugadores(cargado.jugadores)
     setPresenciaGuardada(cargado.presenciaGuardada)
-    setEstadosPrevios(cargado.estadosPrevios)
     setRolesGuardados(cargado.rolesGuardados)
     setAsistenciaGuardada(cargado.asistenciaGuardada)
     setMesaGuardada(cargado.mesaGuardada)
@@ -362,7 +315,6 @@ export default function PartidosEntrenadorPage() {
       cargar: cargarPartido,
       fallo: (err, repetir) => fallo('la asistencia y la mesa del partido', err, repetir),
       irA: async (d, p, e) => {
-        setAlertas([])
         if (d === 'resultado') await irAResultado(p, e)
         else setPaso('asistencia')
       },
@@ -407,24 +359,10 @@ export default function PartidosEntrenadorPage() {
       return
     }
 
-    const marcas = marcasDelGuardado(jugadores, estadosPrevios)
     setPresenciaGuardada(Object.fromEntries(jugadores.map(j => [j.id, j.presente])))
-    setEstadosPrevios(prev => ({ ...prev, ...Object.fromEntries(marcas.map(m => [m.jugador_id, m.estado])) }))
     setAsistenciaGuardada(true)
     setGuardandoAsistencia(false)
     if (!esInfantil) setPaso('mesa')
-
-    // Después de confirmar el guardado: la alerta no lo demora.
-    const lectura = ultimaLectura.current
-    const nombres = Object.fromEntries(jugadores.map(j => [j.id, j.nombre_completo]))
-    try {
-      const llegaron = await verificarCuartaAusencia({
-        divisionId: division.id, divisionNombre: division.nombre, eventoId: partidoSel.id, marcas, nombres,
-      })
-      if (lectura === ultimaLectura.current) setAlertas(llegaron)
-    } catch (e) {
-      console.warn('alerta 4 ausencias:', e instanceof Error ? e.message : String(e))
-    }
   }
 
   // ─── Mesa ──────────────────────────────────────────────────────────────────
@@ -617,7 +555,6 @@ export default function PartidosEntrenadorPage() {
           guardada={asistenciaGuardada}
           error={errorAsistencia}
           esInfantil={esInfantil}
-          alertas={alertas}
           onToggle={marcarPresencia}
           onGuardar={() => { void guardarAsistencia() }}
           onVolver={volverAEquipo}
