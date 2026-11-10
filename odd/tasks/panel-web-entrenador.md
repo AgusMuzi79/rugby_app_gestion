@@ -73,6 +73,9 @@ Forecast ~1500 authored lines → `stacked-to-main`:
 - RDD review of PR B (base `dcfdfe2` → `0c289b2`, medium, 2024 lines, `slice_budget_reached`; lineage `review-853caaac2a68126a`, lens reliability): consent granted, **approved and acknowledged**. Next reviewed boundary: `0c289b2`.
   - WARNING fixed inline by the parent (`partidos/page.tsx`): `cargarPartido` had no staleness guard, so changing partido/equipo while the asistencia+mesa read was in flight applied the old answer, and a later save could write the previous selection's marks or mesa under the new evento/equipo. Now a `lecturaPartido` counter is bumped on every selection change (`reiniciarPartido`, `seleccionarEquipo`) and on every open; `cargarPartido`, `fallo`, `irA` and `irAResultado` drop answers from an older selection. `tsc --noEmit` → exit 0; `next build --webpack` (placeholder env) → exit 0.
   - SUGGESTION (not taken): a successful partido load clears a pending equipos-sync error (`limpiarError`), so the REINTENTAR for the sync disappears.
+- RDD whole-branch review requested by the stop hook (base `afe721b` → `bc136a8`, 2821 lines, medium; lineage `review-3fdec103111006cf`): consent granted, **approved and acknowledged**.
+  - WARNING (not changed, same as the app): saving a match attendance writes every player as presente/ausente, so a saved `justificado` becomes `ausente`. The app does exactly the same (`app/hooks/usePartido.ts:550`, offline payload `:578`), so the web keeps parity; fixing it means changing both (follow-up).
+  - SUGGESTIONS: "sin marcar" uses today's roster (already noted above); no check covers the `lecturaPartido` guard; `seleccionarDivision` lacks try/finally around `cargarDivision`.
 
 ## Deploy (user, after merge)
 
