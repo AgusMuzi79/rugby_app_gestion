@@ -56,6 +56,7 @@ Forecast ~1500 authored lines → `stacked-to-main`:
 
 - PR A `feat/panel-web-entrenador` → `main`: T1 + T2.
 - PR B `feat/panel-web-entrenador-partidos` (based on PR A): T3 + T4 + T5.
+- Actual (2026-11-10): PR B came out at 2043 lines, so one slicing pass split it in two. Drafts: #65 `feat/panel-web-entrenador` → `main` (T1+T2, 787 lines) → #66 `feat/panel-web-entrenador-reglas` (T3 `f829623`, 1126 lines, mostly checks) → #67 `feat/panel-web-entrenador-partidos` (T4, T5, fixes, 1221 lines). #65–#67 each stay over ~400 as one cohesive unit: `size:exception` recommended in each PR body.
 
 ## Progress
 
