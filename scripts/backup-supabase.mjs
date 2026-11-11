@@ -20,6 +20,9 @@
 // data.sql (ver `supabase db reset` / docs de Supabase sobre restore desde dump).
 //
 // Hacer un backup manual SIEMPRE antes de un importador masivo o un cambio de datos en bloque.
+//
+// El backup diario automático (.github/workflows/backup-supabase.yml) hace los mismos dumps:
+// si cambia la lista de abajo, cambiarla también ahí.
 
 import { spawnSync } from 'child_process'
 import fs from 'fs'

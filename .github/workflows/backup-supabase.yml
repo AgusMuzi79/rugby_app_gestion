@@ -1,0 +1,240 @@
+# Daily encrypted backup of the Supabase project (Free plan = no automatic backups).
+#
+# Same dumps as scripts/backup-supabase.mjs (schema, public data, auth, storage metadata);
+# keep both dump lists in sync. They are packed into one .tar.gz, encrypted with age to a
+# PUBLIC key and uploaded to a private Cloudflare R2 bucket. The runner never holds the
+# decryption key: only the age private key (kept off GitHub) can open a backup. The repo is
+# public, so nothing unencrypted may be uploaded as an artifact or printed to the log.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   SUPABASE_DB_URL       Session pooler connection string (port 5432, IPv4), password URL-encoded
+#   BACKUP_AGE_RECIPIENT  age public key (age1...)
+#   R2_ACCOUNT_ID         Cloudflare account id
+#   R2_ACCESS_KEY_ID      R2 API token with Object Read & Write on the bucket
+#   R2_SECRET_ACCESS_KEY
+#   R2_BUCKET             Bucket name
+# Optional:
+#   HEALTHCHECK_URL       healthchecks.io ping URL; it alerts when a day passes without a ping
+#
+# Each secret is exposed only to the step that needs it, and third-party code is pinned.
+# Retention: backups older than KEEP_DAYS are deleted only after today's backup was uploaded
+# and verified, and never below KEEP_MIN backups, so a stopped or resumed workflow never
+# leaves the bucket with fewer than KEEP_MIN.
+# Each run re-enables this workflow through the API (separate keepalive job) to try to keep
+# GitHub's 60-day inactivity rule for public repos from switching the schedule off.
+# Restore: see docs/backup-restore.md.
+
+name: Supabase backup
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # 03:17 Argentina; off the top of the hour, when GitHub delays runs most
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-backup
+  cancel-in-progress: false
+
+env:
+  KEEP_DAYS: 90 # also stated in docs/backup-restore.md
+  KEEP_MIN: 14  # never rotate below this many backups; also stated in docs/backup-restore.md
+  PREFIX: supabase/
+  AWS_DEFAULT_REGION: auto
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Test rotation logic
+        run: bash .github/scripts/backup-rotation.test.sh
+
+      # Only presence flags ('true'/'false') reach this step, never the secret values.
+      - name: Check secrets
+        env:
+          HAS_SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL != '' }}
+          HAS_BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT != '' }}
+          HAS_R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID != '' }}
+          HAS_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+          HAS_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY != '' }}
+          HAS_R2_BUCKET: ${{ secrets.R2_BUCKET != '' }}
+        run: |
+          missing=0
+          for name in SUPABASE_DB_URL BACKUP_AGE_RECIPIENT R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+            flag="HAS_$name"
+            if [ "${!flag}" != "true" ]; then echo "::error::Missing repository secret $name"; missing=1; fi
+          done
+          exit $missing
+
+      # v3.0.1
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359
+        with:
+          version: 2.101.0
+
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Dump database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp=$(date -u +%Y-%m-%d-%H-%M-%S)
+          dir="$RUNNER_TEMP/backup/$stamp"
+          mkdir -p "$dir"
+
+          # GitHub masks the secret as a whole; also mask the password alone, raw and
+          # URL-decoded, in case the CLI prints it on its own.
+          password=${SUPABASE_DB_URL#*://}
+          password=${password%@*}
+          password=${password#*:}
+          echo "::add-mask::$password"
+          echo "::add-mask::$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$password")"
+
+          # dump <file> <pattern that proves the expected content is there> <db dump flags...>
+          # Up to 3 attempts, so one transient pooler error does not cost the day's backup.
+          dump() {
+            local file=$1 expect=$2; shift 2
+            local attempt
+            for attempt in 1 2 3; do
+              if supabase db dump --db-url "$SUPABASE_DB_URL" "$@" -f "$dir/$file" > "$dir.log" 2>&1; then
+                break
+              fi
+              if [ "$attempt" = 3 ]; then
+                echo "::error::supabase db dump failed for $file after 3 attempts. Last lines (credentials redacted):"
+                tail -n 20 "$dir.log" | sed -E 's#(postgres(ql)?://)[^@[:space:]]+@#\1***@#g'
+                exit 1
+              fi
+              echo "Dump of $file failed (attempt $attempt), retrying in 30s"
+              sleep 30
+            done
+            if ! grep -Eq "$expect" "$dir/$file"; then
+              echo "::error::$file has no line matching '$expect'"
+              exit 1
+            fi
+            echo "$file: $(du -k "$dir/$file" | cut -f1) KB"
+          }
+          dump schema.sql  '^CREATE TABLE IF NOT EXISTS "public"\."socios" \(' --schema public
+          dump data.sql    '^(INSERT INTO|COPY) "public"\."socios"'   --data-only --schema public
+          dump auth.sql    '^(INSERT INTO|COPY) "auth"\."users"'      --data-only --schema auth
+          dump storage.sql '^(INSERT INTO|COPY) "storage"\."buckets"' --data-only --schema storage
+          rm -f "$dir.log"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+
+      - name: Encrypt
+        env:
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          cd "$RUNNER_TEMP/backup"
+          tar -czf - "$STAMP" | age -r "$BACKUP_AGE_RECIPIENT" -o "$STAMP.tar.gz.age"
+          rm -rf "$STAMP"
+          echo "Encrypted: $(du -k "$STAMP.tar.gz.age" | cut -f1) KB"
+
+      - name: Upload to R2 and rotate
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          file="$RUNNER_TEMP/backup/$STAMP.tar.gz.age"
+          key="$PREFIX$STAMP.tar.gz.age"
+
+          for attempt in 1 2 3; do
+            if aws s3 cp "$file" "s3://$R2_BUCKET/$key" --endpoint-url "$endpoint" --only-show-errors; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then echo "::error::Upload failed after 3 attempts"; exit 1; fi
+            echo "Upload attempt $attempt failed, retrying in 15s"
+            sleep 15
+          done
+
+          local_size=$(stat -c %s "$file")
+          remote_size=""
+          for attempt in 1 2 3; do
+            if remote_size=$(aws s3api head-object --bucket "$R2_BUCKET" --key "$key" \
+                --endpoint-url "$endpoint" --query ContentLength --output text); then
+              break
+            fi
+            sleep 10
+          done
+          if [ "$local_size" != "$remote_size" ]; then
+            echo "::error::Uploaded size $remote_size does not match local size $local_size"
+            exit 1
+          fi
+          echo "Uploaded and verified $key ($local_size bytes)"
+
+          # Rotation never fails the run: today's backup is already safe. Problems are warnings.
+          set +e +o pipefail
+          cutoff="$PREFIX$(date -u -d "-$KEEP_DAYS days" +%Y-%m-%d)"
+          if ! keys=$(aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$PREFIX" \
+              --endpoint-url "$endpoint" --query 'Contents[].Key' --output text); then
+            echo "::warning::Could not list backups; rotation skipped"
+            exit 0
+          fi
+          # Selection is tested in .github/scripts/backup-rotation.test.sh. It fails closed:
+          # on a bad argument it selects nothing.
+          if ! to_delete=$(echo "$keys" | bash .github/scripts/backup-rotation.sh "$cutoff" "$KEEP_MIN"); then
+            echo "::warning::Rotation selection refused its arguments; nothing deleted"
+            exit 0
+          fi
+          for old in $to_delete; do
+            deleted=false
+            for attempt in 1 2 3; do
+              if aws s3 rm "s3://$R2_BUCKET/$old" --endpoint-url "$endpoint" --only-show-errors; then
+                deleted=true
+                break
+              fi
+              sleep 5
+            done
+            if $deleted; then echo "Rotated $old"; else echo "::warning::Could not delete $old"; fi
+          done
+          exit 0
+
+      - name: Ping healthcheck
+        if: always()
+        continue-on-error: true
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+          OUTCOME: ${{ job.status }}
+        run: |
+          if [ -z "$HEALTHCHECK_URL" ]; then echo "HEALTHCHECK_URL not set, skipping"; exit 0; fi
+          url="$HEALTHCHECK_URL"
+          if [ "$OUTCOME" != "success" ]; then url="$url/fail"; fi
+          curl -fsS -m 10 --retry 3 -o /dev/null "$url"
+
+      - name: Clean up
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/backup"
+
+  # Separate job so the write permission on Actions never reaches the backup job, which
+  # handles the secrets and runs third-party code. Unproven against the 60-day rule:
+  # healthchecks.io is the real alert if the schedule stops.
+  keepalive:
+    needs: backup
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Keep schedule enabled
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/backup-supabase.yml/enable"
