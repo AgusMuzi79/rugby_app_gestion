@@ -19,8 +19,11 @@ const NO_SE_PUDO_VERIFICAR = 'No se pudo verificar el usuario'
 
 type ErrorGoTrue = { code?: string; status?: number; message?: string }
 
-// El mismo deep link que usaba la app al pedir el reset directo.
-export const REDIRECT_RECUPERO = 'uncasrugby://reset-password'
+// Página web pública (web/app/reset-password): funciona aunque el mail se abra
+// en una PC. Antes era el deep link uncasrugby://reset-password, que en la PC no
+// abría nada y el token de un solo uso quedaba consumido. Tiene que estar en
+// Auth → URL Configuration → Redirect URLs, si no Supabase cae al Site URL.
+export const REDIRECT_RECUPERO = 'https://uncasapp.com/reset-password'
 
 export const RESPUESTA_RECUPERO = { ok: true } as const
 
