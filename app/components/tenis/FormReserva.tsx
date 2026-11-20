@@ -10,7 +10,7 @@ import {
 } from '@/lib/tenis'
 import type { ResultadoTenis } from '@/hooks/useTenisRpc'
 import { BuscadorJugador, type JugadorElegido } from './BuscadorJugador'
-import { Aviso, Boton, Chip, Titulo, estilosTenis } from './ui'
+import { Aviso, BarraModal, Boton, Chip, Titulo, estilosTenis } from './ui'
 
 // Formulario de reserva: cancha, singles o dobles, horario libre y jugadores
 // (socios del padrón o invitados). El titular es quien reserva (socio) o se
@@ -96,12 +96,7 @@ export function FormReserva({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
       <SafeAreaView style={estilosTenis.sheet}>
-        <View style={s.barra}>
-          <Text style={s.barraTitulo}>{staff ? 'RESERVA TELEFÓNICA' : 'RESERVAR CANCHA'}</Text>
-          <TouchableOpacity onPress={onCerrar} style={s.cerrar} accessibilityRole="button" accessibilityLabel="Cerrar">
-            <Feather name="x" size={24} color={colors.texto} />
-          </TouchableOpacity>
-        </View>
+        <BarraModal titulo={staff ? 'RESERVA TELEFÓNICA' : 'RESERVAR CANCHA'} onCerrar={onCerrar} />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={estilosTenis.sheetCuerpo} keyboardShouldPersistTaps="handled">
             {resumen && resultado ? (
@@ -202,9 +197,6 @@ export function FilaJugador({ nombre, onQuitar }: { nombre: string; onQuitar?: (
 }
 
 const s = StyleSheet.create({
-  barra:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borde },
-  barraTitulo: { fontFamily: fonts.label, fontSize: 14, letterSpacing: 2, color: colors.texto },
-  cerrar:      { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   espacio:     { marginTop: 12 },
   lineaPrecio: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   monto:       { fontFamily: fonts.mono, fontSize: 14, color: colors.texto },

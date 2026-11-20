@@ -97,6 +97,10 @@ export interface ItemGrilla {
   modalidad?:   Modalidad | null
   comprobante_estado?: string | null
   jugadores?:   JugadorGrilla[]
+  // Bloques fijos (gestor), para editarlos desde la grilla.
+  dia_semana?:    number | null
+  vigente_desde?: string | null
+  vigente_hasta?: string | null
 }
 
 export interface Disponibilidad {
@@ -212,6 +216,9 @@ export function parsearItem(raw: unknown): ItemGrilla | null {
     estado:     texto(raw.estado),
     modalidad,
     comprobante_estado: texto(raw.comprobante_estado),
+    dia_semana:    typeof raw.dia_semana === 'number' ? raw.dia_semana : null,
+    vigente_desde: texto(raw.vigente_desde),
+    vigente_hasta: texto(raw.vigente_hasta),
     jugadores:  Array.isArray(raw.jugadores)
       ? raw.jugadores.map(parsearJugadorGrilla).filter((j): j is JugadorGrilla => j !== null)
       : undefined,
@@ -480,6 +487,30 @@ export function diasReservables(ahoraMs: number, anticipacion: number = CONFIG_D
     dias.push({ fecha, etiqueta: i === 0 ? 'HOY' : i === 1 ? 'MAÑANA' : etiquetaDiaCorta(fecha) })
   }
   return dias
+}
+
+// Día ISO de una fecha: 1 = lunes … 7 = domingo (como tenis_bloques.dia_semana).
+export function diaSemanaIso(fecha: string): number {
+  const [y, m, d] = fecha.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() || 7
+}
+
+export function esFechaValida(fecha: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false
+  const [y, m, d] = fecha.split('-').map(Number)
+  const f = new Date(Date.UTC(y, m - 1, d))
+  return f.getUTCFullYear() === y && f.getUTCMonth() === m - 1 && f.getUTCDate() === d
+}
+
+export function esHoraValida(hora: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(hora)
+}
+
+// Error del rango de un bloque, o null si está bien.
+export function validarRangoHorario(desde: string, hasta: string): string | null {
+  if (!esHoraValida(desde) || !esHoraValida(hasta)) return 'Usá horas con formato HH:MM (por ejemplo 18:30).'
+  if (minutosDeHora(hasta) <= minutosDeHora(desde)) return 'La hora de fin tiene que ser posterior a la de inicio.'
+  return null
 }
 
 export function validarInvitado(inv: InvitadoEntrada): string | null {

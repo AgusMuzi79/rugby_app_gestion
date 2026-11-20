@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView } from 'react-native'
+import { Feather } from '@expo/vector-icons'
 import { colors, fonts } from '@/constants/theme'
 import { LEYENDA_TENIS, type DiaReserva } from '@/lib/tenis'
 
@@ -83,6 +84,18 @@ export function Aviso({ children, tipo = 'info' }: { children: ReactNode; tipo?:
   )
 }
 
+// Barra superior de los modales de tenis: título y cerrar (44 pt).
+export function BarraModal({ titulo, onCerrar }: { titulo: string; onCerrar: () => void }) {
+  return (
+    <View style={s.barra}>
+      <Text style={s.barraTitulo} accessibilityRole="header">{titulo}</Text>
+      <TouchableOpacity onPress={onCerrar} style={s.cerrar} accessibilityRole="button" accessibilityLabel="Cerrar">
+        <Feather name="x" size={24} color={colors.texto} />
+      </TouchableOpacity>
+    </View>
+  )
+}
+
 export const estilosTenis = StyleSheet.create({
   input:       { minHeight: 44, borderWidth: 1, borderColor: colors.bordeRealce, borderRadius: 4, paddingHorizontal: 12, color: colors.texto, fontFamily: fonts.cuerpo, fontSize: 16, backgroundColor: colors.card },
   label:       { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, color: colors.textoSecundario, marginTop: 12, marginBottom: 6 },
@@ -90,12 +103,16 @@ export const estilosTenis = StyleSheet.create({
   textoCard:   { fontFamily: fonts.cuerpo, fontSize: 15, color: colors.texto },
   mutedCard:   { fontFamily: fonts.cuerpo, fontSize: 13, color: colors.muted },
   fila:        { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filaScroll:  { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   sheet:       { flex: 1, backgroundColor: colors.fondo },
   sheetCuerpo: { padding: 20, paddingBottom: 60, gap: 4 },
   vacio:       { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted, paddingVertical: 8 },
 })
 
 const s = StyleSheet.create({
+  barra:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borde },
+  barraTitulo:     { fontFamily: fonts.label, fontSize: 14, letterSpacing: 2, color: colors.texto },
+  cerrar:          { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   fila:            { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
   chip:            { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.bordeRealce, backgroundColor: colors.card },
   chipActivo:      { backgroundColor: colors.oro, borderColor: colors.oro },

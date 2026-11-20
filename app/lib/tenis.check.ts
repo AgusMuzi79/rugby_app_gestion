@@ -9,9 +9,11 @@ import {
   CONFIG_DEFECTO,
   bloquesPorCancha,
   codigoErrorTenis,
+  diaSemanaIso,
   diasReservables,
   duracionTexto,
   esGestorTenis,
+  esFechaValida,
   estiloItem,
   fechaArgentina,
   filasGrilla,
@@ -26,6 +28,7 @@ import {
   puedeCancelar,
   resumenPrecio,
   validarInvitado,
+  validarRangoHorario,
   verTabAgenda,
   type ItemGrilla,
 } from './tenis'
@@ -184,6 +187,17 @@ caso('días reservables: hoy + 2 en fecha de Argentina', () => {
   assert.deepEqual(dias.map(d => d.fecha), ['2026-11-20', '2026-11-21', '2026-11-22'])
   assert.deepEqual(dias.map(d => d.etiqueta), ['HOY', 'MAÑANA', 'DOM 22/11'])
   assert.equal(diasReservables(Date.parse('2026-11-21T12:00:00Z'), 0).length, 1)
+})
+
+caso('bloques: día ISO, fechas y rangos horarios', () => {
+  assert.equal(diaSemanaIso('2026-11-23'), 1) // lunes
+  assert.equal(diaSemanaIso('2026-11-22'), 7) // domingo
+  assert.equal(esFechaValida('2026-12-31'), true)
+  assert.equal(esFechaValida('2026-02-30'), false)
+  assert.equal(esFechaValida('31/12/2026'), false)
+  assert.equal(validarRangoHorario('18:00', '20:30'), null)
+  assert.equal(validarRangoHorario('20:00', '18:00'), 'La hora de fin tiene que ser posterior a la de inicio.')
+  assert.equal(validarRangoHorario('8:00', '10:00'), 'Usá horas con formato HH:MM (por ejemplo 18:30).')
 })
 
 caso('invitado: DNI, nombre y apellido obligatorios', () => {
