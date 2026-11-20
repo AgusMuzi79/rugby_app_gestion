@@ -82,11 +82,23 @@ RPCs callable by `authenticated` (each checks its own role; errors return stable
 
 ## Tasks
 - [ ] T0 — Feature document + Engram mirror. Route: inline.
-- [ ] T1 — DB: migration `20261112000000_reservas_tenis.sql` (tables, constraints, seed courts + config, helpers, all RPCs, bucket) + SQL tests in `supabase/tests/`. Route: delegated writer (worktree `tenis-db`), parallel.
+- [x] T1 — DB: migration `20261112000000_reservas_tenis.sql` (tables, constraints, seed courts + config, helpers, all RPCs, bucket) + SQL tests in `supabase/tests/`. Route: delegated writer (worktree `tenis-db`), parallel. Evidence: `supabase/tests/reservas_tenis.sql` in a disposable `postgres:17` container, 131/131 assertions ok, exit 0 (migration NOT applied to any Supabase project).
 - [ ] T2 — Edge Functions `tenis-invitados`, `tenis-gestion`, `tenis-cron` + `_shared/tenisReglas.ts` with `.check.ts`. Route: delegated writer (worktree `tenis-functions`), parallel.
 - [ ] T3 — App: flag, theme tokens, socio booking, gestor "Canchas" tab, canchero "Tenis" tab. Route: delegated writer (worktree `tenis-app`), parallel.
 - [ ] T4 — Web: public guest booking + confirmation + receipt upload pages. Route: delegated writer (worktree `tenis-web`), parallel.
 - [ ] T5 — Integration: merge the four branches into `feat/reservas-tenis`, fix contract mismatches, full checks. Route: inline/delegated as needed.
+
+### T1 notes (deviations and additions to the contract; names unchanged)
+- Players JSON also accepts `{dni}` (member by DNI, or an existing guest). `{invitado:{dni,...}}` whose DNI belongs to an active member resolves to that member. `tenis_invitado_reservar` rejects `{socio_id}` (public web) and a titular who is an active member (`titular_es_socio`).
+- "Active member" = `socios.estado <> 'inactivo'` and category not `Cliente Gimnasio`.
+- Non-titular players who are suspended or moroso fail with the same code `jugador_no_habilitado` (privacy); titulars get `titular_suspendido` / `titular_moroso`. The player search also hides suspended and (when `bloquear_morosos`) red-light members.
+- Staff phone booking skips only the day/active limits; 2-days-ahead, grid, hours, blocks, suspension and moroso still apply.
+- Guest bookings need `inicio - comprobante_horas_antes > now + hold_min` (`plazo_invitado`). Receipt deadline cancellation skips bookings whose receipt is waiting for review (`comprobante_estado = 'pendiente'`); a rejected receipt can be replaced until the deadline. Approving marks every player `cobrado`.
+- No-show charge: list price (socio/non-member) of every unpaid player goes to the titular row (`motivo_cargo 'no_show'`), other unpaid rows go to 0. The first infraction of a person (automatic or manual) is stored with `perdonada = true`.
+- Extra columns: `tenis_suspensiones.levantada_at/levantada_por` (lifting keeps history). Extra keys in several jsonb responses (e.g. `reservas` with notification data in `tenis_bloqueo_puntual`, `profile_id`/`email` of the titular in `tenis_procesar`).
+- `tenis_infracciones_listar()` returns `{infracciones:[...], suspensiones:[...]}`; `tenis_infraccion_crear(p_socio_id, p_invitado_id, p_reserva_id, p_tipo, p_nota)` returns `{infraccion_id, advertencia}`; `tenis_jugadores_corregir` adds optional `p_registrar_infraccion boolean, p_nota text`.
+- `tenis_bloque_guardar` does not cancel existing bookings (only `tenis_bloqueo_puntual` does). Cancelling the free carnet turn does not recompute the player's other bookings that day.
+- Known gap: a guest receipt approved after the turn ended is resolved by the next cron as `no_show` (no check-in was possible while pending).
 
 Route evidence: 4 parallel writers explicitly requested by Agus on 2026-11-20 ("designa todos los agentes en simultaneo"); each runs in its own git worktree and touches a disjoint file surface; the shared contract above is the integration boundary.
 
