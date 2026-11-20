@@ -9,11 +9,15 @@
 //   reservar              — { cancha_id, inicio (ISO), modalidad, titular:{dni,nombre,apellido,email},
 //                           jugadores:[{dni, nombre?, apellido?}] } (singles 1, dobles 3, sin el titular).
 //                           Un jugador cuyo DNI es de un socio activo entra como socio (precio socio o
-//                           carnet); si no, como invitado y necesita nombre y apellido. Guarda el turno
-//                           15 min (tenis_invitado_reservar) y manda el mail con el link de confirmación.
-//   confirmar             — { token } confirma el turno (tenis_invitado_confirmar) y devuelve monto, alias
-//                           y plazo del comprobante. Si ya estaba confirmado devuelve el estado actual
-//                           (sirve para recargar la página del link).
+//                           carnet, lo resuelve la base); si no, como invitado y necesita nombre y
+//                           apellido (si faltan: jugador_sin_nombre + dni). Guarda el turno 15 min
+//                           (tenis_invitado_reservar) y manda el mail con el link de confirmación.
+//                           => { reserva_id, hold_vence_at, total, jugadores:[{nombre,cargo,motivo}],
+//                           email_enviado }.
+//   confirmar             — { token } confirma el turno (tenis_invitado_confirmar, idempotente) =>
+//                           { ya_confirmada, reserva:{cancha, inicio, fin, modalidad, comprobante_*,
+//                           jugadores}, total, alias, comprobante_vence_at }. Sirve para recargar la
+//                           página del link.
 //   subir-comprobante     — { token, tipo ('jpg'|'png'|'pdf' o MIME), tamano (bytes) } URL firmada para
 //                           subir el archivo a tenis-comprobantes/<reserva_id>/<uuid>.<ext>.
 //   registrar-comprobante — { token, path } verifica el archivo subido y lo asocia a la reserva
@@ -71,7 +75,7 @@ import {
   type Modalidad,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig } from '../tenis-gestion/notificar.ts'
+import { cargarConfig } from '../_shared/tenisNotificar.ts'
 
 const ESTADOS_ACTIVOS = ['pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada']
 
@@ -158,7 +162,7 @@ async function handleDisponibilidad(body: Record<string, unknown>): Promise<Resp
   if (!fechaValida(fecha)) return rechazo('parametros')
   const cfg = await cargarConfig()
   const ahora = new Date()
-  if (!dentroDeAnticipacion(fecha, ahora, cfg)) return rechazo('fuera_de_anticipacion')
+  if (!dentroDeAnticipacion(fecha, ahora, cfg)) return rechazo('anticipacion')
 
   const desdeDia = instanteLocal(fecha, '00:00')
   const hastaDia = instanteLocal(sumarDias(fecha, 1), '00:00')
@@ -195,7 +199,9 @@ async function handleDisponibilidad(body: Record<string, unknown>): Promise<Resp
       if (b.vigente_hasta && fecha > (b.vigente_hasta as string)) continue
     }
     const inicio = instanteLocal(fecha, b.hora_desde as string).toISOString()
-    const fin = instanteLocal(fecha, b.hora_hasta as string).toISOString()
+    // hora_hasta '24:00' = hasta la medianoche (como tenis_bloques_dia en la base).
+    const hasta = b.hora_hasta as string
+    const fin = (hasta.startsWith('24:') ? instanteLocal(sumarDias(fecha, 1), '00:00') : instanteLocal(fecha, hasta)).toISOString()
     const destino = b.cancha_id ? [b.cancha_id as string] : canchas.map((c) => c.id)
     for (const cancha_id of destino) ocupados.push({ cancha_id, inicio, fin })
   }
@@ -260,7 +266,7 @@ function turnosLibres(
 
 // ─── reservar ─────────────────────────────────────────────────────────────────
 
-type JugadorRpc = { socio_id: string } | { invitado: { dni: string; nombre: string; apellido: string } }
+type JugadorRpc = { dni: string } | { invitado: { dni: string; nombre: string; apellido: string } }
 
 async function handleReservar(body: Record<string, unknown>, ip: string | null): Promise<Response> {
   const t = (body.titular ?? {}) as Record<string, unknown>
@@ -283,42 +289,28 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
   const mod = modalidad as Modalidad
 
   const crudos = Array.isArray(body.jugadores) ? body.jugadores : []
-  if (crudos.length !== jugadoresRequeridos(mod)) return rechazo('jugadores_invalidos')
+  if (crudos.length !== jugadoresRequeridos(mod)) return rechazo('cantidad_jugadores')
   const jugadores = crudos.map((j) => {
     const o = (j ?? {}) as Record<string, unknown>
     return { dni: normalizarDni(o.dni), nombre: normalizarNombre(o.nombre), apellido: normalizarNombre(o.apellido) }
   })
-  if (jugadores.some((j) => !j.dni)) return rechazo('parametros', { campo: 'jugadores' })
+  if (jugadores.some((j) => !j.dni)) return rechazo('dni_invalido', { campo: 'jugadores' })
   const dnis = [titular.dni, ...jugadores.map((j) => j.dni as string)]
-  if (new Set(dnis).size !== dnis.length) return rechazo('jugador_repetido')
+  if (new Set(dnis).size !== dnis.length) return rechazo('jugadores_duplicados')
 
-  // El límite va antes de mirar el padrón: nada de lo que sigue se puede recorrer en loop.
+  // El límite va antes de tocar el padrón: nada de lo que sigue se puede recorrer en loop.
   const limite = await limitar(titular.dni, titular.email, ip)
   if (limite === 'error') return errorInterno('limite', 'tenis_invitados_intentos no respondió')
   if (limite === 'limitado') return rechazo('limitado')
 
-  const { data: socios, error: errSocios } = await supabaseAdmin
-    .from('socios')
-    .select('id, dni')
-    .in('dni', dnis)
-    .neq('estado', 'inactivo')
-  if (errSocios) return errorInterno('socios', errSocios)
-  const socioPorDni = new Map((socios ?? []).map((s) => [s.dni as string, s.id as string]))
-
-  if (socioPorDni.has(titular.dni)) return rechazo('titular_es_socio')
-
-  const pJugadores: JugadorRpc[] = []
-  for (const j of jugadores) {
-    const socioId = socioPorDni.get(j.dni as string)
-    if (socioId) {
-      pJugadores.push({ socio_id: socioId })
-    } else if (j.nombre && j.apellido) {
-      pJugadores.push({ invitado: { dni: j.dni as string, nombre: j.nombre, apellido: j.apellido } })
-    } else {
-      // No es socio: hace falta el nombre para cargarlo como invitado.
-      return rechazo('jugador_sin_nombre', { motivo: 'Ese DNI no es de un socio: completá nombre y apellido.', dni: j.dni })
-    }
-  }
+  // La base resuelve cada DNI (tenis_resolver_persona): {dni} = socio activo o invitado ya cargado;
+  // {invitado:{...}} = socio activo si el DNI es de uno, si no alta del invitado. Un titular socio
+  // da titular_es_socio. La web nunca manda socio_id (la base lo rechaza).
+  const pJugadores: JugadorRpc[] = jugadores.map((j) =>
+    j.nombre && j.apellido
+      ? { invitado: { dni: j.dni as string, nombre: j.nombre, apellido: j.apellido } }
+      : { dni: j.dni as string }
+  )
 
   const token = generarToken()
   const { data, error } = await supabaseAdmin.rpc('tenis_invitado_reservar', {
@@ -329,8 +321,14 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
     p_jugadores: pJugadores,
     p_token_hash: await hashToken(token),
   })
-  if (error) return errorRpc('tenis_invitado_reservar', error)
-  const r = (data ?? {}) as { reserva_id?: string; hold_vence_at?: string; total?: number }
+  if (error) {
+    // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido.
+    if (codigoDeError(error) === 'socio_no_encontrado') {
+      return rechazo('jugador_sin_nombre', { dni: normalizarDni((error as { details?: string }).details) })
+    }
+    return errorRpc('tenis_invitado_reservar', error)
+  }
+  const r = (data ?? {}) as { reserva_id?: string; hold_vence_at?: string; total?: number; jugadores?: unknown }
   if (!r.reserva_id) return errorInterno('tenis_invitado_reservar', 'respuesta sin reserva_id')
 
   const total = Number(r.total ?? 0)
@@ -352,7 +350,29 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
     `),
   })
 
-  return json({ ok: true, reserva_id: r.reserva_id, hold_vence_at: r.hold_vence_at ?? null, total, email_enviado: emailEnviado })
+  return json({
+    ok: true,
+    reserva_id: r.reserva_id,
+    hold_vence_at: r.hold_vence_at ?? null,
+    total,
+    jugadores: jugadoresPublicos(r.jugadores),
+    email_enviado: emailEnviado,
+  })
+}
+
+/** Jugadores del resumen de la base, sólo lo que ve el invitado: nombre, cargo y motivo. */
+function jugadoresPublicos(lista: unknown): { nombre: string; cargo: number; motivo: string | null; es_titular: boolean }[] {
+  if (!Array.isArray(lista)) return []
+  return lista.flatMap((j) => {
+    if (!j || typeof j !== 'object') return []
+    const o = j as Record<string, unknown>
+    return [{
+      nombre: typeof o.nombre === 'string' ? o.nombre : '',
+      cargo: Number(o.cargo ?? 0),
+      motivo: typeof o.motivo === 'string' ? o.motivo : null,
+      es_titular: o.es_titular === true,
+    }]
+  })
 }
 
 // Cuenta pedidos por clave en la ventana; si alguna llegó al máximo no registra nada y rechaza.
@@ -411,59 +431,43 @@ async function reservaPorToken(token: string): Promise<ReservaToken | null> {
   return (data as ReservaToken | null) ?? null
 }
 
-async function totalReserva(reservaId: string): Promise<number> {
-  const { data, error } = await supabaseAdmin.from('tenis_reserva_jugadores').select('cargo').eq('reserva_id', reservaId)
-  if (error) throw new Error(`tenis_reserva_jugadores: ${error.message}`)
-  return (data ?? []).reduce((s, j) => s + Number(j.cargo ?? 0), 0)
-}
-
-async function vistaReserva(r: ReservaToken, cfg: TenisConfig) {
-  const { data: cancha } = await supabaseAdmin.from('tenis_canchas').select('nombre').eq('id', r.cancha_id).maybeSingle()
-  const inicio = new Date(r.inicio)
-  return {
-    id: r.id,
-    cancha: (cancha?.nombre as string) ?? null,
-    inicio: inicio.toISOString(),
-    fin: new Date(r.fin).toISOString(),
-    hora_real: horaInicioReal(inicio, cfg),
-    descripcion: describirTurno(inicio, (cancha?.nombre as string) ?? null, cfg),
-    modalidad: r.modalidad,
-    estado: r.estado,
-    comprobante_estado: r.comprobante_estado,
-    comprobante_motivo: r.comprobante_motivo,
-    comprobante_vence_at: r.comprobante_vence_at,
-  }
-}
-
 async function handleConfirmar(body: Record<string, unknown>): Promise<Response> {
   const token = body.token
   if (!tokenConForma(token)) return rechazo('token_invalido')
 
+  // tenis_invitado_confirmar es idempotente: una recarga del link de una reserva ya confirmada
+  // devuelve el mismo resumen. Se mira el estado de antes sólo para avisar "ya estaba confirmada".
+  const antes = await reservaPorToken(token)
   const { data, error } = await supabaseAdmin.rpc('tenis_invitado_confirmar', { p_token_hash: await hashToken(token) })
-  let yaConfirmada = false
-  if (error) {
-    const codigo = codigoDeError(error)
-    if (!codigo) return errorInterno('tenis_invitado_confirmar', error)
-    // Recarga del link: si el turno sigue en pie, se muestra su estado en vez del error.
-    const actual = await reservaPorToken(token)
-    if (!actual || actual.estado === 'pendiente_confirmacion' || !ESTADOS_ACTIVOS.includes(actual.estado)) {
-      return rechazo(actual && actual.estado === 'vencida' ? 'hold_vencido' : codigo)
-    }
-    yaConfirmada = true
-  }
+  if (error) return errorRpc('tenis_invitado_confirmar', error)
 
-  const reserva = await reservaPorToken(token)
-  if (!reserva) return rechazo('token_invalido')
   const cfg = await cargarConfig()
-  const r = (data ?? {}) as { total?: number; alias?: string; comprobante_vence_at?: string }
+  // Resumen de la base (tenis_reserva_resumen + alias, comprobante_motivo, titular_nombre).
+  const r = (data ?? {}) as Record<string, unknown>
+  const inicio = new Date(String(r.inicio ?? antes?.inicio ?? ''))
+  const cancha = typeof r.cancha_nombre === 'string' ? r.cancha_nombre : null
+  const valido = !Number.isNaN(inicio.getTime())
 
   return json({
     ok: true,
-    ya_confirmada: yaConfirmada,
-    reserva: await vistaReserva(reserva, cfg),
-    total: r.total != null ? Number(r.total) : await totalReserva(reserva.id),
-    alias: r.alias ?? cfg.alias_pago,
-    comprobante_vence_at: r.comprobante_vence_at ?? reserva.comprobante_vence_at,
+    ya_confirmada: !!antes && antes.estado !== 'pendiente_confirmacion',
+    reserva: {
+      id: (r.reserva_id as string | undefined) ?? antes?.id ?? null,
+      cancha,
+      inicio: valido ? inicio.toISOString() : null,
+      fin: r.fin ? new Date(String(r.fin)).toISOString() : null,
+      hora_real: valido ? horaInicioReal(inicio, cfg) : null,
+      descripcion: valido ? describirTurno(inicio, cancha, cfg) : null,
+      modalidad: r.modalidad ?? null,
+      estado: r.estado ?? null,
+      comprobante_estado: r.comprobante_estado ?? null,
+      comprobante_motivo: r.comprobante_motivo ?? null,
+      comprobante_vence_at: r.comprobante_vence_at ?? null,
+      jugadores: jugadoresPublicos(r.jugadores),
+    },
+    total: Number(r.total ?? 0),
+    alias: typeof r.alias === 'string' ? r.alias : cfg.alias_pago,
+    comprobante_vence_at: r.comprobante_vence_at ?? null,
   })
 }
 

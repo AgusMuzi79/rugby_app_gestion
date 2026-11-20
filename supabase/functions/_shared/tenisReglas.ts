@@ -161,22 +161,23 @@ export function dentroDeAnticipacion(fecha: string, ahora: Date, cfg: TenisConfi
   return fecha >= hoy && fecha <= sumarDias(hoy, cfg.anticipacion_dias)
 }
 
+// Mismos códigos que la base (tenis_crear_reserva / tenis_validar_turno).
 export type CodigoTurno =
   | 'parametros'
   | 'modalidad_invalida'
-  | 'no_alineado'
+  | 'horario_invalido'
   | 'fuera_de_horario'
   | 'pasado'
-  | 'fuera_de_anticipacion'
+  | 'anticipacion'
 
 /** Validación previa de un turno pedido; null = pasa. La base vuelve a validar todo. */
 export function validarTurno(inicio: Date, modalidad: unknown, ahora: Date, cfg: TenisConfig): CodigoTurno | null {
   if (Number.isNaN(inicio.getTime())) return 'parametros'
   if (!esModalidad(modalidad)) return 'modalidad_invalida'
-  if (!alineadoAModulo(inicio, cfg)) return 'no_alineado'
+  if (!alineadoAModulo(inicio, cfg)) return 'horario_invalido'
   if (!dentroDeHorario(inicio, modalidad, cfg)) return 'fuera_de_horario'
   if (inicio.getTime() <= ahora.getTime()) return 'pasado'
-  if (!dentroDeAnticipacion(fechaLocal(inicio), ahora, cfg)) return 'fuera_de_anticipacion'
+  if (!dentroDeAnticipacion(fechaLocal(inicio), ahora, cfg)) return 'anticipacion'
   return null
 }
 
@@ -345,48 +346,71 @@ export async function clavesLimiteInvitado(
 // ─── Errores de las RPC ───────────────────────────────────────────────────────
 
 /**
- * Las RPC de tenis cortan con `raise exception using errcode = 'P0001', message = '<codigo>'`.
- * Devuelve ese código, o 'cancha_ocupada' si saltó el exclusion constraint (23P01). null = error real.
+ * Las RPC de tenis cortan con `raise exception using errcode = 'P0001', message = '<codigo>'`
+ * (lista en el header de la migración 20261112000000). Devuelve ese código, o 'turno_ocupado' si
+ * saltó el exclusion constraint (23P01). null = error real.
  */
 export function codigoDeError(err: { code?: string; message?: string } | null | undefined): string | null {
   if (!err) return null
-  if (err.code === '23P01') return 'cancha_ocupada'
+  if (err.code === '23P01') return 'turno_ocupado'
   if (err.code === 'P0001' && typeof err.message === 'string' && /^[a-z0-9_]+$/.test(err.message)) return err.message
   return null
 }
 
+// Códigos de la base y, al final, los que agregan sólo las Edge Functions.
 const MOTIVOS: Record<string, string> = {
+  no_autorizado: 'No tenés permiso para hacer esto.',
+  sin_socio: 'Tu cuenta no está vinculada a un socio.',
+  no_es_socio: 'Esa persona no es socia activa del club.',
   parametros: 'Faltan datos o hay datos inválidos.',
   modalidad_invalida: 'Elegí singles o dobles.',
-  no_alineado: 'Los turnos arrancan en punto o y media.',
-  fuera_de_horario: 'Ese horario está fuera del horario de las canchas.',
-  pasado: 'Ese horario ya pasó.',
-  fuera_de_anticipacion: 'Sólo se puede reservar hasta 2 días antes.',
+  origen_invalido: 'Tipo de reserva inválido.',
   cancha_inexistente: 'Esa cancha no existe.',
   cancha_inactiva: 'Esa cancha no está disponible.',
-  cancha_ocupada: 'Ese turno ya está ocupado. Elegí otro horario.',
+  horario_invalido: 'Los turnos arrancan en punto o y media.',
+  fuera_de_horario: 'Ese horario está fuera del horario de las canchas.',
+  pasado: 'Ese horario ya pasó.',
+  anticipacion: 'Sólo se puede reservar hasta 2 días antes.',
   bloqueado: 'Ese horario no está disponible.',
-  jugadores_invalidos: 'Revisá los jugadores: singles lleva 1 jugador más y dobles 3.',
-  jugador_repetido: 'Un jugador está cargado dos veces.',
-  jugador_suspendido: 'Uno de los jugadores está suspendido y no puede jugar.',
-  suspendido: 'Estás suspendido y no podés reservar por ahora.',
+  turno_ocupado: 'Ese turno ya está ocupado. Elegí otro horario.',
   limite_dia: 'Ya tenés una reserva ese día.',
   limite_activas: 'Ya tenés 2 reservas activas.',
-  moroso: 'Tenés la cuota pendiente: regularizala para reservar.',
-  titular_es_socio: 'Sos socio del club: reservá desde la app.',
+  cantidad_jugadores: 'Revisá los jugadores: singles lleva 1 jugador más y dobles 3.',
+  jugadores_duplicados: 'Un jugador está cargado dos veces.',
+  jugador_ocupado: 'Uno de los jugadores ya tiene otro turno a esa hora.',
   socio_no_encontrado: 'No encontramos un socio con ese DNI.',
+  dni_invalido: 'Revisá el DNI.',
+  invitado_incompleto: 'Completá nombre y apellido de los invitados.',
+  email_invalido: 'Revisá el mail.',
+  titular_suspendido: 'Estás suspendido y no podés reservar por ahora.',
+  titular_moroso: 'Tenés la cuota pendiente: regularizala para reservar.',
+  jugador_no_habilitado: 'Uno de los jugadores no está habilitado para jugar.',
+  titular_es_socio: 'Sos socio del club: reservá desde la app.',
+  plazo_invitado: 'Ese turno está muy cerca: no da el tiempo para confirmar y pagar. Elegí uno más adelante.',
+  reserva_inexistente: 'No encontramos esa reserva.',
+  estado_invalido: 'La reserva ya no admite este cambio.',
+  reserva_finalizada: 'Ese turno ya terminó.',
+  fuera_de_plazo: 'Ya no se puede cancelar: faltan menos de 3 horas.',
   token_invalido: 'El link no es válido o ya venció.',
   hold_vencido: 'Pasaron los 15 minutos y el turno se liberó. Volvé a reservar.',
-  ya_confirmada: 'Esta reserva ya estaba confirmada.',
-  estado_invalido: 'La reserva ya no admite este cambio.',
+  reserva_cancelada: 'Esta reserva fue cancelada.',
   comprobante_vencido: 'Ya pasó el plazo para subir el comprobante.',
+  path_invalido: 'El comprobante no es válido. Subilo de nuevo.',
+  motivo_requerido: 'Escribí el motivo del rechazo.',
+  bloque_invalido: 'Revisá el bloque: tipo, título y horario.',
+  bloque_inexistente: 'Ese bloque ya no existe.',
+  config_invalida: 'Revisá los valores de las reglas.',
+  dias_invalidos: 'La suspensión tiene que ser de 1 a 365 días.',
+  persona_requerida: 'Elegí a la persona.',
+  jugador_inexistente: 'Ese jugador ya no está en la reserva.',
+  infraccion_inexistente: 'Esa infracción ya no existe.',
+  suspension_inexistente: 'Esa suspensión ya no está vigente.',
+  extension_invalida: 'Revisá el horario de la extensión.',
+  // Sólo Edge Functions.
+  limitado: 'Hiciste muchos pedidos seguidos. Probá de nuevo en un rato.',
+  jugador_sin_nombre: 'Ese DNI no es de un socio: completá nombre y apellido.',
   comprobante_invalido: 'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
   comprobante_no_subido: 'No encontramos el archivo. Subilo de nuevo.',
-  fuera_de_plazo: 'Ya no se puede cancelar: faltan menos de 3 horas.',
-  no_autorizado: 'No tenés permiso para hacer esto.',
-  reserva_inexistente: 'No encontramos esa reserva.',
-  motivo_requerido: 'Escribí el motivo del rechazo.',
-  limitado: 'Hiciste muchos pedidos seguidos. Probá de nuevo en un rato.',
 }
 
 export function motivoTenis(codigo: string): string {
@@ -394,59 +418,108 @@ export function motivoTenis(codigo: string): string {
 }
 
 // ─── Resumen de tenis_procesar() (cron) ───────────────────────────────────────
+// Cada aviso es tenis_aviso(reserva) de la base: datos del turno + el titular con lo necesario
+// para avisarle (socio → push por socio_id; invitado → mail).
 
-export interface Advertencia {
+export interface TitularAviso {
   socio_id: string | null
+  profile_id: string | null
   invitado_id: string | null
-  reserva_id: string | null
+  nombre: string | null
+  email: string | null
+}
+
+export interface AvisoReserva {
+  reserva_id: string
+  cancha_nombre: string | null
+  inicio: string | null
+  fin: string | null
+  modalidad: string | null
+  origen: string | null
+  estado: string | null
+  motivo: string | null
+  titular: TitularAviso
+}
+
+export interface AvisoNoShow extends AvisoReserva {
+  /** Lo que se le cargó al titular (todos los jugadores que no pagaron). */
+  cargo_titular: number
+  infraccion_id: string | null
+  /** Primera infracción de la persona: queda como advertencia. */
+  advertencia: boolean
 }
 
 export interface ResumenProcesar {
-  /** Holds sin confirmar que pasaron a 'vencida'. */
-  vencidas: string[]
+  ahora: string | null
+  /** Holds de invitados sin confirmar que pasaron a 'vencida'. */
+  holds_vencidos: AvisoReserva[]
   /** 'pendiente_comprobante' canceladas por no subir el comprobante a tiempo. */
-  canceladas: string[]
+  comprobantes_vencidos: AvisoReserva[]
+  /** 'confirmada' con check-in que pasaron a 'jugada' (sólo ids). */
+  jugadas: string[]
   /** 'confirmada' sin ningún check-in al terminar el turno. */
-  no_shows: string[]
-  /** Primera infracción de una persona: queda como advertencia. */
-  advertencias: Advertencia[]
+  no_shows: AvisoNoShow[]
 }
 
 function uuidONull(x: unknown): string | null {
   return typeof x === 'string' && UUID_RE.test(x) ? x : null
 }
 
-function idsDeReservas(lista: unknown): string[] {
-  if (!Array.isArray(lista)) return []
-  const ids: string[] = []
-  for (const item of lista) {
-    const id = typeof item === 'string'
-      ? uuidONull(item)
-      : item && typeof item === 'object'
-      ? uuidONull((item as Record<string, unknown>).reserva_id ?? (item as Record<string, unknown>).id)
-      : null
-    if (id && !ids.includes(id)) ids.push(id)
-  }
-  return ids
+function textoONull(x: unknown): string | null {
+  return typeof x === 'string' && x !== '' ? x : null
 }
 
-/** Tolerante: acepta ids sueltos u objetos con reserva_id; lo que falte o no se entienda queda vacío. */
+function parsearAviso(x: unknown): AvisoReserva | null {
+  if (!x || typeof x !== 'object') return null
+  const o = x as Record<string, unknown>
+  const id = uuidONull(o.reserva_id)
+  if (!id) return null
+  const t = (o.titular && typeof o.titular === 'object' ? o.titular : {}) as Record<string, unknown>
+  return {
+    reserva_id: id,
+    cancha_nombre: textoONull(o.cancha_nombre),
+    inicio: textoONull(o.inicio),
+    fin: textoONull(o.fin),
+    modalidad: textoONull(o.modalidad),
+    origen: textoONull(o.origen),
+    estado: textoONull(o.estado),
+    motivo: textoONull(o.motivo),
+    titular: {
+      socio_id: uuidONull(t.socio_id),
+      profile_id: uuidONull(t.profile_id),
+      invitado_id: uuidONull(t.invitado_id),
+      nombre: textoONull(t.nombre),
+      email: textoONull(t.email),
+    },
+  }
+}
+
+function listaAvisos(lista: unknown): AvisoReserva[] {
+  return Array.isArray(lista) ? lista.map(parsearAviso).filter((a): a is AvisoReserva => a !== null) : []
+}
+
+/** Tolerante: lo que falte o no se entienda queda vacío. */
 export function parsearResumenProcesar(json: unknown): ResumenProcesar {
   const r = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
-  const advertencias: Advertencia[] = []
-  if (Array.isArray(r.advertencias)) {
-    for (const a of r.advertencias) {
-      if (!a || typeof a !== 'object') continue
-      const o = a as Record<string, unknown>
-      const adv = { socio_id: uuidONull(o.socio_id), invitado_id: uuidONull(o.invitado_id), reserva_id: uuidONull(o.reserva_id) }
-      if (adv.socio_id || adv.invitado_id) advertencias.push(adv)
-    }
+  const noShows: AvisoNoShow[] = []
+  for (const x of Array.isArray(r.no_shows) ? r.no_shows : []) {
+    const a = parsearAviso(x)
+    if (!a) continue
+    const o = x as Record<string, unknown>
+    const cargo = Number(o.cargo_titular)
+    noShows.push({
+      ...a,
+      cargo_titular: Number.isFinite(cargo) ? cargo : 0,
+      infraccion_id: uuidONull(o.infraccion_id),
+      advertencia: o.advertencia === true,
+    })
   }
   return {
-    vencidas: idsDeReservas(r.vencidas),
-    canceladas: idsDeReservas(r.canceladas ?? r.canceladas_sin_comprobante),
-    no_shows: idsDeReservas(r.no_shows),
-    advertencias,
+    ahora: textoONull(r.ahora),
+    holds_vencidos: listaAvisos(r.holds_vencidos),
+    comprobantes_vencidos: listaAvisos(r.comprobantes_vencidos),
+    jugadas: Array.isArray(r.jugadas) ? r.jugadas.map(uuidONull).filter((x): x is string => x !== null) : [],
+    no_shows: noShows,
   }
 }
 

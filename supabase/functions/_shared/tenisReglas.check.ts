@@ -132,11 +132,11 @@ await caso('validarTurno devuelve el primer código que falla, o null', () => {
   const ahora = ar('2026-11-20T10:00')
   assert.equal(validarTurno(ar('2026-11-21T18:00'), 'singles', ahora, CFG), null)
   assert.equal(validarTurno(ar('2026-11-21T18:00'), 'paddle', ahora, CFG), 'modalidad_invalida')
-  assert.equal(validarTurno(ar('2026-11-21T18:10'), 'singles', ahora, CFG), 'no_alineado')
+  assert.equal(validarTurno(ar('2026-11-21T18:10'), 'singles', ahora, CFG), 'horario_invalido')
   assert.equal(validarTurno(ar('2026-11-21T21:30'), 'singles', ahora, CFG), 'fuera_de_horario')
   assert.equal(validarTurno(ar('2026-11-20T09:00'), 'singles', ahora, CFG), 'pasado')
   assert.equal(validarTurno(ar('2026-11-20T10:00'), 'singles', ahora, CFG), 'pasado')
-  assert.equal(validarTurno(ar('2026-11-23T18:00'), 'singles', ahora, CFG), 'fuera_de_anticipacion')
+  assert.equal(validarTurno(ar('2026-11-23T18:00'), 'singles', ahora, CFG), 'anticipacion')
   assert.equal(validarTurno(new Date('basura'), 'singles', ahora, CFG), 'parametros')
 })
 
@@ -243,34 +243,62 @@ await caso('límite de invitados: claves HMAC por DNI, mail e IP (nunca el dato 
 })
 
 await caso('código estable de los errores de las RPC (raise P0001 con el código como mensaje)', () => {
-  assert.equal(codigoDeError({ code: 'P0001', message: 'cancha_ocupada' }), 'cancha_ocupada')
+  assert.equal(codigoDeError({ code: 'P0001', message: 'turno_ocupado' }), 'turno_ocupado')
   assert.equal(codigoDeError({ code: 'P0001', message: 'algo con espacios' }), null)
-  assert.equal(codigoDeError({ code: '23P01', message: 'conflicting key value violates exclusion constraint' }), 'cancha_ocupada')
+  assert.equal(codigoDeError({ code: '23P01', message: 'conflicting key value violates exclusion constraint' }), 'turno_ocupado')
   assert.equal(codigoDeError({ code: '42501', message: 'permission denied' }), null)
   assert.equal(codigoDeError(null), null)
-  assert.equal(typeof motivoTenis('cancha_ocupada'), 'string')
   assert.equal(motivoTenis('codigo_que_no_existe'), 'No se pudo completar la operación. Probá de nuevo.')
 })
 
-await caso('resumen de tenis_procesar(): ids sueltos u objetos, claves que falten = listas vacías', () => {
+// Los códigos de la migración (header de 20261112000000_reservas_tenis.sql) y los que agregan
+// las Edge Functions: todos con texto en castellano.
+const CODIGOS_DB = [
+  'no_autorizado', 'sin_socio', 'no_es_socio', 'parametros', 'modalidad_invalida', 'origen_invalido',
+  'cancha_inexistente', 'cancha_inactiva', 'horario_invalido', 'fuera_de_horario', 'pasado', 'anticipacion',
+  'bloqueado', 'turno_ocupado', 'limite_dia', 'limite_activas', 'cantidad_jugadores', 'jugadores_duplicados',
+  'jugador_ocupado', 'socio_no_encontrado', 'dni_invalido', 'invitado_incompleto', 'email_invalido',
+  'titular_suspendido', 'titular_moroso', 'jugador_no_habilitado', 'titular_es_socio', 'plazo_invitado',
+  'reserva_inexistente', 'estado_invalido', 'reserva_finalizada', 'fuera_de_plazo', 'token_invalido',
+  'hold_vencido', 'reserva_cancelada', 'comprobante_vencido', 'path_invalido', 'motivo_requerido',
+  'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
+  'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
+]
+const CODIGOS_FUNCIONES = ['limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido']
+
+await caso('cada código de la base y de las funciones tiene texto propio', () => {
+  const generico = motivoTenis('codigo_que_no_existe')
+  for (const c of [...CODIGOS_DB, ...CODIGOS_FUNCIONES]) assert.notEqual(motivoTenis(c), generico, c)
+})
+
+await caso('resumen de tenis_procesar(): avisos con el titular, ids de jugadas, no_shows con cargo', () => {
   const a = '11111111-1111-4111-8111-111111111111'
   const b = '22222222-2222-4222-8222-222222222222'
-  assert.deepEqual(parsearResumenProcesar({
-    vencidas: [a],
-    canceladas: [{ reserva_id: b }],
-    no_shows: [{ reserva_id: a, total: 18000 }, 'basura'],
-    advertencias: [{ socio_id: b, reserva_id: a }, { invitado_id: a }],
-  }), {
-    vencidas: [a],
-    canceladas: [b],
-    no_shows: [a],
-    advertencias: [
-      { socio_id: b, invitado_id: null, reserva_id: a },
-      { socio_id: null, invitado_id: a, reserva_id: null },
-    ],
+  const s = '33333333-3333-4333-8333-333333333333'
+  const aviso = (id: string, titular: Record<string, unknown>) => ({
+    reserva_id: id, cancha_nombre: '03', inicio: '2026-11-21T21:00:00+00:00', fin: '2026-11-21T22:00:00+00:00',
+    modalidad: 'singles', origen: 'invitado', estado: 'cancelada', motivo: 'x', titular,
   })
-  assert.deepEqual(parsearResumenProcesar(null), { vencidas: [], canceladas: [], no_shows: [], advertencias: [] })
-  assert.deepEqual(parsearResumenProcesar({ canceladas_sin_comprobante: [a] }).canceladas, [a])
+  const r = parsearResumenProcesar({
+    ahora: '2026-11-21T20:00:00+00:00',
+    holds_vencidos: [aviso(a, { invitado_id: b, nombre: 'Ana Paz', email: 'ana@mail.com' })],
+    comprobantes_vencidos: [aviso(b, { invitado_id: a, nombre: 'Leo', email: null }), 'basura'],
+    jugadas: [a, 'basura'],
+    no_shows: [{ ...aviso(a, { socio_id: s, profile_id: b, nombre: 'Pérez Juan' }), cargo_titular: 18000, infraccion_id: b, advertencia: true }],
+  })
+  assert.equal(r.ahora, '2026-11-21T20:00:00+00:00')
+  assert.equal(r.holds_vencidos.length, 1)
+  assert.deepEqual(r.holds_vencidos[0].titular, { socio_id: null, profile_id: null, invitado_id: b, nombre: 'Ana Paz', email: 'ana@mail.com' })
+  assert.equal(r.holds_vencidos[0].cancha_nombre, '03')
+  assert.equal(r.comprobantes_vencidos.length, 1)
+  assert.equal(r.comprobantes_vencidos[0].titular.email, null)
+  assert.deepEqual(r.jugadas, [a])
+  assert.equal(r.no_shows.length, 1)
+  assert.equal(r.no_shows[0].titular.socio_id, s)
+  assert.equal(r.no_shows[0].cargo_titular, 18000)
+  assert.equal(r.no_shows[0].advertencia, true)
+  assert.equal(r.no_shows[0].infraccion_id, b)
+  assert.deepEqual(parsearResumenProcesar(null), { ahora: null, holds_vencidos: [], comprobantes_vencidos: [], jugadas: [], no_shows: [] })
 })
 
 console.log(`\n${casos} casos ok`)
