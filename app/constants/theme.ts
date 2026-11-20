@@ -33,6 +33,20 @@ export const colors = {
   estadoPendiente: '#E67E22', // badge PENDIENTE, banner de foto faltante
 }
 
+// Grilla de canchas de tenis (reservas-tenis): la misma paleta de OnDepor que
+// el club ya conoce, un fondo por tipo de reserva o bloque y el texto que se
+// lee encima con contraste AA (blanco sólo sobre el azul oscuro; el resto lleva
+// texto oscuro). Ratios en lib/tenis.check.ts.
+export const tenis = {
+  web:           { fondo: '#10577D', texto: '#FFFFFF' }, // reserva web (socio) e invitado
+  telefonica:    { fondo: '#4094C4', texto: '#15110A' }, // reserva telefónica
+  torneo:        { fondo: '#F06B3A', texto: '#15110A' },
+  clase:         { fondo: '#499A6B', texto: '#15110A' }, // clase / escuelita
+  entrenamiento: { fondo: '#F5D580', texto: '#15110A' }, // academia
+  noDisponible:  { fondo: '#BABFC2', texto: '#15110A' },
+  enSuspenso:    { fondo: '#ACD2E7', texto: '#15110A' },
+} as const
+
 export const fonts = {
   titulo: 'Barlow_900Black',
   cuerpo: 'Barlow_400Regular',

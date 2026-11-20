@@ -5,6 +5,12 @@
 // tablas, protocolos y la operación 'lesion' de la cola offline siguen en el
 // código; volver a `true` lo restaura sin otros cambios. Su par en la web es
 // web/lib/features.ts y en las Edge Functions el secreto FEATURE_LESIONES.
+//
+// tenis: reservas de canchas de tenis (odd/tasks/reservas-tenis.md). Apagado
+// hasta el lanzamiento: con `false` no aparece nada nuevo (sección Tenis de la
+// Agenda del socio, pestaña Canchas de Subcomisión, pestaña Tenis del Canchero).
+// Su par en la web es web/lib/features.ts.
 export const FEATURES = {
   lesiones: false,
+  tenis:    false,
 } as const
