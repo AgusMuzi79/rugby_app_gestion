@@ -72,8 +72,8 @@ async function main() {
     }
   })
 
-  await caso('el link vuelve a la app como hoy', () => {
-    assert.equal(REDIRECT_RECUPERO, 'uncasrugby://reset-password')
+  await caso('el link abre la página web de reset (funciona en PC y en el teléfono)', () => {
+    assert.equal(REDIRECT_RECUPERO, 'https://uncasapp.com/reset-password')
   })
 
   await caso('una falla del envío queda en el log del servidor, con el código y sin el mail', () => {

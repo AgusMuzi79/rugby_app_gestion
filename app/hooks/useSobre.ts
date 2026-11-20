@@ -128,7 +128,8 @@ export function useSobre() {
       )
       const { error } = await Promise.race([
         supabase.auth.resetPasswordForEmail(perfil.email, {
-          redirectTo: 'uncasrugby://reset-password',
+          // Página web: el mail puede abrirse en una PC (mismo destino que login-dni).
+          redirectTo: 'https://uncasapp.com/reset-password',
         }),
         timeout,
       ])

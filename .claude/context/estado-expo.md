@@ -26,7 +26,7 @@
 ### Hooks auth
 
 - `app/hooks/useLogin.ts` — signIn + fetch profile.rol + `registerPushToken()` (fire-and-forget)
-- `app/hooks/useForgotPassword.ts` — `resetPasswordForEmail` con `redirectTo: 'uncasrugby://reset-password'`
+- `app/hooks/useForgotPassword.ts` — invoca la Edge Function `login-dni` con `action: 'reset'` (DNI o mail); el mail sale con `REDIRECT_RECUPERO` = `https://uncasapp.com/reset-password` (página web, desde 2026-11-19)
 - `app/hooks/useResetPassword.ts` — validación (match + mínimo 8 chars), `updateUser({ password })`, signOut, `setPasswordRecovery(false)`
 - `app/hooks/useSignOut.ts` — signOut + clearAuth
 
@@ -161,6 +161,8 @@ Al cerrar sesión se limpia `tutorStore` y los secretos QR cacheados de los meno
 - En Expo Go SDK 53: detectar con `Constants.appOwnership === 'expo'` y saltear push
 
 ## Deep Linking — Flujo completo
+
+Desde 2026-11-19 el mail de recupero (`login-dni` y `useSobre.ts`) apunta a la página web `https://uncasapp.com/reset-password`, así que el cambio de contraseña se hace en el navegador y estos pasos sólo aplican a links viejos o builds anteriores con el deep link:
 
 1. `resetPasswordForEmail(email, { redirectTo: 'uncasrugby://reset-password' })`
 2. Link recibido: `uncasrugby://reset-password#access_token=...&type=recovery`

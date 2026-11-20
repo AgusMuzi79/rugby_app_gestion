@@ -23,6 +23,12 @@ Dos route groups en `web/app/`, cada uno con su propio layout + sidebar + guard 
 
 Login (`/login`) es compartido — redirige a `/secretaria/socios` o `/dashboard` según rol.
 
+## Páginas públicas (sin login)
+
+Top-level en `web/app/`, fuera de los route groups, sólo con el root layout: `/eliminar-cuenta`, `/soporte`, `/privacidad` y `/reset-password`.
+
+- `/reset-password` (2026-11-19): destino del mail "Olvidé mi contraseña" (`REDIRECT_RECUPERO` de `login-dni` y `useSobre.ts`), para que funcione aunque el mail se abra en una PC. Lee el fragmento implicit (`#access_token`/`refresh_token`/`type=recovery`, o `error_code=otp_expired`) con `lib/resetPassword.ts`, lo saca de la URL y usa un cliente de Supabase propio en memoria (`persistSession: false`, `detectSessionInUrl: false`) para no pisar la sesión del panel. Sin fragmento de recovery válido no muestra el formulario. Mismas reglas que la app (mínimo 8, confirmación). Check: `npm run test:reset-password`.
+
 ## Páginas implementadas — Subcomisión
 
 | Ruta | Descripción |

@@ -19,7 +19,7 @@ supabase gen types typescript --local > app/lib/database.types.ts
 - URL: `https://tlexvbattnzpmdftjsao.supabase.co`
 - Migraciones aplicadas con `supabase db push`
 - Edge Functions deployadas: `admin-usuarios`, `notifications`
-- Redirect URL configurada: `uncasrugby://reset-password` ✅
+- Redirect URLs (Auth → URL Configuration): `https://uncasapp.com/reset-password` (destino del mail de recupero desde 2026-11-19, página web pública; tiene que estar en la lista o Supabase cae al Site URL) y `uncasrugby://reset-password` (dejarlo: los builds viejos con `useSobre.ts` anterior todavía lo piden)
 - SMTP: Gmail en Dashboard → Project Settings → Auth → SMTP
 
 ## Env Vars — Cloud (producción)
