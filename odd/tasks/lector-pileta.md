@@ -1,0 +1,82 @@
+# Lector Pileta
+
+## Objective
+
+Add a `pileta` scanner role: a staff member at the pool entrance scans member QR cards (attended, rear camera, same UX as `canchero`) and only members with the "Pileta" service get in.
+
+## Problem / why
+
+The pool season is coming. Access is only for people who paid the whole season. The pool is not a NUVIX service, so Secretaría will tick a manual "Pileta" service on each member from the web panel, and the scan must reflect it.
+
+## Scope
+
+- New role `pileta` (label "Pileta"), mobile only, assigned only by admin (same as other scanner roles).
+- `socios-qr`: when the caller role is `pileta`, deny members without an active service whose name contains "pileta" (mirror of the gym gate `tieneServicioGimnasio`); log accesses with `punto = 'pileta'`.
+- Catalog: seed a "Pileta" service in `servicios_opcionales` (amount 0, assigned by hand) so the name matches the gate.
+- Mobile: role constants, initial route `/(porteria)/scanner`, header title, user management lists.
+- Web: user management role list (admin).
+
+## Out of scope (decided later / pending)
+
+- Season end date (Agus: "después vemos hasta qué fecha lo dejamos habilitado").
+- Non-members who pay the pool season (pending Agus asking Secretaría how they enter: NUVIX padrón or manual sign-up).
+- Filtering the web accesos panel by `punto` (it already mixes gimnasio/tenis/buffet rows).
+
+## Constraints
+
+- Migration timestamp `20261120000000` (the tennis branch already uses `20261112000000`).
+- `importar-servicios` only touches mapped services, so a manual "Pileta" link is never overwritten.
+- No production deploy, OTA or migration push without Agus's explicit go-ahead.
+
+## Delivery
+
+Forecast ~300 authored changed lines, single PR (`ask-on-risk`, under budget).
+
+## Tasks
+
+- [x] T1 — DB: migration `20261120000000_rol_pileta.sql` (CHECK constraints + "Pileta" service seed) and `supabase/tests/rol_pileta.sql`. Route: delegated (writer, 2+ non-trivial files). Commit `c4af09c`.
+- [x] T2 — `socios-qr` pileta gate + access logging; `permisos-usuarios` admin can create `pileta`, with checks. Route: delegated. Commit `e063979`.
+- [x] T3 — Mobile: `roles.ts`, scanner header title, `useUsuarios`, `UsuariosScreen`, `guardRaiz.check.ts`, `rolMovil.check.ts`. Route: delegated. Commit `46668c1`.
+- [x] T4 — Web: users page + `rolesStaff.check.ts`. Route: delegated. Commit `e626ec7`.
+- [x] T5 — Docs: `CLAUDE.md` roles table and feature note, this document. Route: delegated. Commit: the docs commit that adds this document.
+
+Route evidence: mapping touched 4+ files (mapping trigger) and the change spans 2+ non-trivial files (writer trigger).
+
+## Acceptance criteria
+
+- A `pileta` user scanning a member with the "Pileta" service gets allowed; without it, denied with a clear pool message.
+- Rear camera, attended copy, header "PILETA · SCANNER".
+- Admin can assign the role from app and web; subcomisión cannot.
+- Accesses logged with `punto = 'pileta'`.
+
+## Checks
+
+- `npx --yes tsx@4.20.6` on touched `*.check.ts` (permisos-usuarios, guardRaiz, rolesStaff, rolMovil).
+- `supabase/tests/rol_pileta.sql` in a throwaway postgres:17 container (if Docker is available).
+- `npx tsc --noEmit` in `app/` and `web/` (compare with preexisting errors).
+
+## Progress
+
+- 2026-11-20: exploration done, feature document created.
+- 2026-11-20: T1–T5 implemented by one delegated writer.
+
+### Decisions
+
+- The service gate per role moved to a pure helper, `supabase/functions/socios-qr/servicio-por-rol.ts` (`servicioRequeridoPorRol`, `pasaPorCategoria`), used by `decidirIngreso` and `registrarItemOffline`. The gym gate keeps the same pattern, messages and "Cliente Gimnasio passes by category" rule; pileta does not let Cliente Gimnasio in by category.
+- Pileta gets no gym turnero, no one-time TOTP consumption and no guests: `registrar-invitado` keeps `pileta` out of its ALLOWED list (the mobile scanner only shows guests for `porteria`; the endpoint itself also accepts canchero/buffet, unchanged).
+- Pileta stays out of the web login (mobile-only, like canchero) and out of subcomisión's `v_gestionables`.
+
+### Verification evidence
+
+- `supabase/tests/rol_pileta.sql` in throwaway `postgres:17`: 14 cases ok, "TODOS LOS CASOS OK". The script also asserts the pre-migration CHECK rejects `pileta` (RED inside the script).
+- `permisos-usuarios.check.ts`: RED (new pileta cases failed, `actual: false`), then GREEN: 19 cases ok.
+- `socios-qr/servicio-por-rol.check.ts`: RED (module missing), then GREEN: 6 cases ok.
+- `app/lib/guardRaiz.check.ts`: RED (`pileta` went to `/(auth)/login`), then GREEN: 16 cases ok.
+- `app/lib/rolMovil.check.ts`: RED (`pileta` normalized to `socio`), then GREEN: 14 cases ok.
+- `web/lib/rolesStaff.check.ts`: 13 cases ok. No RED: `rolesStaff.ts` is role-agnostic, the new case only documents that pileta is not web-only.
+- `npx tsc --noEmit` in `app/` and `web/`: exit 0 (after `npm ci --ignore-scripts` in the worktree).
+- `deno check supabase/functions/socios-qr/index.ts`: unavailable (deno not installed).
+
+## Next step
+
+Review and PR. Then, with Agus's go-ahead: apply migration `20261120000000`, deploy `socios-qr` and `admin-usuarios`, publish an OTA, assign the "Pileta" service to members and create the pileta account.
