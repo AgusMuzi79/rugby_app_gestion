@@ -358,6 +358,15 @@ select pg_temp.espera(pg_temp.err($$select tenis_bloque_guardar(jsonb_build_obje
 select pg_temp.espera(pg_temp.err($$select tenis_bloque_guardar(jsonb_build_object(
   'tipo', 'clase', 'titulo', 'Mal', 'dia_semana', 6, 'hora_desde', '12:00', 'hora_hasta', '09:00'))$$),
   'bloque_invalido', 'bloque con horas invertidas rechazado');
+-- La grilla del gestor trae lo necesario para editar el bloque sin pisar su vigencia.
+select pg_temp.espera(
+  (select i->>'dia_semana' || '/' || (i->>'vigente_desde') || '/' || (i->>'vigente_hasta') || '/' || (i->>'bloque_cancha_id')
+     from jsonb_array_elements(tenis_grilla('2026-11-21')->'items') i where i->>'titulo' = 'Escuelita'),
+  '6/2026-11-01/2026-12-31/' || pg_temp.ca(2)::text, 'grilla: bloque recurrente con día, vigencia y cancha');
+select pg_temp.espera(
+  (select count(*) || '/' || bool_and(i ? 'bloque_cancha_id' and i->'bloque_cancha_id' = 'null'::jsonb)
+     from jsonb_array_elements(tenis_grilla('2026-11-22')->'items') i where i->>'titulo' = 'Torneo'),
+  '8/true', 'grilla: bloque de todas las canchas sale en las 8 con bloque_cancha_id null');
 
 select pg_temp.como('p4');
 select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(2), pg_temp.t('2026-11-21 11:30'), 'singles', pg_temp.j(2))$$),

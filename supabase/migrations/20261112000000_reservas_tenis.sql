@@ -1394,10 +1394,17 @@ begin
                  'titulo',     b.titulo,
                  'recurrente', b.recurrente,
                  'mio',        false,
-                 'bloque_id',  b.bloque_id
+                 'bloque_id',  b.bloque_id,
+                 -- Para editar el bloque desde la grilla sin pisar su vigencia ni
+                 -- pasarlo a una sola cancha (bloque_cancha_id null = todas).
+                 'bloque_cancha_id', tb.cancha_id,
+                 'dia_semana',       tb.dia_semana,
+                 'vigente_desde',    tb.vigente_desde,
+                 'vigente_hasta',    tb.vigente_hasta
                )
         from tenis_bloques_dia(p_fecha) b
         join tenis_canchas c on c.id = b.cancha_id
+        join tenis_bloques tb on tb.id = b.bloque_id
       ) x
     ), '[]'::jsonb)
   );
