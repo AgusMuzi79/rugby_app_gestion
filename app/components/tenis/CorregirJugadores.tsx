@@ -3,7 +3,7 @@ import { View, Text, Modal, ScrollView, Switch, KeyboardAvoidingView, Platform, 
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
 import { accionesTenis, type JugadorCorregido } from '@/hooks/useTenisGestor'
-import { jugadoresRequeridos, type ItemGrilla } from '@/lib/tenis'
+import { entradaJugadorExistente, jugadoresRequeridos, type ItemGrilla } from '@/lib/tenis'
 import { BuscadorJugador } from './BuscadorJugador'
 import { FilaJugador } from './FormReserva'
 import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
@@ -15,10 +15,11 @@ import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 interface Fila { clave: string; nombre: string; entrada: JugadorCorregido }
 
 function filasIniciales(item: ItemGrilla): Fila[] {
+  // Los que siguen: socio por socio_id, invitado por DNI (la base no acepta invitado_id).
   return (item.jugadores ?? []).filter(j => !j.es_titular).flatMap((j): Fila[] => {
-    if (j.socio_id) return [{ clave: j.socio_id, nombre: j.nombre, entrada: { socio_id: j.socio_id } }]
-    if (j.invitado_id) return [{ clave: `inv:${j.invitado_id}`, nombre: j.nombre, entrada: { invitado_id: j.invitado_id } }]
-    return []
+    const entrada = entradaJugadorExistente(j)
+    if (!entrada) return []
+    return [{ clave: j.socio_id ?? `dni:${j.dni}`, nombre: j.nombre, entrada }]
   })
 }
 

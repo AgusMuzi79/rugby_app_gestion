@@ -3,9 +3,12 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { FEATURES } from '@/constants/features'
 import {
-  esGestorTenis, parsearDisponibilidad, parsearResultadoReserva,
-  type Disponibilidad, type JugadorEntrada, type Modalidad, type ResultadoReserva, type TenisConfig, type TipoBloque,
+  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva,
+  type Checkin, type ComprobantePendiente, type Disponibilidad, type JugadorEntrada, type Modalidad,
+  type ResultadoReserva, type TenisConfig, type TipoBloque,
 } from '@/lib/tenis'
+
+export type { Checkin, ComprobantePendiente } from '@/lib/tenis'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Gestión de canchas de tenis (pestaña Canchas de Subcomisión) y lo que
@@ -119,7 +122,7 @@ export const accionesTenis = {
     if (!r.ok) return r
     const url = typeof r.data.url === 'string' ? r.data.url : null
     if (!url) return { ok: false, mensaje: 'No se pudo abrir el comprobante.' }
-    return ok({ url, esPdf: /\.pdf(\?|$)/i.test(url) })
+    return ok({ url, esPdf: r.data.tipo === 'pdf' || /\.pdf(\?|$)/i.test(url) })
   },
 
   // Rechazar manda un mail al invitado con el motivo.
@@ -150,10 +153,10 @@ export const accionesTenis = {
     sinDatos(rpcTenis('tenis_cobro_marcar', { p_jugador_id: jugadorId, p_cobrado: cobrado }, 'No se pudo marcar el cobro.')),
 
   // `p_jugadores`: todos los jugadores menos el titular, como en tenis_reservar
-  // (un invitado que ya estaba va como `{ invitado_id }`).
-  jugadoresCorregir: (reservaId: string, jugadores: JugadorCorregido[], infraccion: boolean) =>
+  // (un invitado que ya estaba va como `{ dni }`: la base no acepta invitado_id).
+  jugadoresCorregir: (reservaId: string, jugadores: JugadorCorregido[], infraccion: boolean, nota: string | null = null) =>
     sinDatos(rpcTenis('tenis_jugadores_corregir', {
-      p_reserva_id: reservaId, p_jugadores: jugadores, p_infraccion: infraccion,
+      p_reserva_id: reservaId, p_jugadores: jugadores, p_registrar_infraccion: infraccion, p_nota: nota,
     }, 'No se pudieron corregir los jugadores.')),
 
   extension: (canchaId: string, hasta: string, reservaOrigen: string) =>
@@ -162,47 +165,9 @@ export const accionesTenis = {
     }, 'No se pudo registrar la extensión.')),
 }
 
-export type JugadorCorregido = JugadorEntrada | { invitado_id: string }
+export type JugadorCorregido = JugadorEntrada
 
 // ─── Comprobantes pendientes ──────────────────────────────────────────────────
-
-export interface ComprobantePendiente {
-  reserva_id:     string
-  cancha:         string
-  inicio:         string
-  fin:            string
-  modalidad:      Modalidad
-  titular:        string
-  email:          string | null
-  total:          number
-  vence_at:       string | null
-}
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null
-}
-
-function parsearComprobantes(raw: unknown): ComprobantePendiente[] {
-  const lista = Array.isArray(raw) ? raw : []
-  return lista.flatMap(x => {
-    if (!x || typeof x !== 'object') return []
-    const o = x as Record<string, unknown>
-    const id = str(o.reserva_id) ?? str(o.id)
-    const inicio = str(o.inicio)
-    if (!id || !inicio) return []
-    return [{
-      reserva_id: id,
-      cancha:     str(o.cancha) ?? str(o.cancha_nombre) ?? '',
-      inicio,
-      fin:        str(o.fin) ?? inicio,
-      modalidad:  o.modalidad === 'dobles' ? 'dobles' : 'singles',
-      titular:    str(o.titular) ?? str(o.titular_nombre) ?? '—',
-      email:      str(o.email) ?? str(o.titular_email),
-      total:      Number(o.total) || 0,
-      vence_at:   str(o.comprobante_vence_at) ?? str(o.vence_at),
-    } satisfies ComprobantePendiente]
-  })
-}
 
 export function useComprobantesPendientes() {
   const [lista,   setLista]   = useState<ComprobantePendiente[]>([])
@@ -221,6 +186,10 @@ export function useComprobantesPendientes() {
 }
 
 // ─── Infracciones y suspensiones ──────────────────────────────────────────────
+
+function str(v: unknown): string | null {
+  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null
+}
 
 export interface Infraccion {
   id:          string
@@ -302,36 +271,9 @@ export function useSancionesTenis() {
 
 // ─── Check-in del canchero ────────────────────────────────────────────────────
 
-export interface Checkin {
-  persona:     { tipo: 'socio' | 'invitado'; nombre: string; semaforo: string | null } | null
-  reserva:     { id: string; cancha_id: string | null; cancha: string; inicio: string; fin: string; modalidad: Modalidad } | null
-  jugador:     { id: string | null; cargo: number; cobrado: boolean } | null
-  suspendido:  boolean
-  resultado:   string
-}
-
-export function parsearCheckin(raw: unknown): Checkin {
-  const o = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-  const p = o.persona && typeof o.persona === 'object' ? o.persona as Record<string, unknown> : null
-  const r = o.reserva && typeof o.reserva === 'object' ? o.reserva as Record<string, unknown> : null
-  const j = o.jugador && typeof o.jugador === 'object' ? o.jugador as Record<string, unknown> : null
-  return {
-    persona: p ? { tipo: p.tipo === 'invitado' ? 'invitado' : 'socio', nombre: str(p.nombre) ?? '—', semaforo: str(p.semaforo) } : null,
-    reserva: r && (str(r.id) ?? str(r.reserva_id)) ? {
-      id:        (str(r.id) ?? str(r.reserva_id)) as string,
-      cancha_id: str(r.cancha_id),
-      cancha:    str(r.cancha) ?? str(r.cancha_nombre) ?? '',
-      inicio:    str(r.inicio) ?? '',
-      fin:       str(r.fin) ?? '',
-      modalidad: r.modalidad === 'dobles' ? 'dobles' : 'singles',
-    } : null,
-    jugador:    j ? { id: str(j.id) ?? str(j.jugador_id), cargo: Number(j.cargo) || 0, cobrado: j.cobrado === true } : null,
-    suspendido: o.suspendido === true,
-    resultado:  str(o.resultado) ?? 'sin_reserva',
-  }
-}
-
-export async function checkinTenis(dni: string): Promise<ResultadoTenis<Checkin>> {
-  const r = await rpcTenis('tenis_checkin', { p_dni: dni }, 'No se pudo consultar el DNI. Probá de nuevo.')
+// Por DNI tipeado o por el número de socio del QR del carnet (exactamente uno).
+export async function checkinTenis(q: { dni: string } | { numeroSocio: string }): Promise<ResultadoTenis<Checkin>> {
+  const args = 'dni' in q ? { p_dni: q.dni } : { p_numero_socio: q.numeroSocio }
+  const r = await rpcTenis('tenis_checkin', args, 'No se pudo consultar. Probá de nuevo.')
   return r.ok ? ok(parsearCheckin(r.data)) : r
 }

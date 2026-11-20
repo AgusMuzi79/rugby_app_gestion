@@ -76,13 +76,17 @@ export interface JugadorGrilla {
   check_in_at:  string | null
   socio_id:     string | null
   invitado_id:  string | null
+  // Sólo staff (tenis_reserva_resumen(id, true)).
+  numero_socio: string | null
+  dni:          string | null
 }
 
-// Un ítem de la grilla: una reserva o un bloque. `tipo` es el origen de la
-// reserva ('socio' | 'invitado' | 'telefonica' | 'extension') o el tipo del
-// bloque ('clase' | 'entrenamiento' | 'torneo' | 'no_disponible' |
-// 'en_suspenso'). cancha_id null = bloque de todas las canchas. Los campos
-// opcionales sólo llegan en `tenis_grilla` (gestor / canchero).
+// Un ítem de la grilla: una reserva o un bloque. `tipo` de una reserva:
+// 'reserva_web' | 'reserva_telefonica' | 'reserva_invitado' | 'extension';
+// de un bloque: 'clase' | 'entrenamiento' | 'torneo' | 'no_disponible' |
+// 'en_suspenso'. La base ya expande los bloques de todas las canchas (uno por
+// cancha); cancha_id null se acepta igual. Los campos opcionales sólo llegan
+// en `tenis_grilla` (gestor / canchero).
 export interface ItemGrilla {
   cancha_id:   string | null
   inicio:      string
@@ -101,6 +105,8 @@ export interface ItemGrilla {
   dia_semana?:    number | null
   vigente_desde?: string | null
   vigente_hasta?: string | null
+  // El bloque es de todas las canchas (bloque_cancha_id null en tenis_grilla).
+  bloque_todas?:  boolean
 }
 
 export interface Disponibilidad {
@@ -121,8 +127,9 @@ export interface InvitadoEntrada {
   apellido: string
 }
 
-// Lo que se manda en `p_jugadores` / `p_titular`.
-export type JugadorEntrada = { socio_id: string } | { invitado: InvitadoEntrada }
+// Lo que se manda en `p_jugadores` / `p_titular` (tenis_resolver_persona):
+// socio del padrón, socio o invitado ya cargado por DNI, o invitado nuevo.
+export type JugadorEntrada = { socio_id: string } | { dni: string } | { invitado: InvitadoEntrada }
 
 export interface CargoJugador {
   nombre: string
@@ -136,16 +143,22 @@ export interface ResultadoReserva {
   total:      number
 }
 
+// tenis_mis_reservas(): resumen de la reserva + lo del socio logueado.
+// puede_cancelar lo decide el servidor (titular, confirmada y en plazo).
 export interface MiReserva {
-  id:         string
-  cancha:     string
-  inicio:     string
-  fin:        string
-  modalidad:  Modalidad
-  estado:     string
-  es_titular: boolean
-  jugadores:  CargoJugador[]
-  total:      number | null
+  id:               string
+  cancha:           string
+  inicio:           string
+  fin:              string
+  modalidad:        Modalidad
+  estado:           string
+  es_titular:       boolean
+  jugadores:        CargoJugador[]
+  total:            number | null
+  mi_cargo:         number | null
+  mi_motivo:        string | null
+  cancelable_hasta: string | null
+  puede_cancelar:   boolean
 }
 
 // ─── Parseo tolerante de las respuestas jsonb ─────────────────────────────────
@@ -185,16 +198,27 @@ export function parsearConfig(raw: unknown): TenisConfig {
 function parsearJugadorGrilla(raw: unknown): JugadorGrilla | null {
   if (!esObjeto(raw)) return null
   return {
-    id:          texto(raw.id) ?? texto(raw.jugador_id) ?? '',
-    nombre:      texto(raw.nombre) ?? '—',
-    es_titular:  raw.es_titular === true,
-    cargo:       numero(raw.cargo),
-    motivo:      texto(raw.motivo ?? raw.motivo_cargo),
-    cobrado:     raw.cobrado === true,
-    check_in_at: texto(raw.check_in_at),
-    socio_id:    texto(raw.socio_id),
-    invitado_id: texto(raw.invitado_id),
+    id:           texto(raw.jugador_id) ?? texto(raw.id) ?? '',
+    nombre:       texto(raw.nombre) ?? '—',
+    es_titular:   raw.es_titular === true,
+    cargo:        numero(raw.cargo),
+    motivo:       texto(raw.motivo ?? raw.motivo_cargo),
+    cobrado:      raw.cobrado === true,
+    check_in_at:  texto(raw.check_in_at),
+    socio_id:     texto(raw.socio_id),
+    invitado_id:  texto(raw.invitado_id),
+    numero_socio: texto(raw.numero_socio),
+    dni:          texto(raw.dni),
   }
+}
+
+// Un jugador que ya está en la reserva, como entrada de
+// tenis_jugadores_corregir: socio por socio_id, invitado por DNI (la base no
+// acepta invitado_id). null si no hay con qué identificarlo.
+export function entradaJugadorExistente(j: Pick<JugadorGrilla, 'socio_id' | 'dni'>): JugadorEntrada | null {
+  if (j.socio_id) return { socio_id: j.socio_id }
+  if (j.dni) return { dni: j.dni }
+  return null
 }
 
 export function parsearItem(raw: unknown): ItemGrilla | null {
@@ -219,6 +243,7 @@ export function parsearItem(raw: unknown): ItemGrilla | null {
     dia_semana:    typeof raw.dia_semana === 'number' ? raw.dia_semana : null,
     vigente_desde: texto(raw.vigente_desde),
     vigente_hasta: texto(raw.vigente_hasta),
+    bloque_todas:  'bloque_cancha_id' in raw ? raw.bloque_cancha_id === null : raw.cancha_id === null,
     jugadores:  Array.isArray(raw.jugadores)
       ? raw.jugadores.map(parsearJugadorGrilla).filter((j): j is JugadorGrilla => j !== null)
       : undefined,
@@ -253,24 +278,96 @@ export function parsearResultadoReserva(raw: unknown): ResultadoReserva | null {
 }
 
 export function parsearMisReservas(raw: unknown): MiReserva[] {
-  const lista = Array.isArray(raw) ? raw : esObjeto(raw) && Array.isArray(raw.reservas) ? raw.reservas : []
+  const lista = Array.isArray(raw) ? raw : []
   return lista.filter(esObjeto).flatMap(r => {
-    const id = texto(r.id) ?? texto(r.reserva_id)
+    const id = texto(r.reserva_id)
     const inicio = texto(r.inicio)
     const fin = texto(r.fin)
     if (!id || !inicio || !fin) return []
     return [{
       id,
-      cancha:     texto(r.cancha) ?? texto(r.cancha_nombre) ?? '',
+      cancha:           texto(r.cancha_nombre) ?? '',
       inicio,
       fin,
-      modalidad:  r.modalidad === 'dobles' ? 'dobles' : 'singles',
-      estado:     texto(r.estado) ?? 'confirmada',
-      es_titular: r.es_titular !== false,
-      jugadores:  parsearCargos(r.jugadores),
-      total:      r.total === undefined || r.total === null ? null : numero(r.total),
+      modalidad:        r.modalidad === 'dobles' ? 'dobles' : 'singles',
+      estado:           texto(r.estado) ?? 'confirmada',
+      es_titular:       r.es_titular === true,
+      jugadores:        parsearCargos(r.jugadores),
+      total:            r.total === undefined || r.total === null ? null : numero(r.total),
+      mi_cargo:         r.mi_cargo === undefined || r.mi_cargo === null ? null : numero(r.mi_cargo),
+      mi_motivo:        texto(r.mi_motivo),
+      cancelable_hasta: texto(r.cancelable_hasta),
+      puede_cancelar:   r.puede_cancelar === true,
     } satisfies MiReserva]
   })
+}
+
+// tenis_comprobantes_pendientes(): resumen staff + comprobante_path y el
+// titular invitado {invitado_id, nombre, dni, email}.
+export interface ComprobantePendiente {
+  reserva_id: string
+  cancha:     string
+  inicio:     string
+  fin:        string
+  modalidad:  Modalidad
+  titular:    string
+  dni:        string | null
+  email:      string | null
+  total:      number
+  vence_at:   string | null
+}
+
+export function parsearComprobantes(raw: unknown): ComprobantePendiente[] {
+  const lista = Array.isArray(raw) ? raw : []
+  return lista.filter(esObjeto).flatMap(o => {
+    const id = texto(o.reserva_id)
+    const inicio = texto(o.inicio)
+    if (!id || !inicio) return []
+    const t = esObjeto(o.titular) ? o.titular : {}
+    return [{
+      reserva_id: id,
+      cancha:     texto(o.cancha_nombre) ?? '',
+      inicio,
+      fin:        texto(o.fin) ?? inicio,
+      modalidad:  o.modalidad === 'dobles' ? 'dobles' : 'singles',
+      titular:    texto(t.nombre) || '—',
+      dni:        texto(t.dni),
+      email:      texto(t.email),
+      total:      numero(o.total),
+      vence_at:   texto(o.comprobante_vence_at),
+    } satisfies ComprobantePendiente]
+  })
+}
+
+// tenis_checkin(): persona, reserva (resumen staff) y la fila del jugador.
+export interface Checkin {
+  persona:    { tipo: 'socio' | 'invitado'; nombre: string; semaforo: string | null } | null
+  reserva:    { id: string; cancha_id: string | null; cancha: string; inicio: string; fin: string; modalidad: Modalidad } | null
+  jugador:    { id: string | null; cargo: number; cobrado: boolean } | null
+  suspendido: boolean
+  resultado:  string
+}
+
+export function parsearCheckin(raw: unknown): Checkin {
+  const o = esObjeto(raw) ? raw : {}
+  const p = esObjeto(o.persona) ? o.persona : null
+  const r = esObjeto(o.reserva) ? o.reserva : null
+  const j = esObjeto(o.jugador) ? o.jugador : null
+  const reservaId = r ? texto(r.reserva_id) : null
+  return {
+    persona: p ? { tipo: p.tipo === 'invitado' ? 'invitado' : 'socio', nombre: texto(p.nombre) ?? '—', semaforo: texto(p.semaforo) } : null,
+    reserva: r && reservaId ? {
+      id:        reservaId,
+      cancha_id: texto(r.cancha_id),
+      cancha:    texto(r.cancha_nombre) ?? '',
+      inicio:    texto(r.inicio) ?? '',
+      fin:       texto(r.fin) ?? '',
+      modalidad: r.modalidad === 'dobles' ? 'dobles' : 'singles',
+    } : null,
+    jugador:    j ? { id: texto(j.jugador_id), cargo: numero(j.cargo), cobrado: j.cobrado === true } : null,
+    suspendido: o.suspendido === true,
+    resultado:  texto(o.resultado) ?? 'sin_reserva',
+  }
 }
 
 // ─── Horario de Argentina ─────────────────────────────────────────────────────
@@ -422,12 +519,12 @@ export interface EstiloItem {
   etiqueta: string
 }
 
+// Claves = `tipo` de tenis_disponibilidad / tenis_grilla.
 const ESTILOS: Record<string, EstiloItem> = {
-  socio:         { ...tenis.web,           etiqueta: 'Reserva web' },
-  web:           { ...tenis.web,           etiqueta: 'Reserva web' },
-  invitado:      { ...tenis.web,           etiqueta: 'Invitado' },
-  extension:     { ...tenis.web,           etiqueta: 'Extensión' },
-  telefonica:    { ...tenis.telefonica,    etiqueta: 'Reserva telefónica' },
+  reserva_web:        { ...tenis.web,        etiqueta: 'Reserva web' },
+  reserva_invitado:   { ...tenis.web,        etiqueta: 'Invitado' },
+  extension:          { ...tenis.web,        etiqueta: 'Extensión' },
+  reserva_telefonica: { ...tenis.telefonica, etiqueta: 'Reserva telefónica' },
   torneo:        { ...tenis.torneo,        etiqueta: 'Torneo' },
   clase:         { ...tenis.clase,         etiqueta: 'Clase / Escuelita' },
   entrenamiento: { ...tenis.entrenamiento, etiqueta: 'Entrenamiento' },
@@ -441,7 +538,7 @@ export function estiloItem(item: Pick<ItemGrilla, 'tipo'>): EstiloItem {
 
 // Leyenda de la grilla, en el orden de OnDepor.
 export const LEYENDA_TENIS: EstiloItem[] = [
-  ESTILOS.web, ESTILOS.telefonica, ESTILOS.torneo, ESTILOS.clase,
+  ESTILOS.reserva_web, ESTILOS.reserva_telefonica, ESTILOS.torneo, ESTILOS.clase,
   ESTILOS.entrenamiento, ESTILOS.no_disponible, ESTILOS.en_suspenso,
 ]
 
@@ -565,45 +662,68 @@ export const ESTADOS_RESERVA: Record<string, string> = {
 export function codigoErrorTenis(err: unknown): string | null {
   if (!esObjeto(err)) return null
   if (typeof err.codigo === 'string') return err.codigo
-  if (err.code === 'P0001' && typeof err.message === 'string' && /^[a-z_]+$/.test(err.message)) return err.message
+  if (err.code === 'P0001' && typeof err.message === 'string' && /^[a-z0-9_]+$/.test(err.message)) return err.message
   return null
 }
 
+// Códigos de la migración 20261112000000 (ver su header) y, al final, los que
+// agregan sólo las Edge Functions (tenis-gestion / tenis-invitados).
 const MENSAJES: Record<string, string> = {
-  sin_permiso:             SIN_PERMISO,
   no_autorizado:           SIN_PERMISO,
-  socio_inactivo:          'Tu cuenta de socio no está activa. Consultá en Secretaría.',
-  moroso:                  'Tenés la cuota atrasada: regularizala para reservar.',
-  suspendido:              'Estás suspendido para reservar canchas.',
-  jugador_suspendido:      'Uno de los jugadores está suspendido y no puede jugar.',
+  sin_socio:               'Tu cuenta no está vinculada a un socio. Consultá en Secretaría.',
+  no_es_socio:             'Esa persona no es socia activa del club.',
+  parametros:              'Faltan datos o hay datos inválidos.',
+  modalidad_invalida:      'Elegí singles o dobles.',
+  origen_invalido:         'Tipo de reserva inválido.',
+  cancha_inexistente:      'Esa cancha no existe.',
+  cancha_inactiva:         'La cancha no está disponible.',
+  horario_invalido:        'Los turnos arrancan en punto o y media.',
+  fuera_de_horario:        'Ese horario está fuera del horario de las canchas.',
+  pasado:                  'Ese horario ya pasó.',
+  anticipacion:            'Sólo se puede reservar hasta 2 días antes.',
+  bloqueado:               'La cancha no está disponible en ese horario.',
+  turno_ocupado:           'Ese horario ya está ocupado. Elegí otro.',
   limite_dia:              'Ya tenés una reserva ese día.',
   limite_activas:          'Ya tenés 2 reservas activas. Esperá a jugar una para reservar otra.',
-  anticipacion:            'Sólo se puede reservar hasta 2 días antes.',
-  fuera_de_horario:        'Ese horario está fuera del horario de las canchas.',
-  horario_invalido:        'Ese horario no es válido.',
-  pasado:                  'Ese horario ya pasó.',
-  superpuesta:             'Ese horario ya está ocupado. Elegí otro.',
-  ocupado:                 'Ese horario ya está ocupado. Elegí otro.',
-  bloqueado:               'La cancha no está disponible en ese horario.',
-  cancha_inactiva:         'La cancha no está disponible.',
   cantidad_jugadores:      'Faltan o sobran jugadores para esa modalidad.',
-  jugador_repetido:        'Un jugador está cargado dos veces.',
-  jugador_invalido:        'Revisá los jugadores.',
+  jugadores_duplicados:    'Un jugador está cargado dos veces.',
+  jugador_ocupado:         'Uno de los jugadores ya tiene otro turno a esa hora.',
+  socio_no_encontrado:     'No encontramos a nadie con ese DNI. Si no es socio, cargalo como invitado.',
   dni_invalido:            'Revisá el DNI.',
-  dni_es_socio:            'Ese DNI es de un socio: buscalo en el padrón.',
-  modalidad_invalida:      'Elegí singles o dobles.',
-  fuera_de_plazo:          'Ya no se puede cancelar: faltan menos de 3 horas.',
-  cancelacion_fuera_plazo: 'Ya no se puede cancelar: faltan menos de 3 horas.',
-  no_encontrada:           'No se encontró la reserva.',
-  no_es_titular:           'Sólo quien hizo la reserva puede cancelarla.',
+  invitado_incompleto:     'Completá nombre y apellido del invitado.',
+  email_invalido:          'Revisá el mail.',
+  titular_suspendido:      'Estás suspendido para reservar canchas.',
+  titular_moroso:          'Tenés la cuota atrasada: regularizala para reservar.',
+  jugador_no_habilitado:   'Uno de los jugadores no está habilitado para jugar.',
+  titular_es_socio:        'El titular es socio: tiene que reservar desde la app.',
+  plazo_invitado:          'Ese turno está muy cerca para una reserva de invitado.',
+  reserva_inexistente:     'No se encontró la reserva.',
   estado_invalido:         'La reserva ya no se puede modificar.',
-  ya_cancelada:            'La reserva ya estaba cancelada.',
-  sin_reserva:             'No tiene una reserva ahora.',
-  cancha_ocupada:          'La cancha está ocupada en ese horario.',
-  ya_suspendido:           'Ya tiene una suspensión vigente.',
-  dias_invalidos:          'Ingresá una cantidad de días válida.',
+  reserva_finalizada:      'Ese turno ya terminó.',
+  fuera_de_plazo:          'Ya no se puede cancelar: faltan menos de 3 horas.',
+  token_invalido:          'El link no es válido o ya venció.',
+  hold_vencido:            'Pasaron los 15 minutos y el turno se liberó.',
+  reserva_cancelada:       'La reserva fue cancelada.',
+  comprobante_vencido:     'Ya pasó el plazo para subir el comprobante.',
+  path_invalido:           'El comprobante no es válido.',
   motivo_requerido:        'Escribí el motivo.',
+  bloque_invalido:         'Revisá el bloque: tipo, título y horario.',
+  bloque_inexistente:      'Ese bloque ya no existe.',
+  config_invalida:         'Revisá los valores de las reglas.',
+  dias_invalidos:          'Ingresá entre 1 y 365 días.',
+  persona_requerida:       'Elegí a la persona.',
+  jugador_inexistente:     'Ese jugador ya no está en la reserva.',
+  infraccion_inexistente:  'Esa infracción ya no existe.',
+  suspension_inexistente:  'Esa suspensión ya no está vigente.',
+  extension_invalida:      'Revisá el horario de la extensión: tiene que terminar después del turno.',
+  // Sólo Edge Functions.
+  limitado:                'Hubo muchos pedidos seguidos. Probá de nuevo en un rato.',
+  jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',
+  comprobante_invalido:    'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
+  comprobante_no_subido:   'Todavía no hay comprobante subido.',
 }
+
+export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
 
 export function mensajeErrorTenis(err: unknown, porDefecto: string): string {
   if (!err) return porDefecto
