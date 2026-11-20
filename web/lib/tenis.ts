@@ -50,9 +50,10 @@ export function configDesde(parcial: Partial<TenisConfig> | null | undefined): T
 
 // ---------- validation ----------
 
+// Same rule as tenis-invitados (normalizarDni in _shared/tenisReglas.ts): 7 or 8 digits.
 export function normalizarDni(valor: string): string | null {
-  const limpio = valor.replace(/[.\s]/g, '')
-  return /^\d{6,9}$/.test(limpio) ? limpio : null
+  const limpio = valor.replace(/[.\s-]/g, '')
+  return /^\d{7,8}$/.test(limpio) ? limpio : null
 }
 
 export function validarEmail(valor: string): boolean {
@@ -108,11 +109,13 @@ export function sinErrores(e: object | object[]): boolean {
   return Array.isArray(e) ? e.every(x => Object.keys(x).length === 0) : Object.keys(e).length === 0
 }
 
-// Body of the `reservar` action's players (members by DNI: the function resolves the socio).
-export function jugadoresPayload(jugadores: JugadorForm[]) {
+// Body of the `reservar` action's players: `{ dni, nombre?, apellido? }`. A DNI
+// alone is a member (or a guest the club already has); with name and surname
+// the DB still resolves it to a member when the DNI belongs to one.
+export function jugadoresPayload(jugadores: JugadorForm[]): { dni: string; nombre?: string; apellido?: string }[] {
   return jugadores.map(j => j.tipo === 'socio'
-    ? { tipo: 'socio' as const, dni: normalizarDni(j.dni) ?? j.dni }
-    : { tipo: 'invitado' as const, dni: normalizarDni(j.dni) ?? j.dni, nombre: j.nombre.trim(), apellido: j.apellido.trim() })
+    ? { dni: normalizarDni(j.dni) ?? j.dni }
+    : { dni: normalizarDni(j.dni) ?? j.dni, nombre: j.nombre.trim(), apellido: j.apellido.trim() })
 }
 
 // ---------- prices ----------
@@ -164,41 +167,26 @@ export function inicioIso(fecha: string, hora: string): string {
   return `${fecha}T${hora}:00-03:00`
 }
 
-function minutos(hora: string) {
-  const [h, m] = hora.split(':').map(Number)
-  return h * 60 + m
-}
-
-function hhmm(min: number) {
-  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
-}
-
-export type Ocupado = { cancha_id: string | null; inicio: string; fin: string }
 export type Cancha = { id: string; nombre: string }
 // `hora` = booked module (sent as `inicio`); `empieza` = real start after court sweeping.
 export type Turno = { hora: string; empieza: string; inicio: string }
+// One entry of `disponibilidad.libres.singles|dobles` (computed by tenis-invitados).
+export type Libre = { cancha_id: string; inicio: string; hora: string; hora_real: string }
 
-export function turnosLibres(p: {
-  fecha: string; modalidad: Modalidad; config: TenisConfig; canchas: Cancha[]; items: Ocupado[]; ahora?: Date
-}): { cancha: Cancha; turnos: Turno[] }[] {
-  const { fecha, modalidad, config, canchas, items } = p
-  const ahora = (p.ahora ?? new Date()).getTime()
-  const dur = modalidad === 'singles' ? config.singles_min : config.dobles_min
-  const desde = minutos(config.hora_desde)
-  const hasta = minutos(config.hora_hasta)
-  const rangos = items.map(i => ({ cancha: i.cancha_id, a: new Date(i.inicio).getTime(), b: new Date(i.fin).getTime() }))
-  return canchas.map(cancha => {
-    const turnos: Turno[] = []
-    for (let m = desde; m + dur <= hasta; m += config.modulo_min) {
-      const inicio = inicioIso(fecha, hhmm(m))
-      const a = new Date(inicio).getTime()
-      const b = a + dur * 60_000
-      if (a <= ahora) continue
-      const choca = rangos.some(r => (r.cancha === null || r.cancha === cancha.id) && r.a < b && a < r.b)
-      if (!choca) turnos.push({ hora: hhmm(m), empieza: hhmm(m + config.margen_inicio_min), inicio })
-    }
-    return { cancha, turnos }
-  })
+// Groups the function's free starts per court, in the order of `canchas`.
+export function turnosDesdeLibres(canchas: Cancha[], libres: unknown): { cancha: Cancha; turnos: Turno[] }[] {
+  const lista = Array.isArray(libres) ? libres : []
+  const porCancha = new Map<string, Turno[]>(canchas.map(c => [c.id, []]))
+  for (const x of lista) {
+    if (!x || typeof x !== 'object') continue
+    const l = x as Partial<Libre>
+    if (typeof l.cancha_id !== 'string' || typeof l.inicio !== 'string' || typeof l.hora !== 'string') continue
+    porCancha.get(l.cancha_id)?.push({ hora: l.hora, empieza: typeof l.hora_real === 'string' ? l.hora_real : l.hora, inicio: l.inicio })
+  }
+  return canchas.map(cancha => ({
+    cancha,
+    turnos: (porCancha.get(cancha.id) ?? []).sort((a, b) => a.inicio.localeCompare(b.inicio)),
+  }))
 }
 
 export function vencimientoComprobante(inicio: string, horasAntes = CONFIG_DEFAULT.comprobante_horas_antes): string {
@@ -234,23 +222,46 @@ export function validarComprobante(f: { type: string; size: number }): string | 
 
 // ---------- error copy ----------
 
+// Codes of tenis-invitados: the DB ones it passes through (migration
+// 20261112000000 header) and its own (limitado, jugador_sin_nombre,
+// comprobante_invalido, comprobante_no_subido).
 const MENSAJES: Record<string, string> = {
-  turno_ocupado: 'Ese turno ya no está disponible. Elegí otro.',
+  parametros: 'Faltan datos o hay datos inválidos. Revisá el formulario.',
+  modalidad_invalida: 'Elegí singles o dobles.',
+  cancha_inexistente: 'Esa cancha no existe. Elegí otra.',
+  cancha_inactiva: 'Esa cancha no está disponible. Elegí otra.',
+  horario_invalido: 'Los turnos arrancan en punto o y media.',
   fuera_de_horario: 'Ese turno está fuera del horario de reservas.',
-  fuera_de_anticipacion: 'Sólo se puede reservar hasta 2 días antes.',
-  limite_diario: 'Ya tenés una reserva ese día.',
+  pasado: 'Ese horario ya pasó. Elegí otro.',
+  anticipacion: 'Sólo se puede reservar hasta 2 días antes.',
+  bloqueado: 'Ese horario no está disponible. Elegí otro.',
+  turno_ocupado: 'Ese turno ya no está disponible. Elegí otro.',
+  limite_dia: 'Ya tenés una reserva ese día.',
   limite_activas: 'Ya tenés 2 reservas activas.',
-  suspendido: 'Uno de los jugadores está suspendido y no puede reservar.',
-  socio_no_encontrado: 'No encontramos un socio activo con ese DNI. Cargalo como invitado.',
-  jugadores_invalidos: 'Revisá los jugadores de la reserva.',
-  demasiados_intentos: 'Hiciste demasiados intentos. Esperá unos minutos y probá de nuevo.',
+  cantidad_jugadores: 'Singles lleva 1 jugador además de vos y dobles 3.',
+  jugadores_duplicados: 'Hay un DNI repetido en la reserva.',
+  jugador_ocupado: 'Uno de los jugadores ya tiene otro turno a esa hora.',
+  socio_no_encontrado: 'No encontramos un socio activo con ese DNI. Cargalo como no socio.',
+  dni_invalido: 'Revisá los DNI: sólo números, 7 u 8 dígitos.',
+  invitado_incompleto: 'Completá nombre y apellido de los no socios.',
+  email_invalido: 'Revisá tu email.',
+  titular_suspendido: 'Estás suspendido y no podés reservar por ahora.',
+  jugador_no_habilitado: 'Uno de los jugadores no está habilitado para jugar. Consultá en el club.',
+  titular_es_socio: 'Tu DNI es de un socio del club: reservá desde la app de UNCAS.',
+  plazo_invitado: 'Ese turno está muy cerca: no da el tiempo para confirmar y pagar. Elegí uno más adelante.',
+  estado_invalido: 'Esta reserva ya no admite cambios.',
   token_invalido: 'El enlace no es válido. Revisá que lo hayas abierto completo desde el mail.',
   hold_vencido: 'Pasaron los 15 minutos y la reserva se liberó. Podés volver a reservar.',
-  vencida: 'Pasaron los 15 minutos y la reserva se liberó. Podés volver a reservar.',
-  cancelada: 'Esta reserva fue cancelada.',
+  reserva_cancelada: 'Esta reserva fue cancelada.',
   comprobante_vencido: 'Venció el plazo para subir el comprobante y la reserva se canceló.',
-  archivo_invalido: 'El comprobante tiene que ser una foto (JPG o PNG) o un PDF de hasta 5 MB.',
+  path_invalido: 'No pudimos registrar el archivo. Subilo de nuevo.',
+  limitado: 'Hiciste demasiados intentos. Esperá un rato y probá de nuevo.',
+  jugador_sin_nombre: 'Uno de los DNI no es de un socio: marcalo como no socio y completá nombre y apellido.',
+  comprobante_invalido: 'El comprobante tiene que ser una foto (JPG o PNG) o un PDF de hasta 5 MB.',
+  comprobante_no_subido: 'No encontramos el archivo subido. Probá de nuevo.',
 }
+
+export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
 
 export function mensajeTenis(codigo: string | undefined | null): string {
   if (!codigo) return 'Algo salió mal. Probá de nuevo.'
@@ -258,4 +269,22 @@ export function mensajeTenis(codigo: string | undefined | null): string {
   // An unknown stable code (snake_case) is not user copy.
   if (/^[a-z0-9_]+$/.test(codigo)) return 'Algo salió mal. Probá de nuevo.'
   return codigo
+}
+
+// tenis-invitados answers business errors as 200 { ok:false, codigo, motivo }
+// (motivo = the function's Spanish copy) and real errors as { error }.
+export function mensajeRespuesta(r: { ok?: unknown; codigo?: unknown; motivo?: unknown; error?: unknown }): { codigo?: string; mensaje: string } {
+  const codigo = typeof r.codigo === 'string' ? r.codigo : undefined
+  if (codigo && MENSAJES[codigo]) return { codigo, mensaje: MENSAJES[codigo] }
+  const texto = typeof r.motivo === 'string' && r.motivo ? r.motivo : typeof r.error === 'string' ? r.error : undefined
+  return { codigo, mensaje: texto ? mensajeTenis(texto) : mensajeTenis(codigo) }
+}
+
+// Screen of the confirm page for a failed `confirmar`.
+export function pantallaConfirmar(codigo: string | undefined): 'invalido' | 'vencido' | 'error' {
+  if (codigo === 'token_invalido') return 'invalido'
+  if (codigo === 'hold_vencido' || codigo === 'reserva_cancelada' || codigo === 'comprobante_vencido' || codigo === 'estado_invalido') {
+    return 'vencido'
+  }
+  return 'error'
 }

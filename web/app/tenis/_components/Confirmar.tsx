@@ -3,29 +3,34 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  COMPROBANTE_TIPOS, formatearFechaHora, formatearPrecio, horaArgentina, validarComprobante,
+  formatearFechaHora, formatearPrecio, horaArgentina, pantallaConfirmar, validarComprobante,
   vencimientoComprobante, CONFIG_DEFAULT,
 } from '@/lib/tenis'
 import { tenisInvitados } from './api'
 import { Aviso, BotonPrincipal, Seccion } from './ui'
 
+// tenis-invitados `confirmar` (idempotent: a reload shows the current state).
 type Confirmada = {
-  reserva_id?: string
-  comprobante_vence_at?: string
+  ya_confirmada?: boolean
   total?: number
   alias?: string
-  estado?: string
-  comprobante_estado?: 'pendiente' | 'aprobado' | 'rechazado' | null
-  comprobante_motivo?: string | null
+  comprobante_vence_at?: string | null
   reserva?: {
-    cancha?: string
-    inicio?: string
-    fin?: string
-    modalidad?: 'singles' | 'dobles'
-    jugadores?: { nombre: string; cargo: number }[]
+    id?: string | null
+    cancha?: string | null
+    inicio?: string | null
+    fin?: string | null
+    hora_real?: string | null
+    modalidad?: 'singles' | 'dobles' | null
+    estado?: string | null
+    comprobante_estado?: 'pendiente' | 'aprobado' | 'rechazado' | null
+    comprobante_motivo?: string | null
+    comprobante_vence_at?: string | null
+    jugadores?: { nombre: string; cargo: number; motivo?: string | null; es_titular?: boolean }[]
   }
 }
-type Subida = { path?: string; signed_url?: string; signedUrl?: string; upload_url?: string }
+// tenis-invitados `subir-comprobante`.
+type Subida = { path?: string; signed_url?: string; upload_token?: string; content_type?: string; max_bytes?: number }
 
 type Estado =
   | { tipo: 'cargando' }
@@ -33,8 +38,6 @@ type Estado =
   | { tipo: 'vencido'; mensaje: string }
   | { tipo: 'error'; mensaje: string }
   | { tipo: 'ok'; data: Confirmada }
-
-const CODIGOS_VENCIDO = new Set(['hold_vencido', 'vencida', 'cancelada', 'comprobante_vencido'])
 
 export default function Confirmar({ token }: { token: string | null }) {
   const [estado, setEstado] = useState<Estado>(token ? { tipo: 'cargando' } : { tipo: 'invalido' })
@@ -44,9 +47,10 @@ export default function Confirmar({ token }: { token: string | null }) {
     if (!token) return
     setEstado({ tipo: 'cargando' })
     const r = await tenisInvitados<Confirmada>('confirmar', { token })
-    if (r.ok) setEstado({ tipo: 'ok', data: r.data })
-    else if (r.codigo === 'token_invalido') setEstado({ tipo: 'invalido' })
-    else if (r.codigo && CODIGOS_VENCIDO.has(r.codigo)) setEstado({ tipo: 'vencido', mensaje: r.error })
+    if (r.ok) { setEstado({ tipo: 'ok', data: r.data }); return }
+    const pantalla = pantallaConfirmar(r.codigo)
+    if (pantalla === 'invalido') setEstado({ tipo: 'invalido' })
+    else if (pantalla === 'vencido') setEstado({ tipo: 'vencido', mensaje: r.error })
     else setEstado({ tipo: 'error', mensaje: r.error })
   }
 
@@ -100,14 +104,19 @@ function Confirmacion({ token, data }: { token: string; data: Confirmada }) {
   const alias = data.alias ?? CONFIG_DEFAULT.alias_pago
   const r = data.reserva
   const vence = data.comprobante_vence_at ?? (r?.inicio ? vencimientoComprobante(r.inicio) : null)
-  const [comprobante, setComprobante] = useState(data.comprobante_estado ?? null)
+  const [comprobante, setComprobante] = useState(r?.comprobante_estado ?? null)
 
   return (
     <>
-      <Seccion titulo="¡Reserva confirmada!">
+      <Seccion titulo={data.ya_confirmada ? 'Tu reserva' : '¡Reserva confirmada!'}>
         <dl className="font-lora text-sm text-tinta/80 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
           {r?.cancha && (<><dt>Cancha</dt><dd className="text-tinta">{r.cancha}</dd></>)}
-          {r?.inicio && (<><dt>Turno</dt><dd className="text-tinta">{formatearFechaHora(r.inicio)}{r.fin ? ` a ${horaArgentina(r.fin)}` : ''}</dd></>)}
+          {r?.inicio && (
+            <><dt>Turno</dt><dd className="text-tinta">
+              {formatearFechaHora(r.inicio)}{r.fin ? ` a ${horaArgentina(r.fin)}` : ''}
+              {r.hora_real ? ` (empieza ${r.hora_real})` : ''}
+            </dd></>
+          )}
           {r?.modalidad && (<><dt>Partido</dt><dd className="text-tinta">{r.modalidad === 'singles' ? 'Singles' : 'Dobles'}</dd></>)}
         </dl>
         {r?.jugadores && r.jugadores.length > 0 && (
@@ -141,7 +150,7 @@ function Confirmacion({ token, data }: { token: string; data: Confirmada }) {
           </Seccion>
           {comprobante === 'rechazado' && (
             <Aviso tono="error">
-              El club rechazó el comprobante{data.comprobante_motivo ? `: ${data.comprobante_motivo}` : '.'} Subí uno nuevo.
+              El club rechazó el comprobante{r?.comprobante_motivo ? `: ${r.comprobante_motivo}` : '.'} Subí uno nuevo.
             </Aviso>
           )}
           <SubirComprobante token={token} onListo={() => setComprobante('pendiente')} />
@@ -198,15 +207,18 @@ function SubirComprobante({ token, onListo }: { token: string; onListo: () => vo
     try {
       const pedido = await tenisInvitados<Subida>('subir-comprobante', {
         token,
-        content_type: archivo.type,
-        extension: COMPROBANTE_TIPOS[archivo.type],
-        size: archivo.size,
+        tipo: archivo.type,
+        tamano: archivo.size,
       })
       if (!pedido.ok) { setError(pedido.error); return }
-      const url = pedido.data.signed_url ?? pedido.data.signedUrl ?? pedido.data.upload_url
+      const url = pedido.data.signed_url
       const path = pedido.data.path
       if (!url || !path) { setError('El servidor respondió algo inesperado. Probá de nuevo.'); return }
-      const put = await fetch(url, { method: 'PUT', headers: { 'Content-Type': archivo.type }, body: archivo })
+      const put = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': pedido.data.content_type ?? archivo.type },
+        body: archivo,
+      })
         .catch(() => null)
       if (!put || !put.ok) { setError('No se pudo subir el archivo. Revisá tu conexión y probá de nuevo.'); return }
       const reg = await tenisInvitados('registrar-comprobante', { token, path })
