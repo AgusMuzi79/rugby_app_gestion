@@ -371,6 +371,14 @@ export function duracionModalidad(modalidad: Modalidad, config: Pick<TenisConfig
   return modalidad === 'dobles' ? config.dobles_min : config.singles_min
 }
 
+// 60 → '1 h', 90 → '1 h 30', 45 → '45 min'.
+export function duracionTexto(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m} min`
+  return m === 0 ? `${h} h` : `${h} h ${m}`
+}
+
 // Horarios en los que entra un turno de esa modalidad en esa cancha, sin pisar
 // reservas ni bloques, dentro del horario y que todavía no empezaron.
 export function iniciosLibres(

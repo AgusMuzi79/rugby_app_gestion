@@ -3,13 +3,16 @@ import { Feather } from '@expo/vector-icons'
 import { TAB_SCREEN_OPTIONS } from '@/constants/tabOptions'
 import { AgendaContext, useAgendaEstado } from '@/hooks/useAgenda'
 import { mostrarTabAgenda } from '@/lib/agenda'
+import { verTabAgenda } from '@/lib/tenis'
+import { FEATURES } from '@/constants/features'
 
 export default function SocioLayout() {
   // La agenda se carga una vez acá: decide si se ve la pestaña y la pantalla
   // la lee del contexto. Oculta mientras carga; si falla se muestra (la
-  // pantalla ofrece Reintentar).
+  // pantalla ofrece Reintentar). Con FEATURES.tenis la ve todo socio: tiene
+  // la sección de reservas de tenis.
   const agenda = useAgendaEstado()
-  const verAgenda = mostrarTabAgenda(agenda)
+  const verAgenda = verTabAgenda(FEATURES.tenis, mostrarTabAgenda(agenda))
 
   return (
     <AgendaContext.Provider value={agenda}>

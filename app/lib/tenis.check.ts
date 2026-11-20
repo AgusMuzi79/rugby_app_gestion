@@ -10,6 +10,7 @@ import {
   bloquesPorCancha,
   codigoErrorTenis,
   diasReservables,
+  duracionTexto,
   esGestorTenis,
   estiloItem,
   fechaArgentina,
@@ -161,6 +162,12 @@ caso('estilo por tipo de ítem', () => {
 caso('jugadores requeridos además del titular', () => {
   assert.equal(jugadoresRequeridos('singles'), 1)
   assert.equal(jugadoresRequeridos('dobles'), 3)
+})
+
+caso('duración legible de cada modalidad', () => {
+  assert.equal(duracionTexto(60), '1 h')
+  assert.equal(duracionTexto(90), '1 h 30')
+  assert.equal(duracionTexto(45), '45 min')
 })
 
 caso('cancelar sólo hasta 3 h antes', () => {
