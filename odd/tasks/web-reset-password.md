@@ -50,3 +50,7 @@ Out of scope: PKCE `?code=` links (a server-sent mail has no verifier), deep-lin
   - RED: `resetPassword.check.ts` failed with `Cannot find module './resetPassword'`; `recupero-password.check.ts` failed on the new redirect assert (actual `uncasrugby://reset-password`).
   - GREEN: `resetPassword.check.ts` 16 casos ok; `recupero-password.check.ts` 15 casos ok; `npx tsc --noEmit` (web) exit 0; `npx next build --webpack` (dummy public env) exit 0, `/reset-password` prerendered static.
   - Not checked: real browser run against Supabase (needs the Redirect URL allow-list entry and a real recovery mail).
+  - Commit `2f9057e`. Native review (medium, slice budget reached): granted, approved and acknowledged (lineage `review-f6719017647d0fd5`), two non-blocking findings.
+- 2026-11-20 (T2, inline): follow-up to the review warning. A network or 5xx failure in `setSession` used to show "El link venció" and the tokens were already stripped from the URL, so the user had to ask for a new mail. Now `esFallaTransitoria()` (`web/lib/resetPassword.ts`) separates transient failures, the page shows "No pudimos verificar el link…" with REINTENTAR, and it retries with the tokens kept in the ref. RED (missing export) → GREEN 21 casos ok; `npx tsc --noEmit` ok; `next build --webpack` ok. The other finding (moving `mensajeErrorUpdate` into the lib with checks) is left as an optional follow-up.
+
+- [x] T2 — Retry on transient verification failure (review follow-up). Route: inline (one mechanical file pair, already understood).

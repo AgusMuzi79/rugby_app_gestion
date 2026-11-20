@@ -3,7 +3,9 @@
 // Sale con código distinto de 0 si algo falla.
 
 import assert from 'node:assert/strict'
-import { AVISO_LINK_VENCIDO, MIN_PASSWORD, parsearFragmentoRecupero, validarNuevaPassword } from './resetPassword'
+import {
+  AVISO_LINK_VENCIDO, MIN_PASSWORD, esFallaTransitoria, parsearFragmentoRecupero, validarNuevaPassword,
+} from './resetPassword'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -85,6 +87,28 @@ caso('falta la confirmación', () => {
 
 caso('las contraseñas no coinciden', () => {
   assert.deepEqual(validarNuevaPassword('12345678', '12345679'), { confirmacion: 'Las contraseñas no coinciden.' })
+})
+
+caso('falla de red de supabase-js es transitoria (el link sigue sirviendo)', () => {
+  assert.equal(esFallaTransitoria({ name: 'AuthRetryableFetchError', status: 0 }), true)
+})
+
+caso('error 5xx del servidor es transitorio', () => {
+  assert.equal(esFallaTransitoria({ name: 'AuthApiError', status: 503 }), true)
+})
+
+caso('fetch que tira TypeError (sin conexión) es transitorio', () => {
+  assert.equal(esFallaTransitoria(new TypeError('Failed to fetch')), true)
+})
+
+caso('token inválido o vencido (4xx) no es transitorio', () => {
+  assert.equal(esFallaTransitoria({ name: 'AuthApiError', status: 403, code: 'bad_jwt' }), false)
+  assert.equal(esFallaTransitoria({ name: 'AuthSessionMissingError', status: 400 }), false)
+})
+
+caso('valores raros no son transitorios', () => {
+  assert.equal(esFallaTransitoria(null), false)
+  assert.equal(esFallaTransitoria('boom'), false)
 })
 
 console.log(`\n${casos} casos ok`)

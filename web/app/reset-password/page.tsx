@@ -12,11 +12,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
-  AVISO_LINK_VENCIDO, MIN_PASSWORD, parsearFragmentoRecupero, validarNuevaPassword,
+  AVISO_FALLA_VERIFICACION, AVISO_LINK_VENCIDO, MIN_PASSWORD, esFallaTransitoria,
+  parsearFragmentoRecupero, validarNuevaPassword,
   type ErroresNuevaPassword, type FragmentoRecupero,
 } from '@/lib/resetPassword'
 
-type Estado = 'cargando' | 'invalido' | 'formulario' | 'listo'
+type Estado = 'cargando' | 'invalido' | 'falla' | 'formulario' | 'listo'
 
 const AVISO_LINK_INVALIDO = 'Este link no es válido. Pedí uno nuevo desde la app.'
 
@@ -78,26 +79,36 @@ export default function ResetPasswordPage() {
       return
     }
 
+    verificarLink(() => cancelado)
+    return () => { cancelado = true }
+  }, [])
+
+  // Abre la sesión del link con los tokens guardados en el ref. Una falla de red
+  // no gasta el link: deja reintentar con los mismos tokens en vez de decir que venció.
+  function verificarLink(cancelado: () => boolean = () => false) {
+    const fragmento = fragmentoRef.current
+    if (fragmento?.tipo !== 'tokens') return
+    setEstado('cargando')
     const cliente = crearCliente()
     clienteRef.current = cliente
+    const fallar = (error: unknown) => {
+      if (cancelado()) return
+      if (esFallaTransitoria(error)) {
+        setEstado('falla')
+      } else {
+        setAviso(AVISO_LINK_VENCIDO)
+        setEstado('invalido')
+      }
+    }
     cliente.auth
       .setSession({ access_token: fragmento.accessToken, refresh_token: fragmento.refreshToken })
       .then(({ data, error }) => {
-        if (cancelado) return
-        if (error || !data.session) {
-          setAviso(AVISO_LINK_VENCIDO)
-          setEstado('invalido')
-        } else {
-          setEstado('formulario')
-        }
+        if (cancelado()) return
+        if (error || !data.session) fallar(error)
+        else setEstado('formulario')
       })
-      .catch(() => {
-        if (cancelado) return
-        setAviso(AVISO_LINK_VENCIDO)
-        setEstado('invalido')
-      })
-    return () => { cancelado = true }
-  }, [])
+      .catch(fallar)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -166,6 +177,19 @@ export default function ResetPasswordPage() {
                 En la app, tocá <span className="text-oro-hondo">¿Olvidaste tu contraseña?</span> en la
                 pantalla de ingreso y te llega un mail con un link nuevo.
               </p>
+            </div>
+          )}
+
+          {estado === 'falla' && (
+            <div className="flex flex-col gap-4">
+              <p role="alert" className="font-lora text-rojo-texto text-sm">{AVISO_FALLA_VERIFICACION}</p>
+              <button
+                type="button"
+                onClick={() => verificarLink()}
+                className="bg-oro text-papel font-lora text-xs tracking-widest py-4 hover:bg-oro/90 transition-colors"
+              >
+                REINTENTAR
+              </button>
             </div>
           )}
 

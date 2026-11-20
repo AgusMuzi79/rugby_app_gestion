@@ -32,6 +32,18 @@ export function parsearFragmentoRecupero(hash: string): FragmentoRecupero {
   return { tipo: 'invalido' }
 }
 
+export const AVISO_FALLA_VERIFICACION = 'No pudimos verificar el link. Revisá tu conexión y reintentá.'
+
+// Distingue una falla de red o del servidor (el link sigue sirviendo: hay que
+// ofrecer reintentar) de un token inválido o vencido (4xx: hay que pedir otro).
+export function esFallaTransitoria(error: unknown): boolean {
+  if (error instanceof TypeError) return true
+  if (!error || typeof error !== 'object') return false
+  const { name, status } = error as { name?: unknown; status?: unknown }
+  if (name === 'AuthRetryableFetchError') return true
+  return typeof status === 'number' && status >= 500
+}
+
 export type ErroresNuevaPassword = { password?: string; confirmacion?: string }
 
 export function validarNuevaPassword(password: string, confirmacion: string): ErroresNuevaPassword {
