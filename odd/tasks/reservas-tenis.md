@@ -85,7 +85,7 @@ RPCs callable by `authenticated` (each checks its own role; errors return stable
 - [x] T1 — DB: migration `20261112000000_reservas_tenis.sql` (tables, constraints, seed courts + config, helpers, all RPCs, bucket) + SQL tests in `supabase/tests/`. Route: delegated writer (worktree `tenis-db`), parallel. Evidence: `supabase/tests/reservas_tenis.sql` in a disposable `postgres:17` container, 131/131 assertions ok, exit 0 (migration NOT applied to any Supabase project).
 - [x] T2 — Edge Functions `tenis-invitados`, `tenis-gestion`, `tenis-cron` + `_shared/tenisReglas.ts` with `.check.ts`. Route: delegated writer (worktree `tenis-functions`), parallel.
 - [x] T3 — App: flag, theme tokens, socio booking, gestor "Canchas" tab, canchero "Tenis" tab. Route: delegated writer (worktree `tenis-app`), parallel.
-- [ ] T4 — Web: public guest booking + confirmation + receipt upload pages. Route: delegated writer (worktree `tenis-web`), parallel.
+- [x] T4 — Web: public guest booking + confirmation + receipt upload pages. Route: delegated writer (worktree `tenis-web`), parallel.
 - [ ] T5 — Integration: merge the four branches into `feat/reservas-tenis`, fix contract mismatches, full checks. Route: inline/delegated as needed.
 
 ### T1 notes (deviations and additions to the contract; names unchanged)
@@ -119,6 +119,12 @@ Route evidence: 4 parallel writers explicitly requested by Agus on 2026-11-20 ("
 - Expected `tenis_procesar()` summary: `{vencidas:[id], canceladas:[id], no_shows:[id], advertencias:[{socio_id|invitado_id, reserva_id}]}` (ids or objects with `reserva_id`; `canceladas_sin_comprobante` also accepted).
 - For T1: bucket `tenis-comprobantes` should set `file_size_limit` 5 MB and `allowed_mime_types` jpg/png/pdf (signed upload URLs do not enforce size; `registrar-comprobante` re-checks it).
 - Checks: `npx --yes tsx supabase/functions/_shared/tenisReglas.check.ts` → 20 casos ok; `deno` not installed, typechecked with `tsc --strict` + Deno shim instead (exit 0).
+### T4 notes
+- Pages `web/app/tenis/reservar` and `web/app/tenis/confirmar` (client components in `web/app/tenis/_components/`), pure helpers in `web/lib/tenis.ts` + `tenis.check.ts` (14 cases). `FEATURES.tenis = false` → both routes 404 (checked with `next start`).
+- `tenis-invitados` is called as POST JSON `{ action, ...payload }` with only `Content-Type` (no auth/apikey header); errors read as `{ ok:false, motivo:'<code>' }` or `{ error }` (`lib/edgeFunctionRespuesta.ts`).
+- Assumed shapes for T2: `disponibilidad {fecha}` → `{config, canchas:[{id,nombre}], items:[{cancha_id|null, inicio, fin}]}`; `reservar {fecha, cancha_id, inicio, modalidad, titular:{dni,nombre,apellido,email}, jugadores:[{tipo:'socio',dni} | {tipo:'invitado',dni,nombre,apellido}]}` → `{reserva_id, hold_vence_at, total?, jugadores?:[{nombre,cargo,motivo}]}`; `confirmar {token}` → `{reserva_id, comprobante_vence_at, total, alias, comprobante_estado?, comprobante_motivo?, reserva?:{cancha, inicio, fin, modalidad, jugadores}}` (must be idempotent: reload re-confirms); `subir-comprobante {token, content_type, extension, size}` → `{path, signed_url}`; `registrar-comprobante {token, path}`. Codes mapped: `turno_ocupado`, `token_invalido`, `hold_vencido`/`vencida`, `cancelada`, `comprobante_vencido`, `demasiados_intentos`, `suspendido`, `socio_no_encontrado`, `limite_diario`, `limite_activas`, `fuera_de_horario`, `fuera_de_anticipacion`, `jugadores_invalidos`, `archivo_invalido`.
+- `inicio` = booked module (`18:00-03:00`); the page shows the real start (`18:05`, + `margen_inicio_min`). Members are sent by DNI (the function resolves `socio_id`) and shown as "precio según socio" until `reservar` returns charges.
+- The confirm page sets `referrer: no-referrer` so the `?t=` token never leaks.
 
 ## Acceptance criteria
 - A member books singles/doubles picking players from the padrón; prices follow the carnet rule; limits (1/day, 2 active, 2 days ahead) and the 3 h cancellation are enforced server-side.
