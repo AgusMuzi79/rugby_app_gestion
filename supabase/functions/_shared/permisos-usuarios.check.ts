@@ -160,4 +160,20 @@ caso('beneficios: admin gestiona la cuenta y quitarle el rol deja socio; subcomi
   )
 })
 
+caso('pileta: sólo admin lo asigna (subcomisión no) y es un rol de la app', () => {
+  assert.ok(ROLES_POR_CALLER.admin.includes('pileta'))
+  assert.ok(!ROLES_POR_CALLER.subcomision.includes('pileta'))
+  assert.ok(!esRolSoloWeb('pileta'))
+  assert.deepEqual(
+    rolesTrasAsignar(['socio'], 'socio', 'pileta'),
+    { roles: ['socio', 'pileta'], rol: 'pileta' },
+  )
+})
+
+caso('pileta: subcomisión no gestiona una cuenta que sólo tiene pileta', () => {
+  const lector = destino({ rol: 'pileta', roles: ['pileta'], tieneSocio: false })
+  assert.equal(autorizarAccion(SUBCO, lector, 'deactivate')?.status, 403)
+  assert.equal(autorizarAccion(ADMIN, lector, 'deactivate'), null)
+})
+
 console.log(`\n${casos} casos ok`)
