@@ -5,7 +5,7 @@ import { mensajeErrorFunction } from '@/lib/errorFunction'
 import { erroresVisibles, hayErrores, todosTocados, type Tocados } from '@/lib/validacionAuth'
 import { CAMPOS_NUEVO_USUARIO, validarFormNuevoUsuario, type CampoNuevoUsuario } from '@/lib/usuariosForm'
 
-export type RolCreable = 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'subcomision'
+export type RolCreable = 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria' | 'porteria' | 'canchero' | 'buffet' | 'pileta' | 'subcomision'
 export type PasoUsuarios = 'lista' | 'detalle'
 
 export interface Usuario {
@@ -44,6 +44,7 @@ const ROL_LABEL: Record<string, string> = {
   porteria:    'Gimnasio',
   canchero:    'Canchero',
   buffet:      'Buffet',
+  pileta:      'Pileta',
   admin:       'Admin',
 }
 
