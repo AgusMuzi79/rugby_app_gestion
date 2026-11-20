@@ -54,3 +54,7 @@ Out of scope: PKCE `?code=` links (a server-sent mail has no verifier), deep-lin
 - 2026-11-20 (T2, inline): follow-up to the review warning. A network or 5xx failure in `setSession` used to show "El link venció" and the tokens were already stripped from the URL, so the user had to ask for a new mail. Now `esFallaTransitoria()` (`web/lib/resetPassword.ts`) separates transient failures, the page shows "No pudimos verificar el link…" with REINTENTAR, and it retries with the tokens kept in the ref. RED (missing export) → GREEN 21 casos ok; `npx tsc --noEmit` ok; `next build --webpack` ok. The other finding (moving `mensajeErrorUpdate` into the lib with checks) is left as an optional follow-up.
 
 - [x] T2 — Retry on transient verification failure (review follow-up). Route: inline (one mechanical file pair, already understood).
+- Branch review (2f9057e + a3cb8c1, 533 lines): granted, approved and acknowledged (lineage `review-9bf2fa7eb986a8a9`), three non-blocking suggestions.
+- 2026-11-20 (T3, inline, authorized "arreglá las 3 sugerencias en un commit aparte"): 429 rate limit counts as transient (retry instead of "link vencido"); `errorAlGuardar()` and `destinoTrasVerificar()` moved into `web/lib/resetPassword.ts` with checks (the page only renders their result); success shows before `signOut`, which now runs in the background. RED (429 assert) → GREEN 29 casos ok; `npx tsc --noEmit` ok; `next build --webpack` ok.
+
+- [x] T3 — Branch review suggestions (429, untested page mapping, signOut blocking success). Route: inline.

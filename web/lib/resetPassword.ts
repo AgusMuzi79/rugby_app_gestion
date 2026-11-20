@@ -41,7 +41,34 @@ export function esFallaTransitoria(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
   const { name, status } = error as { name?: unknown; status?: unknown }
   if (name === 'AuthRetryableFetchError') return true
-  return typeof status === 'number' && status >= 500
+  // 429: rate limit de Supabase. El link no se gastó; alcanza con esperar y reintentar.
+  return typeof status === 'number' && (status === 429 || status >= 500)
+}
+
+export type DestinoVerificacion = 'formulario' | 'falla' | 'invalido'
+
+// Qué pantalla mostrar después de intentar abrir la sesión del link.
+export function destinoTrasVerificar({ session, error }: { session: boolean; error: unknown }): DestinoVerificacion {
+  if (session && !error) return 'formulario'
+  return esFallaTransitoria(error) ? 'falla' : 'invalido'
+}
+
+const ERROR_GUARDAR_GENERICO = 'No se pudo actualizar la contraseña. Intentá de nuevo.'
+
+export type ErrorAlGuardar = { tipo: 'formulario' | 'vencido'; mensaje: string }
+
+// Traduce un error de updateUser: 'vencido' saca al usuario del formulario
+// (hay que pedir otro link); 'formulario' lo deja ahí con el mensaje.
+export function errorAlGuardar(error: unknown): ErrorAlGuardar {
+  const { name, code } = (error && typeof error === 'object' ? error : {}) as { name?: unknown; code?: unknown }
+  if (code === 'same_password') {
+    return { tipo: 'formulario', mensaje: 'La contraseña nueva tiene que ser distinta de la anterior.' }
+  }
+  if (code === 'weak_password') return { tipo: 'formulario', mensaje: 'Esa contraseña es muy débil. Probá con otra.' }
+  if (name === 'AuthSessionMissingError' || code === 'session_not_found' || code === 'session_expired') {
+    return { tipo: 'vencido', mensaje: AVISO_LINK_VENCIDO }
+  }
+  return { tipo: 'formulario', mensaje: ERROR_GUARDAR_GENERICO }
 }
 
 export type ErroresNuevaPassword = { password?: string; confirmacion?: string }

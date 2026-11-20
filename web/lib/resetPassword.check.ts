@@ -4,7 +4,8 @@
 
 import assert from 'node:assert/strict'
 import {
-  AVISO_LINK_VENCIDO, MIN_PASSWORD, esFallaTransitoria, parsearFragmentoRecupero, validarNuevaPassword,
+  AVISO_LINK_VENCIDO, MIN_PASSWORD, destinoTrasVerificar, errorAlGuardar, esFallaTransitoria,
+  parsearFragmentoRecupero, validarNuevaPassword,
 } from './resetPassword'
 
 let casos = 0
@@ -104,6 +105,50 @@ caso('fetch que tira TypeError (sin conexión) es transitorio', () => {
 caso('token inválido o vencido (4xx) no es transitorio', () => {
   assert.equal(esFallaTransitoria({ name: 'AuthApiError', status: 403, code: 'bad_jwt' }), false)
   assert.equal(esFallaTransitoria({ name: 'AuthSessionMissingError', status: 400 }), false)
+})
+
+caso('rate limit (429) es transitorio: el link sigue sirviendo', () => {
+  assert.equal(esFallaTransitoria({ name: 'AuthApiError', status: 429, code: 'over_request_rate_limit' }), true)
+})
+
+caso('tras verificar: sesión abierta lleva al formulario', () => {
+  assert.equal(destinoTrasVerificar({ session: true, error: null }), 'formulario')
+})
+
+caso('tras verificar: falla de red ofrece reintentar', () => {
+  assert.equal(destinoTrasVerificar({ session: false, error: new TypeError('Failed to fetch') }), 'falla')
+  assert.equal(destinoTrasVerificar({ session: false, error: { name: 'AuthApiError', status: 429 } }), 'falla')
+})
+
+caso('tras verificar: token rechazado o sin sesión es link inválido', () => {
+  assert.equal(destinoTrasVerificar({ session: false, error: { name: 'AuthApiError', status: 403 } }), 'invalido')
+  assert.equal(destinoTrasVerificar({ session: false, error: null }), 'invalido')
+})
+
+caso('al guardar: misma contraseña se muestra en el formulario', () => {
+  assert.deepEqual(errorAlGuardar({ code: 'same_password', status: 422 }), {
+    tipo: 'formulario', mensaje: 'La contraseña nueva tiene que ser distinta de la anterior.',
+  })
+})
+
+caso('al guardar: contraseña débil se muestra en el formulario', () => {
+  assert.deepEqual(errorAlGuardar({ code: 'weak_password', status: 422 }), {
+    tipo: 'formulario', mensaje: 'Esa contraseña es muy débil. Probá con otra.',
+  })
+})
+
+caso('al guardar: sin sesión o sesión vencida manda a link vencido', () => {
+  const vencido = { tipo: 'vencido', mensaje: AVISO_LINK_VENCIDO }
+  assert.deepEqual(errorAlGuardar({ name: 'AuthSessionMissingError', status: 400 }), vencido)
+  assert.deepEqual(errorAlGuardar({ code: 'session_not_found', status: 403 }), vencido)
+  assert.deepEqual(errorAlGuardar({ code: 'session_expired', status: 403 }), vencido)
+})
+
+caso('al guardar: cualquier otro error deja reintentar desde el formulario', () => {
+  const generico = { tipo: 'formulario', mensaje: 'No se pudo actualizar la contraseña. Intentá de nuevo.' }
+  assert.deepEqual(errorAlGuardar({ name: 'AuthRetryableFetchError', status: 0 }), generico)
+  assert.deepEqual(errorAlGuardar(new TypeError('Failed to fetch')), generico)
+  assert.deepEqual(errorAlGuardar(null), generico)
 })
 
 caso('valores raros no son transitorios', () => {

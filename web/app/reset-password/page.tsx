@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import {
-  AVISO_FALLA_VERIFICACION, AVISO_LINK_VENCIDO, MIN_PASSWORD, esFallaTransitoria,
+  AVISO_FALLA_VERIFICACION, AVISO_LINK_VENCIDO, MIN_PASSWORD, destinoTrasVerificar, errorAlGuardar,
   parsearFragmentoRecupero, validarNuevaPassword,
   type ErroresNuevaPassword, type FragmentoRecupero,
 } from '@/lib/resetPassword'
@@ -25,17 +25,6 @@ function crearCliente(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
-}
-
-type ErrorAuth = { name?: string; code?: string; message?: string }
-
-function mensajeErrorUpdate(error: ErrorAuth): string {
-  if (error.code === 'same_password') return 'La contraseña nueva tiene que ser distinta de la anterior.'
-  if (error.code === 'weak_password') return 'Esa contraseña es muy débil. Probá con otra.'
-  if (error.name === 'AuthSessionMissingError' || error.code === 'session_not_found' || error.code === 'session_expired') {
-    return AVISO_LINK_VENCIDO
-  }
-  return 'No se pudo actualizar la contraseña. Intentá de nuevo.'
 }
 
 const claseInput =
@@ -91,23 +80,16 @@ export default function ResetPasswordPage() {
     setEstado('cargando')
     const cliente = crearCliente()
     clienteRef.current = cliente
-    const fallar = (error: unknown) => {
+    const ir = (session: boolean, error: unknown) => {
       if (cancelado()) return
-      if (esFallaTransitoria(error)) {
-        setEstado('falla')
-      } else {
-        setAviso(AVISO_LINK_VENCIDO)
-        setEstado('invalido')
-      }
+      const destino = destinoTrasVerificar({ session, error })
+      if (destino === 'invalido') setAviso(AVISO_LINK_VENCIDO)
+      setEstado(destino)
     }
     cliente.auth
       .setSession({ access_token: fragmento.accessToken, refresh_token: fragmento.refreshToken })
-      .then(({ data, error }) => {
-        if (cancelado()) return
-        if (error || !data.session) fallar(error)
-        else setEstado('formulario')
-      })
-      .catch(fallar)
+      .then(({ data, error }) => ir(Boolean(data.session), error))
+      .catch((error: unknown) => ir(false, error))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,23 +110,24 @@ export default function ResetPasswordPage() {
     try {
       const { error } = await cliente.auth.updateUser({ password })
       if (error) {
-        const mensaje = mensajeErrorUpdate(error)
-        if (mensaje === AVISO_LINK_VENCIDO) {
-          setAviso(mensaje)
+        const resultado = errorAlGuardar(error)
+        if (resultado.tipo === 'vencido') {
+          setAviso(resultado.mensaje)
           setEstado('invalido')
         } else {
-          setErrorGeneral(mensaje)
+          setErrorGeneral(resultado.mensaje)
         }
         return
       }
-      // La sesión del link sólo vive en memoria; se cierra igual para no dejarla usable.
-      await cliente.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      // La contraseña ya cambió: el éxito no espera a la red. La sesión del link
+      // sólo vive en memoria; se cierra en segundo plano para no dejarla usable.
       clienteRef.current = null
       setPassword('')
       setConfirmacion('')
       setEstado('listo')
-    } catch {
-      setErrorGeneral('No se pudo actualizar la contraseña. Intentá de nuevo.')
+      void cliente.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    } catch (error) {
+      setErrorGeneral(errorAlGuardar(error).mensaje)
     } finally {
       setGuardando(false)
     }
