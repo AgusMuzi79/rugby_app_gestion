@@ -148,11 +148,30 @@ Source of truth: the migration (RPC names, args, shapes) and `tenis-invitados` (
 - `npx tsc --noEmit` in `app/` and `web/`; `npx tsx` for `*.check.ts`; `deno check` for the new Edge Functions; SQL tests reviewed (migration NOT applied to production).
 
 ## Delivery
-Forecast well above 400 authored lines → chained PRs by workstream (DB → functions → app → web) under strategy `ask-on-risk`; slice boundaries recorded here after integration.
+Forecast well above 400 authored lines → chained PRs by workstream under strategy `ask-on-risk`. The whole branch (46 files, 10,428 lines) exceeded the native review budget, so it was reviewed in 5 slices that are also the PR slices:
+1. DB `f61bb92..07cb541` — approved (lineage `review-e9498e36c6beb3da`).
+2. Functions `07cb541..4a0781e` — approved.
+3. App `4a0781e..0815114` — approved.
+4. Web `0815114..140064c` — approved.
+5. Integration `140064c..91185b1` — approved.
+All five were medium risk, granted by Agus, reviewed by the reliability lens, approved with advisory findings only, and acknowledged.
+
+## Review follow-ups (non-blocking advisory findings, 2026-11-20)
+Fix before launch (behaviour bugs):
+- [ ] F1 — No-show with a prepaid titular: `tenis_procesar` adds the total to an already paid titular row and resets `cobrado`, so the prepaid amount is owed again (migration ~2433). Charge the extra separately.
+- [ ] F2 — `tenis_extension` skips the per-player overlap and suspension/moroso checks, accepts a future booking as source and stamps `check_in_at` on a turn that has not happened (migration ~2183). Require an in-progress/just-ended source and reuse the checks.
+- [ ] F3 — Guest booking with a receipt still under review when the turn ends stays in `pendiente_comprobante` forever, and a late approval turns into `no_show` + infraction (migration ~2401). Define the end state.
+- [ ] F4 — App: out-of-order responses when switching days can show another day's grid (`useTenisSocio`, `useTenisGrilla`); add a request-sequence guard like `BuscadorJugador`.
+- [ ] F5 — App canchero tab fixes `hoy` at mount and keeps loading the previous day after midnight (`(porteria)/tenis.tsx`).
+- [ ] F6 — Web: double submit creates two holds and two emails (`ReservarForm` `enviar`); bookable dates ignore server `anticipacion_dias` and don't roll over at midnight.
+- [ ] F7 — `tenis-invitados` `confirmar` can 500 on an unparseable `fin`; `socio_no_encontrado` → `jugador_sin_nombre` relies on a DB `details` field that the DB may not set.
+- [ ] F8 — `tenis-cron`: one failing read or email aborts all remaining notices (state is already committed and notices are not retried); isolate per notice.
+Coverage (nice to have): SQL cases for receipt replacement, extension failures, `reserva_finalizada`, concurrent races, FK errors in `tenis_infraccion_crear`; checks for handler branches, app/web response parsers, `configDesde`, web API error mapping, cron notice mapping; reset `deporte` on user change in `useEsGestorTenis`.
 
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
+- 2026-11-20: native review in 5 slices, all approved and acknowledged; advisory findings recorded as F1–F8.
 
 ## Next step
-Review the integrated branch, decide delivery slices (DB → functions → app → web), then apply the migration and deploy functions only with Agus's OK.
+Decide whether to fix F1–F8 before opening the chained PRs. Apply the migration and deploy functions only with Agus's OK. Open product decision: TOTP validation on the QR check-in.
