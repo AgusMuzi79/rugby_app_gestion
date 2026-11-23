@@ -33,6 +33,8 @@ caso('cada rol va al mismo inicio que el mapa que reemplazó (_layout.tsx)', () 
     cliente_gimnasio: '/(cliente-gimnasio)/carnet', socio: '/(socio)/carnet', tutor: '/(tutor)/carnet',
     // T23: sólo toma asistencia, entra directo a la lista.
     colaborador: '/(colaborador)/asistencia',
+    // Lector de la pileta: mismo scanner que canchero.
+    pileta: '/(porteria)/scanner',
   }
   for (const [rol, ruta] of Object.entries(antes)) {
     assert.equal(destinoGuard({ ...base, rol: rol as EstadoGuard['rol'] }), ruta, rol)

@@ -33,7 +33,8 @@
 //                 service_role de esta función puede leerla.
 //                 rol='tutor' (adulto no socio, ver 20261009000000_tutor_menores): `socio_id`
 //                 obligatorio y vinculado al caller en tutores_menores (ver handleGetSecretTutor).
-//   validate(-dni)/listar-accesos: JWT requerido, rol='porteria'/'canchero'/'buffet' (o secretaria/admin/subcomision).
+//   validate(-dni)/listar-accesos/registrar-offline: JWT requerido, rol='porteria'/'canchero'/'buffet'/'pileta'
+//                   (o secretaria/admin/subcomision). registrar-invitado: sin 'pileta'.
 //                   El caller NUNCA recibe el secret — solo info del socio.
 //                   validate-dni no tiene el TOTP como segundo factor — confía en que el
 //                   dispositivo ya está autenticado como Lector (mismo trust boundary que
@@ -42,9 +43,10 @@
 //                   tener un fallback cuando el socio no lleva el teléfono.
 //
 // Cada validate/validate-dni exitoso llamado por una cuenta Lector (rol='porteria'),
-// Canchero (rol='canchero') o Buffet (rol='buffet') deja un registro en `accesos`
-// (ver 20260902000000_accesos_gimnasio.sql) — es lo que alimenta listar-accesos, con
-// `punto` distinto según el rol (gimnasio/tenis/buffet, ver PUNTO_POR_ROL). Un caller
+// Canchero (rol='canchero'), Buffet (rol='buffet') o Pileta (rol='pileta') deja un
+// registro en `accesos` (ver 20260902000000_accesos_gimnasio.sql) — es lo que alimenta
+// listar-accesos, con `punto` distinto según el rol (gimnasio/tenis/buffet/pileta, ver
+// PUNTO_POR_ROL). Lector y Pileta además exigen su servicio (servicio-por-rol.ts). Un caller
 // secretaria/admin/subcomision (ej. probando un QR) no genera registro — no
 // representa un ingreso real.
 
@@ -57,6 +59,7 @@ import { contarVecesInvitadoPorVisita, enTandas, hoyAR, resolverRango, traerToda
 import { nombreVisible } from '../_shared/nombre-padron.ts'
 import { motivoRechazoPorEstado } from '../_shared/estado-acceso.ts'
 import { normalizarDni } from '../_shared/login-identificador.ts'
+import { pasaPorCategoria, servicioRequeridoPorRol, type ServicioRequerido } from './servicio-por-rol.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -270,15 +273,20 @@ const PUNTO_POR_ROL: Record<string, string> = {
   porteria: 'gimnasio',
   canchero: 'tenis',
   buffet:   'buffet',
+  pileta:   'pileta',
 }
 
-// ─── Gate de servicio: Lector exige Gimnasio contratado ───────────────────────
+// ─── Gate de servicio: Lector exige Gimnasio, Pileta exige Pileta ────────────
 //
 // A diferencia de Canchero/Buffet (que hoy sólo validan "socio al día",
 // igual que Lector antes de esto), el gimnasio es autoservicio sin nadie
 // atendiendo la puerta — el escaneo ES el control de acceso, así que acá sí
 // hace falta bloquear de verdad si el servicio no está contratado, no sólo
 // mostrar un aviso.
+//
+// La pileta (rol 'pileta', 20261120000000_rol_pileta) es atendida, pero sólo
+// entra quien pagó la temporada: Secretaría le asigna a mano el servicio
+// "Pileta". Qué servicio exige cada rol vive en servicio-por-rol.ts.
 //
 // El catálogo real (`servicios_opcionales`, ver 20260821000000_gimnasio_variantes_padron_servicios
 // y 20260805000002_fix_gimnasio_catalogo_drift) tiene varias variantes de
@@ -290,22 +298,27 @@ const PUNTO_POR_ROL: Record<string, string> = {
 // "Cliente Gimnasio" es un caso aparte: no son socios del club, son filas de
 // `socios` con categoría "Cliente Gimnasio" y rol 'cliente_gimnasio' (ver
 // 20260911000000_rol_cliente_gimnasio) — no tienen fila en `socio_servicios`
-// porque la categoría ya los distingue, el gimnasio ES su único servicio.
+// porque la categoría ya los distingue, el gimnasio ES su único servicio (no
+// les alcanza para la pileta).
 // null = no se pudo consultar (error de la base): no es lo mismo que "no tiene
 // el servicio", y el socio no puede leer un rechazo falso.
-async function tieneServicioGimnasio(socioId: string, categoriaNombre: string | null): Promise<boolean | null> {
-  if (categoriaNombre === 'Cliente Gimnasio') return true
+async function tieneServicioRequerido(
+  socioId: string,
+  categoriaNombre: string | null,
+  servicio: ServicioRequerido,
+): Promise<boolean | null> {
+  if (pasaPorCategoria(servicio, categoriaNombre)) return true
 
   const { data, error } = await supabaseAdmin
     .from('socio_servicios')
     .select('servicios_opcionales!inner(nombre, activo)')
     .eq('socio_id', socioId)
     .eq('servicios_opcionales.activo', true)
-    .ilike('servicios_opcionales.nombre', '%gimnasio%')
+    .ilike('servicios_opcionales.nombre', servicio.patron)
     .limit(1)
 
   if (error) {
-    console.error('servicio-gimnasio:', error.message)
+    console.error(`servicio-${servicio.nombre.toLowerCase()}:`, error.message)
     return null
   }
   return (data?.length ?? 0) > 0
@@ -427,8 +440,6 @@ function esNoEncontrado(error: { code?: string } | null): boolean {
   return !error || error.code === 'PGRST116'
 }
 
-const MOTIVO_SIN_SERVICIO = 'No tenés el servicio de Gimnasio contratado. Consultá con Secretaría.'
-
 // Lo común a validate y validate-dni una vez identificado el socio: estado,
 // servicio, turno, consumo del código (sólo QR en el gimnasio), registro y
 // respuesta. `paso` = paso TOTP a consumir, o null (DNI).
@@ -441,18 +452,21 @@ async function decidirIngreso(row: SocioRow, callerRol: string, paso: number | n
   const motivoEstado = motivoRechazoPorEstado(row.estado)
   if (motivoEstado) return jsonOk({ valido: false, motivo: motivoEstado, estado: row.estado })
 
+  // Turnero y consumo del código: sólo en el gimnasio (no en la pileta).
   const esGimnasio = callerRol === 'porteria'
-  const [tieneGimnasio, turno, fotoUrl] = await Promise.all([
-    esGimnasio ? tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null) : Promise.resolve(true),
+  // Gimnasio y Pileta exigen su servicio; Canchero/Buffet/staff, ninguno.
+  const servicio = servicioRequeridoPorRol(callerRol)
+  const [tieneServicio, turno, fotoUrl] = await Promise.all([
+    servicio ? tieneServicioRequerido(row.id, row.categorias_socio?.nombre ?? null, servicio) : Promise.resolve(true),
     // FAIL-OPEN, nunca tira (ver obtenerTurno).
     esGimnasio ? obtenerTurno(row.id) : Promise.resolve(null),
     firmarFoto(row.foto_path),
   ])
 
-  if (tieneGimnasio === null) return jsonError(500, 'No se pudo verificar el servicio de Gimnasio. Probá de nuevo.')
-  if (!tieneGimnasio) {
+  if (servicio && tieneServicio === null) return jsonError(500, servicio.errorConsulta)
+  if (servicio && !tieneServicio) {
     await enSegundoPlano(registrarAcceso(row.id, row.semaforo, callerRol, { sinServicio: true, motivoRechazo: 'Sin servicio' }))
-    return jsonOk({ valido: false, motivo: MOTIVO_SIN_SERVICIO })
+    return jsonOk({ valido: false, motivo: servicio.motivo })
   }
 
   // Turnero: sólo después del gate de servicio (que conserva la prioridad).
@@ -466,7 +480,7 @@ async function decidirIngreso(row: SocioRow, callerRol: string, paso: number | n
   }
 
   // Un código abre una sola vez en el gimnasio (autoservicio: nadie mira la
-  // foto, una captura reenviada abría la puerta). Canchero y Buffet son
+  // foto, una captura reenviada abría la puerta). Canchero, Buffet y Pileta son
   // atendidos y no lo consumen, así un socio puede pasar por los dos en el
   // mismo minuto. Se consume recién al dejar pasar (un rechazo no lo quema).
   // Si el RPC falla se deja pasar y se loguea: un error de la base no es una
@@ -497,7 +511,7 @@ async function handleValidate(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'pileta', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   const numero_socio = (body.numero_socio as string | undefined)?.trim()
@@ -549,7 +563,7 @@ async function handleValidateDni(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'pileta', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para validar carnets')
 
   // socios.dni guarda sólo dígitos: "30.123.456" o con espacios no encontraba a nadie.
@@ -601,6 +615,7 @@ async function handleRegistrarInvitado(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
+  // Sin 'pileta': a la pileta sólo entra quien pagó la temporada, no hay invitados.
   const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para registrar invitados')
 
@@ -684,7 +699,7 @@ async function handleRegistrarOffline(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'pileta', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para registrar accesos')
 
   // Igual que validate: secretaria/admin/subcomision no representan un ingreso real.
@@ -758,10 +773,11 @@ async function registrarItemOffline(item: ItemOffline, callerRol: string, punto:
     else if (!(await codigoValidoEnInstante(secret.totp_secret, item.code, item.instante))) motivo = 'Código inválido'
   }
   if (!motivo && motivoRechazoPorEstado(row.estado)) motivo = 'Dado de baja'
-  if (!motivo && callerRol === 'porteria') {
-    const tieneGimnasio = await tieneServicioGimnasio(row.id, row.categorias_socio?.nombre ?? null)
-    if (tieneGimnasio === null) throw new Error('no se pudo verificar el servicio de Gimnasio')
-    if (!tieneGimnasio) {
+  const servicio = servicioRequeridoPorRol(callerRol)
+  if (!motivo && servicio) {
+    const tieneServicio = await tieneServicioRequerido(row.id, row.categorias_socio?.nombre ?? null, servicio)
+    if (tieneServicio === null) throw new Error(`no se pudo verificar el servicio de ${servicio.nombre}`)
+    if (!tieneServicio) {
       motivo = 'Sin servicio'
       sinServicio = true
     }
@@ -798,7 +814,7 @@ async function handleListarAccesos(
   body: Record<string, unknown>,
   callerRol: string
 ): Promise<Response> {
-  const ALLOWED = ['porteria', 'canchero', 'buffet', 'secretaria', 'admin', 'subcomision']
+  const ALLOWED = ['porteria', 'canchero', 'buffet', 'pileta', 'secretaria', 'admin', 'subcomision']
   if (!ALLOWED.includes(callerRol)) return jsonError(403, 'Sin permiso para ver el historial de accesos')
 
   const rango = resolverRango(body, hoyAR())

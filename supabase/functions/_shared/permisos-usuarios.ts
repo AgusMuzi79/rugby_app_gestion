@@ -10,13 +10,15 @@
 // 'beneficios' (2026-11-06, migración 20261111000000): gestiona el club de
 // beneficios desde el panel web. Sólo admin lo asigna; subcomisión no (el guard
 // guard_profile_role_update tampoco se lo deja poner ni quitar).
+// 'pileta' (2026-11-20, migración 20261120000000): lector de la entrada de la
+// pileta, rol de la app como canchero. Sólo admin lo asigna.
 export type RolCreable =
   | 'coordinador' | 'entrenador' | 'colaborador' | 'manager' | 'secretaria'
-  | 'porteria' | 'canchero' | 'buffet' | 'subcomision' | 'beneficios'
+  | 'porteria' | 'canchero' | 'buffet' | 'pileta' | 'subcomision' | 'beneficios'
 
 export const ROLES_POR_CALLER: Record<string, RolCreable[]> = {
   subcomision: ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision'],
-  admin:       ['coordinador', 'entrenador', 'colaborador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'subcomision', 'beneficios'],
+  admin:       ['coordinador', 'entrenador', 'colaborador', 'manager', 'secretaria', 'porteria', 'canchero', 'buffet', 'pileta', 'subcomision', 'beneficios'],
 }
 
 // Roles que sólo existen en el panel web: la app mobile nunca los usa como rol

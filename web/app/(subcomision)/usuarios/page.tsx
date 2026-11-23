@@ -15,12 +15,13 @@ import ErrorCarga from '@/components/ErrorCarga'
 const ROLES_SUBCO  = ['coordinador', 'entrenador', 'colaborador', 'manager', 'subcomision']
 // beneficios: rol solo web (panel del club de beneficios), sólo lo da admin.
 // Se asigna a un socio existente y se suma a sus roles (no reemplaza otro).
-const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet', 'beneficios']
+// pileta: lector de la entrada de la pileta (sólo app, como canchero), sólo admin.
+const ROLES_ADMIN  = [...ROLES_SUBCO, 'secretaria', 'porteria', 'canchero', 'buffet', 'pileta', 'beneficios']
 const ROL_LABEL: Record<string, string> = {
   subcomision: 'Subcomisión', coordinador: 'Coordinador',
   entrenador: 'Entrenador', colaborador: 'Colaborador', manager: 'Manager',
   secretaria: 'Secretaría', porteria: 'Gimnasio', canchero: 'Canchero', buffet: 'Buffet',
-  beneficios: 'Beneficios',
+  pileta: 'Pileta', beneficios: 'Beneficios',
 }
 
 interface Division { id: string; nombre: string; deporte: string }

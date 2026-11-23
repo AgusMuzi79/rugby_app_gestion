@@ -37,6 +37,12 @@ caso('coordinador + socio + beneficios: sólo se saca beneficios', () => {
   })
 })
 
+caso('pileta es un rol de la app: se conserva como rol activo', () => {
+  assert.deepEqual(normalizarRolesMovil('pileta', ['socio', 'pileta']), {
+    rol: 'pileta', roles: ['socio', 'pileta'], reescribir: false,
+  })
+})
+
 caso('rol web sin socio: toma el primer rol móvil que quede', () => {
   assert.deepEqual(normalizarRolesMovil('beneficios', ['beneficios', 'manager', 'entrenador']), {
     rol: 'manager', roles: ['manager', 'entrenador'], reescribir: true,
