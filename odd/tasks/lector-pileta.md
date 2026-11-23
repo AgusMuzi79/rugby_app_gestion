@@ -77,6 +77,13 @@ Route evidence: mapping touched 4+ files (mapping trigger) and the change spans 
 - `npx tsc --noEmit` in `app/` and `web/`: exit 0 (after `npm ci --ignore-scripts` in the worktree).
 - `deno check supabase/functions/socios-qr/index.ts`: unavailable (deno not installed).
 
+### Review
+
+- 2026-11-23: native review (risk medium, consent granted, one lens `review-reliability`) **approved** and acknowledged (lineage `review-8d7b8608f150ed7e`, authority burned). Non-blocking findings, kept as follow-ups:
+  - `R3-gate-wiring-untested`: no behavioral check of `decidirIngreso` / `registrarItemOffline` for pileta, and `deno check` was unavailable. Mitigation: test on a phone after deploy (member with and without "Pileta").
+  - `R3-pileta-ilike-broad`: the gate accepts any active service whose name contains "pileta" (e.g. a future swimming class). Revisit if the catalog gets another pool service.
+  - `R3-route-group-guard-unverified`: checked by hand, not a bug: `app/app/(porteria)/_layout.tsx` has no role allowlist (it only distinguishes Buffet for the promos tab).
+
 ## Next step
 
 Review and PR. Then, with Agus's go-ahead: apply migration `20261120000000`, deploy `socios-qr` and `admin-usuarios`, publish an OTA, assign the "Pileta" service to members and create the pileta account.
