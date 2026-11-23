@@ -84,6 +84,13 @@ Route evidence: mapping touched 4+ files (mapping trigger) and the change spans 
   - `R3-pileta-ilike-broad`: the gate accepts any active service whose name contains "pileta" (e.g. a future swimming class). Revisit if the catalog gets another pool service.
   - `R3-route-group-guard-unverified`: checked by hand, not a bug: `app/app/(porteria)/_layout.tsx` has no role allowlist (it only distinguishes Buffet for the promos tab).
 
+### Deploy (2026-11-23, Agus's go-ahead)
+
+- PR #69 merged into `main` (`8fc2788`). The only failing check was the old "Vercel – web" project (known, unrelated).
+- `supabase db push`: dry-run listed only `20261120000000_rol_pileta.sql`, then applied. Verified in production: both `profiles` CHECKs contain `pileta`; `servicios_opcionales` has "Pileta" (monto 0.00, activo).
+- `socios-qr` deployed (v23) and `admin-usuarios` deployed (v31), function code identical to `origin/main`. Both answer 401 without a token.
+- OTA `eas update --branch production`, runtime 1.0.9, Android + iOS, group `b0c99a89-dce8-447c-a525-f8c80e560f96`, published from the worktree (same tree as `main`) with `app/.env.local` copied from the main checkout.
+
 ## Next step
 
-Review and PR. Then, with Agus's go-ahead: apply migration `20261120000000`, deploy `socios-qr` and `admin-usuarios`, publish an OTA, assign the "Pileta" service to members and create the pileta account.
+Secretaría assigns the "Pileta" service to members; admin creates the pileta scanner account; test on a phone with a member with and without "Pileta". Still to decide: season end date and how non-members get in.
