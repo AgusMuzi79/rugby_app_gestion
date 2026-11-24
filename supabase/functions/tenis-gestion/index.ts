@@ -38,7 +38,7 @@ import {
   fechaLocal,
   motivoTenis,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig, cargarInvitados, cargarReservas, mailAInvitado, pushASocios, type AvisoPush } from './notificar.ts'
+import { cargarConfig, cargarInvitados, cargarReservas, mailAInvitado, pushASocios, type AvisoPush } from '../_shared/tenisNotificar.ts'
 
 const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso']
 const URL_FIRMADA_SEG = 300
@@ -80,15 +80,17 @@ Deno.serve(async (req: Request) => {
 
   const { data: perfil, error: errPerfil } = await supabaseAdmin
     .from('profiles')
-    .select('rol, deporte, activo')
+    .select('rol, roles, deporte, activo')
     .eq('id', user.id)
     .single()
   if (errPerfil || !perfil) return errorInterno('profiles', errPerfil)
   if (perfil.activo === false) return jsonError(403, 'Cuenta inactiva', { codigo: 'no_autorizado' })
 
+  // Mismo criterio que es_gestor_tenis()/es_canchero(): rol activo o roles[].
+  const roles = new Set([perfil.rol as string, ...((perfil.roles as string[] | null) ?? [])])
   const permiso: Permiso = {
-    gestor: perfil.rol === 'admin' || (perfil.rol === 'subcomision' && perfil.deporte === 'tenis'),
-    canchero: perfil.rol === 'canchero',
+    gestor: roles.has('admin') || (roles.has('subcomision') && perfil.deporte === 'tenis'),
+    canchero: roles.has('canchero'),
   }
 
   let body: Record<string, unknown>

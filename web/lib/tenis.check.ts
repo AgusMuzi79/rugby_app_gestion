@@ -6,8 +6,8 @@ import assert from 'node:assert/strict'
 import {
   normalizarDni, validarEmail, validarTitular, validarJugadores, jugadoresRequeridos,
   formatearPrecio, resumenPrecios, fechasReservables, hoyArgentina, horaArgentina,
-  inicioIso, turnosLibres, vencimientoComprobante, formatearFechaHora, validarComprobante,
-  mensajeTenis, CONFIG_DEFAULT,
+  inicioIso, turnosDesdeLibres, vencimientoComprobante, formatearFechaHora, validarComprobante,
+  mensajeTenis, mensajeRespuesta, pantallaConfirmar, jugadoresPayload, CODIGOS_TENIS, CONFIG_DEFAULT,
   type JugadorForm,
 } from './tenis'
 
@@ -18,12 +18,11 @@ function caso(nombre: string, fn: () => void) {
   console.log(`ok   - ${nombre}`)
 }
 
-caso('DNI: strips dots and spaces, accepts 6 to 9 digits', () => {
+caso('DNI: strips dots and spaces, accepts 7 or 8 digits (same as tenis-invitados)', () => {
   assert.equal(normalizarDni('30.123.456'), '30123456')
   assert.equal(normalizarDni(' 7 110 123 '), '7110123')
-  assert.equal(normalizarDni('123456'), '123456')
-  assert.equal(normalizarDni('12345'), null)
-  assert.equal(normalizarDni('1234567890'), null)
+  assert.equal(normalizarDni('123456'), null)
+  assert.equal(normalizarDni('123456789'), null)
   assert.equal(normalizarDni('30a123456'), null)
   assert.equal(normalizarDni(''), null)
 })
@@ -59,6 +58,16 @@ caso('players: member needs DNI only, guest needs DNI + name + surname, no repea
   assert.ok(errs[1].dni)
 })
 
+caso('reservar payload: players are exactly {dni, nombre?, apellido?} (no tipo)', () => {
+  assert.deepEqual(jugadoresPayload([
+    { tipo: 'socio', dni: '20.111.222', nombre: 'ignorado', apellido: 'x' },
+    { tipo: 'invitado', dni: '20333444', nombre: ' Juan ', apellido: 'Gómez ' },
+  ]), [
+    { dni: '20111222' },
+    { dni: '20333444', nombre: 'Juan', apellido: 'Gómez' },
+  ])
+})
+
 caso('price: $ with thousands dot', () => {
   assert.equal(formatearPrecio(16000), '$16.000')
   assert.equal(formatearPrecio(0), '$0')
@@ -91,27 +100,21 @@ caso('times: Argentina wall clock from an ISO instant', () => {
   assert.equal(inicioIso('2026-11-21', '18:00'), '2026-11-21T18:00:00-03:00')
 })
 
-caso('free slots: 30-min modules, duration by match type, overlaps and past excluded', () => {
-  const canchas = [{ id: 'c1', nombre: '01' }]
-  const cfg = { ...CONFIG_DEFAULT, hora_desde: '08:00', hora_hasta: '11:00' }
-  const items = [{ cancha_id: 'c1', inicio: '2026-11-21T09:00:00-03:00', fin: '2026-11-21T10:00:00-03:00' }]
-  const ahora = new Date('2026-11-21T10:00:00Z') // 07:00 local
-  const s = turnosLibres({ fecha: '2026-11-21', modalidad: 'singles', config: cfg, canchas, items, ahora })
-  assert.deepEqual(s[0].turnos.map(t => t.hora), ['08:00', '10:00'])
-  assert.equal(s[0].turnos[0].empieza, '08:05')
-  const d = turnosLibres({ fecha: '2026-11-21', modalidad: 'dobles', config: cfg, canchas, items, ahora })
-  assert.deepEqual(d[0].turnos.map(t => t.hora), [])
-  const tarde = new Date('2026-11-21T11:10:00Z') // 08:10 local
-  const p = turnosLibres({ fecha: '2026-11-21', modalidad: 'singles', config: cfg, canchas, items, ahora: tarde })
-  assert.deepEqual(p[0].turnos.map(t => t.hora), ['10:00'])
-})
-
-caso('free slots: a block for all courts (cancha_id null) blocks every court', () => {
+caso('free slots: grouped per court from the function `libres`, in court order, unknown courts dropped', () => {
   const canchas = [{ id: 'c1', nombre: '01' }, { id: 'c2', nombre: '02' }]
-  const cfg = { ...CONFIG_DEFAULT, hora_desde: '08:00', hora_hasta: '09:00' }
-  const items = [{ cancha_id: null, inicio: '2026-11-21T08:00:00-03:00', fin: '2026-11-21T08:30:00-03:00' }]
-  const s = turnosLibres({ fecha: '2026-11-21', modalidad: 'singles', config: cfg, canchas, items, ahora: new Date('2026-11-20T00:00:00Z') })
-  assert.deepEqual(s.map(c => c.turnos.length), [0, 0])
+  const libres = [
+    { cancha_id: 'c2', inicio: '2026-11-21T11:00:00.000Z', hora: '08:00', hora_real: '08:05' },
+    { cancha_id: 'c1', inicio: '2026-11-21T13:00:00.000Z', hora: '10:00', hora_real: '10:05' },
+    { cancha_id: 'c1', inicio: '2026-11-21T11:00:00.000Z', hora: '08:00', hora_real: '08:05' },
+    { cancha_id: 'otra', inicio: '2026-11-21T11:00:00.000Z', hora: '08:00', hora_real: '08:05' },
+    { basura: true },
+  ]
+  const r = turnosDesdeLibres(canchas, libres)
+  assert.deepEqual(r.map(c => c.cancha.id), ['c1', 'c2'])
+  assert.deepEqual(r[0].turnos.map(t => t.hora), ['08:00', '10:00'])
+  assert.deepEqual(r[0].turnos[0], { hora: '08:00', empieza: '08:05', inicio: '2026-11-21T11:00:00.000Z' })
+  assert.deepEqual(r[1].turnos.map(t => t.empieza), ['08:05'])
+  assert.deepEqual(turnosDesdeLibres(canchas, undefined).map(c => c.turnos.length), [0, 0])
 })
 
 caso('receipt deadline: 3 h before the turn, formatted in Argentina', () => {
@@ -126,11 +129,44 @@ caso('receipt file: jpg/png/pdf up to 5 MB', () => {
   assert.ok(validarComprobante({ type: 'image/png', size: 5 * 1024 * 1024 + 1 }))
 })
 
-caso('error codes map to Spanish copy, unknown codes fall back', () => {
-  assert.match(mensajeTenis('turno_ocupado'), /turno/i)
+// Codes the guest flow can get from tenis-invitados (DB codes it passes through + its own).
+const CODIGOS_WEB = [
+  'parametros', 'modalidad_invalida', 'cancha_inexistente', 'cancha_inactiva', 'horario_invalido',
+  'fuera_de_horario', 'pasado', 'anticipacion', 'bloqueado', 'turno_ocupado', 'limite_dia', 'limite_activas',
+  'cantidad_jugadores', 'jugadores_duplicados', 'jugador_ocupado', 'socio_no_encontrado', 'dni_invalido',
+  'invitado_incompleto', 'email_invalido', 'titular_suspendido', 'jugador_no_habilitado', 'titular_es_socio',
+  'plazo_invitado', 'estado_invalido', 'token_invalido', 'hold_vencido', 'reserva_cancelada',
+  'comprobante_vencido', 'path_invalido',
+  'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
+]
+
+caso('error codes: every code the function can return has its own Spanish copy', () => {
+  const generico = mensajeTenis('codigo_que_no_existe')
+  for (const c of CODIGOS_WEB) {
+    assert.ok(CODIGOS_TENIS.includes(c), c)
+    assert.notEqual(mensajeTenis(c), generico, c)
+  }
   assert.match(mensajeTenis('token_invalido'), /enlace/i)
   assert.equal(mensajeTenis('Algo pasó'), 'Algo pasó')
   assert.match(mensajeTenis(undefined), /Probá de nuevo/)
+})
+
+caso('function answers: the code is read from `codigo`; unknown codes fall back to the function motivo', () => {
+  assert.equal(mensajeRespuesta({ ok: false, codigo: 'turno_ocupado', motivo: 'x' }).codigo, 'turno_ocupado')
+  assert.match(mensajeRespuesta({ ok: false, codigo: 'turno_ocupado', motivo: 'x' }).mensaje, /turno/i)
+  assert.equal(mensajeRespuesta({ ok: false, codigo: 'nuevo_codigo', motivo: 'Texto de la función.' }).mensaje, 'Texto de la función.')
+  assert.equal(mensajeRespuesta({ error: 'Error interno' }).codigo, undefined)
+  assert.equal(mensajeRespuesta({ error: 'Error interno' }).mensaje, 'Error interno')
+})
+
+caso('confirm page: which screen each code shows', () => {
+  assert.equal(pantallaConfirmar('token_invalido'), 'invalido')
+  assert.equal(pantallaConfirmar('hold_vencido'), 'vencido')
+  assert.equal(pantallaConfirmar('reserva_cancelada'), 'vencido')
+  assert.equal(pantallaConfirmar('comprobante_vencido'), 'vencido')
+  assert.equal(pantallaConfirmar('estado_invalido'), 'vencido')
+  assert.equal(pantallaConfirmar(undefined), 'error')
+  assert.equal(pantallaConfirmar('parametros'), 'error')
 })
 
 console.log(`\n${casos} casos ok`)

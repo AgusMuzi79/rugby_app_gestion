@@ -315,7 +315,10 @@ on conflict (nombre) do nothing;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('tenis-comprobantes', 'tenis-comprobantes', false, 5242880,
         array['image/jpeg', 'image/png', 'application/pdf'])
-on conflict (id) do nothing;
+on conflict (id) do update set
+  public             = excluded.public,
+  file_size_limit    = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- Helpers
@@ -1391,10 +1394,17 @@ begin
                  'titulo',     b.titulo,
                  'recurrente', b.recurrente,
                  'mio',        false,
-                 'bloque_id',  b.bloque_id
+                 'bloque_id',  b.bloque_id,
+                 -- Para editar el bloque desde la grilla sin pisar su vigencia ni
+                 -- pasarlo a una sola cancha (bloque_cancha_id null = todas).
+                 'bloque_cancha_id', tb.cancha_id,
+                 'dia_semana',       tb.dia_semana,
+                 'vigente_desde',    tb.vigente_desde,
+                 'vigente_hasta',    tb.vigente_hasta
                )
         from tenis_bloques_dia(p_fecha) b
         join tenis_canchas c on c.id = b.cancha_id
+        join tenis_bloques tb on tb.id = b.bloque_id
       ) x
     ), '[]'::jsonb)
   );
@@ -1900,13 +1910,17 @@ $$;
 -- RPC del canchero (también gestor)
 -- ═════════════════════════════════════════════════════════════════════════════
 
--- Check-in por DNI. Busca al socio (socios) o al invitado (tenis_invitados) y su
--- reserva en la ventana [inicio - 15 min, fin]. resultado:
+-- Check-in por DNI (tipeado) o por número de socio (QR del carnet,
+-- "<numero_socio>:<código>"); exactamente uno de los dos. Busca al socio
+-- (socios) o al invitado (tenis_invitados, sólo por DNI) y su reserva en la
+-- ventana [inicio - 15 min, fin]. El código TOTP del QR no se valida acá (lo
+-- valida socios-qr en el escáner de la puerta): el canchero ve el nombre.
+-- resultado:
 --   suspendido            → suspendido hoy (no se registra el ingreso)
 --   sin_reserva           → DNI desconocido o sin reserva en la ventana
 --   comprobante_pendiente → reserva de invitado sin comprobante aprobado
 --   ok                    → check_in_at y, para socios, fila en accesos (punto 'tenis')
-create or replace function tenis_checkin(p_dni text)
+create or replace function tenis_checkin(p_dni text default null, p_numero_socio text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1914,6 +1928,7 @@ set search_path = public
 as $$
 declare
   v_dni     text := tenis_norm_dni(p_dni);
+  v_numero  text := nullif(btrim(coalesce(p_numero_socio, '')), '');
   v_ahora   timestamptz := tenis_ahora();
   v_socio   socios%rowtype;
   v_inv     uuid;
@@ -1926,15 +1941,25 @@ begin
   if not es_canchero() then
     perform tenis_error('no_autorizado');
   end if;
-  if v_dni is null then
-    perform tenis_error('dni_invalido');
+  if (p_dni is null) = (v_numero is null) then
+    perform tenis_error('parametros');
   end if;
 
-  select s.* into v_socio from socios s
-  where tenis_norm_dni(s.dni) = v_dni
-  order by (s.estado <> 'inactivo') desc
-  limit 1;
-  select i.id into v_inv from tenis_invitados i where i.dni = v_dni;
+  if v_numero is not null then
+    select s.* into v_socio from socios s
+    where s.numero_socio = v_numero
+    order by (s.estado <> 'inactivo') desc
+    limit 1;
+  else
+    if v_dni is null then
+      perform tenis_error('dni_invalido');
+    end if;
+    select s.* into v_socio from socios s
+    where tenis_norm_dni(s.dni) = v_dni
+    order by (s.estado <> 'inactivo') desc
+    limit 1;
+    select i.id into v_inv from tenis_invitados i where i.dni = v_dni;
+  end if;
 
   if v_socio.id is null and v_inv is null then
     return jsonb_build_object('persona', null, 'reserva', null, 'jugador', null,
@@ -2371,7 +2396,9 @@ $$;
 --   3. confirmada cuyo fin pasó → jugada si alguien hizo check-in; si no,
 --      no_show: el precio de lista de cada jugador que no pagó se le carga al
 --      titular (motivo 'no_show') y se registra una infracción automática (la
---      primera de la persona queda como advertencia).
+--      primera de la persona queda como advertencia);
+--   4. borra los intentos del rate limit de la web (tenis_invitados_intentos)
+--      de más de 24 h (las ventanas de tenis-invitados son de 1 h).
 -- Devuelve el resumen para que tenis-cron avise (push/mail).
 create or replace function tenis_procesar()
 returns jsonb
@@ -2452,6 +2479,8 @@ begin
     end if;
   end loop;
 
+  delete from tenis_invitados_intentos where created_at < v_ahora - interval '24 hours';
+
   return jsonb_build_object(
     'ahora',                 v_ahora,
     'holds_vencidos',        v_holds,
@@ -2521,7 +2550,7 @@ revoke execute on function tenis_infraccion_crear(uuid, uuid, uuid, text, text) 
 revoke execute on function tenis_infraccion_perdonar(uuid)                              from public, anon;
 revoke execute on function tenis_suspender(uuid, uuid, int, text)                       from public, anon;
 revoke execute on function tenis_suspension_levantar(uuid)                              from public, anon;
-revoke execute on function tenis_checkin(text)                                          from public, anon;
+revoke execute on function tenis_checkin(text, text)                                          from public, anon;
 revoke execute on function tenis_jugadores_corregir(uuid, jsonb, boolean, text)         from public, anon;
 revoke execute on function tenis_cobro_marcar(uuid, boolean)                            from public, anon;
 revoke execute on function tenis_extension(uuid, timestamptz, uuid)                     from public, anon;
@@ -2544,7 +2573,7 @@ grant execute on function tenis_infraccion_crear(uuid, uuid, uuid, text, text)  
 grant execute on function tenis_infraccion_perdonar(uuid)                               to authenticated, service_role;
 grant execute on function tenis_suspender(uuid, uuid, int, text)                        to authenticated, service_role;
 grant execute on function tenis_suspension_levantar(uuid)                               to authenticated, service_role;
-grant execute on function tenis_checkin(text)                                           to authenticated, service_role;
+grant execute on function tenis_checkin(text, text)                                           to authenticated, service_role;
 grant execute on function tenis_jugadores_corregir(uuid, jsonb, boolean, text)          to authenticated, service_role;
 grant execute on function tenis_cobro_marcar(uuid, boolean)                             to authenticated, service_role;
 grant execute on function tenis_extension(uuid, timestamptz, uuid)                      to authenticated, service_role;

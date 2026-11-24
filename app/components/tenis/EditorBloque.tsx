@@ -21,7 +21,8 @@ export type ModoBloque = 'fijo' | 'puntual'
 export function bloqueDesdeItem(item: ItemGrilla, fecha: string): BloqueEditable {
   return {
     id:            item.bloque_id ?? undefined,
-    cancha_id:     item.cancha_id,
+    // La grilla repite un bloque de todas las canchas en cada una: se edita el bloque entero.
+    cancha_id:     item.bloque_todas ? null : item.cancha_id,
     tipo:          (TIPOS_BLOQUE as readonly string[]).includes(item.tipo) ? item.tipo as TipoBloque : 'clase',
     titulo:        item.titulo ?? '',
     dia_semana:    item.dia_semana ?? diaSemanaIso(fecha),

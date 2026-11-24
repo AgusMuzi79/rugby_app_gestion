@@ -238,6 +238,9 @@ select pg_temp.espera(
   '08:00:00/22:00:00/30/60/90/1/2/2/3/15/9000/18000/uncas.tenis.macro', 'seed: config con los defaults del contrato');
 select pg_temp.espera((select public::text from storage.buckets where id = 'tenis-comprobantes'), 'false',
   'bucket tenis-comprobantes privado');
+select pg_temp.espera(
+  (select file_size_limit || '/' || array_to_string(allowed_mime_types, ',') from storage.buckets where id = 'tenis-comprobantes'),
+  '5242880/image/jpeg,image/png,application/pdf', 'bucket tenis-comprobantes: 5 MB, jpg/png/pdf');
 
 select pg_temp.espera((pg_temp.err($$insert into tenis_config (id) values (false)$$) like '%violates check%')::text, 'true',
   'config: no admite una segunda fila');
@@ -252,7 +255,7 @@ select pg_temp.espera(has_function_privilege('anon', 'tenis_reservar(uuid, times
   'false', 'anon no ejecuta tenis_reservar');
 select pg_temp.espera(has_function_privilege('authenticated', 'tenis_reservar(uuid, timestamptz, text, jsonb)', 'execute')::text,
   'true', 'authenticated ejecuta tenis_reservar');
-select pg_temp.espera(has_function_privilege('authenticated', 'tenis_checkin(text)', 'execute')::text,
+select pg_temp.espera(has_function_privilege('authenticated', 'tenis_checkin(text, text)', 'execute')::text,
   'true', 'authenticated ejecuta tenis_checkin (valida rol adentro)');
 select pg_temp.espera(has_function_privilege('authenticated', 'tenis_procesar()', 'execute')::text,
   'false', 'authenticated no ejecuta tenis_procesar');
@@ -355,6 +358,15 @@ select pg_temp.espera(pg_temp.err($$select tenis_bloque_guardar(jsonb_build_obje
 select pg_temp.espera(pg_temp.err($$select tenis_bloque_guardar(jsonb_build_object(
   'tipo', 'clase', 'titulo', 'Mal', 'dia_semana', 6, 'hora_desde', '12:00', 'hora_hasta', '09:00'))$$),
   'bloque_invalido', 'bloque con horas invertidas rechazado');
+-- La grilla del gestor trae lo necesario para editar el bloque sin pisar su vigencia.
+select pg_temp.espera(
+  (select i->>'dia_semana' || '/' || (i->>'vigente_desde') || '/' || (i->>'vigente_hasta') || '/' || (i->>'bloque_cancha_id')
+     from jsonb_array_elements(tenis_grilla('2026-11-21')->'items') i where i->>'titulo' = 'Escuelita'),
+  '6/2026-11-01/2026-12-31/' || pg_temp.ca(2)::text, 'grilla: bloque recurrente con día, vigencia y cancha');
+select pg_temp.espera(
+  (select count(*) || '/' || bool_and(i ? 'bloque_cancha_id' and i->'bloque_cancha_id' = 'null'::jsonb)
+     from jsonb_array_elements(tenis_grilla('2026-11-22')->'items') i where i->>'titulo' = 'Torneo'),
+  '8/true', 'grilla: bloque de todas las canchas sale en las 8 con bloque_cancha_id null');
 
 select pg_temp.como('p4');
 select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(2), pg_temp.t('2026-11-21 11:30'), 'singles', pg_temp.j(2))$$),
@@ -461,11 +473,30 @@ select pg_temp.espera((tenis_checkin('99999999'))->>'resultado', 'sin_reserva', 
 select pg_temp.espera(((tenis_checkin('99999999'))->'persona')::text, 'null', 'DNI desconocido: persona null');
 select pg_temp.espera((tenis_checkin('20111006'))->>'resultado', 'sin_reserva', 'socio sin reserva: sin_reserva');
 select pg_temp.espera((tenis_checkin('20111006'))#>>'{persona,tipo}', 'socio', 'socio sin reserva: persona socio');
+-- Check-in por número de socio (QR del carnet: "<numero_socio>:<código>").
+select pg_temp.espera((tenis_checkin(p_numero_socio => '1001'))->>'resultado', 'ok', 'check-in de S1 por número de socio');
+select pg_temp.espera((tenis_checkin(p_numero_socio => '1001'))#>>'{persona,socio_id}', pg_temp.so(1)::text,
+  'número de socio: persona es S1');
+select pg_temp.espera(
+  (select count(*)::text from accesos where socio_id = pg_temp.so(1) and punto = 'tenis'), '1',
+  'número de socio: un registro en accesos');
+select pg_temp.espera((tenis_checkin(p_numero_socio => '9999'))->>'resultado', 'sin_reserva',
+  'número de socio desconocido: sin_reserva');
+select pg_temp.espera(pg_temp.err($$select tenis_checkin()$$), 'parametros', 'check-in sin DNI ni número: parametros');
+select pg_temp.espera(pg_temp.err($$select tenis_checkin('20111003', '1003')$$), 'parametros',
+  'check-in con DNI y número a la vez: parametros');
+select pg_temp.espera(pg_temp.err($$select tenis_checkin('...')$$), 'dni_invalido', 'DNI vacío tras normalizar: dni_invalido');
 
 select pg_temp.ahora('2026-11-20 17:01');
+-- Rate limit de la web: tenis_procesar() borra los intentos de más de 24 h.
+insert into tenis_invitados_intentos (clave, created_at) values
+  ('tenis:dni:viejo', tenis_ahora() - interval '25 hours'),
+  ('tenis:dni:nuevo', tenis_ahora() - interval '1 hour');
 select pg_temp.espera(
   (select jsonb_array_length(r->'no_shows') || '/' || jsonb_array_length(r->'jugadas') from tenis_procesar() r),
   '1/1', 'procesar: un no_show y una jugada');
+select pg_temp.espera((select string_agg(clave, ',') from tenis_invitados_intentos), 'tenis:dni:nuevo',
+  'procesar borra los intentos de más de 24 h');
 select pg_temp.espera(pg_temp.estado('ns1') || '/' || pg_temp.estado('jug'), 'no_show/jugada', 'estados finales');
 select pg_temp.espera(pg_temp.cargo('ns1', 2), '18000/no_show', 'no_show: el titular paga los dos jugadores');
 select pg_temp.espera(pg_temp.cargo('ns1', 4), '0/no_show', 'no_show: el otro jugador queda en 0');

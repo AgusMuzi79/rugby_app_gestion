@@ -88,7 +88,9 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
       {error && disp && <ErrorCarga mensaje={error} onReintentar={refetch} />}
       {activas.length === 0 && !loading && !error && <Text style={estilosTenis.vacio}>No tenés reservas de tenis.</Text>}
       {activas.map(r => {
-        const sePuede = r.es_titular && puedeCancelar(r.inicio, ahoraMs, config.cancelacion_horas)
+        // Lo decide el servidor (titular, confirmada y hasta 3 h antes); se vuelve a mirar el
+        // reloj por si la pantalla quedó abierta desde que se cargó.
+        const sePuede = r.puede_cancelar && puedeCancelar(r.inicio, ahoraMs, config.cancelacion_horas)
         return (
           <View key={r.id} style={[estilosTenis.card, s.reserva]}>
             <Text style={s.reservaTitulo}>

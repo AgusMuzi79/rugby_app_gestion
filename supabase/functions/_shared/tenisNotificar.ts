@@ -1,12 +1,11 @@
 // Lectura de reservas y avisos (push a socios, mail a invitados) compartidos por tenis-gestion y
-// tenis-cron. Vive acá y no en _shared porque toca la base (service role) y sólo lo usan las
-// funciones de tenis; las reglas puras están en _shared/tenisReglas.ts.
+// tenis-cron. Toca la base (service role); las reglas puras están en tenisReglas.ts.
 
-import { supabaseAdmin } from '../_shared/supabase-admin.ts'
-import { enviarEmail, emailTemplate } from '../_shared/email.ts'
-import { enviarPush, trocear, type PushItem } from '../_shared/expoPush.ts'
-import { tutoresPorSocio } from '../_shared/tutores.ts'
-import { configDesdeFila, type TenisConfig } from '../_shared/tenisReglas.ts'
+import { supabaseAdmin } from './supabase-admin.ts'
+import { enviarEmail, emailTemplate } from './email.ts'
+import { enviarPush, trocear, type PushItem } from './expoPush.ts'
+import { tutoresPorSocio } from './tutores.ts'
+import { configDesdeFila, type TenisConfig } from './tenisReglas.ts'
 
 const LOTE_IN = 100
 

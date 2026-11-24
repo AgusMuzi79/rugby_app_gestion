@@ -1,10 +1,14 @@
-import { useState } from 'react'
-import { View, Text, TextInput, ScrollView, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
+import { useRef, useState } from 'react'
+import {
+  View, Text, TextInput, ScrollView, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Modal, Linking, StyleSheet,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { CameraView, useCameraPermissions } from 'expo-camera'
+import { parsearQR } from '@/lib/qrCarnet'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { GrillaCanchas } from '@/components/tenis/GrillaCanchas'
 import { DetalleItem } from '@/components/tenis/DetalleItem'
-import { Aviso, Boton, Leyenda, Titulo, estilosTenis } from '@/components/tenis/ui'
+import { Aviso, BarraModal, Boton, Leyenda, Titulo, estilosTenis } from '@/components/tenis/ui'
 import { accionesTenis, checkinTenis, useTenisGrilla, type Checkin } from '@/hooks/useTenisGestor'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { FEATURES } from '@/constants/features'
@@ -15,7 +19,8 @@ import {
   type ItemGrilla,
 } from '@/lib/tenis'
 
-// Pestaña "Tenis" del Canchero (FEATURES.tenis): consulta por DNI si la
+// Pestaña "Tenis" del Canchero (FEATURES.tenis): consulta por DNI (o por el QR
+// del carnet, que trae el número de socio) si la
 // persona tiene reserva ahora (de 15 min antes al final del turno), si pagó y
 // si está suspendida; al dar ok queda registrado el ingreso. Debajo, la grilla
 // de hoy: tocar una reserva permite marcar cobros, corregir jugadores o
@@ -28,6 +33,58 @@ const NIVEL = {
   aviso: { bg: colors.estadoPendiente, fg: colors.sobreOro },
   error: { bg: colors.rojoUrgente,     fg: colors.blanco },
 } as const
+
+// Lector del QR del carnet ("<numero_socio>:<código>", lib/qrCarnet), cámara
+// trasera (el canchero atiende). Sólo se usa el número de socio: el código TOTP
+// no se valida acá (lo valida socios-qr en la puerta, que además lo consume y
+// registra otro acceso). El canchero ve el nombre de la persona en la tarjeta.
+function EscanerCarnet({ onNumero, onCerrar }: { onNumero: (numero: string) => void; onCerrar: () => void }) {
+  const [permiso, pedirPermiso] = useCameraPermissions()
+  const [error, setError] = useState<string | null>(null)
+  // La cámara dispara varias veces por el mismo QR antes de cerrar el modal.
+  const leido = useRef(false)
+
+  function leer(data: string) {
+    if (leido.current) return
+    const qr = parsearQR(data)
+    if (!qr) { setError('Ese QR no es un carnet del club.'); return }
+    leido.current = true
+    onNumero(qr.numero_socio)
+  }
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
+      <SafeAreaView style={estilosTenis.sheet}>
+        <BarraModal titulo="ESCANEAR CARNET" onCerrar={onCerrar} />
+        {!permiso ? (
+          <ActivityIndicator color={colors.oro} style={s.cargando} />
+        ) : !permiso.granted ? (
+          <View style={estilosTenis.sheetCuerpo}>
+            <Text style={estilosTenis.textoCard}>
+              {permiso.canAskAgain
+                ? 'Para escanear carnets hace falta acceso a la cámara.'
+                : 'Denegaste el acceso a la cámara. Activalo desde Ajustes del sistema.'}
+            </Text>
+            <Boton
+              texto={permiso.canAskAgain ? 'PERMITIR ACCESO' : 'ABRIR AJUSTES'}
+              onPress={permiso.canAskAgain ? () => { void pedirPermiso() } : () => { void Linking.openSettings() }}
+            />
+          </View>
+        ) : (
+          <View style={s.camara}>
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={({ data }) => leer(data)}
+            />
+            {error && <View style={s.errorCamara}><Aviso tipo="error">{error}</Aviso></View>}
+          </View>
+        )}
+      </SafeAreaView>
+    </Modal>
+  )
+}
 
 function TarjetaCheckin({ c, onCobrado }: { c: Checkin; onCobrado: () => void }) {
   const res = resultadoCheckin(c.resultado)
@@ -96,19 +153,29 @@ export default function TenisCancheroScreen() {
   const [checkin, setCheckin] = useState<Checkin | null>(null)
   const [errorCheckin, setErrorCheckin] = useState<string | null>(null)
   const [detalle, setDetalle] = useState<ItemGrilla | null>(null)
+  const [escaneando, setEscaneando] = useState(false)
 
-  async function consultar() {
-    const d = normalizarDni(dni)
-    if (d.length < 6) { setErrorCheckin('Revisá el DNI.'); return }
+  async function consultar(q: { dni: string } | { numeroSocio: string }) {
     setConsultando(true)
     setErrorCheckin(null)
     setCheckin(null)
-    const r = await checkinTenis(d)
+    const r = await checkinTenis(q)
     setConsultando(false)
     if (!r.ok) { setErrorCheckin(r.mensaje); return }
     setCheckin(r.data)
     setDni('')
     refetch()
+  }
+
+  function consultarDni() {
+    const d = normalizarDni(dni)
+    if (d.length < 6) { setErrorCheckin('Revisá el DNI.'); return }
+    void consultar({ dni: d })
+  }
+
+  function porQR(numeroSocio: string) {
+    setEscaneando(false)
+    void consultar({ numeroSocio })
   }
 
   function recargar() {
@@ -148,10 +215,11 @@ export default function TenisCancheroScreen() {
               placeholder="Sin puntos"
               placeholderTextColor={colors.muted}
               accessibilityLabel="DNI del jugador"
-              onSubmitEditing={consultar}
+              onSubmitEditing={consultarDni}
             />
           </View>
-          <Boton texto="CONSULTAR" onPress={consultar} cargando={consultando} disabled={dni.length < 6} />
+          <Boton texto="CONSULTAR" onPress={consultarDni} cargando={consultando} disabled={dni.length < 6} />
+          <Boton texto="ESCANEAR CARNET (QR)" variante="secundario" onPress={() => setEscaneando(true)} disabled={consultando} />
           {errorCheckin && <Aviso tipo="error">{errorCheckin}</Aviso>}
           {checkin && <TarjetaCheckin key={JSON.stringify(checkin)} c={checkin} onCobrado={refetch} />}
 
@@ -176,6 +244,8 @@ export default function TenisCancheroScreen() {
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {escaneando && <EscanerCarnet onNumero={porQR} onCerrar={() => setEscaneando(false)} />}
 
       {detalle && grilla && (
         <DetalleItem
@@ -206,4 +276,6 @@ const s = StyleSheet.create({
   tarjetaCuerpo: { padding: 16, gap: 4 },
   nombre:        { fontFamily: fonts.titulo, fontSize: 22, color: colors.texto },
   alerta:        { fontFamily: fonts.label, fontSize: 15, color: colors.rojoTexto },
+  camara:        { flex: 1, backgroundColor: colors.fondo },
+  errorCamara:   { position: 'absolute', left: 16, right: 16, bottom: 32 },
 })

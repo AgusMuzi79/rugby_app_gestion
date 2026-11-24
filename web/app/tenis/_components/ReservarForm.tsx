@@ -4,18 +4,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   configDesde, fechasReservables, formatearFecha, formatearFechaHora, formatearPrecio,
   jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, sinErrores,
-  turnosLibres, validarJugadores, validarTitular,
-  type Cancha, type JugadorForm, type Modalidad, type Ocupado, type TenisConfig, type Titular, type Turno,
+  turnosDesdeLibres, validarJugadores, validarTitular,
+  type Cancha, type JugadorForm, type Libre, type Modalidad, type TenisConfig, type Titular, type Turno,
 } from '@/lib/tenis'
 import { tenisInvitados } from './api'
 import { Aviso, BotonPrincipal, Campo, Opcion, Seccion } from './ui'
 
-type Disponibilidad = { config?: Partial<TenisConfig>; canchas?: Cancha[]; items?: Ocupado[] }
+// tenis-invitados `disponibilidad`: free starts per match type come computed
+// by the function (`libres`); `ocupados` is not needed here.
+type Disponibilidad = {
+  config?: Partial<TenisConfig>
+  canchas?: Cancha[]
+  libres?: { singles?: Libre[]; dobles?: Libre[] }
+}
 type RespuestaReservar = {
   reserva_id?: string
-  hold_vence_at?: string
+  hold_vence_at?: string | null
   total?: number
-  jugadores?: { nombre: string; cargo: number; motivo?: string }[]
+  jugadores?: { nombre: string; cargo: number; motivo?: string | null; es_titular?: boolean }[]
+  email_enviado?: boolean
 }
 type Seleccion = { cancha: Cancha; turno: Turno }
 
@@ -49,10 +56,9 @@ export default function ReservarForm() {
 
   const config = configDesde(disp.data?.config)
   const libres = useMemo(() => disp.estado === 'ok'
-    ? turnosLibres({ fecha, modalidad, config, canchas: disp.data?.canchas ?? [], items: disp.data?.items ?? [] })
+    ? turnosDesdeLibres(disp.data?.canchas ?? [], disp.data?.libres?.[modalidad])
     : [],
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  [disp, fecha, modalidad])
+  [disp, modalidad])
 
   // Selection no longer free (other match type or reloaded grid) → drop it.
   useEffect(() => {
@@ -86,7 +92,6 @@ export default function ReservarForm() {
     }
     setEnviando(true)
     const r = await tenisInvitados<RespuestaReservar>('reservar', {
-      fecha,
       cancha_id: seleccion.cancha.id,
       inicio: seleccion.turno.inicio,
       modalidad,
@@ -101,20 +106,35 @@ export default function ReservarForm() {
     setEnviando(false)
     if (r.ok) { setListo(r.data); return }
     setErrorEnvio(r.error)
-    if (r.codigo === 'turno_ocupado') void cargar(fecha)
+    if (r.codigo === 'turno_ocupado' || r.codigo === 'bloqueado') void cargar(fecha)
+    // A DNI that is not a member: switch that player to "No socio" so the name fields show up.
+    if (r.codigo === 'jugador_sin_nombre' && typeof r.data?.dni === 'string') {
+      const dni = r.data.dni
+      setJugadores(prev => prev.map(j => (normalizarDni(j.dni) === dni ? { ...j, tipo: 'invitado' } : j)))
+    }
   }
 
   if (listo) {
     return (
       <Seccion titulo="Reserva pendiente">
         <h2 ref={listoRef} tabIndex={-1} className="font-playfair italic text-2xl text-oro mb-3 outline-none">
-          Revisá tu mail: tenés {config.hold_min} minutos para confirmar la reserva
+          {listo.email_enviado === false
+            ? 'No pudimos mandarte el mail de confirmación'
+            : `Revisá tu mail: tenés ${config.hold_min} minutos para confirmar la reserva`}
         </h2>
         <div className="font-lora text-sm text-tinta/80 leading-relaxed flex flex-col gap-3">
-          <p>
-            Te mandamos un enlace a <strong className="text-tinta">{titular.email.trim()}</strong>. Si no lo
-            abrís a tiempo, el turno se libera. Revisá también la carpeta de spam.
-          </p>
+          {listo.email_enviado === false ? (
+            <p role="alert" className="text-rojo-texto">
+              No pudimos mandar el mail a <strong>{titular.email.trim()}</strong>. Sin el enlace no se puede
+              confirmar: el turno queda guardado sin confirmar y se libera solo en {config.hold_min} minutos.
+              Después revisá el email y volvé a reservar.
+            </p>
+          ) : (
+            <p>
+              Te mandamos un enlace a <strong className="text-tinta">{titular.email.trim()}</strong>. Si no lo
+              abrís a tiempo, el turno se libera. Revisá también la carpeta de spam.
+            </p>
+          )}
           {seleccion && (
             <p>
               Cancha {seleccion.cancha.nombre} · {formatearFecha(fecha)} · empieza {seleccion.turno.empieza} ·{' '}

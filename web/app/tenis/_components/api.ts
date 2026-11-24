@@ -1,5 +1,5 @@
 import { interpretarRespuesta, type EdgeResponse } from '@/lib/edgeFunctionRespuesta'
-import { mensajeTenis } from '@/lib/tenis'
+import { mensajeRespuesta } from '@/lib/tenis'
 
 // Public client of the `tenis-invitados` Edge Function (deployed --no-verify-jwt).
 // No Supabase session and no auth header: every request is POST JSON
@@ -7,7 +7,10 @@ import { mensajeTenis } from '@/lib/tenis'
 // token only travel in the body, never in a URL.
 const TIMEOUT_MS = 20_000
 
-export type Resultado<T> = { ok: true; data: EdgeResponse<T> } | { ok: false; error: string; codigo?: string }
+// On a failure `data` keeps the raw body (e.g. `dni` of jugador_sin_nombre).
+export type Resultado<T> =
+  | { ok: true; data: EdgeResponse<T> }
+  | { ok: false; error: string; codigo?: string; data?: Record<string, unknown> }
 
 export async function tenisInvitados<T = Record<string, unknown>>(
   action: string,
@@ -23,10 +26,10 @@ export async function tenisInvitados<T = Record<string, unknown>>(
       signal: ctrl.signal,
     })
     const r = interpretarRespuesta<T>(res.status, await res.text())
-    // Validation failures: 200 { ok:false, motivo:'<codigo>' }; real errors: { error }.
+    // Business failures: 200 { ok:false, codigo, motivo }; real errors: { error }.
     if (r.error || r.ok === false) {
-      const codigo = (r.motivo ?? r.error) as string | undefined
-      return { ok: false, error: mensajeTenis(codigo), codigo }
+      const { codigo, mensaje } = mensajeRespuesta(r as { codigo?: unknown; motivo?: unknown; error?: unknown })
+      return { ok: false, error: mensaje, codigo, data: r as unknown as Record<string, unknown> }
     }
     return { ok: true, data: r }
   } catch {

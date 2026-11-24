@@ -81,12 +81,12 @@ RPCs callable by `authenticated` (each checks its own role; errors return stable
 - Public pages (no login) under `web/app/tenis/`: `reservar` (date + court grid of free slots, form: DNI, nombre, apellido, email, singles/doubles, other players as members-by-DNI-or-guests), `confirmar` (reads `?t=`, confirms, shows amount + alias `uncas.tenis.macro` + deadline + receipt upload), status/error states. Uses `tenis-invitados` only; no Supabase session. Guarded by `web/lib/features.ts` `tenis` flag (404 when off).
 
 ## Tasks
-- [ ] T0 — Feature document + Engram mirror. Route: inline.
+- [x] T0 — Feature document + Engram mirror. Route: inline.
 - [x] T1 — DB: migration `20261112000000_reservas_tenis.sql` (tables, constraints, seed courts + config, helpers, all RPCs, bucket) + SQL tests in `supabase/tests/`. Route: delegated writer (worktree `tenis-db`), parallel. Evidence: `supabase/tests/reservas_tenis.sql` in a disposable `postgres:17` container, 131/131 assertions ok, exit 0 (migration NOT applied to any Supabase project).
 - [x] T2 — Edge Functions `tenis-invitados`, `tenis-gestion`, `tenis-cron` + `_shared/tenisReglas.ts` with `.check.ts`. Route: delegated writer (worktree `tenis-functions`), parallel.
 - [x] T3 — App: flag, theme tokens, socio booking, gestor "Canchas" tab, canchero "Tenis" tab. Route: delegated writer (worktree `tenis-app`), parallel.
 - [x] T4 — Web: public guest booking + confirmation + receipt upload pages. Route: delegated writer (worktree `tenis-web`), parallel.
-- [ ] T5 — Integration: merge the four branches into `feat/reservas-tenis`, fix contract mismatches, full checks. Route: inline/delegated as needed.
+- [x] T5 — Integration: merge the four branches into `feat/reservas-tenis`, fix contract mismatches, full checks. Route: delegated writer (one bounded writer, 4+ files across DB/functions/app/web). Commits: `d07866a`, `9baa27c`, `eeb8bda`, `3075891`, `51eedf6` + this doc.
 
 ### T1 notes (deviations and additions to the contract; names unchanged)
 - Players JSON also accepts `{dni}` (member by DNI, or an existing guest). `{invitado:{dni,...}}` whose DNI belongs to an active member resolves to that member. `tenis_invitado_reservar` rejects `{socio_id}` (public web) and a titular who is an active member (`titular_es_socio`).
@@ -126,6 +126,15 @@ Route evidence: 4 parallel writers explicitly requested by Agus on 2026-11-20 ("
 - `inicio` = booked module (`18:00-03:00`); the page shows the real start (`18:05`, + `margen_inicio_min`). Members are sent by DNI (the function resolves `socio_id`) and shown as "precio según socio" until `reservar` returns charges.
 - The confirm page sets `referrer: no-referrer` so the `?t=` token never leaks.
 
+### T5 notes (integration)
+Source of truth: the migration (RPC names, args, shapes) and `tenis-invitados` (public web API); callers were adapted to them.
+- DB (`d07866a`, `eeb8bda`): `tenis_checkin(p_dni text default null, p_numero_socio text default null)` (exactly one, else `parametros`); `tenis_procesar()` also deletes `tenis_invitados_intentos` older than 24 h; bucket upsert enforces 5 MB + jpg/png/pdf; `tenis_grilla` block items add `dia_semana`, `vigente_desde`, `vigente_hasta`, `bloque_cancha_id` (null = all courts) so editing a recurring block from the grid no longer resets its validity or pins it to one court. 142 SQL assertions (was 131).
+- Error codes: the DB codes (migration header) are used everywhere. `tenisReglas.ts` (`validarTurno` now returns `horario_invalido`/`anticipacion`, 23P01 → `turno_ocupado`), app `MENSAJES` and web `MENSAJES` have Spanish copy for every DB code plus `limitado`, `jugador_sin_nombre`, `comprobante_invalido`, `comprobante_no_subido`; guessed codes removed. Checks assert the full list.
+- Functions (`9baa27c`): `notificar.ts` → `_shared/tenisNotificar.ts`. `parsearResumenProcesar` reads `{ahora, holds_vencidos, comprobantes_vencidos, jugadas, no_shows}` with `tenis_aviso` data; `tenis-cron` notifies from it (no-show charge, warning on first infraction; co-players of a cancelled guest booking still read from `tenis_reserva_jugadores`). `tenis-invitados` `reservar` sent members as `{socio_id}`, which the DB rejects (`parametros`): it now sends `{dni}` / `{invitado:{...}}` and lets the DB resolve members and `titular_es_socio` (DB `socio_no_encontrado` → `jugador_sin_nombre` + `dni`); `reservar` and `confirmar` pass through the DB players (`nombre`, `cargo`, `motivo`, `es_titular`); `ya_confirmada` comes from the state before confirming (the old fallback never fired). Blocks ending `24:00` handled. `tenis-gestion` reads `roles[]` like `es_gestor_tenis()`.
+- App (`3075891`): grid `tipo` = `reserva_web|reserva_telefonica|reserva_invitado|extension` or block type; players use `jugador_id` (+ `dni`/`numero_socio` for staff); "Mis reservas" uses the server `puede_cancelar`; receipts/check-in parsers moved to `lib/tenis.ts` and checked; `tenis_jugadores_corregir` gets `p_registrar_infraccion`/`p_nota` and kept guests as `{dni}`; canchero "ESCANEAR CARNET (QR)" calls `tenis_checkin(p_numero_socio)`; admin layout has the "Canchas" tab (re-exports the subcomisión screen, behind `FEATURES.tenis`).
+- Web (`51eedf6`): reads `codigo` (not `motivo`) for screens and copy; slot picker uses `libres[modalidad]`; `reservar` body is `{cancha_id, inicio, modalidad, titular, jugadores:[{dni, nombre?, apellido?}]}` and shows `email_enviado === false`; `confirmar` reads `reserva.{comprobante_estado, comprobante_motivo, jugadores, hora_real}`; `subir-comprobante` sends `{token, tipo, tamano}`; DNI rule 7–8 digits like the function.
+- Remaining gaps: (1) the carnet QR check-in does NOT validate the TOTP code — `socios-qr validate` would consume the code and write a second `accesos` row, so it was not reused; the canchero sees the name (a photo/screenshot of someone's QR would pass). (2) `database.types.ts` still lacks the tennis RPCs (regenerate after applying the migration). (3) Nothing applied/deployed; app/web flags stay off. (4) T1 known gap (receipt approved after the turn → `no_show`) unchanged.
+
 ## Acceptance criteria
 - A member books singles/doubles picking players from the padrón; prices follow the carnet rule; limits (1/day, 2 active, 2 days ahead) and the 3 h cancellation are enforced server-side.
 - Two bookings can never overlap on the same court (exclusion constraint) and bookings never overlap a block.
@@ -143,6 +152,7 @@ Forecast well above 400 authored lines → chained PRs by workstream (DB → fun
 
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
+- 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
 
 ## Next step
-Launch T1–T4 in parallel.
+Review the integrated branch, decide delivery slices (DB → functions → app → web), then apply the migration and deploy functions only with Agus's OK.
