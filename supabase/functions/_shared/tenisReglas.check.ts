@@ -11,6 +11,7 @@ import {
   cargoJugador,
   clavesLimiteInvitado,
   codigoDeError,
+  dejaHuecoValido,
   dentroDeAnticipacion,
   dentroDeHorario,
   diaSemanaIso,
@@ -140,6 +141,32 @@ await caso('validarTurno devuelve el primer código que falla, o null', () => {
   assert.equal(validarTurno(new Date('basura'), 'singles', ahora, CFG), 'parametros')
 })
 
+await caso('optimizador: el hueco hasta lo anterior/siguiente (o apertura/cierre) es 0 o de al menos singles_min', () => {
+  const ahora = ar('2026-11-20T10:00') // mañana = 21/11
+  const libre: { inicio: string; fin: string }[] = []
+  // Cancha vacía: 08:00 y 21:00 no dejan hueco; 09:00 deja 60 (ok); 08:30 deja 30 a la apertura.
+  assert.equal(dejaHuecoValido(ar('2026-11-21T08:00'), 'singles', libre, ahora, CFG), true)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T09:00'), 'singles', libre, ahora, CFG), true)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T08:30'), 'singles', libre, ahora, CFG), false)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T21:00'), 'singles', libre, ahora, CFG), true)
+  // 20:30 singles termina 21:30: deja 30 al cierre; dobles 20:30 termina 22:00.
+  assert.equal(dejaHuecoValido(ar('2026-11-21T20:30'), 'singles', libre, ahora, CFG), false)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T20:30'), 'dobles', libre, ahora, CFG), true)
+  // Ocupado 12:00–13:00 (reserva o bloque, ISO o Date).
+  const ocupados = [{ inicio: ar('2026-11-21T12:00').toISOString(), fin: ar('2026-11-21T13:00') }]
+  assert.equal(dejaHuecoValido(ar('2026-11-21T13:00'), 'singles', ocupados, ahora, CFG), true)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T13:30'), 'singles', ocupados, ahora, CFG), false)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T14:00'), 'singles', ocupados, ahora, CFG), true)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T10:30'), 'singles', ocupados, ahora, CFG), false) // 11:30–12:00
+  assert.equal(dejaHuecoValido(ar('2026-11-21T10:00'), 'singles', ocupados, ahora, CFG), true)
+  // Lo de otro día no cuenta.
+  const ayer = [{ inicio: ar('2026-11-20T21:00'), fin: ar('2026-11-21T00:00') }]
+  assert.equal(dejaHuecoValido(ar('2026-11-21T08:00'), 'singles', ayer, ahora, CFG), true)
+  // Hoy (día local) se permite cualquier hueco.
+  assert.equal(dejaHuecoValido(ar('2026-11-20T20:30'), 'singles', libre, ahora, CFG), true)
+  assert.equal(dejaHuecoValido(ar('2026-11-21T08:30'), 'singles', libre, ar('2026-11-20T23:50'), CFG), false) // mañana local
+})
+
 await caso('precio por jugador: carnet gratis el primer turno del día, después precio socio; invitado precio no socio', () => {
   assert.deepEqual(cargoJugador({ tipo: 'socio', carnetTenis: true, otroTurnoEseDia: false }, 'singles', CFG), { cargo: 0, motivo: 'carnet_gratis' })
   assert.deepEqual(cargoJugador({ tipo: 'socio', carnetTenis: true, otroTurnoEseDia: true }, 'singles', CFG), { cargo: 9000, motivo: 'turno_extra' })
@@ -263,6 +290,7 @@ const CODIGOS_DB = [
   'hold_vencido', 'reserva_cancelada', 'comprobante_vencido', 'path_invalido', 'motivo_requerido',
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
+  'hueco_invalido',
 ]
 const CODIGOS_FUNCIONES = ['limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido']
 

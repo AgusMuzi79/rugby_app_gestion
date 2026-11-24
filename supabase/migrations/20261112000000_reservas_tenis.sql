@@ -33,7 +33,8 @@
 --     token_invalido, hold_vencido, reserva_cancelada, comprobante_vencido,
 --     path_invalido, motivo_requerido, bloque_invalido, bloque_inexistente,
 --     config_invalida, dias_invalidos, persona_requerida, jugador_inexistente,
---     infraccion_inexistente, suspension_inexistente, extension_invalida.
+--     infraccion_inexistente, suspension_inexistente, extension_invalida,
+--     hueco_invalido.
 --     Para los jugadores que no son el titular, suspensión y morosidad dan el
 --     mismo código (jugador_no_habilitado): un socio no se entera de por qué
 --     otro socio no puede jugar.
@@ -665,6 +666,61 @@ begin
 end;
 $$;
 
+-- Optimizador: el hueco libre que deja [p_inicio, p_fin) en la cancha, hasta lo
+-- anterior y lo siguiente que la ocupa ese día (reservas vivas y bloques, también
+-- recurrentes y de todas las canchas) o hasta la apertura/cierre, tiene que ser 0
+-- o de al menos singles_min minutos (con menos no entra ni un singles). Regla
+-- fija (sin config, decisión de la subcomisión 2026-11-24): no aplica cuando la
+-- fecha local del turno es hoy ("el mismo día, si la cancha está libre, se puede
+-- dejar media hora") ni a la reserva telefónica del gestor (ver
+-- tenis_crear_reserva). Espejo: dejaHuecoValido() en _shared/tenisReglas.ts.
+create or replace function tenis_validar_hueco(p_cancha_id uuid, p_inicio timestamptz, p_fin timestamptz)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_cfg   tenis_config%rowtype;
+  v_fecha date := tenis_local(p_inicio)::date;
+  v_prev  timestamptz;
+  v_next  timestamptz;
+  v_antes numeric;
+  v_desp  numeric;
+begin
+  select * into v_cfg from tenis_config where id;
+  if v_fecha = tenis_hoy() then
+    return;
+  end if;
+
+  select greatest(
+           tenis_ts(v_fecha, v_cfg.hora_desde),
+           (select max(r.fin) from tenis_reservas r
+             where r.cancha_id = p_cancha_id
+               and r.estado in ('pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada')
+               and r.fin <= p_inicio and r.fin > tenis_ts(v_fecha, '00:00')),
+           (select max(b.fin) from tenis_bloques_dia(v_fecha) b
+             where b.cancha_id = p_cancha_id and b.fin <= p_inicio))
+    into v_prev;
+  select least(
+           tenis_ts(v_fecha, v_cfg.hora_hasta),
+           (select min(r.inicio) from tenis_reservas r
+             where r.cancha_id = p_cancha_id
+               and r.estado in ('pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada')
+               and r.inicio >= p_fin and r.inicio < tenis_ts(v_fecha + 1, '00:00')),
+           (select min(b.inicio) from tenis_bloques_dia(v_fecha) b
+             where b.cancha_id = p_cancha_id and b.inicio >= p_fin))
+    into v_next;
+
+  v_antes := extract(epoch from (p_inicio - v_prev)) / 60;
+  v_desp  := extract(epoch from (v_next - p_fin)) / 60;
+  if (v_antes > 0 and v_antes < v_cfg.singles_min) or (v_desp > 0 and v_desp < v_cfg.singles_min) then
+    perform tenis_error('hueco_invalido');
+  end if;
+end;
+$$;
+
 -- Lock transaccional por clave (cancha o persona), para serializar reservas
 -- concurrentes que tocan lo mismo.
 create or replace function tenis_lock(p_clave text)
@@ -940,7 +996,8 @@ $$;
 -- tenis_invitado_reservar (web pública). Orden de locks: cancha y después cada
 -- persona (claves ordenadas), así dos reservas concurrentes no se cruzan.
 -- p_jugadores: los otros jugadores (sin el titular): singles 1, dobles 3.
--- p_aplicar_limites: 1 por día y 2 activas por titular (el gestor no los aplica).
+-- p_aplicar_limites: 1 por día y 2 activas por titular, y el optimizador de huecos
+-- (tenis_validar_hueco). El gestor (reserva telefónica) no aplica ninguno.
 create or replace function tenis_crear_reserva(
   p_cancha_id           uuid,
   p_inicio              timestamptz,
@@ -998,6 +1055,9 @@ begin
 
   perform tenis_lock('cancha:' || p_cancha_id::text);
   perform tenis_validar_turno(p_cancha_id, p_inicio, v_fin);
+  if p_aplicar_limites then
+    perform tenis_validar_hueco(p_cancha_id, p_inicio, v_fin);
+  end if;
 
   -- Jugadores: cantidad exacta y sin repetidos (el titular no va en la lista).
   if p_jugadores is null or jsonb_typeof(p_jugadores) <> 'array' then
@@ -2624,6 +2684,7 @@ revoke execute on function tenis_precio(boolean, text)                      from
 revoke execute on function tenis_en_grilla(timestamp, int)                  from public, anon, authenticated;
 revoke execute on function tenis_bloques_dia(date)                          from public, anon, authenticated;
 revoke execute on function tenis_validar_turno(uuid, timestamptz, timestamptz) from public, anon, authenticated;
+revoke execute on function tenis_validar_hueco(uuid, timestamptz, timestamptz) from public, anon, authenticated;
 revoke execute on function tenis_lock(text)                                 from public, anon, authenticated;
 revoke execute on function tenis_resolver_persona(jsonb, boolean)           from public, anon, authenticated;
 revoke execute on function tenis_validar_persona(uuid, uuid, date, boolean) from public, anon, authenticated;

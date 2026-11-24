@@ -161,6 +161,41 @@ export function dentroDeAnticipacion(fecha: string, ahora: Date, cfg: TenisConfi
   return fecha >= hoy && fecha <= sumarDias(hoy, cfg.anticipacion_dias)
 }
 
+/**
+ * Optimizador (espejo de tenis_validar_hueco en la base, regla fija sin config): el hueco libre
+ * que deja el turno en su cancha hasta lo anterior y lo siguiente que la ocupa ese día (reservas
+ * vivas y bloques, `ocupados` de ESA cancha) o hasta la apertura/cierre tiene que ser 0 o de al
+ * menos singles_min minutos. Si el turno es de hoy (día local de Argentina) siempre pasa. La
+ * reserva telefónica del gestor no la aplica. false = la base contestaría 'hueco_invalido'.
+ */
+export function dejaHuecoValido(
+  inicio: Date,
+  modalidad: Modalidad,
+  ocupados: { inicio: Date | string; fin: Date | string }[],
+  ahora: Date,
+  cfg: TenisConfig,
+): boolean {
+  const fecha = fechaLocal(inicio)
+  if (fecha === fechaLocal(ahora)) return true
+  const ini = inicio.getTime()
+  const fin = finTurno(inicio, modalidad, cfg).getTime()
+  const desdeDia = instanteLocal(fecha, '00:00').getTime()
+  const hastaDia = instanteLocal(sumarDias(fecha, 1), '00:00').getTime()
+  let prev = instanteLocal(fecha, cfg.hora_desde).getTime()
+  let next = instanteLocal(fecha, cfg.hora_hasta).getTime()
+  for (const o of ocupados) {
+    const oIni = new Date(o.inicio).getTime()
+    const oFin = new Date(o.fin).getTime()
+    if (Number.isNaN(oIni) || Number.isNaN(oFin)) continue
+    if (oFin <= ini && oFin > desdeDia) prev = Math.max(prev, oFin)
+    if (oIni >= fin && oIni < hastaDia) next = Math.min(next, oIni)
+  }
+  const antes = (ini - prev) / MIN
+  const despues = (next - fin) / MIN
+  const corto = (h: number) => h > 0 && h < cfg.singles_min
+  return !corto(antes) && !corto(despues)
+}
+
 // Mismos códigos que la base (tenis_crear_reserva / tenis_validar_turno).
 export type CodigoTurno =
   | 'parametros'
@@ -406,6 +441,7 @@ const MOTIVOS: Record<string, string> = {
   infraccion_inexistente: 'Esa infracción ya no existe.',
   suspension_inexistente: 'Esa suspensión ya no está vigente.',
   extension_invalida: 'Revisá el horario de la extensión.',
+  hueco_invalido: 'Ese horario dejaría un hueco de menos de una hora en la cancha. Elegí uno pegado a otro turno o con al menos una hora libre.',
   // Sólo Edge Functions.
   limitado: 'Hiciste muchos pedidos seguidos. Probá de nuevo en un rato.',
   jugador_sin_nombre: 'Ese DNI no es de un socio: completá nombre y apellido.',

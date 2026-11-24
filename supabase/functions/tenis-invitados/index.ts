@@ -5,7 +5,8 @@
 //
 // Actions (body.action), todas POST:
 //   disponibilidad        — { fecha:'AAAA-MM-DD' } canchas, turnos ocupados (sin nombres) y turnos
-//                           libres por modalidad. Sólo hoy .. hoy + anticipacion_dias.
+//                           libres por modalidad (sólo los que no dejan un hueco inválido:
+//                           dejaHuecoValido). Sólo hoy .. hoy + anticipacion_dias.
 //   reservar              — { cancha_id, inicio (ISO), modalidad, titular:{dni,nombre,apellido,email},
 //                           jugadores:[{dni, nombre?, apellido?}] } (singles 1, dobles 3, sin el titular).
 //                           Un jugador cuyo DNI es de un socio activo entra como socio (precio socio o
@@ -47,6 +48,7 @@ import {
   UUID_RE,
   clavesLimiteInvitado,
   codigoDeError,
+  dejaHuecoValido,
   describirTurno,
   diaSemanaIso,
   duracionMin,
@@ -256,7 +258,8 @@ function turnosLibres(
       if (validarTurno(inicio, modalidad, ahora, cfg) !== null) continue
       const fin = finTurno(inicio, modalidad, cfg).getTime()
       const pisa = suyos.some((o) => new Date(o.inicio).getTime() < fin && new Date(o.fin).getTime() > t)
-      if (!pisa) {
+      // Optimizador (regla fija, misma que la base): sin huecos de menos de singles_min, salvo hoy.
+      if (!pisa && dejaHuecoValido(inicio, modalidad, suyos, ahora, cfg)) {
         libres.push({ cancha_id: cancha.id, inicio: inicio.toISOString(), hora: horaLocal(inicio), hora_real: horaInicioReal(inicio, cfg) })
       }
     }

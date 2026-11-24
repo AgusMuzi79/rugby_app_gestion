@@ -781,4 +781,36 @@ select pg_temp.espera(
 select pg_temp.espera((tenis_comprobante_resolver(pg_temp.id('g5'), false, 'No llegó la plata'))->>'estado', 'jugada',
   'F3: rechazado después del turno no cambia el estado');
 
+-- ─── Optimizador: sin huecos inútiles (F9) ───────────────────────────────────
+-- El hueco libre entre la reserva y lo anterior/siguiente de la cancha (o la apertura y el
+-- cierre) tiene que ser 0 o de al menos singles_min (60). Regla fija: hoy se permite; el gestor
+-- nunca lo aplica.
+
+select pg_temp.ahora('2026-11-20 10:00');
+select pg_temp.como('p4');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(1), pg_temp.t('2026-11-21 20:30'), 'singles', pg_temp.j(2))$$),
+  'hueco_invalido', 'F9: mañana, 30 min libres antes del cierre rechazado');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(4), pg_temp.t('2026-11-22 13:30'), 'singles', pg_temp.j(1))$$),
+  'hueco_invalido', 'F9: 30 min libres después de otra reserva rechazado');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(7), pg_temp.t('2026-11-21 08:30'), 'singles', pg_temp.j(1))$$),
+  'hueco_invalido', 'F9: 30 min libres después de la apertura rechazado');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(1), pg_temp.t('2026-11-22 10:30'), 'singles', pg_temp.j(1))$$),
+  'hueco_invalido', 'F9: 30 min libres después de un bloque de todas las canchas rechazado');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar(pg_temp.ca(2), pg_temp.t('2026-11-21 12:30'), 'singles', pg_temp.j(1))$$),
+  'hueco_invalido', 'F9: 30 min libres después de un bloque recurrente rechazado');
+select pg_temp.espera(pg_temp.err($$select tenis_invitado_reservar(pg_temp.ca(7), pg_temp.t('2026-11-21 08:30'), 'singles',
+  '{"dni":"30333111","nombre":"Ada","apellido":"Hueco","email":"ada@example.com"}',
+  '[{"invitado":{"dni":"30333112","nombre":"Bo","apellido":"Hueco"}}]', repeat('i', 64))$$),
+  'hueco_invalido', 'F9: la web de invitados también respeta el optimizador');
+select pg_temp.guardar('hoy', tenis_reservar(pg_temp.ca(1), pg_temp.t('2026-11-20 20:30'), 'singles', pg_temp.j(2)));
+select pg_temp.espera(pg_temp.estado('hoy'), 'confirmada', 'F9: hoy se pueden dejar 30 min libres');
+
+select pg_temp.como('gestor');
+select pg_temp.espera(pg_temp.err($$select tenis_reservar_staff(pg_temp.ca(7), pg_temp.t('2026-11-21 08:30'), 'singles',
+  pg_temp.j(4), '{"socio_id":"b0000000-0000-0000-0000-000000000003"}', 'telefonica')$$),
+  'ok', 'F9: la reserva telefónica no aplica el optimizador');
+select pg_temp.espera(
+  (select count(*)::text from tenis_config_guardar('{"optimizador_activo": false}') c
+    where c ? 'optimizador_activo'), '0', 'F9: regla fija, no hay config del optimizador');
+
 rollback;
