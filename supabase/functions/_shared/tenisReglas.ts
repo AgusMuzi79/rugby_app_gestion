@@ -459,6 +459,15 @@ export interface ResumenProcesar {
   jugadas: string[]
   /** 'confirmada' sin ningún check-in al terminar el turno. */
   no_shows: AvisoNoShow[]
+  /**
+   * Invitados con el comprobante todavía en revisión al terminar el turno: 'jugada' si hubo
+   * check-in, si no 'no_show' SIN cargo ni infracción. El comprobante sigue para revisar.
+   */
+  comprobantes_sin_revisar: AvisoSinRevisar[]
+}
+
+export interface AvisoSinRevisar extends AvisoReserva {
+  resultado: 'jugada' | 'no_show' | null
 }
 
 function uuidONull(x: unknown): string | null {
@@ -514,12 +523,20 @@ export function parsearResumenProcesar(json: unknown): ResumenProcesar {
       advertencia: o.advertencia === true,
     })
   }
+  const sinRevisar: AvisoSinRevisar[] = []
+  for (const x of Array.isArray(r.comprobantes_sin_revisar) ? r.comprobantes_sin_revisar : []) {
+    const a = parsearAviso(x)
+    if (!a) continue
+    const res = (x as Record<string, unknown>).resultado
+    sinRevisar.push({ ...a, resultado: res === 'jugada' || res === 'no_show' ? res : null })
+  }
   return {
     ahora: textoONull(r.ahora),
     holds_vencidos: listaAvisos(r.holds_vencidos),
     comprobantes_vencidos: listaAvisos(r.comprobantes_vencidos),
     jugadas: Array.isArray(r.jugadas) ? r.jugadas.map(uuidONull).filter((x): x is string => x !== null) : [],
     no_shows: noShows,
+    comprobantes_sin_revisar: sinRevisar,
   }
 }
 

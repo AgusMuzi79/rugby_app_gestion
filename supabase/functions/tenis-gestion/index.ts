@@ -144,7 +144,14 @@ async function handleResolver(jwt: string, body: Record<string, unknown>): Promi
       const invitado = invitados.get(reserva.titular_invitado_id)
       const turno = escapeHtml(describirTurno(reserva.inicio, reserva.cancha, cfg))
       const saludo = `<p style="font-size:16px">Hola ${escapeHtml(invitado?.nombre ?? '')},</p>`
-      if (aprobado) {
+      // Comprobante revisado después del turno (la base deja la reserva jugada si se aprueba).
+      const terminado = reserva.fin.getTime() <= Date.now()
+      if (aprobado && terminado) {
+        emailEnviado = await mailAInvitado(invitado, 'Recibimos tu pago de tenis — UNCAS', `
+          ${saludo}
+          <p style="font-size:16px">Recibimos tu pago de la reserva del <strong>${turno}</strong>. ¡Gracias!</p>
+        `)
+      } else if (aprobado) {
         emailEnviado = await mailAInvitado(invitado, 'Tu reserva de tenis está confirmada — UNCAS', `
           ${saludo}
           <p style="font-size:16px">Recibimos tu pago. Tu reserva del <strong>${turno}</strong> está confirmada.</p>
@@ -156,7 +163,9 @@ async function handleResolver(jwt: string, body: Record<string, unknown>): Promi
         const puedeReintentar = reserva.estado === 'pendiente_comprobante' && vence !== null && vence.getTime() > Date.now()
         const siguiente = puedeReintentar
           ? `Podés subir otro comprobante desde el link del mail de confirmación hasta el ${fechaLocal(vence).split('-').reverse().slice(0, 2).join('/')} a las ${horaLocal(vence)}. Si no, la reserva se cancela.`
-          : 'La reserva quedó cancelada.'
+          : terminado
+            ? 'Si creés que es un error, escribile a la subcomisión de tenis.'
+            : 'La reserva quedó cancelada.'
         emailEnviado = await mailAInvitado(invitado, 'No pudimos validar tu comprobante — UNCAS', `
           ${saludo}
           <p style="font-size:16px">No pudimos validar el comprobante de tu reserva del <strong>${turno}</strong>.</p>

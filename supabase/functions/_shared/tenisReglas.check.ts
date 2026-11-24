@@ -285,6 +285,7 @@ await caso('resumen de tenis_procesar(): avisos con el titular, ids de jugadas, 
     comprobantes_vencidos: [aviso(b, { invitado_id: a, nombre: 'Leo', email: null }), 'basura'],
     jugadas: [a, 'basura'],
     no_shows: [{ ...aviso(a, { socio_id: s, profile_id: b, nombre: 'Pérez Juan' }), cargo_titular: 18000, infraccion_id: b, advertencia: true }],
+    comprobantes_sin_revisar: [{ ...aviso(b, { invitado_id: a, nombre: 'Leo', email: 'leo@mail.com' }), resultado: 'no_show' }, { ...aviso(a, {}), resultado: 'raro' }],
   })
   assert.equal(r.ahora, '2026-11-21T20:00:00+00:00')
   assert.equal(r.holds_vencidos.length, 1)
@@ -298,7 +299,14 @@ await caso('resumen de tenis_procesar(): avisos con el titular, ids de jugadas, 
   assert.equal(r.no_shows[0].cargo_titular, 18000)
   assert.equal(r.no_shows[0].advertencia, true)
   assert.equal(r.no_shows[0].infraccion_id, b)
-  assert.deepEqual(parsearResumenProcesar(null), { ahora: null, holds_vencidos: [], comprobantes_vencidos: [], jugadas: [], no_shows: [] })
+  // Comprobante en revisión al terminar el turno: jugada o no_show sin cargo; sólo se informa.
+  assert.equal(r.comprobantes_sin_revisar.length, 2)
+  assert.equal(r.comprobantes_sin_revisar[0].resultado, 'no_show')
+  assert.equal(r.comprobantes_sin_revisar[0].titular.email, 'leo@mail.com')
+  assert.equal(r.comprobantes_sin_revisar[1].resultado, null)
+  assert.deepEqual(parsearResumenProcesar(null), {
+    ahora: null, holds_vencidos: [], comprobantes_vencidos: [], jugadas: [], no_shows: [], comprobantes_sin_revisar: [],
+  })
 })
 
 console.log(`\n${casos} casos ok`)

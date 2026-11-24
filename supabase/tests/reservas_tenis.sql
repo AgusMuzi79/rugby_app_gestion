@@ -202,6 +202,18 @@ exception when others then
   return sqlerrm;
 end $$;
 
+-- Igual, pero con el DETAIL del error: '<código>|<detail>'.
+create function pg_temp.err_detalle(p_sql text) returns text language plpgsql as $$
+declare
+  v_det text;
+begin
+  execute p_sql;
+  return 'ok';
+exception when others then
+  get stacked diagnostics v_det = pg_exception_detail;
+  return sqlerrm || '|' || coalesce(v_det, '');
+end $$;
+
 create function pg_temp.espera(p_real text, p_esperado text, p_msg text) returns void language plpgsql as $$
 begin
   if p_real is distinct from p_esperado then
@@ -543,6 +555,11 @@ select pg_temp.espera(pg_temp.err($$select tenis_invitado_reservar(pg_temp.ca(5)
   '{"dni":"30111555","nombre":"Z","apellido":"Z","email":"z@example.com"}',
   '[{"invitado":{"dni":"30111666","nombre":"X","apellido":"Y"}}]', repeat('d', 64))$$),
   'plazo_invitado', 'invitado: el turno tiene que dejar tiempo para el comprobante');
+-- tenis-invitados lee el DNI del DETAIL para pedir nombre y apellido (jugador_sin_nombre).
+select pg_temp.espera(pg_temp.err_detalle($$select tenis_invitado_reservar(pg_temp.ca(5), pg_temp.t('2026-11-21 18:00'), 'singles',
+  '{"dni":"30111991","nombre":"Rita","apellido":"Paz","email":"rita@example.com"}',
+  '[{"dni":"30.999.000"}]', repeat('9', 64))$$),
+  'socio_no_encontrado|30999000', 'jugador por DNI desconocido: socio_no_encontrado con el DNI normalizado en DETAIL');
 
 -- Hold vencido a los 15 minutos.
 select pg_temp.ahora('2026-11-20 10:16');
@@ -609,6 +626,13 @@ select pg_temp.espera(
 select pg_temp.ahora('2026-11-20 10:00');
 select pg_temp.como('p2');
 select pg_temp.guardar('c1', tenis_reservar(pg_temp.ca(5), pg_temp.t('2026-11-22 12:00'), 'singles', pg_temp.j(3)));
+-- Para las extensiones de c1: S2 (su titular) vuelve a jugar a las 13:30 en la cancha 06 y la
+-- cancha 08 está tomada desde las 13:00.
+select pg_temp.como('gestor');
+select pg_temp.guardar('ocupa6', tenis_reservar_staff(pg_temp.ca(6), pg_temp.t('2026-11-22 13:30'), 'singles',
+  pg_temp.j(2), '{"socio_id":"b0000000-0000-0000-0000-000000000003"}', 'telefonica'));
+select pg_temp.guardar('ocupa8', tenis_reservar_staff(pg_temp.ca(8), pg_temp.t('2026-11-22 13:00'), 'singles',
+  '[{"dni":"30111888"}]', '{"socio_id":"b0000000-0000-0000-0000-000000000004"}', 'telefonica'));
 select pg_temp.como('canchero');
 select pg_temp.espera(
   (tenis_jugadores_corregir(pg_temp.id('c1'), '[{"invitado":{"dni":"30111999","nombre":"Nuevo","apellido":"Jugador"}}]',
@@ -625,6 +649,14 @@ select pg_temp.espera(
   'true', 'cobro marcado');
 select pg_temp.ahora('2026-11-22 12:50');
 select pg_temp.espera((tenis_checkin('20111002'))->>'resultado', 'ok', 'check-in del titular de c1');
+select pg_temp.espera(pg_temp.err(format($$select tenis_extension(pg_temp.ca(8), pg_temp.t('2026-11-22 13:30'), %L)$$,
+  pg_temp.id('c1'))), 'turno_ocupado', 'extensión a una cancha ocupada rechazada');
+select pg_temp.espera(pg_temp.err(format($$select tenis_extension(pg_temp.ca(7), pg_temp.t('2026-11-22 14:00'), %L)$$,
+  pg_temp.id('c1'))), 'jugador_ocupado', 'extensión con un jugador que tiene otro turno a esa hora rechazada');
+select pg_temp.espera(pg_temp.err(format($$select tenis_extension(pg_temp.ca(7), pg_temp.t('2026-11-22 14:30'), %L)$$,
+  pg_temp.id('ocupa8'))), 'extension_invalida', 'extensión de un turno que todavía no empezó rechazada');
+select pg_temp.espera(pg_temp.err(format($$select tenis_extension(pg_temp.ca(7), pg_temp.t('2026-11-22 14:30'), %L)$$,
+  pg_temp.id('jug'))), 'extension_invalida', 'extensión de un turno que terminó hace más de 15 minutos rechazada');
 select pg_temp.espera(
   (select (x->>'fin')::timestamptz = pg_temp.t('2026-11-22 13:30')
      from tenis_extension(pg_temp.ca(5), pg_temp.t('2026-11-22 13:30'), pg_temp.id('c1')) x)::text,
@@ -633,6 +665,10 @@ select pg_temp.espera(
   (select string_agg(motivo_cargo, ',' order by motivo_cargo) from tenis_reserva_jugadores j
      join tenis_reservas r on r.id = j.reserva_id where r.origen = 'extension'), 'no_socio,socio',
   'extensión: mismos jugadores con su cargo');
+select pg_temp.espera(
+  (select string_agg(coalesce((j.check_in_at <= tenis_ahora())::text, 'sin'), ',' order by j.es_titular desc)
+     from tenis_reserva_jugadores j join tenis_reservas r on r.id = j.reserva_id where r.origen = 'extension'),
+  'true,sin', 'extensión: check-in sólo de quien ya entró al turno original, nunca en el futuro');
 
 -- ─── Gestor: reserva telefónica y bloqueo puntual ────────────────────────────
 
@@ -658,5 +694,91 @@ select pg_temp.espera(
   (tenis_config_guardar('{"precio_socio_single": 9500}'))->>'precio_socio_single', '9500', 'gestor cambia un precio');
 select pg_temp.espera(pg_temp.err($$select tenis_config_guardar('{"hora_desde": "23:00"}')$$), 'config_invalida',
   'config inválida rechazada');
+select pg_temp.espera(
+  (tenis_config_guardar('{"precio_socio_single": 9000}'))->>'precio_socio_single', '9000', 'gestor vuelve el precio a 9000');
+
+-- ─── No-show con el titular que ya pagó (F1) ─────────────────────────────────
+-- Lo cobrado no se vuelve a deber: el cargo del no-show va aparte (cargo_no_show).
+
+select pg_temp.ahora('2026-11-20 10:00');
+select pg_temp.guardar('pre', tenis_reservar_staff(pg_temp.ca(2), pg_temp.t('2026-11-20 18:00'), 'singles',
+  pg_temp.j(4), '{"socio_id":"b0000000-0000-0000-0000-000000000002"}', 'telefonica'));
+select pg_temp.como('canchero');
+select tenis_cobro_marcar((select id from tenis_reserva_jugadores where reserva_id = pg_temp.id('pre') and es_titular), true);
+select pg_temp.ahora('2026-11-20 19:01');
+select pg_temp.espera(
+  (select x->>'cargo_titular' from jsonb_array_elements(tenis_procesar()->'no_shows') x
+    where x->>'reserva_id' = pg_temp.id('pre')::text), '9000', 'F1: no_show, al titular se le carga sólo lo que no se pagó');
+select pg_temp.espera(
+  (select cargo || '/' || motivo_cargo || '/' || cobrado || '/' || cargo_no_show || '/' || cargo_no_show_cobrado
+     from tenis_reserva_jugadores where reserva_id = pg_temp.id('pre') and es_titular),
+  '9000/socio/true/9000/false', 'F1: el titular conserva lo que pagó y debe aparte el precio del otro jugador');
+select pg_temp.espera(pg_temp.cargo('pre', 4), '0/no_show', 'F1: el otro jugador queda en 0');
+select pg_temp.espera(
+  (select r->>'total' || '/' || (r->>'total_cobrado') || '/' || (r->>'total_pendiente') from tenis_reserva_resumen(pg_temp.id('pre')) r),
+  '18000/9000/9000', 'F1: total 18000, cobrado 9000, pendiente 9000');
+select pg_temp.espera(
+  (tenis_cobro_marcar((select id from tenis_reserva_jugadores where reserva_id = pg_temp.id('pre') and es_titular), true, 'no_show'))
+    ->>'cargo_no_show_cobrado', 'true', 'F1: el canchero cobra el cargo del no-show');
+select pg_temp.espera(
+  (select r->>'total_cobrado' || '/' || (r->>'total_pendiente') from tenis_reserva_resumen(pg_temp.id('pre')) r),
+  '18000/0', 'F1: todo cobrado');
+select pg_temp.espera(
+  (tenis_cobro_marcar((select id from tenis_reserva_jugadores where reserva_id = pg_temp.id('pre') and es_titular), false, 'no_show'))
+    ->>'cobrado', 'true', 'F1: desmarcar el cargo del no-show no toca lo que se pagó antes');
+
+-- ─── Comprobante sin revisar al terminar el turno (F3) ───────────────────────
+-- Sin check-in queda no_show SIN cargo ni infracción (el invitado no pudo entrar con el
+-- comprobante pendiente); con check-in, jugada. Aprobarlo después deja la reserva jugada.
+
+select pg_temp.ahora('2026-11-20 10:40');
+select pg_temp.guardar('g4', tenis_invitado_reservar(pg_temp.ca(8), pg_temp.t('2026-11-21 20:00'), 'singles',
+  '{"dni":"30222111","nombre":"Ema","apellido":"Tarde","email":"ema@example.com"}',
+  '[{"invitado":{"dni":"30222112","nombre":"Leo","apellido":"Tarde"}}]', repeat('g', 64)));
+select tenis_invitado_confirmar(repeat('g', 64));
+select tenis_invitado_comprobante(pg_temp.id('g4'), repeat('g', 64), pg_temp.id('g4') || '/c.jpg');
+select pg_temp.guardar('g5', tenis_invitado_reservar(pg_temp.ca(7), pg_temp.t('2026-11-21 20:00'), 'singles',
+  '{"dni":"30222113","nombre":"Ian","apellido":"Tarde","email":"ian@example.com"}',
+  '[{"invitado":{"dni":"30222114","nombre":"Uma","apellido":"Tarde"}}]', repeat('h', 64)));
+select tenis_invitado_confirmar(repeat('h', 64));
+select tenis_invitado_comprobante(pg_temp.id('g5'), repeat('h', 64), pg_temp.id('g5') || '/c.jpg');
+-- tenis_checkin no deja entrar con el comprobante pendiente: se simula un check-in cargado a mano.
+update tenis_reserva_jugadores set check_in_at = pg_temp.t('2026-11-21 19:55')
+ where reserva_id = pg_temp.id('g5') and es_titular;
+
+select pg_temp.ahora('2026-11-21 21:01');
+create temp table t_proc as select tenis_procesar() as r;
+select pg_temp.espera(pg_temp.estado('g4') || '/' || pg_temp.estado('g5'), 'no_show/jugada',
+  'F3: comprobante pendiente al terminar: no_show sin check-in, jugada con check-in');
+select pg_temp.espera(
+  (select string_agg(x->>'resultado', ',' order by x->>'resultado') from t_proc, jsonb_array_elements(r->'comprobantes_sin_revisar') x
+    where x->>'reserva_id' in (pg_temp.id('g4')::text, pg_temp.id('g5')::text)),
+  'jugada,no_show', 'F3: el resumen los informa aparte (comprobantes_sin_revisar)');
+select pg_temp.espera(
+  (select count(*)::text from t_proc, jsonb_array_elements(r->'no_shows') x
+    where x->>'reserva_id' in (pg_temp.id('g4')::text, pg_temp.id('g5')::text)), '0', 'F3: no son no-shows con cargo');
+select pg_temp.espera(
+  (select count(*)::text from tenis_infracciones where reserva_id in (pg_temp.id('g4'), pg_temp.id('g5'))), '0',
+  'F3: sin infracción');
+select pg_temp.espera(
+  (select string_agg(cargo || '/' || motivo_cargo, ',') from tenis_reserva_jugadores where reserva_id = pg_temp.id('g4')),
+  '16000/no_socio,16000/no_socio', 'F3: los cargos no cambian');
+select pg_temp.espera(
+  (select jsonb_array_length(r->'comprobantes_sin_revisar') from tenis_procesar() r)::text, '0',
+  'F3: procesar es idempotente');
+select pg_temp.como('canchero');
+select pg_temp.espera(
+  (select count(*)::text from jsonb_array_elements(tenis_comprobantes_pendientes()) x
+    where x->>'reserva_id' in (pg_temp.id('g4')::text, pg_temp.id('g5')::text)), '2',
+  'F3: los comprobantes siguen en la lista para revisar');
+select pg_temp.espera((tenis_comprobante_resolver(pg_temp.id('g4'), true, null))->>'estado', 'jugada',
+  'F3: aprobado después del turno queda jugada');
+select pg_temp.espera(
+  (select bool_and(cobrado)::text from tenis_reserva_jugadores where reserva_id = pg_temp.id('g4')), 'true',
+  'F3: aprobado tarde marca todo cobrado');
+select pg_temp.espera(
+  (select count(*)::text from tenis_infracciones where reserva_id = pg_temp.id('g4')), '0', 'F3: aprobado tarde, sin infracción');
+select pg_temp.espera((tenis_comprobante_resolver(pg_temp.id('g5'), false, 'No llegó la plata'))->>'estado', 'jugada',
+  'F3: rechazado después del turno no cambia el estado');
 
 rollback;
