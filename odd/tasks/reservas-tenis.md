@@ -184,10 +184,16 @@ Coverage (nice to have): SQL cases for receipt replacement, extension failures, 
 - Coverage added: app parsers (`parsearDisponibilidad`, `parsearResultadoReserva`, `parsearMisReservas`, `parsearComprobantes`, `parsearCheckin`, `parsearSanciones` — moved from `useTenisGestor`) in `47ae82c`; web `configDesde` (now type-checked per key), `fechasReservables` clamping and the pure `resultadoInvitados` mapping (moved out of `api.ts`) in `31a7b7d`.
 - Checks: `tenis.check.ts` app 36 cases, web 19 cases; `guardRaiz` 16, `agenda` 21, `tokens` 4; `tsc --noEmit` app and web exit 0; `next build` with placeholder env exit 0. The gestor rules screen does not expose the optimizer toggles yet.
 
+### Slice 6 review (fixes F1–F9, `91185b1..3cb8087`, 2026-11-24)
+Approved (medium, granted by Agus, reliability lens) and acknowledged. Advisory only:
+- [ ] F10 — `tenis-cron` counts a skipped mail (member titular without email) as `fallidos`; count only real errors.
+- [ ] F11 — no checks for `tenis-gestion` late receipt approve/reject copy and the cron per-notice isolation (SQL side is tested).
+
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
 - 2026-11-20: native review in 5 slices, all approved and acknowledged; advisory findings recorded as F1–F8.
+- 2026-11-24: F1–F9 fixed (backend + frontend in parallel, F9 made a fixed rule per Agus), all checks green, slice 6 reviewed and approved; F10–F11 advisory.
 
 ## Next step
-Decide whether to fix F1–F8 before opening the chained PRs. Apply the migration and deploy functions only with Agus's OK. Open product decision: TOTP validation on the QR check-in.
+Push the branch and open chained PRs (slices 1–6). Apply the migration and deploy functions only with Agus's OK. Open product decision: TOTP validation on the QR check-in. Optional: F10–F11.
