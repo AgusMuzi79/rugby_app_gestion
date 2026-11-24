@@ -3,12 +3,12 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { FEATURES } from '@/constants/features'
 import {
-  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva,
-  type Checkin, type ComprobantePendiente, type Disponibilidad, type JugadorEntrada, type Modalidad,
+  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva, parsearSanciones,
+  type Checkin, type ComprobantePendiente, type Disponibilidad, type Infraccion, type JugadorEntrada, type Modalidad, type Suspension,
   type ResultadoReserva, type TenisConfig, type TipoBloque,
 } from '@/lib/tenis'
 
-export type { Checkin, ComprobantePendiente } from '@/lib/tenis'
+export type { Checkin, ComprobantePendiente, Infraccion, Suspension } from '@/lib/tenis'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Gestión de canchas de tenis (pestaña Canchas de Subcomisión) y lo que
@@ -194,72 +194,6 @@ export function useComprobantesPendientes() {
 }
 
 // ─── Infracciones y suspensiones ──────────────────────────────────────────────
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null
-}
-
-export interface Infraccion {
-  id:          string
-  socio_id:    string | null
-  invitado_id: string | null
-  nombre:      string
-  tipo:        string
-  nota:        string | null
-  perdonada:   boolean
-  automatica:  boolean
-  created_at:  string
-}
-
-export interface Suspension {
-  id:          string
-  socio_id:    string | null
-  invitado_id: string | null
-  nombre:      string
-  desde:       string
-  hasta:       string
-  motivo:      string | null
-}
-
-function parsearSanciones(raw: unknown): { infracciones: Infraccion[]; suspensiones: Suspension[] } {
-  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
-  const inf = Array.isArray(raw) ? raw : Array.isArray(o.infracciones) ? o.infracciones : []
-  const sus = Array.isArray(o.suspensiones) ? o.suspensiones : []
-  return {
-    infracciones: inf.flatMap(x => {
-      if (!x || typeof x !== 'object') return []
-      const i = x as Record<string, unknown>
-      const id = str(i.id)
-      if (!id) return []
-      return [{
-        id,
-        socio_id:    str(i.socio_id),
-        invitado_id: str(i.invitado_id),
-        nombre:      str(i.nombre) ?? '—',
-        tipo:        str(i.tipo) ?? 'otra',
-        nota:        str(i.nota),
-        perdonada:   i.perdonada === true,
-        automatica:  i.creado_por === null || i.automatica === true,
-        created_at:  str(i.created_at) ?? '',
-      } satisfies Infraccion]
-    }),
-    suspensiones: sus.flatMap(x => {
-      if (!x || typeof x !== 'object') return []
-      const i = x as Record<string, unknown>
-      const id = str(i.id)
-      if (!id) return []
-      return [{
-        id,
-        socio_id:    str(i.socio_id),
-        invitado_id: str(i.invitado_id),
-        nombre:      str(i.nombre) ?? '—',
-        desde:       str(i.desde) ?? '',
-        hasta:       str(i.hasta) ?? '',
-        motivo:      str(i.motivo),
-      } satisfies Suspension]
-    }),
-  }
-}
 
 export function useSancionesTenis() {
   const [datos,   setDatos]   = useState<{ infracciones: Infraccion[]; suspensiones: Suspension[] }>({ infracciones: [], suspensiones: [] })

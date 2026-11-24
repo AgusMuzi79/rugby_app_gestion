@@ -31,6 +31,9 @@ import {
   jugadoresRequeridos,
   mensajeErrorTenis,
   parsearConfig,
+  parsearDisponibilidad,
+  parsearResultadoReserva,
+  parsearSanciones,
   pasaOptimizador,
   posicionBloque,
   puedeCancelar,
@@ -435,6 +438,82 @@ caso('corregir jugadores: socio por socio_id, invitado que sigue por dni (nunca 
   assert.deepEqual(otros, [{ socio_id: S1 }])
   const titularInv = (r.jugadores ?? []).filter(j => j.es_titular).map(entradaJugadorExistente)
   assert.deepEqual(titularInv, [{ dni: '30111777' }])
+})
+
+caso('disponibilidad: config, canchas válidas e ítems; basura da vacío', () => {
+  const d = parsearDisponibilidad({
+    config: { hora_desde: '09:00:00', optimizador_activo: false },
+    canchas: [{ id: 'c1', nombre: '01' }, { nombre: 'sin id' }, 'x'],
+    items: [{ cancha_id: 'c1', inicio: `${FECHA}T18:00:00-03:00`, fin: `${FECHA}T19:00:00-03:00`, tipo: 'reserva_web', mio: true }, { inicio: 'sin fin' }],
+  })
+  assert.equal(d.config.hora_desde, '09:00')
+  assert.equal(d.config.optimizador_activo, false)
+  assert.deepEqual(d.canchas, [{ id: 'c1', nombre: '01' }])
+  assert.equal(d.items.length, 1)
+  assert.equal(d.items[0].mio, true)
+  const vacio = parsearDisponibilidad(null)
+  assert.deepEqual(vacio.canchas, [])
+  assert.deepEqual(vacio.items, [])
+  assert.deepEqual(vacio.config, CONFIG_DEFECTO)
+})
+
+caso('resultado de reservar: reserva_id obligatorio, cargos y total', () => {
+  const r = parsearResultadoReserva({
+    reserva_id: R1, total: '9000',
+    jugadores: [{ nombre: 'Agus', cargo: 0, motivo: 'carnet_gratis' }, { nombre: 'Juan', cargo: 9000, motivo_cargo: 'socio' }],
+  })
+  assert.ok(r)
+  assert.equal(r.total, 9000)
+  assert.deepEqual(r.jugadores[1], { nombre: 'Juan', cargo: 9000, motivo: 'socio' })
+  assert.equal(parsearResultadoReserva({ total: 1 }), null)
+  assert.equal(parsearResultadoReserva('x'), null)
+})
+
+caso('mis reservas: filas sin id o sin horario se descartan; dobles y total null', () => {
+  const lista = parsearMisReservas([
+    { ...resumenStaff, modalidad: 'dobles', total: null },
+    { reserva_id: 'r2', inicio: `${FECHA}T10:00:00-03:00` },
+    null,
+  ])
+  assert.equal(lista.length, 1)
+  assert.equal(lista[0].modalidad, 'dobles')
+  assert.equal(lista[0].total, null)
+  assert.equal(lista[0].puede_cancelar, false)
+  assert.deepEqual(parsearMisReservas({ no: 'lista' }), [])
+})
+
+caso('comprobantes y check-in: tolerantes a basura', () => {
+  assert.deepEqual(parsearComprobantes(null), [])
+  const [c] = parsearComprobantes([{ reserva_id: R1, inicio: `${FECHA}T18:00:00-03:00` }])
+  assert.equal(c.titular, '—')
+  assert.equal(c.fin, c.inicio)
+  const vacio = parsearCheckin('x')
+  assert.equal(vacio.resultado, 'sin_reserva')
+  assert.equal(vacio.persona, null)
+  assert.equal(vacio.suspendido, false)
+  const susp = parsearCheckin({ persona: { tipo: 'invitado', nombre: 'Ana' }, suspendido: true, resultado: 'suspendido' })
+  assert.equal(susp.persona?.tipo, 'invitado')
+  assert.equal(susp.suspendido, true)
+})
+
+caso('sanciones: infracciones (automática si creado_por es null) y suspensiones', () => {
+  const s = parsearSanciones({
+    infracciones: [
+      { id: 'i1', socio_id: S1, invitado_id: null, nombre: 'Pérez Juan', tipo: 'no_show', nota: null, perdonada: false, creado_por: null, created_at: '2026-11-20T10:00:00Z' },
+      { id: 'i2', socio_id: S1, nombre: 'Pérez Juan', tipo: 'otra', nota: 'llegó tarde', perdonada: true, creado_por: 'u1' },
+      { sin: 'id' },
+    ],
+    suspensiones: [{ id: 's1', invitado_id: I1, nombre: 'Ana Paz', desde: '2026-11-20', hasta: '2026-11-27', motivo: 'no_show' }],
+  })
+  assert.equal(s.infracciones.length, 2)
+  assert.equal(s.infracciones[0].automatica, true)
+  assert.equal(s.infracciones[1].automatica, false)
+  assert.equal(s.infracciones[1].perdonada, true)
+  assert.equal(s.suspensiones[0].invitado_id, I1)
+  assert.equal(s.suspensiones[0].hasta, '2026-11-27')
+  // Una lista suelta se toma como infracciones.
+  assert.equal(parsearSanciones([{ id: 'i3' }]).infracciones[0].tipo, 'otra')
+  assert.deepEqual(parsearSanciones(null), { infracciones: [], suspensiones: [] })
 })
 
 // ─── Visibilidad ──────────────────────────────────────────────────────────────

@@ -377,6 +377,70 @@ export function parsearCheckin(raw: unknown): Checkin {
   }
 }
 
+export interface Infraccion {
+  id:          string
+  socio_id:    string | null
+  invitado_id: string | null
+  nombre:      string
+  tipo:        string
+  nota:        string | null
+  perdonada:   boolean
+  automatica:  boolean
+  created_at:  string
+}
+
+export interface Suspension {
+  id:          string
+  socio_id:    string | null
+  invitado_id: string | null
+  nombre:      string
+  desde:       string
+  hasta:       string
+  motivo:      string | null
+}
+
+// tenis_infracciones_listar(): {infracciones, suspensiones} (una lista suelta
+// se toma como infracciones). Automática = la creó el sistema (creado_por null).
+export function parsearSanciones(raw: unknown): { infracciones: Infraccion[]; suspensiones: Suspension[] } {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
+  const inf = Array.isArray(raw) ? raw : Array.isArray(o.infracciones) ? o.infracciones : []
+  const sus = Array.isArray(o.suspensiones) ? o.suspensiones : []
+  return {
+    infracciones: inf.flatMap(x => {
+      if (!x || typeof x !== 'object') return []
+      const i = x as Record<string, unknown>
+      const id = texto(i.id)
+      if (!id) return []
+      return [{
+        id,
+        socio_id:    texto(i.socio_id),
+        invitado_id: texto(i.invitado_id),
+        nombre:      texto(i.nombre) ?? '—',
+        tipo:        texto(i.tipo) ?? 'otra',
+        nota:        texto(i.nota),
+        perdonada:   i.perdonada === true,
+        automatica:  i.creado_por === null || i.automatica === true,
+        created_at:  texto(i.created_at) ?? '',
+      } satisfies Infraccion]
+    }),
+    suspensiones: sus.flatMap(x => {
+      if (!x || typeof x !== 'object') return []
+      const i = x as Record<string, unknown>
+      const id = texto(i.id)
+      if (!id) return []
+      return [{
+        id,
+        socio_id:    texto(i.socio_id),
+        invitado_id: texto(i.invitado_id),
+        nombre:      texto(i.nombre) ?? '—',
+        desde:       texto(i.desde) ?? '',
+        hasta:       texto(i.hasta) ?? '',
+        motivo:      texto(i.motivo),
+      } satisfies Suspension]
+    }),
+  }
+}
+
 // ─── Horario de Argentina ─────────────────────────────────────────────────────
 
 const OFFSET_AR_MS = -3 * 60 * 60 * 1000
