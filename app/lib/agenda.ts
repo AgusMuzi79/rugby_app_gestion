@@ -56,6 +56,18 @@ export function puedeVerAgenda(a: Pick<Agenda, 'tiene_gimnasio' | 'divisiones'>)
   return a.tiene_gimnasio || a.divisiones.length > 0
 }
 
+export type OpcionReserva = 'gimnasio' | 'tenis'
+
+// Opciones del botón RESERVAR de la Agenda, en el orden del selector. Gimnasio
+// si tiene el servicio; tenis con FEATURES.tenis para todo socio (el cliente
+// gimnasio no es socio y no reserva tenis). Vacío: no hay botón.
+export function opcionesReserva(p: { tieneGimnasio: boolean; tenisActivo: boolean; esSocio: boolean }): OpcionReserva[] {
+  const opciones: OpcionReserva[] = []
+  if (p.tieneGimnasio) opciones.push('gimnasio')
+  if (p.tenisActivo && p.esSocio) opciones.push('tenis')
+  return opciones
+}
+
 // Visibilidad de la pestaña: oculta hasta la primera carga; si la carga falla
 // se muestra igual (la pantalla muestra el error con Reintentar). Una recarga
 // con datos previos conserva lo que ya se veía.
