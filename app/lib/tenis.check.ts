@@ -31,6 +31,7 @@ import {
   jugadoresRequeridos,
   mensajeErrorTenis,
   parsearConfig,
+  pasaOptimizador,
   posicionBloque,
   puedeCancelar,
   resumenPrecio,
@@ -149,6 +150,74 @@ caso('horarios libres según la modalidad', () => {
   assert.deepEqual(iniciosLibres([], 'c1', FECHA, 'singles', CONFIG_DEFECTO, tarde), ['20:30', '21:00'])
 })
 
+caso('config: lee las banderas del optimizador (true si faltan)', () => {
+  assert.equal(CONFIG_DEFECTO.optimizador_activo, true)
+  assert.equal(CONFIG_DEFECTO.optimizador_libre_mismo_dia, true)
+  const c = parsearConfig({ optimizador_activo: false, optimizador_libre_mismo_dia: false })
+  assert.equal(c.optimizador_activo, false)
+  assert.equal(c.optimizador_libre_mismo_dia, false)
+  const d = parsearConfig({ optimizador_activo: 'no' })
+  assert.equal(d.optimizador_activo, true)
+})
+
+// Optimizador (F9): entre la reserva nueva y lo ocupado de al lado (o la
+// apertura / el cierre) no puede quedar un hueco de 1 a singles_min - 1 minutos.
+caso('optimizador: hueco 0 o de al menos singles_min con lo de al lado', () => {
+  const ayer = Date.parse('2026-11-20T12:00:00-03:00') // FECHA es otro día
+  const at = (h: string) => Date.parse(`${FECHA}T${h}:00-03:00`)
+  const ocupados = [item({})] // 18:00–19:00 en c1
+  const pasa = (ini: string, fin: string, cfg = CONFIG_DEFECTO, ahora = ayer, items = ocupados) =>
+    pasaOptimizador(items, 'c1', at(ini), at(fin), cfg, ahora)
+  assert.equal(pasa('17:00', '18:00'), true)  // pegada a la siguiente
+  assert.equal(pasa('19:00', '20:00'), true)  // pegada a la anterior
+  assert.equal(pasa('16:30', '17:30'), false) // deja 30 min antes de las 18:00
+  assert.equal(pasa('19:30', '20:30'), false) // deja 30 min después de las 19:00
+  assert.equal(pasa('16:00', '17:00'), true)  // deja 1 h: se puede usar
+  assert.equal(pasa('20:00', '21:00'), true)
+  // Apertura y cierre cuentan como ocupados.
+  assert.equal(pasa('08:00', '09:00', CONFIG_DEFECTO, ayer, []), true)
+  assert.equal(pasa('08:30', '09:30', CONFIG_DEFECTO, ayer, []), false)
+  assert.equal(pasa('21:00', '22:00', CONFIG_DEFECTO, ayer, []), true)
+  assert.equal(pasa('20:30', '21:30', CONFIG_DEFECTO, ayer, []), false)
+  // Dobles 90 min entre 19:00 y 22:00 deja 1 h 30 al final o pega.
+  assert.equal(pasa('19:00', '20:30'), true)
+  assert.equal(pasa('20:30', '22:00'), true)
+  // Otra cancha no cuenta; un bloque de todas las canchas sí.
+  assert.equal(pasaOptimizador(ocupados, 'c2', at('16:30'), at('17:30'), CONFIG_DEFECTO, ayer), true)
+  const todas = [item({ cancha_id: null, tipo: 'clase' })]
+  assert.equal(pasaOptimizador(todas, 'c2', at('16:30'), at('17:30'), CONFIG_DEFECTO, ayer), false)
+  // Un hueco más largo que singles_min también vale (90 min).
+  assert.equal(pasa('15:30', '16:30'), true)
+})
+
+caso('optimizador: mismo día y apagado no filtran', () => {
+  const at = (h: string) => Date.parse(`${FECHA}T${h}:00-03:00`)
+  const ocupados = [item({})]
+  const mismoDia = at('07:00')
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, mismoDia), true)
+  const sinExcepcion = { ...CONFIG_DEFECTO, optimizador_libre_mismo_dia: false }
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), sinExcepcion, mismoDia), false)
+  // Hoy en Argentina aunque en UTC ya sea mañana (23:30 del día anterior → otro día).
+  const nocheAnterior = Date.parse('2026-11-21T02:30:00Z') // 20/11 23:30 en Argentina
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, nocheAnterior), false)
+  const apagado = { ...CONFIG_DEFECTO, optimizador_activo: false }
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), apagado, nocheAnterior), true)
+})
+
+caso('horarios libres: el socio sólo ve los que pasan el optimizador, el staff todos', () => {
+  const ayer = Date.parse('2026-11-20T12:00:00-03:00')
+  const ocupados = [item({})] // 18:00–19:00
+  const socio = iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, ayer, { optimizador: true })
+  assert.deepEqual(socio, ['08:00', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00',
+    '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '17:00', '19:00', '20:00', '21:00'])
+  const staff = iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, ayer)
+  assert.ok(staff.includes('16:30'))
+  assert.ok(staff.includes('08:30'))
+  // El mismo día el socio ve todo lo libre.
+  const hoy = Date.parse(`${FECHA}T07:00:00-03:00`)
+  assert.deepEqual(iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, hoy, { optimizador: true }), staff)
+})
+
 // ─── Colores y etiquetas por tipo ─────────────────────────────────────────────
 
 caso('estilo por tipo de ítem (tipos de tenis_disponibilidad / tenis_grilla)', () => {
@@ -250,6 +319,7 @@ const CODIGOS_CONTRATO = [
   'hold_vencido', 'reserva_cancelada', 'comprobante_vencido', 'path_invalido', 'motivo_requerido',
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
+  'hueco_invalido',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -267,6 +337,7 @@ caso('cada código de la base y de las funciones tiene mensaje propio', () => {
 caso('mensaje en castellano por código', () => {
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'limite_dia' }, 'x'), 'Ya tenés una reserva ese día.')
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'turno_ocupado' }, 'x'), 'Ese horario ya está ocupado. Elegí otro.')
+  assert.match(mensajeErrorTenis({ code: 'P0001', message: 'hueco_invalido' }, 'x'), /media hora libre/)
   // Código desconocido o error técnico: el por defecto, nunca el texto crudo.
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'codigo_raro' }, 'Por defecto'), 'Por defecto')
   assert.equal(mensajeErrorTenis({ code: '42501', message: 'permission denied' }, 'Por defecto'), 'No tenés permiso para hacer esto.')

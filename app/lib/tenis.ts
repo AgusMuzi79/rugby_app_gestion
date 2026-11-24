@@ -38,6 +38,9 @@ export interface TenisConfig {
   precio_nosocio_single:   number
   precio_nosocio_dobles:   number
   bloquear_morosos:        boolean
+  // Optimizador (F9): no dejar huecos inutilizables entre turnos.
+  optimizador_activo:          boolean
+  optimizador_libre_mismo_dia: boolean
 }
 
 export const CONFIG_DEFECTO: TenisConfig = {
@@ -59,6 +62,8 @@ export const CONFIG_DEFECTO: TenisConfig = {
   precio_nosocio_single: 16000,
   precio_nosocio_dobles: 18000,
   bloquear_morosos: true,
+  optimizador_activo: true,
+  optimizador_libre_mismo_dia: true,
 }
 
 export interface Cancha {
@@ -192,6 +197,8 @@ export function parsearConfig(raw: unknown): TenisConfig {
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago
   if (typeof raw.bloquear_morosos === 'boolean') c.bloquear_morosos = raw.bloquear_morosos
+  if (typeof raw.optimizador_activo === 'boolean') c.optimizador_activo = raw.optimizador_activo
+  if (typeof raw.optimizador_libre_mismo_dia === 'boolean') c.optimizador_libre_mismo_dia = raw.optimizador_libre_mismo_dia
   return c
 }
 
@@ -483,8 +490,45 @@ export function duracionTexto(min: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m}`
 }
 
+// Optimizador (F9, regla de la subcomisión de tenis): una reserva no puede
+// dejar un hueco inutilizable en su cancha. El tiempo libre entre el turno
+// nuevo y lo ocupado inmediatamente antes y después (reservas activas y
+// bloques, incluidos los de todas las canchas) — o la apertura / el cierre —
+// tiene que ser 0 o de al menos `singles_min`. No se aplica si el turno es del
+// mismo día en Argentina y `optimizador_libre_mismo_dia` está activo, ni con
+// `optimizador_activo` apagado. El servidor aplica la misma regla
+// (`hueco_invalido`); las reservas telefónicas del staff no la usan.
+// `items` = lo que devuelve la disponibilidad (sólo lo que ocupa la cancha).
+export function pasaOptimizador(
+  items: Pick<ItemGrilla, 'cancha_id' | 'inicio' | 'fin'>[],
+  canchaId: string,
+  inicioMs: number,
+  finMs: number,
+  config: Pick<TenisConfig, 'hora_desde' | 'hora_hasta' | 'singles_min' | 'optimizador_activo' | 'optimizador_libre_mismo_dia'>,
+  ahoraMs: number,
+): boolean {
+  if (!config.optimizador_activo) return true
+  const fecha = fechaArgentina(inicioMs)
+  if (config.optimizador_libre_mismo_dia && fecha === fechaArgentina(ahoraMs)) return true
+  const base = inicioDelDia(fecha)
+  let anterior  = base + minutosDeHora(config.hora_desde) * MIN_MS
+  let siguiente = base + minutosDeHora(config.hora_hasta) * MIN_MS
+  for (const i of items) {
+    if (i.cancha_id !== null && i.cancha_id !== canchaId) continue
+    const a = Date.parse(i.inicio)
+    const b = Date.parse(i.fin)
+    if (b <= inicioMs && b > anterior) anterior = b
+    if (a >= finMs && a < siguiente) siguiente = a
+  }
+  const minimo = config.singles_min * MIN_MS
+  const valido = (hueco: number) => hueco <= 0 || hueco >= minimo
+  return valido(inicioMs - anterior) && valido(siguiente - finMs)
+}
+
 // Horarios en los que entra un turno de esa modalidad en esa cancha, sin pisar
-// reservas ni bloques, dentro del horario y que todavía no empezaron.
+// reservas ni bloques, dentro del horario y que todavía no empezaron. Con
+// `optimizador` (reserva del socio) sólo los que pasan `pasaOptimizador`; el
+// staff (reserva telefónica) ve todos.
 export function iniciosLibres(
   items: Pick<ItemGrilla, 'cancha_id' | 'inicio' | 'fin'>[],
   canchaId: string,
@@ -492,6 +536,7 @@ export function iniciosLibres(
   modalidad: Modalidad,
   config: TenisConfig,
   ahoraMs: number,
+  opciones: { optimizador?: boolean } = {},
 ): string[] {
   const base = inicioDelDia(fecha)
   const dur  = duracionModalidad(modalidad, config)
@@ -506,6 +551,7 @@ export function iniciosLibres(
     const fin = ini + dur * MIN_MS
     if (ini <= ahoraMs) continue
     if (ocupados.some(([a, b]) => ini < b && a < fin)) continue
+    if (opciones.optimizador && !pasaOptimizador(items, canchaId, ini, fin, config, ahoraMs)) continue
     libres.push(hora)
   }
   return libres
@@ -716,6 +762,7 @@ const MENSAJES: Record<string, string> = {
   infraccion_inexistente:  'Esa infracción ya no existe.',
   suspension_inexistente:  'Esa suspensión ya no está vigente.',
   extension_invalida:      'Revisá el horario de la extensión: tiene que terminar después del turno.',
+  hueco_invalido:          'Ese horario dejaría media hora libre que nadie puede usar. Elegí uno pegado a otra reserva.',
   // Sólo Edge Functions.
   limitado:                'Hubo muchos pedidos seguidos. Probá de nuevo en un rato.',
   jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',

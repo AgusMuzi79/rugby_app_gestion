@@ -56,9 +56,11 @@ export function FormReserva({
     setTitular(null); setJugadores([]); setError(null); setResultado(null)
   }, [visible, canchaInicial, horaInicial])
 
+  // El socio sólo ve horarios que no dejan huecos inutilizables (optimizador);
+  // la reserva telefónica del staff no lo aplica.
   const libres = useMemo(
-    () => (canchaId ? iniciosLibres(items, canchaId, fecha, modalidad, config, ahoraMs) : []),
-    [items, canchaId, fecha, modalidad, config, ahoraMs],
+    () => (canchaId ? iniciosLibres(items, canchaId, fecha, modalidad, config, ahoraMs, { optimizador: !staff }) : []),
+    [items, canchaId, fecha, modalidad, config, ahoraMs, staff],
   )
   // Si el horario elegido ya no entra (p. ej. pasó a dobles), se deselecciona.
   useEffect(() => {
