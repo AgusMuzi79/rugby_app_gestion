@@ -153,14 +153,12 @@ caso('horarios libres según la modalidad', () => {
   assert.deepEqual(iniciosLibres([], 'c1', FECHA, 'singles', CONFIG_DEFECTO, tarde), ['20:30', '21:00'])
 })
 
-caso('config: lee las banderas del optimizador (true si faltan)', () => {
-  assert.equal(CONFIG_DEFECTO.optimizador_activo, true)
-  assert.equal(CONFIG_DEFECTO.optimizador_libre_mismo_dia, true)
+caso('config: el optimizador es una regla fija, sin banderas en la config', () => {
+  assert.equal('optimizador_activo' in CONFIG_DEFECTO, false)
+  assert.equal('optimizador_libre_mismo_dia' in CONFIG_DEFECTO, false)
   const c = parsearConfig({ optimizador_activo: false, optimizador_libre_mismo_dia: false })
-  assert.equal(c.optimizador_activo, false)
-  assert.equal(c.optimizador_libre_mismo_dia, false)
-  const d = parsearConfig({ optimizador_activo: 'no' })
-  assert.equal(d.optimizador_activo, true)
+  assert.equal('optimizador_activo' in c, false)
+  assert.equal('optimizador_libre_mismo_dia' in c, false)
 })
 
 // Optimizador (F9): entre la reserva nueva y lo ocupado de al lado (o la
@@ -193,18 +191,17 @@ caso('optimizador: hueco 0 o de al menos singles_min con lo de al lado', () => {
   assert.equal(pasa('15:30', '16:30'), true)
 })
 
-caso('optimizador: mismo día y apagado no filtran', () => {
+caso('optimizador: el mismo día (Argentina) no filtra, siempre', () => {
   const at = (h: string) => Date.parse(`${FECHA}T${h}:00-03:00`)
   const ocupados = [item({})]
   const mismoDia = at('07:00')
   assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, mismoDia), true)
-  const sinExcepcion = { ...CONFIG_DEFECTO, optimizador_libre_mismo_dia: false }
-  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), sinExcepcion, mismoDia), false)
   // Hoy en Argentina aunque en UTC ya sea mañana (23:30 del día anterior → otro día).
   const nocheAnterior = Date.parse('2026-11-21T02:30:00Z') // 20/11 23:30 en Argentina
   assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, nocheAnterior), false)
-  const apagado = { ...CONFIG_DEFECTO, optimizador_activo: false }
-  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), apagado, nocheAnterior), true)
+  // Ninguna config lo apaga.
+  const conBanderas = { ...CONFIG_DEFECTO, optimizador_activo: false } as typeof CONFIG_DEFECTO
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), conBanderas, nocheAnterior), false)
 })
 
 caso('horarios libres: el socio sólo ve los que pasan el optimizador, el staff todos', () => {
@@ -442,12 +439,11 @@ caso('corregir jugadores: socio por socio_id, invitado que sigue por dni (nunca 
 
 caso('disponibilidad: config, canchas válidas e ítems; basura da vacío', () => {
   const d = parsearDisponibilidad({
-    config: { hora_desde: '09:00:00', optimizador_activo: false },
+    config: { hora_desde: '09:00:00' },
     canchas: [{ id: 'c1', nombre: '01' }, { nombre: 'sin id' }, 'x'],
     items: [{ cancha_id: 'c1', inicio: `${FECHA}T18:00:00-03:00`, fin: `${FECHA}T19:00:00-03:00`, tipo: 'reserva_web', mio: true }, { inicio: 'sin fin' }],
   })
   assert.equal(d.config.hora_desde, '09:00')
-  assert.equal(d.config.optimizador_activo, false)
   assert.deepEqual(d.canchas, [{ id: 'c1', nombre: '01' }])
   assert.equal(d.items.length, 1)
   assert.equal(d.items[0].mio, true)

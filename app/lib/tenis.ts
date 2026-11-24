@@ -38,9 +38,6 @@ export interface TenisConfig {
   precio_nosocio_single:   number
   precio_nosocio_dobles:   number
   bloquear_morosos:        boolean
-  // Optimizador (F9): no dejar huecos inutilizables entre turnos.
-  optimizador_activo:          boolean
-  optimizador_libre_mismo_dia: boolean
 }
 
 export const CONFIG_DEFECTO: TenisConfig = {
@@ -62,8 +59,6 @@ export const CONFIG_DEFECTO: TenisConfig = {
   precio_nosocio_single: 16000,
   precio_nosocio_dobles: 18000,
   bloquear_morosos: true,
-  optimizador_activo: true,
-  optimizador_libre_mismo_dia: true,
 }
 
 export interface Cancha {
@@ -197,8 +192,6 @@ export function parsearConfig(raw: unknown): TenisConfig {
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago
   if (typeof raw.bloquear_morosos === 'boolean') c.bloquear_morosos = raw.bloquear_morosos
-  if (typeof raw.optimizador_activo === 'boolean') c.optimizador_activo = raw.optimizador_activo
-  if (typeof raw.optimizador_libre_mismo_dia === 'boolean') c.optimizador_libre_mismo_dia = raw.optimizador_libre_mismo_dia
   return c
 }
 
@@ -558,22 +551,20 @@ export function duracionTexto(min: number): string {
 // dejar un hueco inutilizable en su cancha. El tiempo libre entre el turno
 // nuevo y lo ocupado inmediatamente antes y después (reservas activas y
 // bloques, incluidos los de todas las canchas) — o la apertura / el cierre —
-// tiene que ser 0 o de al menos `singles_min`. No se aplica si el turno es del
-// mismo día en Argentina y `optimizador_libre_mismo_dia` está activo, ni con
-// `optimizador_activo` apagado. El servidor aplica la misma regla
-// (`hueco_invalido`); las reservas telefónicas del staff no la usan.
-// `items` = lo que devuelve la disponibilidad (sólo lo que ocupa la cancha).
+// tiene que ser 0 o de al menos `singles_min`. Es una regla fija (sin config):
+// no se aplica si el turno es del mismo día en Argentina. El servidor aplica la
+// misma regla (`hueco_invalido`, `dejaHuecoValido`); las reservas telefónicas
+// del staff no la usan. `items` = lo que devuelve la disponibilidad.
 export function pasaOptimizador(
   items: Pick<ItemGrilla, 'cancha_id' | 'inicio' | 'fin'>[],
   canchaId: string,
   inicioMs: number,
   finMs: number,
-  config: Pick<TenisConfig, 'hora_desde' | 'hora_hasta' | 'singles_min' | 'optimizador_activo' | 'optimizador_libre_mismo_dia'>,
+  config: Pick<TenisConfig, 'hora_desde' | 'hora_hasta' | 'singles_min'>,
   ahoraMs: number,
 ): boolean {
-  if (!config.optimizador_activo) return true
   const fecha = fechaArgentina(inicioMs)
-  if (config.optimizador_libre_mismo_dia && fecha === fechaArgentina(ahoraMs)) return true
+  if (fecha === fechaArgentina(ahoraMs)) return true
   const base = inicioDelDia(fecha)
   let anterior  = base + minutosDeHora(config.hora_desde) * MIN_MS
   let siguiente = base + minutosDeHora(config.hora_hasta) * MIN_MS
