@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  configDesde, fechasReservables, formatearFecha, formatearFechaHora, formatearPrecio,
+  CONFIG_DEFAULT, configDesde, fechasReservables, hoyArgentina, formatearFecha, formatearFechaHora, formatearPrecio,
   jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, sinErrores,
   turnosDesdeLibres, validarJugadores, validarTitular,
   type Cancha, type JugadorForm, type Libre, type Modalidad, type TenisConfig, type Titular, type Turno,
 } from '@/lib/tenis'
-import { tenisInvitados } from './api'
+import { tenisInvitados, type Resultado } from './api'
 import { Aviso, BotonPrincipal, Campo, Opcion, Seccion } from './ui'
 
 // tenis-invitados `disponibilidad`: free starts per match type come computed
@@ -29,7 +29,15 @@ type Seleccion = { cancha: Cancha; turno: Turno }
 const TITULAR_VACIO: Titular = { dni: '', nombre: '', apellido: '', email: '' }
 
 export default function ReservarForm() {
-  const fechas = useMemo(() => fechasReservables(), [])
+  // Bookable days come from the clock and the server `anticipacion_dias`
+  // (default until the first `disponibilidad` answers). `hoy` is refreshed on
+  // focus and every minute so a page left open past midnight rolls over.
+  const [hoy, setHoy] = useState(() => hoyArgentina())
+  const [anticipacion, setAnticipacion] = useState(CONFIG_DEFAULT.anticipacion_dias)
+  const fechas = useMemo(
+    () => fechasReservables(new Date(hoy + 'T12:00:00-03:00'), anticipacion),
+    [hoy, anticipacion],
+  )
   const [fecha, setFecha] = useState(fechas[0])
   const [modalidad, setModalidad] = useState<Modalidad>('singles')
   const [disp, setDisp] = useState<{ estado: 'cargando' | 'ok' | 'error'; data?: Disponibilidad; error?: string }>({ estado: 'cargando' })
@@ -41,6 +49,9 @@ export default function ReservarForm() {
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
   const [listo, setListo] = useState<RespuestaReservar | null>(null)
   const pedido = useRef(0)
+  // Synchronous in-flight guard: a second submit before React re-renders
+  // (double click, Enter + click) must not create a second hold and email.
+  const enviandoRef = useRef(false)
   const listoRef = useRef<HTMLHeadingElement>(null)
 
   const cargar = useCallback(async (f: string) => {
@@ -52,6 +63,30 @@ export default function ReservarForm() {
   }, [])
 
   useEffect(() => { void cargar(fecha) }, [fecha, cargar])
+
+  useEffect(() => {
+    const actualizar = () => setHoy(hoyArgentina())
+    const alVolver = () => { if (document.visibilityState === 'visible') actualizar() }
+    window.addEventListener('focus', actualizar)
+    document.addEventListener('visibilitychange', alVolver)
+    const t = setInterval(actualizar, 60_000)
+    return () => {
+      window.removeEventListener('focus', actualizar)
+      document.removeEventListener('visibilitychange', alVolver)
+      clearInterval(t)
+    }
+  }, [])
+
+  // Server config: its `anticipacion_dias` decides the days offered.
+  useEffect(() => {
+    if (disp.estado === 'ok') setAnticipacion(configDesde(disp.data?.config).anticipacion_dias)
+  }, [disp])
+
+  // The selected day is no longer bookable (midnight passed or the server
+  // allows fewer days): move to the first bookable one.
+  useEffect(() => {
+    if (!fechas.includes(fecha)) setFecha(fechas[0])
+  }, [fechas, fecha])
   useEffect(() => { if (listo) listoRef.current?.focus() }, [listo])
 
   const config = configDesde(disp.data?.config)
@@ -83,6 +118,7 @@ export default function ReservarForm() {
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault()
+    if (enviandoRef.current) return
     setIntentado(true)
     setErrorEnvio(null)
     if (!seleccion) { setErrorEnvio('Elegí una cancha y un horario.'); return }
@@ -90,20 +126,26 @@ export default function ReservarForm() {
       setErrorEnvio('Revisá los datos marcados.')
       return
     }
+    enviandoRef.current = true
     setEnviando(true)
-    const r = await tenisInvitados<RespuestaReservar>('reservar', {
-      cancha_id: seleccion.cancha.id,
-      inicio: seleccion.turno.inicio,
-      modalidad,
-      titular: {
-        dni: normalizarDni(titular.dni),
-        nombre: titular.nombre.trim(),
-        apellido: titular.apellido.trim(),
-        email: titular.email.trim().toLowerCase(),
-      },
-      jugadores: jugadoresPayload(jugadores),
-    })
-    setEnviando(false)
+    let r: Resultado<RespuestaReservar>
+    try {
+      r = await tenisInvitados<RespuestaReservar>('reservar', {
+        cancha_id: seleccion.cancha.id,
+        inicio: seleccion.turno.inicio,
+        modalidad,
+        titular: {
+          dni: normalizarDni(titular.dni),
+          nombre: titular.nombre.trim(),
+          apellido: titular.apellido.trim(),
+          email: titular.email.trim().toLowerCase(),
+        },
+        jugadores: jugadoresPayload(jugadores),
+      })
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
     if (r.ok) { setListo(r.data); return }
     setErrorEnvio(r.error)
     // The grid changed since it was loaded: reload the free starts.
@@ -159,7 +201,9 @@ export default function ReservarForm() {
   }
 
   return (
-    <form onSubmit={enviar} noValidate>
+    <form onSubmit={enviar} noValidate aria-busy={enviando}>
+      {/* Every control is disabled while the booking is being sent. */}
+      <fieldset disabled={enviando} className="min-w-0 border-0 p-0 m-0">
       <Seccion titulo="1. Día y tipo de partido">
         <fieldset className="mb-4">
           <legend className="font-lora text-xs tracking-widest text-tinta/80 mb-2">DÍA</legend>
@@ -283,6 +327,7 @@ export default function ReservarForm() {
 
       {errorEnvio && <Aviso tono="error">{errorEnvio}</Aviso>}
       <BotonPrincipal type="submit" disabled={enviando}>{enviando ? 'RESERVANDO…' : 'RESERVAR'}</BotonPrincipal>
+      </fieldset>
     </form>
   )
 }

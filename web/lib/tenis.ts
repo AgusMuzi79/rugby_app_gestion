@@ -2,6 +2,8 @@
 // No React, no fetch: checked with `npx --yes tsx web/lib/tenis.check.ts`.
 // Argentina has no DST, so local time is always UTC-3 (same as tenis_ahora()).
 
+import { interpretarRespuesta, type EdgeResponse } from './edgeFunctionRespuesta'
+
 export type Modalidad = 'singles' | 'dobles'
 
 export type TenisConfig = {
@@ -35,12 +37,21 @@ export const CONFIG_DEFAULT: TenisConfig = {
   precio_nosocio_dobles: 18000,
 }
 
+// Each server value replaces the default only when it has the right type
+// (numbers may come as numeric strings); anything else keeps the default.
 export function configDesde(parcial: Partial<TenisConfig> | null | undefined): TenisConfig {
   const c = { ...CONFIG_DEFAULT }
   if (!parcial) return c
+  const destino = c as Record<string, unknown>
   for (const k of Object.keys(c) as (keyof TenisConfig)[]) {
-    const v = parcial[k]
-    if (v !== undefined && v !== null) (c as Record<string, unknown>)[k] = v
+    const v: unknown = parcial[k]
+    if (v === undefined || v === null) continue
+    if (typeof CONFIG_DEFAULT[k] === 'number') {
+      const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
+      if (typeof n === 'number' && Number.isFinite(n)) destino[k] = n
+    } else if (typeof v === 'string') {
+      destino[k] = v
+    }
   }
   // Postgres `time` comes as "08:00:00".
   c.hora_desde = c.hora_desde.slice(0, 5)
@@ -153,9 +164,12 @@ export function hoyArgentina(ahora: Date = new Date()): string {
   return local(ahora).toISOString().slice(0, 10)
 }
 
+// Today (Argentina) and the next `dias` days. `dias` is the server
+// `anticipacion_dias`; a missing or invalid value uses the default.
 export function fechasReservables(ahora: Date = new Date(), dias = CONFIG_DEFAULT.anticipacion_dias): string[] {
   const base = new Date(hoyArgentina(ahora) + 'T00:00:00Z')
-  return Array.from({ length: dias + 1 }, (_, i) =>
+  const n = Number.isFinite(dias) ? Math.max(0, Math.floor(dias)) : CONFIG_DEFAULT.anticipacion_dias
+  return Array.from({ length: n + 1 }, (_, i) =>
     new Date(base.getTime() + i * 86_400_000).toISOString().slice(0, 10))
 }
 
@@ -279,6 +293,30 @@ export function mensajeRespuesta(r: { ok?: unknown; codigo?: unknown; motivo?: u
   if (codigo && MENSAJES[codigo]) return { codigo, mensaje: MENSAJES[codigo] }
   const texto = typeof r.motivo === 'string' && r.motivo ? r.motivo : typeof r.error === 'string' ? r.error : undefined
   return { codigo, mensaje: texto ? mensajeTenis(texto) : mensajeTenis(codigo) }
+}
+
+// Result of a `tenis-invitados` call. On a failure `data` keeps the raw body
+// (e.g. `dni` of jugador_sin_nombre).
+export type ResultadoInvitados<T> =
+  | { ok: true; data: EdgeResponse<T> }
+  | { ok: false; error: string; codigo?: string; data?: Record<string, unknown> }
+
+// Maps the HTTP status + body text of `tenis-invitados` to a result.
+// Business failures: 200 { ok:false, codigo, motivo }; real errors: { error }.
+export function resultadoInvitados<T = Record<string, unknown>>(status: number, texto: string): ResultadoInvitados<T> {
+  const r = interpretarRespuesta<T>(status, texto)
+  if (r.error || r.ok === false) {
+    const { codigo, mensaje } = mensajeRespuesta(r as { codigo?: unknown; motivo?: unknown; error?: unknown })
+    return { ok: false, error: mensaje, codigo, data: r as unknown as Record<string, unknown> }
+  }
+  return { ok: true, data: r }
+}
+
+// The request never got an answer: timed out (`abortado`) or no network.
+export function mensajeFalloInvitados(abortado: boolean): string {
+  return abortado
+    ? 'El servidor tardó demasiado. Probá de nuevo en un momento.'
+    : 'No hay conexión. Revisá internet y probá de nuevo.'
 }
 
 // Screen of the confirm page for a failed `confirmar`.
