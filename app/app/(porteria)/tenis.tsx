@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, ScrollView, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Modal, Linking, StyleSheet,
 } from 'react-native'
@@ -144,10 +144,26 @@ function TarjetaCheckin({ c, onCobrado }: { c: Checkin; onCobrado: () => void })
 }
 
 export default function TenisCancheroScreen() {
-  const [hoy] = useState(() => fechaArgentina(Date.now()))
+  // "Hoy" sale del reloj en cada render: al refrescar, al volver a la pestaña
+  // o con el tic de cada minuto pasa solo al día siguiente después de
+  // medianoche (y useTenisGrilla carga la grilla del día nuevo).
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
+  const hoy = fechaArgentina(ahoraMs)
   const { grilla, loading, error, refetch } = useTenisGrilla(hoy)
-  useRefreshOnFocus(refetch)
+
+  useEffect(() => {
+    const t = setInterval(() => setAhoraMs(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Si cambió el día, el cambio de `hoy` ya dispara la carga del día nuevo;
+  // si no, se recarga el mismo día.
+  function recargar() {
+    const ahora = Date.now()
+    setAhoraMs(ahora)
+    if (fechaArgentina(ahora) === hoy) refetch()
+  }
+  useRefreshOnFocus(recargar)
   const [dni, setDni] = useState('')
   const [consultando, setConsultando] = useState(false)
   const [checkin, setCheckin] = useState<Checkin | null>(null)
@@ -176,11 +192,6 @@ export default function TenisCancheroScreen() {
   function porQR(numeroSocio: string) {
     setEscaneando(false)
     void consultar({ numeroSocio })
-  }
-
-  function recargar() {
-    setAhoraMs(Date.now())
-    refetch()
   }
 
   if (!FEATURES.tenis) {
