@@ -136,7 +136,7 @@ const CODIGOS_WEB = [
   'cantidad_jugadores', 'jugadores_duplicados', 'jugador_ocupado', 'socio_no_encontrado', 'dni_invalido',
   'invitado_incompleto', 'email_invalido', 'titular_suspendido', 'jugador_no_habilitado', 'titular_es_socio',
   'plazo_invitado', 'estado_invalido', 'token_invalido', 'hold_vencido', 'reserva_cancelada',
-  'comprobante_vencido', 'path_invalido',
+  'comprobante_vencido', 'path_invalido', 'hueco_invalido',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -147,6 +147,7 @@ caso('error codes: every code the function can return has its own Spanish copy',
     assert.notEqual(mensajeTenis(c), generico, c)
   }
   assert.match(mensajeTenis('token_invalido'), /enlace/i)
+  assert.match(mensajeTenis('hueco_invalido'), /media hora libre/)
   assert.equal(mensajeTenis('Algo pasó'), 'Algo pasó')
   assert.match(mensajeTenis(undefined), /Probá de nuevo/)
 })

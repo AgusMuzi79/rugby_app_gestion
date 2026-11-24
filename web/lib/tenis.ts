@@ -236,6 +236,7 @@ const MENSAJES: Record<string, string> = {
   anticipacion: 'Sólo se puede reservar hasta 2 días antes.',
   bloqueado: 'Ese horario no está disponible. Elegí otro.',
   turno_ocupado: 'Ese turno ya no está disponible. Elegí otro.',
+  hueco_invalido: 'Ese horario dejaría media hora libre que nadie puede usar. Elegí uno pegado a otra reserva.',
   limite_dia: 'Ya tenés una reserva ese día.',
   limite_activas: 'Ya tenés 2 reservas activas.',
   cantidad_jugadores: 'Singles lleva 1 jugador además de vos y dobles 3.',

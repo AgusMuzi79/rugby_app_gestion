@@ -106,7 +106,8 @@ export default function ReservarForm() {
     setEnviando(false)
     if (r.ok) { setListo(r.data); return }
     setErrorEnvio(r.error)
-    if (r.codigo === 'turno_ocupado' || r.codigo === 'bloqueado') void cargar(fecha)
+    // The grid changed since it was loaded: reload the free starts.
+    if (r.codigo === 'turno_ocupado' || r.codigo === 'bloqueado' || r.codigo === 'hueco_invalido') void cargar(fecha)
     // A DNI that is not a member: switch that player to "No socio" so the name fields show up.
     if (r.codigo === 'jugador_sin_nombre' && typeof r.data?.dni === 'string') {
       const dni = r.data.dni
