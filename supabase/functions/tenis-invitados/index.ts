@@ -322,9 +322,14 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
     p_token_hash: await hashToken(token),
   })
   if (error) {
-    // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido.
+    // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido. La base
+    // manda el DNI normalizado en DETAIL (PostgREST: `details`); si no llegara, es el primer
+    // jugador que se mandó sin nombre (los demás se resolvieron antes o tienen nombre).
     if (codigoDeError(error) === 'socio_no_encontrado') {
-      return rechazo('jugador_sin_nombre', { dni: normalizarDni((error as { details?: string }).details) })
+      const dni = normalizarDni((error as { details?: string }).details)
+        ?? jugadores.find((j) => !(j.nombre && j.apellido))?.dni
+        ?? null
+      return rechazo('jugador_sin_nombre', { dni })
     }
     return errorRpc('tenis_invitado_reservar', error)
   }
@@ -445,6 +450,7 @@ async function handleConfirmar(body: Record<string, unknown>): Promise<Response>
   // Resumen de la base (tenis_reserva_resumen + alias, comprobante_motivo, titular_nombre).
   const r = (data ?? {}) as Record<string, unknown>
   const inicio = new Date(String(r.inicio ?? antes?.inicio ?? ''))
+  const fin = new Date(String(r.fin ?? antes?.fin ?? ''))
   const cancha = typeof r.cancha_nombre === 'string' ? r.cancha_nombre : null
   const valido = !Number.isNaN(inicio.getTime())
 
@@ -455,7 +461,7 @@ async function handleConfirmar(body: Record<string, unknown>): Promise<Response>
       id: (r.reserva_id as string | undefined) ?? antes?.id ?? null,
       cancha,
       inicio: valido ? inicio.toISOString() : null,
-      fin: r.fin ? new Date(String(r.fin)).toISOString() : null,
+      fin: Number.isNaN(fin.getTime()) ? null : fin.toISOString(),
       hora_real: valido ? horaInicioReal(inicio, cfg) : null,
       descripcion: valido ? describirTurno(inicio, cancha, cfg) : null,
       modalidad: r.modalidad ?? null,
