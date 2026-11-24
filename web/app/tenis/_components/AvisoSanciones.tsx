@@ -35,7 +35,10 @@ export default function AvisoSanciones({ onVolver, onConfirmar }: { onVolver: ()
       aria-labelledby={idTitulo}
       aria-describedby={idTexto}
       onCancel={e => { e.preventDefault(); onVolver() }}
-      onClose={() => { if (abierto.current) { abierto.current = false; onVolver() } }}
+      // The native `close` event is async: under React StrictMode the cleanup's
+      // close() fires after the remount already reopened the dialog, so a close
+      // event while the dialog is open again is ignored.
+      onClose={() => { if (abierto.current && !ref.current?.open) { abierto.current = false; onVolver() } }}
       className="m-auto w-[calc(100%-2rem)] max-w-md bg-card text-tinta border border-gris-claro p-6 backdrop:bg-dark/70"
     >
       <h2 id={idTitulo} className="font-playfair italic text-xl text-tinta mb-3">{AVISO_SANCIONES.titulo}</h2>

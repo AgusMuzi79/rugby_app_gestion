@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
@@ -47,6 +47,9 @@ export function FormReserva({
   const [titular,   setTitular]   = useState<JugadorElegido | null>(null)
   const [jugadores, setJugadores] = useState<JugadorElegido[]>([])
   const [enviando,  setEnviando]  = useState(false)
+  // Guard sincrónico: un doble toque en "ENTENDIDO, CONFIRMAR" llega antes de
+  // que `enviando` se vuelva a renderizar y no debe mandar la reserva dos veces.
+  const enviandoRef = useRef(false)
   const [error,     setError]     = useState<string | null>(null)
   const [resultado, setResultado] = useState<ResultadoReserva | null>(null)
   // Socio: antes de reservar se muestra el aviso de sanciones (el staff no).
@@ -87,17 +90,23 @@ export function FormReserva({
 
   async function confirmar() {
     setAvisando(false)
-    if (!completo || !canchaId || !hora) return
+    if (!completo || !canchaId || !hora || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     setError(null)
-    const r = await onConfirmar({
-      canchaId,
-      inicio: isoArgentina(fecha, hora),
-      modalidad,
-      jugadores: jugadores.map(j => j.entrada),
-      titular: titular?.entrada,
-    })
-    setEnviando(false)
+    let r: Awaited<ReturnType<typeof onConfirmar>>
+    try {
+      r = await onConfirmar({
+        canchaId,
+        inicio: isoArgentina(fecha, hora),
+        modalidad,
+        jugadores: jugadores.map(j => j.entrada),
+        titular: titular?.entrada,
+      })
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
     if (r.ok) setResultado(r.data)
     else setError(r.mensaje)
   }
