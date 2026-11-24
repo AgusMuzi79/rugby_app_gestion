@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   parsearDisponibilidad, parsearMisReservas, parsearResultadoReserva,
   type Disponibilidad, type JugadorBuscado, type JugadorEntrada, type MiReserva, type Modalidad, type ResultadoReserva,
@@ -15,12 +15,18 @@ export function useTenisSocio(fecha: string) {
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState<string | null>(null)
 
+  // Sólo vale la respuesta del último pedido: si el socio cambia de día
+  // mientras carga, la respuesta tardía del día anterior se descarta.
+  const pedido = useRef(0)
+
   const refetch = useCallback(async () => {
+    const n = ++pedido.current
     setLoading(true)
     const [d, mis] = await Promise.all([
       rpcTenis('tenis_disponibilidad', { p_fecha: fecha }, ERROR_CARGA_TENIS),
       rpcTenis('tenis_mis_reservas', {}, ERROR_CARGA_TENIS),
     ])
+    if (n !== pedido.current) return
     if (!d.ok) {
       setError(d.mensaje)
     } else {

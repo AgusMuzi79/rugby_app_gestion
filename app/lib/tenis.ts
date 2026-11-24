@@ -370,6 +370,70 @@ export function parsearCheckin(raw: unknown): Checkin {
   }
 }
 
+export interface Infraccion {
+  id:          string
+  socio_id:    string | null
+  invitado_id: string | null
+  nombre:      string
+  tipo:        string
+  nota:        string | null
+  perdonada:   boolean
+  automatica:  boolean
+  created_at:  string
+}
+
+export interface Suspension {
+  id:          string
+  socio_id:    string | null
+  invitado_id: string | null
+  nombre:      string
+  desde:       string
+  hasta:       string
+  motivo:      string | null
+}
+
+// tenis_infracciones_listar(): {infracciones, suspensiones} (una lista suelta
+// se toma como infracciones). Automática = la creó el sistema (creado_por null).
+export function parsearSanciones(raw: unknown): { infracciones: Infraccion[]; suspensiones: Suspension[] } {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
+  const inf = Array.isArray(raw) ? raw : Array.isArray(o.infracciones) ? o.infracciones : []
+  const sus = Array.isArray(o.suspensiones) ? o.suspensiones : []
+  return {
+    infracciones: inf.flatMap(x => {
+      if (!x || typeof x !== 'object') return []
+      const i = x as Record<string, unknown>
+      const id = texto(i.id)
+      if (!id) return []
+      return [{
+        id,
+        socio_id:    texto(i.socio_id),
+        invitado_id: texto(i.invitado_id),
+        nombre:      texto(i.nombre) ?? '—',
+        tipo:        texto(i.tipo) ?? 'otra',
+        nota:        texto(i.nota),
+        perdonada:   i.perdonada === true,
+        automatica:  i.creado_por === null || i.automatica === true,
+        created_at:  texto(i.created_at) ?? '',
+      } satisfies Infraccion]
+    }),
+    suspensiones: sus.flatMap(x => {
+      if (!x || typeof x !== 'object') return []
+      const i = x as Record<string, unknown>
+      const id = texto(i.id)
+      if (!id) return []
+      return [{
+        id,
+        socio_id:    texto(i.socio_id),
+        invitado_id: texto(i.invitado_id),
+        nombre:      texto(i.nombre) ?? '—',
+        desde:       texto(i.desde) ?? '',
+        hasta:       texto(i.hasta) ?? '',
+        motivo:      texto(i.motivo),
+      } satisfies Suspension]
+    }),
+  }
+}
+
 // ─── Horario de Argentina ─────────────────────────────────────────────────────
 
 const OFFSET_AR_MS = -3 * 60 * 60 * 1000
@@ -483,8 +547,43 @@ export function duracionTexto(min: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m}`
 }
 
+// Optimizador (F9, regla de la subcomisión de tenis): una reserva no puede
+// dejar un hueco inutilizable en su cancha. El tiempo libre entre el turno
+// nuevo y lo ocupado inmediatamente antes y después (reservas activas y
+// bloques, incluidos los de todas las canchas) — o la apertura / el cierre —
+// tiene que ser 0 o de al menos `singles_min`. Es una regla fija (sin config):
+// no se aplica si el turno es del mismo día en Argentina. El servidor aplica la
+// misma regla (`hueco_invalido`, `dejaHuecoValido`); las reservas telefónicas
+// del staff no la usan. `items` = lo que devuelve la disponibilidad.
+export function pasaOptimizador(
+  items: Pick<ItemGrilla, 'cancha_id' | 'inicio' | 'fin'>[],
+  canchaId: string,
+  inicioMs: number,
+  finMs: number,
+  config: Pick<TenisConfig, 'hora_desde' | 'hora_hasta' | 'singles_min'>,
+  ahoraMs: number,
+): boolean {
+  const fecha = fechaArgentina(inicioMs)
+  if (fecha === fechaArgentina(ahoraMs)) return true
+  const base = inicioDelDia(fecha)
+  let anterior  = base + minutosDeHora(config.hora_desde) * MIN_MS
+  let siguiente = base + minutosDeHora(config.hora_hasta) * MIN_MS
+  for (const i of items) {
+    if (i.cancha_id !== null && i.cancha_id !== canchaId) continue
+    const a = Date.parse(i.inicio)
+    const b = Date.parse(i.fin)
+    if (b <= inicioMs && b > anterior) anterior = b
+    if (a >= finMs && a < siguiente) siguiente = a
+  }
+  const minimo = config.singles_min * MIN_MS
+  const valido = (hueco: number) => hueco <= 0 || hueco >= minimo
+  return valido(inicioMs - anterior) && valido(siguiente - finMs)
+}
+
 // Horarios en los que entra un turno de esa modalidad en esa cancha, sin pisar
-// reservas ni bloques, dentro del horario y que todavía no empezaron.
+// reservas ni bloques, dentro del horario y que todavía no empezaron. Con
+// `optimizador` (reserva del socio) sólo los que pasan `pasaOptimizador`; el
+// staff (reserva telefónica) ve todos.
 export function iniciosLibres(
   items: Pick<ItemGrilla, 'cancha_id' | 'inicio' | 'fin'>[],
   canchaId: string,
@@ -492,6 +591,7 @@ export function iniciosLibres(
   modalidad: Modalidad,
   config: TenisConfig,
   ahoraMs: number,
+  opciones: { optimizador?: boolean } = {},
 ): string[] {
   const base = inicioDelDia(fecha)
   const dur  = duracionModalidad(modalidad, config)
@@ -506,6 +606,7 @@ export function iniciosLibres(
     const fin = ini + dur * MIN_MS
     if (ini <= ahoraMs) continue
     if (ocupados.some(([a, b]) => ini < b && a < fin)) continue
+    if (opciones.optimizador && !pasaOptimizador(items, canchaId, ini, fin, config, ahoraMs)) continue
     libres.push(hora)
   }
   return libres
@@ -716,6 +817,7 @@ const MENSAJES: Record<string, string> = {
   infraccion_inexistente:  'Esa infracción ya no existe.',
   suspension_inexistente:  'Esa suspensión ya no está vigente.',
   extension_invalida:      'Revisá el horario de la extensión: tiene que terminar después del turno.',
+  hueco_invalido:          'Ese horario dejaría media hora libre que nadie puede usar. Elegí uno pegado a otra reserva.',
   // Sólo Edge Functions.
   limitado:                'Hubo muchos pedidos seguidos. Probá de nuevo en un rato.',
   jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',

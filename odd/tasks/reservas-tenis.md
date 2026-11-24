@@ -135,6 +135,15 @@ Source of truth: the migration (RPC names, args, shapes) and `tenis-invitados` (
 - Web (`51eedf6`): reads `codigo` (not `motivo`) for screens and copy; slot picker uses `libres[modalidad]`; `reservar` body is `{cancha_id, inicio, modalidad, titular, jugadores:[{dni, nombre?, apellido?}]}` and shows `email_enviado === false`; `confirmar` reads `reserva.{comprobante_estado, comprobante_motivo, jugadores, hora_real}`; `subir-comprobante` sends `{token, tipo, tamano}`; DNI rule 7–8 digits like the function.
 - Remaining gaps: (1) the carnet QR check-in does NOT validate the TOTP code — `socios-qr validate` would consume the code and write a second `accesos` row, so it was not reused; the canchero sees the name (a photo/screenshot of someone's QR would pass). (2) `database.types.ts` still lacks the tennis RPCs (regenerate after applying the migration). (3) Nothing applied/deployed; app/web flags stay off. (4) T1 known gap (receipt approved after the turn → `no_show`) unchanged.
 
+### Fix notes (backend)
+- F1: new `tenis_reserva_jugadores.cargo_no_show` (+ `cargo_no_show_cobrado`, `_por`, `_at`). An unpaid titular still gets the whole no-show charge in `cargo` (`motivo_cargo 'no_show'`); a titular who already paid keeps `cargo`/`cobrado` and owes the unpaid players' list price in `cargo_no_show`. `tenis_reserva_resumen` adds `total_pendiente` and per player `cargo_no_show`, `cargo_no_show_cobrado`, `pendiente`; `total`/`total_cobrado` include the extra. `tenis_cobro_marcar(p_jugador_id, p_cobrado, p_concepto text default null)` — `'turno'`, `'no_show'` or null = both. `tenis_checkin.jugador` and `tenis_mis_reservas` (`mi_cargo_no_show*`) expose it.
+- F2: `tenis_extension` raises `extension_invalida` unless the source started and ended at most 15 min ago; copied players go through suspension/moroso (`titular_suspendido`/`jugador_no_habilitado`) and `jugador_ocupado`; only players already checked in on the source keep that `check_in_at`.
+- F3 (decision): a guest turn that ends with `comprobante_estado = 'pendiente'` becomes `jugada` if any check-in exists, otherwise `no_show` with no charge and no infraction (the canchero could not let them in). `tenis_procesar` reports them in a new key `comprobantes_sin_revisar` (`tenis_aviso` + `resultado`); `tenis-cron` only counts them. They stay in `tenis_comprobantes_pendientes`; `tenis_comprobante_resolver` accepts them and an approval after `fin` (also before the cron ran) sets `jugada` + all collected; a late rejection keeps the state. `tenis-gestion` mails a "pago recibido" / no-cancellation text for ended turns.
+- F7: `socio_no_encontrado` DETAIL is the normalized DNI (SQL-tested); `tenis-invitados` falls back to the first nameless player's DNI.
+- F8: `tenis-cron` summary adds `fallidos` and `comprobantes_sin_revisar`.
+- F9: fixed rule (scope change from Agus: no config columns). DB `tenis_validar_hueco` (called from `tenis_crear_reserva` when limits apply, i.e. not for staff), code `hueco_invalido`. Pure rule `dejaHuecoValido(inicio: Date, modalidad: Modalidad, ocupados: {inicio: Date|string; fin: Date|string}[], ahora: Date, cfg: TenisConfig): boolean` — `ocupados` = that court's active bookings and blocks; today (AR) always true. `tenis-invitados` `libres` filtered by it.
+- Checks: SQL tests 176 ok in a throwaway `postgres:17`; `tenisReglas.check.ts` 22 cases ok; strict tsc of the three functions exit 0.
+
 ## Acceptance criteria
 - A member books singles/doubles picking players from the padrón; prices follow the carnet rule; limits (1/day, 2 active, 2 days ahead) and the 3 h cancellation are enforced server-side.
 - Two bookings can never overlap on the same court (exclusion constraint) and bookings never overlap a block.
@@ -148,11 +157,52 @@ Source of truth: the migration (RPC names, args, shapes) and `tenis-invitados` (
 - `npx tsc --noEmit` in `app/` and `web/`; `npx tsx` for `*.check.ts`; `deno check` for the new Edge Functions; SQL tests reviewed (migration NOT applied to production).
 
 ## Delivery
-Forecast well above 400 authored lines → chained PRs by workstream (DB → functions → app → web) under strategy `ask-on-risk`; slice boundaries recorded here after integration.
+Forecast well above 400 authored lines → chained PRs by workstream under strategy `ask-on-risk`. The whole branch (46 files, 10,428 lines) exceeded the native review budget, so it was reviewed in 5 slices that are also the PR slices:
+1. DB `f61bb92..07cb541` — approved (lineage `review-e9498e36c6beb3da`).
+2. Functions `07cb541..4a0781e` — approved.
+3. App `4a0781e..0815114` — approved.
+4. Web `0815114..140064c` — approved.
+5. Integration `140064c..91185b1` — approved.
+All five were medium risk, granted by Agus, reviewed by the reliability lens, approved with advisory findings only, and acknowledged.
+
+## Review follow-ups (non-blocking advisory findings, 2026-11-20)
+Fix before launch (behaviour bugs):
+- [x] F1 — (backend `1e6daa2`: prepaid amount kept, extra owed in `cargo_no_show`) No-show with a prepaid titular: `tenis_procesar` adds the total to an already paid titular row and resets `cobrado`, so the prepaid amount is owed again (migration ~2433). Charge the extra separately.
+- [x] F2 — (backend `1e6daa2`: in-progress/≤15 min source, player checks, only existing check-ins copied) `tenis_extension` skips the per-player overlap and suspension/moroso checks, accepts a future booking as source and stamps `check_in_at` on a turn that has not happened (migration ~2183). Require an in-progress/just-ended source and reuse the checks.
+- [x] F3 — (backend `1e6daa2`: ends `jugada` with check-in, else `no_show` without charge/infraction; late approval → `jugada`) Guest booking with a receipt still under review when the turn ends stays in `pendiente_comprobante` forever, and a late approval turns into `no_show` + infraction (migration ~2401). Define the end state.
+- [x] F4 — App: out-of-order responses when switching days can show another day's grid (`useTenisSocio`, `useTenisGrilla`); add a request-sequence guard like `BuscadorJugador`.
+- [x] F5 — App canchero tab fixes `hoy` at mount and keeps loading the previous day after midnight (`(porteria)/tenis.tsx`).
+- [x] F6 — Web: double submit creates two holds and two emails (`ReservarForm` `enviar`); bookable dates ignore server `anticipacion_dias` and don't roll over at midnight.
+- [x] F7 — (backend `1e6daa2` + `25f15b7`: `fin` guarded; DETAIL = normalized DNI, function fallback) `tenis-invitados` `confirmar` can 500 on an unparseable `fin`; `socio_no_encontrado` → `jugador_sin_nombre` relies on a DB `details` field that the DB may not set.
+- [x] F8 — (backend `25f15b7`: per-notice try/catch, `fallidos` count) `tenis-cron`: one failing read or email aborts all remaining notices (state is already committed and notices are not retried); isolate per notice.
+- [x] F9 — (backend `54b9810`; frontend `5fd09d8`/`fe38521`; integration: app config flags removed, fixed rule; app `pasaOptimizador` and functions `dejaHuecoValido` agree on 322/322 parity cases) NEW RULE from the tennis subco manager (2026-11-24, WhatsApp audios): the "optimizador". A booking must not leave an unusable gap on its court: the free time between the new booking and the previous/next occupied item (booking in an active state or block) — and the opening/closing hour — must be 0 or at least `singles_min` (a 30-min gap is rejected with code `hueco_invalido`). Exception: bookings for the current local day (Argentina) skip the rule ("same day, if the court is free, the member may leave 30 min"). Staff phone bookings (`tenis_reservar_staff`) always skip it. Fixed rule, no config (Agus, 2026-11-24): no `tenis_config` flags; the same-day exception always applies. Applies to member and guest bookings; the app and the public web must only offer start times that pass the rule (same logic in `app/lib/tenis.ts`, `tenis-invitados` free-slot computation, `web/lib/tenis.ts` if it filters).
+  - [x] F9 frontend — app `pasaOptimizador` + member form filter (staff bypass) in `5fd09d8`; app/web copy for `hueco_invalido` (web reloads free starts on it) in `5fd09d8`/`fe38521`. Web slots stay server-filtered (`libres` from `tenis-invitados`).
+Coverage (nice to have): SQL cases for receipt replacement, extension failures, `reserva_finalizada`, concurrent races, FK errors in `tenis_infraccion_crear`; checks for handler branches, app/web response parsers, `configDesde`, web API error mapping, cron notice mapping; reset `deporte` on user change in `useEsGestorTenis`.
+
+### Fix notes (frontend, branch `feat/reservas-tenis-fix-frontend`)
+- F9 rule in `app/lib/tenis.ts`: `pasaOptimizador(items, canchaId, inicioMs, finMs, config, ahoraMs)`; gaps measured to the nearest item on that court (null-court blocks count) or the opening/closing hour; valid when `<= 0` or `>= singles_min`; skipped when `optimizador_activo` is false, or when the start's Argentina date is today and `optimizador_libre_mismo_dia` is true. `iniciosLibres(..., { optimizador: true })` applies it; `FormReserva` passes `optimizador: !staff`. `TenisConfig` carries both flags (default true), so saving the rules from the app keeps them. Integration (2026-11-24): the optimizer is a fixed rule per Agus — the app no longer reads `optimizador_activo` / `optimizador_libre_mismo_dia`; same-day always skips.
+- Coverage added: app parsers (`parsearDisponibilidad`, `parsearResultadoReserva`, `parsearMisReservas`, `parsearComprobantes`, `parsearCheckin`, `parsearSanciones` — moved from `useTenisGestor`) in `47ae82c`; web `configDesde` (now type-checked per key), `fechasReservables` clamping and the pure `resultadoInvitados` mapping (moved out of `api.ts`) in `31a7b7d`.
+- Checks: `tenis.check.ts` app 36 cases, web 19 cases; `guardRaiz` 16, `agenda` 21, `tokens` 4; `tsc --noEmit` app and web exit 0; `next build` with placeholder env exit 0. The gestor rules screen does not expose the optimizer toggles yet.
+
+### Slice 6 review (fixes F1–F9, `91185b1..3cb8087`, 2026-11-24)
+Approved (medium, granted by Agus, reliability lens) and acknowledged. Advisory only:
+- [ ] F10 — `tenis-cron` counts a skipped mail (member titular without email) as `fallidos`; count only real errors.
+- [ ] F11 — no checks for `tenis-gestion` late receipt approve/reject copy and the cron per-notice isolation (SQL side is tested).
+
+## Deploy (2026-11-24, Agus: "dale, hacé el backup, la migración y el deploy")
+- Backup `~/backups-uncas/2026-11-24-21-30-31`.
+- Migration applied with `supabase db push --include-all` from the linked main checkout (its local main lacked `20261120000000_rol_pileta.sql`, already applied remotely, so that file was copied from `origin/main` temporarily; dry-run listed only `20261112000000_reservas_tenis.sql`; both temp files removed afterwards). Production check: 9 `tenis_*` tables all with RLS, 8 courts, alias `uncas.tenis.macro`, 52 functions, bucket 5 MB jpg/png/pdf, `tenis_procesar` not executable by anon/authenticated, 0 bookings.
+- Edge Functions deployed: `tenis-invitados` and `tenis-cron` (`--no-verify-jwt`), `tenis-gestion`. Smoke test: `disponibilidad` returns 8 courts and free slots; `tenis-cron` without secret → 401.
+- pg_cron job `tenis-cron` every 5 min, built by copying the `recordatorio-eventos` command (same `x-cron-secret` header) with the URL swapped.
+- Not done: `app/lib/database.types.ts` regeneration — the production types break unrelated `useEventos.ts`/`useFichajes.ts` (pre-existing drift); kept the untyped tennis RPC wrapper; separate follow-up.
+- `FEATURES.tenis` stays `false` in app and web; no OTA, no web publish of the flag.
 
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
+- 2026-11-20: native review in 5 slices, all approved and acknowledged; advisory findings recorded as F1–F8.
+- 2026-11-24: F1–F9 fixed (backend + frontend in parallel, F9 made a fixed rule per Agus), all checks green, slice 6 reviewed and approved; F10–F11 advisory.
+- 2026-11-24: backup, migration applied, 3 functions deployed and cron scheduled in production (flags still off).
 
 ## Next step
-Review the integrated branch, decide delivery slices (DB → functions → app → web), then apply the migration and deploy functions only with Agus's OK.
+Merge the PR chain (#72 → #77 into tracker #71, then #71 → main). Launch: turn on `FEATURES.tenis` (app OTA + web) when the club is ready, assign the canchero/gestor roles, test on a phone. Open: TOTP on QR check-in; regenerate database.types.ts (fix pre-existing drift first); F10–F11.

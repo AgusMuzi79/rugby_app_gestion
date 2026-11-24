@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { FEATURES } from '@/constants/features'
 import {
-  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva,
-  type Checkin, type ComprobantePendiente, type Disponibilidad, type JugadorEntrada, type Modalidad,
+  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva, parsearSanciones,
+  type Checkin, type ComprobantePendiente, type Disponibilidad, type Infraccion, type JugadorEntrada, type Modalidad, type Suspension,
   type ResultadoReserva, type TenisConfig, type TipoBloque,
 } from '@/lib/tenis'
 
-export type { Checkin, ComprobantePendiente } from '@/lib/tenis'
+export type { Checkin, ComprobantePendiente, Infraccion, Suspension } from '@/lib/tenis'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Gestión de canchas de tenis (pestaña Canchas de Subcomisión) y lo que
@@ -24,7 +24,10 @@ export function useEsGestorTenis(): boolean | null {
   const roles  = useAuthStore(s => s.roles)
   const [deporte, setDeporte] = useState<string | null | undefined>(undefined)
 
+  // Otra cuenta (cerrar sesión y entrar con otra): el deporte de la anterior
+  // no vale, se vuelve a "cargando" hasta leer el de la nueva.
   useEffect(() => {
+    setDeporte(undefined)
     if (!FEATURES.tenis || !userId) return
     let vigente = true
     supabase.from('profiles').select('deporte').eq('id', userId).maybeSingle()
@@ -45,9 +48,14 @@ export function useTenisGrilla(fecha: string) {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
 
+  // Sólo vale la respuesta del último pedido (cambio de día mientras carga).
+  const pedido = useRef(0)
+
   const refetch = useCallback(async () => {
+    const n = ++pedido.current
     setLoading(true)
     const r = await rpcTenis('tenis_grilla', { p_fecha: fecha }, ERROR_CARGA_TENIS)
+    if (n !== pedido.current) return
     if (r.ok) { setGrilla(parsearDisponibilidad(r.data)); setError(null) } else setError(r.mensaje)
     setLoading(false)
   }, [fecha])
@@ -186,72 +194,6 @@ export function useComprobantesPendientes() {
 }
 
 // ─── Infracciones y suspensiones ──────────────────────────────────────────────
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null
-}
-
-export interface Infraccion {
-  id:          string
-  socio_id:    string | null
-  invitado_id: string | null
-  nombre:      string
-  tipo:        string
-  nota:        string | null
-  perdonada:   boolean
-  automatica:  boolean
-  created_at:  string
-}
-
-export interface Suspension {
-  id:          string
-  socio_id:    string | null
-  invitado_id: string | null
-  nombre:      string
-  desde:       string
-  hasta:       string
-  motivo:      string | null
-}
-
-function parsearSanciones(raw: unknown): { infracciones: Infraccion[]; suspensiones: Suspension[] } {
-  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
-  const inf = Array.isArray(raw) ? raw : Array.isArray(o.infracciones) ? o.infracciones : []
-  const sus = Array.isArray(o.suspensiones) ? o.suspensiones : []
-  return {
-    infracciones: inf.flatMap(x => {
-      if (!x || typeof x !== 'object') return []
-      const i = x as Record<string, unknown>
-      const id = str(i.id)
-      if (!id) return []
-      return [{
-        id,
-        socio_id:    str(i.socio_id),
-        invitado_id: str(i.invitado_id),
-        nombre:      str(i.nombre) ?? '—',
-        tipo:        str(i.tipo) ?? 'otra',
-        nota:        str(i.nota),
-        perdonada:   i.perdonada === true,
-        automatica:  i.creado_por === null || i.automatica === true,
-        created_at:  str(i.created_at) ?? '',
-      } satisfies Infraccion]
-    }),
-    suspensiones: sus.flatMap(x => {
-      if (!x || typeof x !== 'object') return []
-      const i = x as Record<string, unknown>
-      const id = str(i.id)
-      if (!id) return []
-      return [{
-        id,
-        socio_id:    str(i.socio_id),
-        invitado_id: str(i.invitado_id),
-        nombre:      str(i.nombre) ?? '—',
-        desde:       str(i.desde) ?? '',
-        hasta:       str(i.hasta) ?? '',
-        motivo:      str(i.motivo),
-      } satisfies Suspension]
-    }),
-  }
-}
 
 export function useSancionesTenis() {
   const [datos,   setDatos]   = useState<{ infracciones: Infraccion[]; suspensiones: Suspension[] }>({ infracciones: [], suspensiones: [] })

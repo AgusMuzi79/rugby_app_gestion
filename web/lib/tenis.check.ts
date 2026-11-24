@@ -8,6 +8,7 @@ import {
   formatearPrecio, resumenPrecios, fechasReservables, hoyArgentina, horaArgentina,
   inicioIso, turnosDesdeLibres, vencimientoComprobante, formatearFechaHora, validarComprobante,
   mensajeTenis, mensajeRespuesta, pantallaConfirmar, jugadoresPayload, CODIGOS_TENIS, CONFIG_DEFAULT,
+  configDesde, resultadoInvitados, mensajeFalloInvitados,
   type JugadorForm,
 } from './tenis'
 
@@ -95,6 +96,50 @@ caso('dates: today plus two days in Argentina, across month end', () => {
   assert.deepEqual(fechasReservables(ahora, 2), ['2026-11-30', '2026-12-01', '2026-12-02'])
 })
 
+caso('dates: follow the server anticipacion_dias; bad values fall back to safe ones', () => {
+  const ahora = new Date('2026-11-21T15:00:00Z')
+  assert.deepEqual(fechasReservables(ahora, configDesde({ anticipacion_dias: 4 }).anticipacion_dias),
+    ['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25'])
+  assert.deepEqual(fechasReservables(ahora, 0), ['2026-11-21'])
+  assert.deepEqual(fechasReservables(ahora, -3), ['2026-11-21'])
+  assert.deepEqual(fechasReservables(ahora, Number.NaN), ['2026-11-21', '2026-11-22', '2026-11-23'])
+  // A page left open past midnight offers the new day first, never yesterday.
+  assert.equal(fechasReservables(new Date('2026-11-22T03:01:00Z'), 2)[0], '2026-11-22')
+})
+
+caso('config: server values win, Postgres times are trimmed, bad numbers keep defaults', () => {
+  assert.deepEqual(configDesde(null), CONFIG_DEFAULT)
+  const c = configDesde({ hora_desde: '09:00:00', hora_hasta: '21:30:00', anticipacion_dias: 3, alias_pago: 'otro.alias' })
+  assert.equal(c.hora_desde, '09:00')
+  assert.equal(c.hora_hasta, '21:30')
+  assert.equal(c.anticipacion_dias, 3)
+  assert.equal(c.alias_pago, 'otro.alias')
+  assert.equal(c.singles_min, 60)
+  const raro = configDesde({ anticipacion_dias: '5', singles_min: 'x', hold_min: null } as unknown as Partial<typeof CONFIG_DEFAULT>)
+  assert.equal(raro.anticipacion_dias, 5)
+  assert.equal(raro.singles_min, 60)
+  assert.equal(raro.hold_min, 15)
+})
+
+caso('API: ok bodies pass through; business and real errors become Spanish copy with the code', () => {
+  const ok = resultadoInvitados<{ reserva_id: string }>(200, JSON.stringify({ reserva_id: 'r1' }))
+  assert.equal(ok.ok, true)
+  assert.equal(ok.ok && ok.data.reserva_id, 'r1')
+  const negocio = resultadoInvitados(200, JSON.stringify({ ok: false, codigo: 'hueco_invalido', motivo: 'x' }))
+  assert.equal(negocio.ok, false)
+  assert.equal(!negocio.ok && negocio.codigo, 'hueco_invalido')
+  assert.match(!negocio.ok ? negocio.error : '', /media hora libre/)
+  const conDni = resultadoInvitados(200, JSON.stringify({ ok: false, codigo: 'jugador_sin_nombre', dni: '30111777' }))
+  assert.equal(!conDni.ok && conDni.data?.dni, '30111777')
+  const real = resultadoInvitados(500, JSON.stringify({ error: 'Error interno' }))
+  assert.equal(!real.ok && real.error, 'Error interno')
+  const html = resultadoInvitados(502, '<html>Bad gateway</html>')
+  assert.equal(html.ok, false)
+  assert.match(!html.ok ? html.error : '', /502/)
+  assert.match(mensajeFalloInvitados(true), /tardó/)
+  assert.match(mensajeFalloInvitados(false), /conexión/)
+})
+
 caso('times: Argentina wall clock from an ISO instant', () => {
   assert.equal(horaArgentina('2026-11-21T21:00:00Z'), '18:00')
   assert.equal(inicioIso('2026-11-21', '18:00'), '2026-11-21T18:00:00-03:00')
@@ -136,7 +181,7 @@ const CODIGOS_WEB = [
   'cantidad_jugadores', 'jugadores_duplicados', 'jugador_ocupado', 'socio_no_encontrado', 'dni_invalido',
   'invitado_incompleto', 'email_invalido', 'titular_suspendido', 'jugador_no_habilitado', 'titular_es_socio',
   'plazo_invitado', 'estado_invalido', 'token_invalido', 'hold_vencido', 'reserva_cancelada',
-  'comprobante_vencido', 'path_invalido',
+  'comprobante_vencido', 'path_invalido', 'hueco_invalido',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -147,6 +192,7 @@ caso('error codes: every code the function can return has its own Spanish copy',
     assert.notEqual(mensajeTenis(c), generico, c)
   }
   assert.match(mensajeTenis('token_invalido'), /enlace/i)
+  assert.match(mensajeTenis('hueco_invalido'), /media hora libre/)
   assert.equal(mensajeTenis('Algo pasó'), 'Algo pasó')
   assert.match(mensajeTenis(undefined), /Probá de nuevo/)
 })

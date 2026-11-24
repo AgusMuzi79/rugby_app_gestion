@@ -31,6 +31,10 @@ import {
   jugadoresRequeridos,
   mensajeErrorTenis,
   parsearConfig,
+  parsearDisponibilidad,
+  parsearResultadoReserva,
+  parsearSanciones,
+  pasaOptimizador,
   posicionBloque,
   puedeCancelar,
   resumenPrecio,
@@ -149,6 +153,71 @@ caso('horarios libres según la modalidad', () => {
   assert.deepEqual(iniciosLibres([], 'c1', FECHA, 'singles', CONFIG_DEFECTO, tarde), ['20:30', '21:00'])
 })
 
+caso('config: el optimizador es una regla fija, sin banderas en la config', () => {
+  assert.equal('optimizador_activo' in CONFIG_DEFECTO, false)
+  assert.equal('optimizador_libre_mismo_dia' in CONFIG_DEFECTO, false)
+  const c = parsearConfig({ optimizador_activo: false, optimizador_libre_mismo_dia: false })
+  assert.equal('optimizador_activo' in c, false)
+  assert.equal('optimizador_libre_mismo_dia' in c, false)
+})
+
+// Optimizador (F9): entre la reserva nueva y lo ocupado de al lado (o la
+// apertura / el cierre) no puede quedar un hueco de 1 a singles_min - 1 minutos.
+caso('optimizador: hueco 0 o de al menos singles_min con lo de al lado', () => {
+  const ayer = Date.parse('2026-11-20T12:00:00-03:00') // FECHA es otro día
+  const at = (h: string) => Date.parse(`${FECHA}T${h}:00-03:00`)
+  const ocupados = [item({})] // 18:00–19:00 en c1
+  const pasa = (ini: string, fin: string, cfg = CONFIG_DEFECTO, ahora = ayer, items = ocupados) =>
+    pasaOptimizador(items, 'c1', at(ini), at(fin), cfg, ahora)
+  assert.equal(pasa('17:00', '18:00'), true)  // pegada a la siguiente
+  assert.equal(pasa('19:00', '20:00'), true)  // pegada a la anterior
+  assert.equal(pasa('16:30', '17:30'), false) // deja 30 min antes de las 18:00
+  assert.equal(pasa('19:30', '20:30'), false) // deja 30 min después de las 19:00
+  assert.equal(pasa('16:00', '17:00'), true)  // deja 1 h: se puede usar
+  assert.equal(pasa('20:00', '21:00'), true)
+  // Apertura y cierre cuentan como ocupados.
+  assert.equal(pasa('08:00', '09:00', CONFIG_DEFECTO, ayer, []), true)
+  assert.equal(pasa('08:30', '09:30', CONFIG_DEFECTO, ayer, []), false)
+  assert.equal(pasa('21:00', '22:00', CONFIG_DEFECTO, ayer, []), true)
+  assert.equal(pasa('20:30', '21:30', CONFIG_DEFECTO, ayer, []), false)
+  // Dobles 90 min entre 19:00 y 22:00 deja 1 h 30 al final o pega.
+  assert.equal(pasa('19:00', '20:30'), true)
+  assert.equal(pasa('20:30', '22:00'), true)
+  // Otra cancha no cuenta; un bloque de todas las canchas sí.
+  assert.equal(pasaOptimizador(ocupados, 'c2', at('16:30'), at('17:30'), CONFIG_DEFECTO, ayer), true)
+  const todas = [item({ cancha_id: null, tipo: 'clase' })]
+  assert.equal(pasaOptimizador(todas, 'c2', at('16:30'), at('17:30'), CONFIG_DEFECTO, ayer), false)
+  // Un hueco más largo que singles_min también vale (90 min).
+  assert.equal(pasa('15:30', '16:30'), true)
+})
+
+caso('optimizador: el mismo día (Argentina) no filtra, siempre', () => {
+  const at = (h: string) => Date.parse(`${FECHA}T${h}:00-03:00`)
+  const ocupados = [item({})]
+  const mismoDia = at('07:00')
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, mismoDia), true)
+  // Hoy en Argentina aunque en UTC ya sea mañana (23:30 del día anterior → otro día).
+  const nocheAnterior = Date.parse('2026-11-21T02:30:00Z') // 20/11 23:30 en Argentina
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), CONFIG_DEFECTO, nocheAnterior), false)
+  // Ninguna config lo apaga.
+  const conBanderas = { ...CONFIG_DEFECTO, optimizador_activo: false } as typeof CONFIG_DEFECTO
+  assert.equal(pasaOptimizador(ocupados, 'c1', at('16:30'), at('17:30'), conBanderas, nocheAnterior), false)
+})
+
+caso('horarios libres: el socio sólo ve los que pasan el optimizador, el staff todos', () => {
+  const ayer = Date.parse('2026-11-20T12:00:00-03:00')
+  const ocupados = [item({})] // 18:00–19:00
+  const socio = iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, ayer, { optimizador: true })
+  assert.deepEqual(socio, ['08:00', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00',
+    '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '17:00', '19:00', '20:00', '21:00'])
+  const staff = iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, ayer)
+  assert.ok(staff.includes('16:30'))
+  assert.ok(staff.includes('08:30'))
+  // El mismo día el socio ve todo lo libre.
+  const hoy = Date.parse(`${FECHA}T07:00:00-03:00`)
+  assert.deepEqual(iniciosLibres(ocupados, 'c1', FECHA, 'singles', CONFIG_DEFECTO, hoy, { optimizador: true }), staff)
+})
+
 // ─── Colores y etiquetas por tipo ─────────────────────────────────────────────
 
 caso('estilo por tipo de ítem (tipos de tenis_disponibilidad / tenis_grilla)', () => {
@@ -250,6 +319,7 @@ const CODIGOS_CONTRATO = [
   'hold_vencido', 'reserva_cancelada', 'comprobante_vencido', 'path_invalido', 'motivo_requerido',
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
+  'hueco_invalido',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -267,6 +337,7 @@ caso('cada código de la base y de las funciones tiene mensaje propio', () => {
 caso('mensaje en castellano por código', () => {
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'limite_dia' }, 'x'), 'Ya tenés una reserva ese día.')
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'turno_ocupado' }, 'x'), 'Ese horario ya está ocupado. Elegí otro.')
+  assert.match(mensajeErrorTenis({ code: 'P0001', message: 'hueco_invalido' }, 'x'), /media hora libre/)
   // Código desconocido o error técnico: el por defecto, nunca el texto crudo.
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'codigo_raro' }, 'Por defecto'), 'Por defecto')
   assert.equal(mensajeErrorTenis({ code: '42501', message: 'permission denied' }, 'Por defecto'), 'No tenés permiso para hacer esto.')
@@ -364,6 +435,81 @@ caso('corregir jugadores: socio por socio_id, invitado que sigue por dni (nunca 
   assert.deepEqual(otros, [{ socio_id: S1 }])
   const titularInv = (r.jugadores ?? []).filter(j => j.es_titular).map(entradaJugadorExistente)
   assert.deepEqual(titularInv, [{ dni: '30111777' }])
+})
+
+caso('disponibilidad: config, canchas válidas e ítems; basura da vacío', () => {
+  const d = parsearDisponibilidad({
+    config: { hora_desde: '09:00:00' },
+    canchas: [{ id: 'c1', nombre: '01' }, { nombre: 'sin id' }, 'x'],
+    items: [{ cancha_id: 'c1', inicio: `${FECHA}T18:00:00-03:00`, fin: `${FECHA}T19:00:00-03:00`, tipo: 'reserva_web', mio: true }, { inicio: 'sin fin' }],
+  })
+  assert.equal(d.config.hora_desde, '09:00')
+  assert.deepEqual(d.canchas, [{ id: 'c1', nombre: '01' }])
+  assert.equal(d.items.length, 1)
+  assert.equal(d.items[0].mio, true)
+  const vacio = parsearDisponibilidad(null)
+  assert.deepEqual(vacio.canchas, [])
+  assert.deepEqual(vacio.items, [])
+  assert.deepEqual(vacio.config, CONFIG_DEFECTO)
+})
+
+caso('resultado de reservar: reserva_id obligatorio, cargos y total', () => {
+  const r = parsearResultadoReserva({
+    reserva_id: R1, total: '9000',
+    jugadores: [{ nombre: 'Agus', cargo: 0, motivo: 'carnet_gratis' }, { nombre: 'Juan', cargo: 9000, motivo_cargo: 'socio' }],
+  })
+  assert.ok(r)
+  assert.equal(r.total, 9000)
+  assert.deepEqual(r.jugadores[1], { nombre: 'Juan', cargo: 9000, motivo: 'socio' })
+  assert.equal(parsearResultadoReserva({ total: 1 }), null)
+  assert.equal(parsearResultadoReserva('x'), null)
+})
+
+caso('mis reservas: filas sin id o sin horario se descartan; dobles y total null', () => {
+  const lista = parsearMisReservas([
+    { ...resumenStaff, modalidad: 'dobles', total: null },
+    { reserva_id: 'r2', inicio: `${FECHA}T10:00:00-03:00` },
+    null,
+  ])
+  assert.equal(lista.length, 1)
+  assert.equal(lista[0].modalidad, 'dobles')
+  assert.equal(lista[0].total, null)
+  assert.equal(lista[0].puede_cancelar, false)
+  assert.deepEqual(parsearMisReservas({ no: 'lista' }), [])
+})
+
+caso('comprobantes y check-in: tolerantes a basura', () => {
+  assert.deepEqual(parsearComprobantes(null), [])
+  const [c] = parsearComprobantes([{ reserva_id: R1, inicio: `${FECHA}T18:00:00-03:00` }])
+  assert.equal(c.titular, '—')
+  assert.equal(c.fin, c.inicio)
+  const vacio = parsearCheckin('x')
+  assert.equal(vacio.resultado, 'sin_reserva')
+  assert.equal(vacio.persona, null)
+  assert.equal(vacio.suspendido, false)
+  const susp = parsearCheckin({ persona: { tipo: 'invitado', nombre: 'Ana' }, suspendido: true, resultado: 'suspendido' })
+  assert.equal(susp.persona?.tipo, 'invitado')
+  assert.equal(susp.suspendido, true)
+})
+
+caso('sanciones: infracciones (automática si creado_por es null) y suspensiones', () => {
+  const s = parsearSanciones({
+    infracciones: [
+      { id: 'i1', socio_id: S1, invitado_id: null, nombre: 'Pérez Juan', tipo: 'no_show', nota: null, perdonada: false, creado_por: null, created_at: '2026-11-20T10:00:00Z' },
+      { id: 'i2', socio_id: S1, nombre: 'Pérez Juan', tipo: 'otra', nota: 'llegó tarde', perdonada: true, creado_por: 'u1' },
+      { sin: 'id' },
+    ],
+    suspensiones: [{ id: 's1', invitado_id: I1, nombre: 'Ana Paz', desde: '2026-11-20', hasta: '2026-11-27', motivo: 'no_show' }],
+  })
+  assert.equal(s.infracciones.length, 2)
+  assert.equal(s.infracciones[0].automatica, true)
+  assert.equal(s.infracciones[1].automatica, false)
+  assert.equal(s.infracciones[1].perdonada, true)
+  assert.equal(s.suspensiones[0].invitado_id, I1)
+  assert.equal(s.suspensiones[0].hasta, '2026-11-27')
+  // Una lista suelta se toma como infracciones.
+  assert.equal(parsearSanciones([{ id: 'i3' }]).infracciones[0].tipo, 'otra')
+  assert.deepEqual(parsearSanciones(null), { infracciones: [], suspensiones: [] })
 })
 
 // ─── Visibilidad ──────────────────────────────────────────────────────────────

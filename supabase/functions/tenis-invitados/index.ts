@@ -5,7 +5,8 @@
 //
 // Actions (body.action), todas POST:
 //   disponibilidad        — { fecha:'AAAA-MM-DD' } canchas, turnos ocupados (sin nombres) y turnos
-//                           libres por modalidad. Sólo hoy .. hoy + anticipacion_dias.
+//                           libres por modalidad (sólo los que no dejan un hueco inválido:
+//                           dejaHuecoValido). Sólo hoy .. hoy + anticipacion_dias.
 //   reservar              — { cancha_id, inicio (ISO), modalidad, titular:{dni,nombre,apellido,email},
 //                           jugadores:[{dni, nombre?, apellido?}] } (singles 1, dobles 3, sin el titular).
 //                           Un jugador cuyo DNI es de un socio activo entra como socio (precio socio o
@@ -47,6 +48,7 @@ import {
   UUID_RE,
   clavesLimiteInvitado,
   codigoDeError,
+  dejaHuecoValido,
   describirTurno,
   diaSemanaIso,
   duracionMin,
@@ -256,7 +258,8 @@ function turnosLibres(
       if (validarTurno(inicio, modalidad, ahora, cfg) !== null) continue
       const fin = finTurno(inicio, modalidad, cfg).getTime()
       const pisa = suyos.some((o) => new Date(o.inicio).getTime() < fin && new Date(o.fin).getTime() > t)
-      if (!pisa) {
+      // Optimizador (regla fija, misma que la base): sin huecos de menos de singles_min, salvo hoy.
+      if (!pisa && dejaHuecoValido(inicio, modalidad, suyos, ahora, cfg)) {
         libres.push({ cancha_id: cancha.id, inicio: inicio.toISOString(), hora: horaLocal(inicio), hora_real: horaInicioReal(inicio, cfg) })
       }
     }
@@ -322,9 +325,14 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
     p_token_hash: await hashToken(token),
   })
   if (error) {
-    // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido.
+    // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido. La base
+    // manda el DNI normalizado en DETAIL (PostgREST: `details`); si no llegara, es el primer
+    // jugador que se mandó sin nombre (los demás se resolvieron antes o tienen nombre).
     if (codigoDeError(error) === 'socio_no_encontrado') {
-      return rechazo('jugador_sin_nombre', { dni: normalizarDni((error as { details?: string }).details) })
+      const dni = normalizarDni((error as { details?: string }).details)
+        ?? jugadores.find((j) => !(j.nombre && j.apellido))?.dni
+        ?? null
+      return rechazo('jugador_sin_nombre', { dni })
     }
     return errorRpc('tenis_invitado_reservar', error)
   }
@@ -445,6 +453,7 @@ async function handleConfirmar(body: Record<string, unknown>): Promise<Response>
   // Resumen de la base (tenis_reserva_resumen + alias, comprobante_motivo, titular_nombre).
   const r = (data ?? {}) as Record<string, unknown>
   const inicio = new Date(String(r.inicio ?? antes?.inicio ?? ''))
+  const fin = new Date(String(r.fin ?? antes?.fin ?? ''))
   const cancha = typeof r.cancha_nombre === 'string' ? r.cancha_nombre : null
   const valido = !Number.isNaN(inicio.getTime())
 
@@ -455,7 +464,7 @@ async function handleConfirmar(body: Record<string, unknown>): Promise<Response>
       id: (r.reserva_id as string | undefined) ?? antes?.id ?? null,
       cancha,
       inicio: valido ? inicio.toISOString() : null,
-      fin: r.fin ? new Date(String(r.fin)).toISOString() : null,
+      fin: Number.isNaN(fin.getTime()) ? null : fin.toISOString(),
       hora_real: valido ? horaInicioReal(inicio, cfg) : null,
       descripcion: valido ? describirTurno(inicio, cancha, cfg) : null,
       modalidad: r.modalidad ?? null,

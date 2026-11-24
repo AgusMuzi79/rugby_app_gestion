@@ -33,7 +33,8 @@
 --     token_invalido, hold_vencido, reserva_cancelada, comprobante_vencido,
 --     path_invalido, motivo_requerido, bloque_invalido, bloque_inexistente,
 --     config_invalida, dias_invalidos, persona_requerida, jugador_inexistente,
---     infraccion_inexistente, suspension_inexistente, extension_invalida.
+--     infraccion_inexistente, suspension_inexistente, extension_invalida,
+--     hueco_invalido.
 --     Para los jugadores que no son el titular, suspensión y morosidad dan el
 --     mismo código (jugador_no_habilitado): un socio no se entera de por qué
 --     otro socio no puede jugar.
@@ -86,7 +87,7 @@ create table tenis_config (
   precio_nosocio_dobles   int         not null default 18000 check (precio_nosocio_dobles >= 0),
   -- semáforo rojo (NUVIX) no puede reservar ni ser agregado como jugador.
   bloquear_morosos        boolean     not null default true,
-  updated_at              timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
   updated_by              uuid        references profiles(id) on delete set null,
   constraint tenis_config_horas_check check (hora_desde < hora_hasta),
   -- los turnos tienen que caer en la grilla.
@@ -219,6 +220,12 @@ create table tenis_reserva_jugadores (
   cobrado_at    timestamptz,
   check_in_at   timestamptz,
   check_in_por  uuid        references profiles(id) on delete set null,
+  -- Cargo extra por no-show cuando el titular ya había pagado su parte: lo cobrado no se toca y
+  -- lo que falta se debe aparte, con su propio cobro (ver tenis_procesar y tenis_cobro_marcar).
+  cargo_no_show          int         not null default 0 check (cargo_no_show >= 0),
+  cargo_no_show_cobrado  boolean     not null default false,
+  cargo_no_show_cobrado_por uuid     references profiles(id) on delete set null,
+  cargo_no_show_cobrado_at  timestamptz,
   constraint tenis_jugadores_persona_check check ((socio_id is null) <> (invitado_id is null)),
   constraint tenis_jugadores_socio_uq    unique (reserva_id, socio_id),
   constraint tenis_jugadores_invitado_uq unique (reserva_id, invitado_id)
@@ -659,6 +666,61 @@ begin
 end;
 $$;
 
+-- Optimizador: el hueco libre que deja [p_inicio, p_fin) en la cancha, hasta lo
+-- anterior y lo siguiente que la ocupa ese día (reservas vivas y bloques, también
+-- recurrentes y de todas las canchas) o hasta la apertura/cierre, tiene que ser 0
+-- o de al menos singles_min minutos (con menos no entra ni un singles). Regla
+-- fija (sin config, decisión de la subcomisión 2026-11-24): no aplica cuando la
+-- fecha local del turno es hoy ("el mismo día, si la cancha está libre, se puede
+-- dejar media hora") ni a la reserva telefónica del gestor (ver
+-- tenis_crear_reserva). Espejo: dejaHuecoValido() en _shared/tenisReglas.ts.
+create or replace function tenis_validar_hueco(p_cancha_id uuid, p_inicio timestamptz, p_fin timestamptz)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_cfg   tenis_config%rowtype;
+  v_fecha date := tenis_local(p_inicio)::date;
+  v_prev  timestamptz;
+  v_next  timestamptz;
+  v_antes numeric;
+  v_desp  numeric;
+begin
+  select * into v_cfg from tenis_config where id;
+  if v_fecha = tenis_hoy() then
+    return;
+  end if;
+
+  select greatest(
+           tenis_ts(v_fecha, v_cfg.hora_desde),
+           (select max(r.fin) from tenis_reservas r
+             where r.cancha_id = p_cancha_id
+               and r.estado in ('pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada')
+               and r.fin <= p_inicio and r.fin > tenis_ts(v_fecha, '00:00')),
+           (select max(b.fin) from tenis_bloques_dia(v_fecha) b
+             where b.cancha_id = p_cancha_id and b.fin <= p_inicio))
+    into v_prev;
+  select least(
+           tenis_ts(v_fecha, v_cfg.hora_hasta),
+           (select min(r.inicio) from tenis_reservas r
+             where r.cancha_id = p_cancha_id
+               and r.estado in ('pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada')
+               and r.inicio >= p_fin and r.inicio < tenis_ts(v_fecha + 1, '00:00')),
+           (select min(b.inicio) from tenis_bloques_dia(v_fecha) b
+             where b.cancha_id = p_cancha_id and b.inicio >= p_fin))
+    into v_next;
+
+  v_antes := extract(epoch from (p_inicio - v_prev)) / 60;
+  v_desp  := extract(epoch from (v_next - p_fin)) / 60;
+  if (v_antes > 0 and v_antes < v_cfg.singles_min) or (v_desp > 0 and v_desp < v_cfg.singles_min) then
+    perform tenis_error('hueco_invalido');
+  end if;
+end;
+$$;
+
 -- Lock transaccional por clave (cancha o persona), para serializar reservas
 -- concurrentes que tocan lo mismo.
 create or replace function tenis_lock(p_clave text)
@@ -760,7 +822,8 @@ begin
       return query select null::uuid, v_iid;
       return;
     end if;
-    perform tenis_error('socio_no_encontrado', p->>'dni');
+    -- DETAIL = DNI normalizado: tenis-invitados lo usa para pedir nombre y apellido.
+    perform tenis_error('socio_no_encontrado', v_dni);
   end if;
 
   perform tenis_error('parametros');
@@ -827,7 +890,11 @@ as $$
           'cargo',       j.cargo,
           'motivo',      j.motivo_cargo,
           'cobrado',     j.cobrado,
-          'check_in_at', j.check_in_at
+          'check_in_at', j.check_in_at,
+          'cargo_no_show',         j.cargo_no_show,
+          'cargo_no_show_cobrado', j.cargo_no_show_cobrado,
+          'pendiente',   case when j.cobrado then 0 else j.cargo end
+                         + case when j.cargo_no_show_cobrado then 0 else j.cargo_no_show end
         ) || case when p_detalle then jsonb_build_object(
           'numero_socio', (select s.numero_socio from socios s where s.id = j.socio_id),
           'dni',          (select i.dni from tenis_invitados i where i.id = j.invitado_id)
@@ -835,9 +902,15 @@ as $$
         order by j.es_titular desc, tenis_nombre_persona(j.socio_id, j.invitado_id))
       from tenis_reserva_jugadores j where j.reserva_id = r.id
     ), '[]'::jsonb),
-    'total', (select coalesce(sum(j.cargo), 0) from tenis_reserva_jugadores j where j.reserva_id = r.id),
-    'total_cobrado', (select coalesce(sum(j.cargo), 0) from tenis_reserva_jugadores j
-                       where j.reserva_id = r.id and j.cobrado)
+    -- total incluye el cargo extra del no-show (cargo_no_show) de un titular que ya había pagado.
+    'total', (select coalesce(sum(j.cargo + j.cargo_no_show), 0) from tenis_reserva_jugadores j
+               where j.reserva_id = r.id),
+    'total_cobrado', (select coalesce(sum(case when j.cobrado then j.cargo else 0 end
+                                          + case when j.cargo_no_show_cobrado then j.cargo_no_show else 0 end), 0)
+                       from tenis_reserva_jugadores j where j.reserva_id = r.id),
+    'total_pendiente', (select coalesce(sum(case when j.cobrado then 0 else j.cargo end
+                                            + case when j.cargo_no_show_cobrado then 0 else j.cargo_no_show end), 0)
+                         from tenis_reserva_jugadores j where j.reserva_id = r.id)
   )
   from tenis_reservas r
   join tenis_canchas c on c.id = r.cancha_id
@@ -923,7 +996,8 @@ $$;
 -- tenis_invitado_reservar (web pública). Orden de locks: cancha y después cada
 -- persona (claves ordenadas), así dos reservas concurrentes no se cruzan.
 -- p_jugadores: los otros jugadores (sin el titular): singles 1, dobles 3.
--- p_aplicar_limites: 1 por día y 2 activas por titular (el gestor no los aplica).
+-- p_aplicar_limites: 1 por día y 2 activas por titular, y el optimizador de huecos
+-- (tenis_validar_hueco). El gestor (reserva telefónica) no aplica ninguno.
 create or replace function tenis_crear_reserva(
   p_cancha_id           uuid,
   p_inicio              timestamptz,
@@ -981,6 +1055,9 @@ begin
 
   perform tenis_lock('cancha:' || p_cancha_id::text);
   perform tenis_validar_turno(p_cancha_id, p_inicio, v_fin);
+  if p_aplicar_limites then
+    perform tenis_validar_hueco(p_cancha_id, p_inicio, v_fin);
+  end if;
 
   -- Jugadores: cantidad exacta y sin repetidos (el titular no va en la lista).
   if p_jugadores is null or jsonb_typeof(p_jugadores) <> 'array' then
@@ -1312,6 +1389,8 @@ begin
         'mi_cargo',         j.cargo,
         'mi_motivo',        j.motivo_cargo,
         'mi_cobrado',       j.cobrado,
+        'mi_cargo_no_show', j.cargo_no_show,
+        'mi_cargo_no_show_cobrado', j.cargo_no_show_cobrado,
         'cancelable_hasta', r.inicio - make_interval(hours => v_horas),
         'puede_cancelar',   r.titular_socio_id = v_socio and r.estado = 'confirmada'
                             and r.inicio - make_interval(hours => v_horas) >= v_ahora
@@ -1660,7 +1739,9 @@ begin
 end;
 $$;
 
--- Comprobantes de invitados esperando revisión (gestor y canchero).
+-- Comprobantes de invitados esperando revisión (gestor y canchero). Incluye los
+-- de turnos que ya terminaron con el comprobante en revisión (jugada/no_show, ver
+-- tenis_procesar).
 create or replace function tenis_comprobantes_pendientes()
 returns jsonb
 language plpgsql
@@ -1686,15 +1767,19 @@ begin
       ) order by r.inicio)
     from tenis_reservas r
     left join tenis_invitados i on i.id = r.titular_invitado_id
-    where r.estado = 'pendiente_comprobante'
+    where r.estado in ('pendiente_comprobante', 'jugada', 'no_show')
       and r.comprobante_estado = 'pendiente'
   ), '[]'::jsonb);
 end;
 $$;
 
 -- Aprobar: la reserva queda confirmada y todos los cargos cobrados (la
--- transferencia cubre el total). Rechazar exige motivo; el invitado puede volver
--- a subir otro comprobante hasta el plazo. Devuelve el aviso (con el mail del
+-- transferencia cubre el total). Si el turno ya terminó (con el comprobante en
+-- revisión tenis_procesar la dejó jugada o no_show, o todavía no corrió), queda
+-- jugada: el invitado no pudo entrar por el comprobante pendiente, no es una
+-- ausencia y no se registra infracción. Rechazar exige motivo; con el turno por
+-- delante el invitado puede volver a subir otro comprobante hasta el plazo; con el
+-- turno terminado el estado no cambia. Devuelve el aviso (con el mail del
 -- invitado) para que tenis-gestion le escriba.
 create or replace function tenis_comprobante_resolver(p_reserva_id uuid, p_aprobado boolean, p_motivo text default null)
 returns jsonb
@@ -1703,7 +1788,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_r tenis_reservas%rowtype;
+  v_r         tenis_reservas%rowtype;
+  v_terminado boolean;
 begin
   if not es_canchero() then
     perform tenis_error('no_autorizado');
@@ -1712,17 +1798,29 @@ begin
   if not found then
     perform tenis_error('reserva_inexistente');
   end if;
-  if v_r.estado <> 'pendiente_comprobante' or v_r.comprobante_estado is distinct from 'pendiente' then
+  if v_r.comprobante_estado is distinct from 'pendiente'
+     or not (v_r.estado = 'pendiente_comprobante'
+             or (v_r.estado in ('jugada', 'no_show') and v_r.origen = 'invitado')) then
     perform tenis_error('estado_invalido');
   end if;
   if p_aprobado is null then
     perform tenis_error('parametros');
   end if;
+  v_terminado := v_r.fin <= tenis_ahora();
 
   if p_aprobado then
-    update tenis_reservas
-       set estado = 'confirmada', comprobante_estado = 'aprobado', comprobante_motivo = null
-     where id = p_reserva_id;
+    begin
+      update tenis_reservas
+         set estado = case when v_terminado then 'jugada' else 'confirmada' end,
+             comprobante_estado = 'aprobado', comprobante_motivo = null
+       where id = p_reserva_id;
+    exception when exclusion_violation then
+      -- no_show → jugada vuelve a ocupar la cancha: si en el medio se cargó otra cosa
+      -- (p. ej. una extensión), queda aprobado sin cambiar el estado.
+      update tenis_reservas
+         set comprobante_estado = 'aprobado', comprobante_motivo = null
+       where id = p_reserva_id;
+    end;
     update tenis_reserva_jugadores
        set cobrado = true, cobrado_por = auth.uid(), cobrado_at = tenis_ahora()
      where reserva_id = p_reserva_id and not cobrado;
@@ -2018,7 +2116,9 @@ begin
     'reserva',    case when v_j.id is not null then tenis_reserva_resumen(v_j.reserva_id, true) end,
     'jugador',    case when v_j.id is not null then jsonb_build_object(
                     'jugador_id', v_j.id, 'cargo', v_j.cargo, 'motivo', v_j.motivo_cargo,
-                    'cobrado', v_j.cobrado, 'check_in_at', v_j.check_in_at) end,
+                    'cobrado', v_j.cobrado, 'check_in_at', v_j.check_in_at,
+                    'cargo_no_show', v_j.cargo_no_show,
+                    'cargo_no_show_cobrado', v_j.cargo_no_show_cobrado) end,
     'suspendido', v_susp,
     'resultado',  v_res
   );
@@ -2152,39 +2252,56 @@ begin
 end;
 $$;
 
-create or replace function tenis_cobro_marcar(p_jugador_id uuid, p_cobrado boolean)
+-- Marca (o desmarca) el cobro de un jugador. p_concepto: 'turno' (su cargo),
+-- 'no_show' (el cargo extra del no-show, ver cargo_no_show) o null = los dos.
+create or replace function tenis_cobro_marcar(p_jugador_id uuid, p_cobrado boolean, p_concepto text default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_j tenis_reserva_jugadores%rowtype;
+  v_j     tenis_reserva_jugadores%rowtype;
+  v_turno boolean := p_concepto is null or p_concepto = 'turno';
+  v_ns    boolean := p_concepto is null or p_concepto = 'no_show';
 begin
   if not es_canchero() then
     perform tenis_error('no_autorizado');
   end if;
-  if p_cobrado is null then
+  if p_cobrado is null or (p_concepto is not null and p_concepto not in ('turno', 'no_show')) then
     perform tenis_error('parametros');
   end if;
   update tenis_reserva_jugadores
-     set cobrado     = p_cobrado,
-         cobrado_por = case when p_cobrado then auth.uid() end,
-         cobrado_at  = case when p_cobrado then tenis_ahora() end
+     set cobrado     = case when v_turno then p_cobrado else cobrado end,
+         cobrado_por = case when not v_turno then cobrado_por when p_cobrado then auth.uid() end,
+         cobrado_at  = case when not v_turno then cobrado_at when p_cobrado then tenis_ahora() end,
+         cargo_no_show_cobrado     = case when v_ns and cargo_no_show > 0 then p_cobrado
+                                          else cargo_no_show_cobrado end,
+         cargo_no_show_cobrado_por = case when not (v_ns and cargo_no_show > 0) then cargo_no_show_cobrado_por
+                                          when p_cobrado then auth.uid() end,
+         cargo_no_show_cobrado_at  = case when not (v_ns and cargo_no_show > 0) then cargo_no_show_cobrado_at
+                                          when p_cobrado then tenis_ahora() end
    where id = p_jugador_id
   returning * into v_j;
   if not found then
     perform tenis_error('jugador_inexistente');
   end if;
   return jsonb_build_object('jugador_id', v_j.id, 'reserva_id', v_j.reserva_id,
-                            'cargo', v_j.cargo, 'cobrado', v_j.cobrado, 'cobrado_at', v_j.cobrado_at);
+                            'cargo', v_j.cargo, 'cobrado', v_j.cobrado, 'cobrado_at', v_j.cobrado_at,
+                            'cargo_no_show', v_j.cargo_no_show,
+                            'cargo_no_show_cobrado', v_j.cargo_no_show_cobrado);
 end;
 $$;
 
 -- Extensión: los jugadores de p_reserva_origen siguen en una cancha libre
 -- (p_cancha_id, la misma u otra) desde el fin de su turno hasta p_hasta.
--- Crea una reserva origen 'extension' con los mismos jugadores (ya presentes:
--- check-in ahora) y cargo de un turno más (el carnet ya usó el gratis del día).
+-- El turno de origen tiene que estar en curso o haber terminado hace 15 minutos
+-- como mucho (extension_invalida si todavía no empezó o terminó antes). Crea una
+-- reserva origen 'extension' con los mismos jugadores y cargo de un turno más (el
+-- carnet ya usó el gratis del día). Cada jugador pasa las mismas validaciones que
+-- en una reserva: suspensión/morosidad y que no tenga otro turno que se pise.
+-- check_in_at: sólo quien ya hizo check-in en el turno de origen, con esa misma
+-- hora (nunca una hora futura); el resto entra por tenis_checkin.
 create or replace function tenis_extension(p_cancha_id uuid, p_hasta timestamptz, p_reserva_origen uuid)
 returns jsonb
 language plpgsql
@@ -2197,6 +2314,7 @@ declare
   v_id    uuid;
   v_j     record;
   v_c     record;
+  v_clave text;
 begin
   if not es_canchero() then
     perform tenis_error('no_autorizado');
@@ -2208,12 +2326,39 @@ begin
   if v_o.estado not in ('confirmada', 'jugada') then
     perform tenis_error('estado_invalido');
   end if;
-  if p_cancha_id is null or p_hasta is null or p_hasta <= greatest(v_o.fin, v_ahora) then
+  if p_cancha_id is null or p_hasta is null or p_hasta <= greatest(v_o.fin, v_ahora)
+     or v_o.inicio > v_ahora
+     or v_o.fin < v_ahora - interval '15 minutes' then
     perform tenis_error('extension_invalida');
   end if;
 
   perform tenis_lock('cancha:' || p_cancha_id::text);
   perform tenis_validar_turno(p_cancha_id, v_o.fin, p_hasta);
+
+  -- Locks por persona, en orden (mismo criterio que tenis_crear_reserva).
+  for v_clave in
+    select coalesce('s:' || j.socio_id::text, 'i:' || j.invitado_id::text) as k
+    from tenis_reserva_jugadores j where j.reserva_id = p_reserva_origen
+    order by 1
+  loop
+    perform tenis_lock(v_clave);
+  end loop;
+
+  for v_j in select * from tenis_reserva_jugadores where reserva_id = p_reserva_origen loop
+    perform tenis_validar_persona(v_j.socio_id, v_j.invitado_id, tenis_local(v_o.fin)::date, v_j.es_titular);
+    if exists (
+      select 1
+      from tenis_reserva_jugadores j
+      join tenis_reservas r on r.id = j.reserva_id
+      where r.id <> p_reserva_origen
+        and r.estado in ('pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada')
+        and r.rango && tstzrange(v_o.fin, p_hasta, '[)')
+        and ((v_j.socio_id is not null and j.socio_id = v_j.socio_id)
+          or (v_j.invitado_id is not null and j.invitado_id = v_j.invitado_id))
+    ) then
+      perform tenis_error('jugador_ocupado', tenis_nombre_persona(v_j.socio_id, v_j.invitado_id));
+    end if;
+  end loop;
 
   begin
     insert into tenis_reservas (cancha_id, inicio, fin, modalidad, origen, titular_socio_id,
@@ -2230,7 +2375,8 @@ begin
     select * into v_c from tenis_cargo_jugador(v_j.socio_id, v_j.invitado_id, v_o.fin, v_o.modalidad, v_id);
     insert into tenis_reserva_jugadores (reserva_id, socio_id, invitado_id, es_titular, cargo, motivo_cargo,
                                          check_in_at, check_in_por)
-    values (v_id, v_j.socio_id, v_j.invitado_id, v_j.es_titular, v_c.cargo, v_c.motivo, v_ahora, auth.uid());
+    values (v_id, v_j.socio_id, v_j.invitado_id, v_j.es_titular, v_c.cargo, v_c.motivo,
+            v_j.check_in_at, case when v_j.check_in_at is not null then v_j.check_in_por end);
   end loop;
 
   return tenis_reserva_resumen(v_id, true);
@@ -2393,11 +2539,15 @@ $$;
 --   2. pendiente_comprobante sin comprobante (o con uno rechazado) pasado el
 --      plazo → cancelada. Uno esperando revisión no se cancela: lo resuelve el
 --      gestor/canchero;
---   3. confirmada cuyo fin pasó → jugada si alguien hizo check-in; si no,
+--   3. pendiente_comprobante con el comprobante todavía en revisión cuyo fin
+--      pasó → jugada si hubo check-in, si no no_show SIN cargo ni infracción
+--      (comprobantes_sin_revisar; el gestor/canchero lo resuelve después);
+--   4. confirmada cuyo fin pasó → jugada si alguien hizo check-in; si no,
 --      no_show: el precio de lista de cada jugador que no pagó se le carga al
---      titular (motivo 'no_show') y se registra una infracción automática (la
---      primera de la persona queda como advertencia);
---   4. borra los intentos del rate limit de la web (tenis_invitados_intentos)
+--      titular (motivo 'no_show'; si el titular ya había pagado, va aparte en
+--      cargo_no_show) y se registra una infracción automática (la primera de la
+--      persona queda como advertencia);
+--   5. borra los intentos del rate limit de la web (tenis_invitados_intentos)
 --      de más de 24 h (las ventanas de tenis-invitados son de 1 h).
 -- Devuelve el resumen para que tenis-cron avise (push/mail).
 create or replace function tenis_procesar()
@@ -2412,6 +2562,8 @@ declare
   v_comp    jsonb := '[]'::jsonb;
   v_jugadas jsonb := '[]'::jsonb;
   v_noshows jsonb := '[]'::jsonb;
+  v_sinrev  jsonb := '[]'::jsonb;
+  v_res     text;
   v_r       record;
   v_total   int;
   v_inf     jsonb;
@@ -2439,6 +2591,25 @@ begin
     v_comp := v_comp || jsonb_build_array(tenis_aviso(v_r.id));
   end loop;
 
+  -- Invitado con el comprobante todavía en revisión cuando termina el turno: el
+  -- canchero no lo pudo dejar entrar (tenis_checkin da comprobante_pendiente), así
+  -- que no es una ausencia. Con algún check-in → jugada; sin check-in → no_show SIN
+  -- cargo ni infracción. El comprobante sigue pendiente: si después se aprueba, la
+  -- reserva queda jugada (tenis_comprobante_resolver).
+  for v_r in
+    select * from tenis_reservas
+    where estado = 'pendiente_comprobante'
+      and comprobante_estado = 'pendiente'
+      and fin <= v_ahora
+    for update skip locked
+  loop
+    v_res := case when exists (select 1 from tenis_reserva_jugadores j
+                                where j.reserva_id = v_r.id and j.check_in_at is not null)
+                  then 'jugada' else 'no_show' end;
+    update tenis_reservas set estado = v_res where id = v_r.id;
+    v_sinrev := v_sinrev || jsonb_build_array(tenis_aviso(v_r.id) || jsonb_build_object('resultado', v_res));
+  end loop;
+
   for v_r in
     select * from tenis_reservas
     where estado = 'confirmada' and fin <= v_ahora
@@ -2457,12 +2628,14 @@ begin
          set cargo = 0, motivo_cargo = 'no_show'
        where reserva_id = v_r.id and not es_titular and not cobrado;
 
+      -- Titular sin pagar: su fila pasa a ser el cargo del no-show (incluye su propio precio
+      -- de lista). Titular que ya pagó: lo cobrado no se toca y el total va aparte, en
+      -- cargo_no_show, con su propio cobro (nunca se vuelve a deber lo pagado).
       update tenis_reserva_jugadores
-         set cargo        = case when cobrado then cargo else 0 end + v_total,
-             motivo_cargo = 'no_show',
-             cobrado      = cobrado and v_total = 0,
-             cobrado_por  = case when cobrado and v_total = 0 then cobrado_por end,
-             cobrado_at   = case when cobrado and v_total = 0 then cobrado_at end
+         set cargo         = case when cobrado then cargo else v_total end,
+             motivo_cargo  = case when cobrado then motivo_cargo else 'no_show' end,
+             cargo_no_show = case when cobrado then v_total else 0 end,
+             cargo_no_show_cobrado = false
        where reserva_id = v_r.id and es_titular;
 
       update tenis_reservas set estado = 'no_show' where id = v_r.id;
@@ -2486,7 +2659,8 @@ begin
     'holds_vencidos',        v_holds,
     'comprobantes_vencidos', v_comp,
     'jugadas',               v_jugadas,
-    'no_shows',              v_noshows
+    'no_shows',              v_noshows,
+    'comprobantes_sin_revisar', v_sinrev
   );
 end;
 $$;
@@ -2510,6 +2684,7 @@ revoke execute on function tenis_precio(boolean, text)                      from
 revoke execute on function tenis_en_grilla(timestamp, int)                  from public, anon, authenticated;
 revoke execute on function tenis_bloques_dia(date)                          from public, anon, authenticated;
 revoke execute on function tenis_validar_turno(uuid, timestamptz, timestamptz) from public, anon, authenticated;
+revoke execute on function tenis_validar_hueco(uuid, timestamptz, timestamptz) from public, anon, authenticated;
 revoke execute on function tenis_lock(text)                                 from public, anon, authenticated;
 revoke execute on function tenis_resolver_persona(jsonb, boolean)           from public, anon, authenticated;
 revoke execute on function tenis_validar_persona(uuid, uuid, date, boolean) from public, anon, authenticated;
@@ -2552,7 +2727,7 @@ revoke execute on function tenis_suspender(uuid, uuid, int, text)               
 revoke execute on function tenis_suspension_levantar(uuid)                              from public, anon;
 revoke execute on function tenis_checkin(text, text)                                          from public, anon;
 revoke execute on function tenis_jugadores_corregir(uuid, jsonb, boolean, text)         from public, anon;
-revoke execute on function tenis_cobro_marcar(uuid, boolean)                            from public, anon;
+revoke execute on function tenis_cobro_marcar(uuid, boolean, text)                      from public, anon;
 revoke execute on function tenis_extension(uuid, timestamptz, uuid)                     from public, anon;
 
 grant execute on function tenis_disponibilidad(date)                                    to authenticated, service_role;
@@ -2575,7 +2750,7 @@ grant execute on function tenis_suspender(uuid, uuid, int, text)                
 grant execute on function tenis_suspension_levantar(uuid)                               to authenticated, service_role;
 grant execute on function tenis_checkin(text, text)                                           to authenticated, service_role;
 grant execute on function tenis_jugadores_corregir(uuid, jsonb, boolean, text)          to authenticated, service_role;
-grant execute on function tenis_cobro_marcar(uuid, boolean)                             to authenticated, service_role;
+grant execute on function tenis_cobro_marcar(uuid, boolean, text)                       to authenticated, service_role;
 grant execute on function tenis_extension(uuid, timestamptz, uuid)                      to authenticated, service_role;
 
 -- Sólo service_role (Edge Functions tenis-invitados y tenis-cron).
