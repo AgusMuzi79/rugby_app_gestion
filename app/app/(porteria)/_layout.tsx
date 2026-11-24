@@ -3,10 +3,13 @@ import { Feather } from '@expo/vector-icons'
 import { TAB_SCREEN_OPTIONS } from '@/constants/tabOptions'
 import { useAuthStore } from '@/stores/authStore'
 import { useSincronizacionOffline } from '@/hooks/useSincronizacionOffline'
+import { FEATURES } from '@/constants/features'
 
 export default function PorteriaLayout() {
   const { rol } = useAuthStore()
   const esBuffet = rol === 'buffet'
+  // Reservas de tenis: sólo el Canchero hace el check-in de las canchas.
+  const verTenis = FEATURES.tenis && rol === 'canchero'
   // Manda los ingresos que se dejaron pasar sin conexión al volver la red o
   // la app a primer plano (ver useScanner).
   useSincronizacionOffline()
@@ -24,6 +27,14 @@ export default function PorteriaLayout() {
           title: 'Promos',
           href: esBuffet ? undefined : null,
           tabBarIcon: ({ color, size }) => <Feather name="tag" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="tenis"
+        options={{
+          title: 'Tenis',
+          href: verTenis ? undefined : null,
+          tabBarIcon: ({ color, size }) => <Feather name="clipboard" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
