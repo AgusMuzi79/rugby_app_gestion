@@ -83,7 +83,7 @@ RPCs callable by `authenticated` (each checks its own role; errors return stable
 ## Tasks
 - [ ] T0 — Feature document + Engram mirror. Route: inline.
 - [x] T1 — DB: migration `20261112000000_reservas_tenis.sql` (tables, constraints, seed courts + config, helpers, all RPCs, bucket) + SQL tests in `supabase/tests/`. Route: delegated writer (worktree `tenis-db`), parallel. Evidence: `supabase/tests/reservas_tenis.sql` in a disposable `postgres:17` container, 131/131 assertions ok, exit 0 (migration NOT applied to any Supabase project).
-- [ ] T2 — Edge Functions `tenis-invitados`, `tenis-gestion`, `tenis-cron` + `_shared/tenisReglas.ts` with `.check.ts`. Route: delegated writer (worktree `tenis-functions`), parallel.
+- [x] T2 — Edge Functions `tenis-invitados`, `tenis-gestion`, `tenis-cron` + `_shared/tenisReglas.ts` with `.check.ts`. Route: delegated writer (worktree `tenis-functions`), parallel.
 - [ ] T3 — App: flag, theme tokens, socio booking, gestor "Canchas" tab, canchero "Tenis" tab. Route: delegated writer (worktree `tenis-app`), parallel.
 - [ ] T4 — Web: public guest booking + confirmation + receipt upload pages. Route: delegated writer (worktree `tenis-web`), parallel.
 - [ ] T5 — Integration: merge the four branches into `feat/reservas-tenis`, fix contract mismatches, full checks. Route: inline/delegated as needed.
@@ -101,6 +101,16 @@ RPCs callable by `authenticated` (each checks its own role; errors return stable
 - Known gap: a guest receipt approved after the turn ended is resolved by the next cron as `no_show` (no check-in was possible while pending).
 
 Route evidence: 4 parallel writers explicitly requested by Agus on 2026-11-20 ("designa todos los agentes en simultaneo"); each runs in its own git worktree and touches a disjoint file surface; the shared contract above is the integration boundary.
+
+## T2 notes
+- Files: `_shared/tenisReglas.ts` (+ `.check.ts`, 20 cases), `tenis-invitados/index.ts`, `tenis-gestion/index.ts`, `tenis-gestion/notificar.ts` (DB reads + push/mail shared with `tenis-cron`), `tenis-cron/index.ts`. Nothing deployed.
+- `tenis-gestion` calls the gestor/canchero RPCs with the caller JWT (anon client + Authorization), so `es_gestor_tenis()`/`es_canchero()` decide in the DB; service role only reads for notifications and signs URLs.
+- Guest players are sent as `{dni, nombre?, apellido?}`: an active member DNI becomes `{socio_id}`, otherwise `{invitado:{...}}`. A titular whose DNI is an active member gets `titular_es_socio`.
+- `disponibilidad` reads `tenis_config`/`tenis_canchas`/`tenis_reservas`/`tenis_bloques` directly (service role) and also returns free starts per modality.
+- Rate limit (`reservar`): HMAC keys in `tenis_invitados_intentos` (5/h per DNI, 5/h per email, 20/h per IP via `cf-connecting-ip`); count-then-insert, not atomic.
+- Expected `tenis_procesar()` summary: `{vencidas:[id], canceladas:[id], no_shows:[id], advertencias:[{socio_id|invitado_id, reserva_id}]}` (ids or objects with `reserva_id`; `canceladas_sin_comprobante` also accepted).
+- For T1: bucket `tenis-comprobantes` should set `file_size_limit` 5 MB and `allowed_mime_types` jpg/png/pdf (signed upload URLs do not enforce size; `registrar-comprobante` re-checks it).
+- Checks: `npx --yes tsx supabase/functions/_shared/tenisReglas.check.ts` → 20 casos ok; `deno` not installed, typechecked with `tsc --strict` + Deno shim instead (exit 0).
 
 ## Acceptance criteria
 - A member books singles/doubles picking players from the padrón; prices follow the carnet rule; limits (1/day, 2 active, 2 days ahead) and the 3 h cancellation are enforced server-side.
