@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { tenis } from '../constants/theme'
 import { CONTRASTE_TEXTO_AA, contraste } from './contraste'
 import {
+  AVISO_SANCIONES,
   CODIGOS_TENIS,
   CONFIG_DEFECTO,
   bloquesPorCancha,
@@ -525,6 +526,13 @@ caso('gestor de tenis: admin o subcomisión con deporte tenis', () => {
   assert.equal(esGestorTenis({ roles: ['subcomision'], deporte: 'tenis' }), true)
   assert.equal(esGestorTenis({ roles: ['subcomision'], deporte: 'rugby' }), false)
   assert.equal(esGestorTenis({ roles: ['canchero'], deporte: 'tenis' }), false)
+})
+
+caso('AVISO_SANCIONES: avisa de sanciones, suspensión y que paga el titular', () => {
+  assert.equal(AVISO_SANCIONES.titulo, 'Antes de confirmar')
+  assert.match(AVISO_SANCIONES.texto, /sanciones/)
+  assert.match(AVISO_SANCIONES.texto, /suspendido/)
+  assert.match(AVISO_SANCIONES.texto, /titular/)
 })
 
 console.log(`\n${casos} casos ok`)

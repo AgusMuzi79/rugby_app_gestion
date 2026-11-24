@@ -864,3 +864,10 @@ export const RESULTADO_CHECKIN: Record<ResultadoCheckin, { titulo: string; nivel
 export function resultadoCheckin(v: unknown): ResultadoCheckin {
   return v === 'ok' || v === 'suspendido' || v === 'comprobante_pendiente' ? v : 'sin_reserva'
 }
+
+// Aviso antes de confirmar una reserva de socio (la telefónica del staff no
+// lo muestra). Mismo texto que web/lib/tenis.ts.
+export const AVISO_SANCIONES = {
+  titulo: 'Antes de confirmar',
+  texto:  'Si no cumplís con la reserva (no te presentás o los jugadores no están bien cargados), se aplican sanciones: la primera vez es un aviso y después podés quedar suspendido para reservar. Si no se presentan, el titular paga el turno de todos.',
+} as const
