@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { FEATURES } from '@/constants/features'
@@ -24,7 +24,10 @@ export function useEsGestorTenis(): boolean | null {
   const roles  = useAuthStore(s => s.roles)
   const [deporte, setDeporte] = useState<string | null | undefined>(undefined)
 
+  // Otra cuenta (cerrar sesión y entrar con otra): el deporte de la anterior
+  // no vale, se vuelve a "cargando" hasta leer el de la nueva.
   useEffect(() => {
+    setDeporte(undefined)
     if (!FEATURES.tenis || !userId) return
     let vigente = true
     supabase.from('profiles').select('deporte').eq('id', userId).maybeSingle()
@@ -45,9 +48,14 @@ export function useTenisGrilla(fecha: string) {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
 
+  // Sólo vale la respuesta del último pedido (cambio de día mientras carga).
+  const pedido = useRef(0)
+
   const refetch = useCallback(async () => {
+    const n = ++pedido.current
     setLoading(true)
     const r = await rpcTenis('tenis_grilla', { p_fecha: fecha }, ERROR_CARGA_TENIS)
+    if (n !== pedido.current) return
     if (r.ok) { setGrilla(parsearDisponibilidad(r.data)); setError(null) } else setError(r.mensaje)
     setLoading(false)
   }, [fecha])
