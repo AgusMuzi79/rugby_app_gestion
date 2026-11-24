@@ -189,11 +189,20 @@ Approved (medium, granted by Agus, reliability lens) and acknowledged. Advisory 
 - [ ] F10 — `tenis-cron` counts a skipped mail (member titular without email) as `fallidos`; count only real errors.
 - [ ] F11 — no checks for `tenis-gestion` late receipt approve/reject copy and the cron per-notice isolation (SQL side is tested).
 
+## Deploy (2026-11-24, Agus: "dale, hacé el backup, la migración y el deploy")
+- Backup `~/backups-uncas/2026-11-24-21-30-31`.
+- Migration applied with `supabase db push --include-all` from the linked main checkout (its local main lacked `20261120000000_rol_pileta.sql`, already applied remotely, so that file was copied from `origin/main` temporarily; dry-run listed only `20261112000000_reservas_tenis.sql`; both temp files removed afterwards). Production check: 9 `tenis_*` tables all with RLS, 8 courts, alias `uncas.tenis.macro`, 52 functions, bucket 5 MB jpg/png/pdf, `tenis_procesar` not executable by anon/authenticated, 0 bookings.
+- Edge Functions deployed: `tenis-invitados` and `tenis-cron` (`--no-verify-jwt`), `tenis-gestion`. Smoke test: `disponibilidad` returns 8 courts and free slots; `tenis-cron` without secret → 401.
+- pg_cron job `tenis-cron` every 5 min, built by copying the `recordatorio-eventos` command (same `x-cron-secret` header) with the URL swapped.
+- Not done: `app/lib/database.types.ts` regeneration — the production types break unrelated `useEventos.ts`/`useFichajes.ts` (pre-existing drift); kept the untyped tennis RPC wrapper; separate follow-up.
+- `FEATURES.tenis` stays `false` in app and web; no OTA, no web publish of the flag.
+
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
 - 2026-11-20: native review in 5 slices, all approved and acknowledged; advisory findings recorded as F1–F8.
 - 2026-11-24: F1–F9 fixed (backend + frontend in parallel, F9 made a fixed rule per Agus), all checks green, slice 6 reviewed and approved; F10–F11 advisory.
+- 2026-11-24: backup, migration applied, 3 functions deployed and cron scheduled in production (flags still off).
 
 ## Next step
-Push the branch and open chained PRs (slices 1–6). Apply the migration and deploy functions only with Agus's OK. Open product decision: TOTP validation on the QR check-in. Optional: F10–F11.
+Merge the PR chain (#72 → #77 into tracker #71, then #71 → main). Launch: turn on `FEATURES.tenis` (app OTA + web) when the club is ready, assign the canchero/gestor roles, test on a phone. Open: TOTP on QR check-in; regenerate database.types.ts (fix pre-existing drift first); F10–F11.
