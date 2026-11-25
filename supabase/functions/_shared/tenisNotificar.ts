@@ -3,7 +3,7 @@
 
 import { supabaseAdmin } from './supabase-admin.ts'
 import { enviarEmail, emailTemplate } from './email.ts'
-import { enviarPush, trocear, type PushItem } from './expoPush.ts'
+import { enviarPush, esTokenExpo, trocear, type PushItem } from './expoPush.ts'
 import { tutoresPorSocio } from './tutores.ts'
 import { configDesdeFila, type TenisConfig } from './tenisReglas.ts'
 
@@ -154,23 +154,50 @@ export interface AvisoPush {
   data?: Record<string, unknown>
 }
 
-/** Manda los avisos a cada socio y a sus tutores. Devuelve cuántos (aviso, socio) llegaron a algún teléfono. */
-export async function pushASocios(avisos: AvisoPush[]): Promise<{ entregados: number; fallidos: number }> {
-  if (!avisos.length) return { entregados: 0, fallidos: 0 }
+export type EstadoPush = 'entregado' | 'sin_dispositivo' | 'error'
+
+/** Clave de un aviso en el resultado de pushASociosDetalle. */
+export function clavePush(a: Pick<AvisoPush, 'clave' | 'socioId'>): string {
+  return `${a.clave}#${a.socioId}`
+}
+
+/**
+ * Manda los avisos a cada socio y a sus tutores y devuelve el estado de cada uno (por clavePush):
+ * 'entregado' si llegó a algún teléfono, 'sin_dispositivo' si ni el socio ni sus tutores tienen un
+ * token de Expo, 'error' si había teléfono pero Expo no lo entregó.
+ */
+export async function pushASociosDetalle(avisos: AvisoPush[]): Promise<Map<string, EstadoPush>> {
+  const estados = new Map<string, EstadoPush>()
+  if (!avisos.length) return estados
   const perfiles = await profilesPorSocio([...new Set(avisos.map((a) => a.socioId))])
   const tokens = await tokensPorProfile([...new Set([...perfiles.values()].flat())])
   const items: PushItem[] = []
   for (const a of avisos) {
-    const clave = `${a.clave}#${a.socioId}`
+    const clave = clavePush(a)
+    if (!estados.has(clave)) estados.set(clave, 'sin_dispositivo')
     for (const profileId of perfiles.get(a.socioId) ?? []) {
       for (const to of tokens.get(profileId) ?? []) {
+        if (!esTokenExpo(to)) continue
+        estados.set(clave, 'error')
         items.push({ clave, msg: { to, title: a.title, body: a.body, data: a.data, sound: 'default' } })
       }
     }
   }
-  if (!items.length) return { entregados: 0, fallidos: 0 }
-  const { entregados, fallidos } = await enviarPush(items)
-  return { entregados: entregados.size, fallidos }
+  if (!items.length) return estados
+  const { entregados } = await enviarPush(items)
+  for (const clave of entregados) estados.set(clave, 'entregado')
+  return estados
+}
+
+/** Manda los avisos a cada socio y a sus tutores. Devuelve cuántos (aviso, socio) llegaron a algún teléfono. */
+export async function pushASocios(avisos: AvisoPush[]): Promise<{ entregados: number; fallidos: number }> {
+  let entregados = 0
+  let fallidos = 0
+  for (const estado of (await pushASociosDetalle(avisos)).values()) {
+    if (estado === 'entregado') entregados++
+    else if (estado === 'error') fallidos++
+  }
+  return { entregados, fallidos }
 }
 
 /** Mail simple con la plantilla del club. false si no se pudo mandar (o no hay mail). */

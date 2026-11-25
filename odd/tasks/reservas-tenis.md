@@ -197,6 +197,14 @@ Approved (medium, granted by Agus, reliability lens) and acknowledged. Advisory 
 - Not done: `app/lib/database.types.ts` regeneration — the production types break unrelated `useEventos.ts`/`useFichajes.ts` (pre-existing drift); kept the untyped tennis RPC wrapper; separate follow-up.
 - `FEATURES.tenis` stays `false` in app and web; no OTA, no web publish of the flag.
 
+## Aviso a jugadores (2026-11-25, branch `feat/tenis-aviso-jugadores`)
+Push "Te sumaron a un turno de tenis" — "Juan Pérez te agregó: jueves 26/11, 18:05 · Cancha 03 · Dobles." — to a member added as a non-titular player (and their tutors). Route: delegated writer (migration + 3 function files).
+- Migration `20261125000000_tenis_aviso_jugadores.sql` (does not touch the tennis migration): transactional outbox `tenis_avisos_jugadores` (unique `(reserva_id, socio_id)`, RLS closed, service role only). Enqueued by triggers, so every RPC is covered: insert on `tenis_reserva_jugadores` (non-titular member of a `pendiente_comprobante`/`confirmada` booking that is not an `extension`: member, phone and corrected bookings — the correction only inserts the members it adds); update of `tenis_reservas.estado` out of `pendiente_confirmacion` (guest confirms by email; an expired hold never notifies); delete of a player row removes its pending notice.
+- `tenis-cron` after `tenis_procesar()`: `tenis_avisos_jugadores_reclamar()` discards notices of cancelled/expired/ended bookings and removed players, claims pending ones (`for update skip locked`; a claim not marked within 10 min is claimable again); push via `pushASociosDetalle` (new in `_shared/tenisNotificar.ts`: per-notice `entregado` / `sin_dispositivo` / `error`); `tenis_avisos_jugadores_marcar()` stores the result (`error` retried on the next run, discarded after 3 tries; `sin_dispositivo` not retried). Summary adds `avisos_jugadores`, `_entregados`, `_sin_dispositivo`, `_error`, `_descartados`. Texts in `tenisReglas.ts` (`textoJugadorAgregado`, `parsearAvisosJugadores`).
+- Never twice for the same member and booking; a member removed and re-added after the push gets no second one. Existing bookings are not back-filled.
+- Checks: `supabase/tests/tenis_aviso_jugadores.sql` 40 ok; `reservas_tenis.sql` 176 ok with the new migration loaded too; `tenisReglas.check.ts` 24 cases; strict tsc of the three tennis functions exit 0.
+- Deploy (pending Agus's OK): backup, apply the migration, then deploy `tenis-cron` (`--no-verify-jwt`) and `tenis-gestion` (shares `tenisNotificar.ts`). The old `tenis-cron` keeps working with the migration applied (notices just wait).
+
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).

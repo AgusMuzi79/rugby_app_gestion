@@ -33,10 +33,12 @@ import {
   normalizarDni,
   normalizarEmail,
   normalizarNombre,
+  parsearAvisosJugadores,
   parsearResumenProcesar,
   pathComprobanteValido,
   puedeCancelar,
   sumarDias,
+  textoJugadorAgregado,
   tokenConForma,
   totalCargos,
   validarTurno,
@@ -335,6 +337,42 @@ await caso('resumen de tenis_procesar(): avisos con el titular, ids de jugadas, 
   assert.deepEqual(parsearResumenProcesar(null), {
     ahora: null, holds_vencidos: [], comprobantes_vencidos: [], jugadas: [], no_shows: [], comprobantes_sin_revisar: [],
   })
+})
+
+await caso('aviso "te sumaron": título, quién agregó, turno real (+5), cancha y modalidad', () => {
+  const t = textoJugadorAgregado(
+    { titular_nombre: 'Juan Pérez', inicio: ar('2026-11-26T18:00'), cancha: '03', modalidad: 'dobles' }, CFG)
+  assert.equal(t.title, 'Te sumaron a un turno de tenis')
+  assert.equal(t.body, 'Juan Pérez te agregó: jueves 26/11, 18:05 · Cancha 03 · Dobles.')
+  // Sin nombre ni cancha; 08:00 AR = 11:00 UTC.
+  const s = textoJugadorAgregado(
+    { titular_nombre: null, inicio: new Date('2026-11-21T11:00:00Z'), cancha: null, modalidad: 'singles' }, CFG)
+  assert.equal(s.body, 'Te agregaron: sábado 21/11, 08:05 · Singles.')
+  // 21:30 AR del 26 ya es el 27 en UTC: el día es el local.
+  const tarde = textoJugadorAgregado(
+    { titular_nombre: '  ', inicio: new Date('2026-11-27T00:30:00Z'), cancha: '01', modalidad: 'raro' }, CFG)
+  assert.equal(tarde.body, 'Te agregaron: jueves 26/11, 21:35 · Cancha 01.')
+})
+
+await caso('reclamo de avisos a jugadores: tolerante, descarta filas sin id, socio o inicio', () => {
+  const a = '11111111-1111-4111-8111-111111111111'
+  const r = '22222222-2222-4222-8222-222222222222'
+  const s = '33333333-3333-4333-8333-333333333333'
+  const p = parsearAvisosJugadores({
+    descartados: 2,
+    avisos: [
+      { id: a, reserva_id: r, socio_id: s, titular_nombre: 'Pérez Juan', cancha: '01', inicio: '2026-11-21T21:00:00+00:00', modalidad: 'singles' },
+      { id: 'x', reserva_id: r, socio_id: s, inicio: '2026-11-21T21:00:00+00:00' },
+      { id: a, reserva_id: r, socio_id: null, inicio: '2026-11-21T21:00:00+00:00' },
+      { id: a, reserva_id: r, socio_id: s, inicio: 'mañana' },
+    ],
+  })
+  assert.equal(p.descartados, 2)
+  assert.equal(p.avisos.length, 1)
+  assert.equal(p.avisos[0].titular_nombre, 'Pérez Juan')
+  assert.equal(p.avisos[0].cancha, '01')
+  assert.equal(p.avisos[0].inicio.toISOString(), '2026-11-21T21:00:00.000Z')
+  assert.deepEqual(parsearAvisosJugadores(null), { descartados: 0, avisos: [] })
 })
 
 console.log(`\n${casos} casos ok`)

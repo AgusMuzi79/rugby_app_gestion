@@ -14,6 +14,12 @@
 //     además el aviso de advertencia.
 //   - comprobante en revisión al terminar el turno (comprobantes_sin_revisar): sin aviso, sólo se
 //     cuenta (lo resuelve la gestora o el canchero desde la app).
+// Después manda los avisos "Te sumaron a un turno de tenis" de la outbox tenis_avisos_jugadores
+// (migración 20261125000000): los socios que otro agregó a una reserva (y sus tutores). Los
+// reclama con tenis_avisos_jugadores_reclamar() (descarta los de reservas canceladas o terminadas
+// y los de jugadores que ya no están) y marca cada uno con tenis_avisos_jugadores_marcar():
+// entregado, sin_dispositivo (no se reintenta) o error (se reintenta en la corrida siguiente,
+// hasta 3 veces). Si la corrida se cae antes de marcar, el aviso vuelve a salir a los 10 minutos.
 // Cada aviso va aislado: si uno falla (lectura, mail o push) queda en el log, se cuenta en
 // `fallidos` y se sigue con el resto. El estado ya cambió en la base y no se reintenta.
 //
@@ -27,17 +33,82 @@ import {
   describirTurno,
   escapeHtml,
   formatoPesos,
+  parsearAvisosJugadores,
   parsearResumenProcesar,
+  textoJugadorAgregado,
   type AvisoReserva,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig, cargarReservas, mailAInvitado, pushASocios, type AvisoPush } from '../_shared/tenisNotificar.ts'
+import {
+  cargarConfig,
+  cargarReservas,
+  clavePush,
+  mailAInvitado,
+  pushASocios,
+  pushASociosDetalle,
+  type AvisoPush,
+  type EstadoPush,
+} from '../_shared/tenisNotificar.ts'
 
 const TEXTO_ADVERTENCIA = 'Es tu primera infracción en las reservas de tenis y esta vez queda como advertencia. ' +
   'Desde la próxima, la subcomisión puede suspenderte para reservar.'
 
 function turnoDe(a: AvisoReserva, cfg: TenisConfig): string {
   return a.inicio ? describirTurno(new Date(a.inicio), a.cancha_nombre, cfg) : `cancha ${a.cancha_nombre ?? ''}`.trim()
+}
+
+interface ResumenAvisosJugadores {
+  avisos_jugadores: number
+  avisos_jugadores_entregados: number
+  avisos_jugadores_sin_dispositivo: number
+  avisos_jugadores_error: number
+  avisos_jugadores_descartados: number
+}
+
+/** "Te sumaron a un turno de tenis": reclama la outbox, manda los push y marca cada aviso. */
+async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) => void): Promise<ResumenAvisosJugadores> {
+  const out: ResumenAvisosJugadores = {
+    avisos_jugadores: 0,
+    avisos_jugadores_entregados: 0,
+    avisos_jugadores_sin_dispositivo: 0,
+    avisos_jugadores_error: 0,
+    avisos_jugadores_descartados: 0,
+  }
+  const { data, error } = await supabaseAdmin.rpc('tenis_avisos_jugadores_reclamar')
+  if (error) throw new Error(`Error en tenis_avisos_jugadores_reclamar: ${error.message}`)
+  const reclamo = parsearAvisosJugadores(data)
+  out.avisos_jugadores = reclamo.avisos.length
+  out.avisos_jugadores_descartados = reclamo.descartados
+  if (!reclamo.avisos.length) return out
+
+  const cfg = await cargarConfig().catch(() => TENIS_CONFIG_DEFAULT)
+  const pushes: AvisoPush[] = reclamo.avisos.map((a) => ({
+    clave: a.id,
+    socioId: a.socio_id,
+    ...textoJugadorAgregado(a, cfg),
+    data: { type: 'tenis_jugador_agregado', reserva_id: a.reserva_id },
+  }))
+
+  // Si el envío entero falla, todos quedan con error y se reintentan en la corrida siguiente.
+  let estados = new Map<string, EstadoPush>()
+  let motivo = 'expo: no entregado'
+  try {
+    estados = await pushASociosDetalle(pushes)
+  } catch (e) {
+    motivo = e instanceof Error ? e.message : String(e)
+    fallo('push a jugadores agregados', e)
+  }
+
+  const resultados = pushes.map((p) => {
+    const resultado = estados.get(clavePush(p)) ?? 'error'
+    if (resultado === 'entregado') out.avisos_jugadores_entregados++
+    else if (resultado === 'sin_dispositivo') out.avisos_jugadores_sin_dispositivo++
+    else out.avisos_jugadores_error++
+    return { id: p.clave, resultado, error: resultado === 'error' ? motivo : null }
+  })
+  const { error: errMarcar } = await supabaseAdmin.rpc('tenis_avisos_jugadores_marcar', { p_resultados: resultados })
+  if (errMarcar) fallo('marcar avisos a jugadores (vuelven a salir a los 10 minutos)', errMarcar.message)
+  return out
 }
 
 Deno.serve(async (req: Request) => {
@@ -147,6 +218,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    let jugadores: ResumenAvisosJugadores | null = null
+    try {
+      jugadores = await avisarJugadoresAgregados(fallo)
+    } catch (e) {
+      fallo('avisos a jugadores agregados', e)
+    }
+
     const salida = {
       holds_vencidos: resumen.holds_vencidos.length,
       comprobantes_vencidos: resumen.comprobantes_vencidos.length,
@@ -155,8 +233,13 @@ Deno.serve(async (req: Request) => {
       advertencias: resumen.no_shows.filter((a) => a.advertencia).length,
       comprobantes_sin_revisar: resumen.comprobantes_sin_revisar.length,
       ...avisos,
+      ...jugadores,
     }
-    if (hayAvisos || resumen.holds_vencidos.length || resumen.jugadas.length || resumen.comprobantes_sin_revisar.length) console.log('tenis-cron:', JSON.stringify(salida))
+    const hayJugadores = !!jugadores && (jugadores.avisos_jugadores > 0 || jugadores.avisos_jugadores_descartados > 0)
+    if (
+      hayAvisos || hayJugadores || avisos.fallidos ||
+      resumen.holds_vencidos.length || resumen.jugadas.length || resumen.comprobantes_sin_revisar.length
+    ) console.log('tenis-cron:', JSON.stringify(salida))
     return jsonOk(salida)
   } catch (e) {
     const motivo = e instanceof Error ? e.message : String(e)
