@@ -21,7 +21,8 @@ import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } fro
 // modalidad, horario, cancha y jugadores; puede cambiar de día (`dias` +
 // `onCambiarFecha`, la grilla la recarga el padre: `cargandoItems` mientras
 // tanto) y su propio turno cuenta como libre. Sin aviso de sanciones (ya lo
-// aceptó al reservar).
+// aceptó al reservar). Si la grilla del día nuevo no carga, `errorItems` se
+// muestra en el formulario con REINTENTAR (`onReintentarItems`).
 
 export interface EdicionReserva {
   reservaId: string
@@ -39,7 +40,7 @@ export interface DatosReserva {
 
 export function FormReserva({
   visible, onCerrar, fecha, canchas, config, items, ahoraMs, canchaInicial, horaInicial, staff = false, onConfirmar,
-  edicion, dias, onCambiarFecha, cargandoItems = false,
+  edicion, dias, onCambiarFecha, cargandoItems = false, errorItems = null, onReintentarItems,
 }: {
   visible:       boolean
   onCerrar:      () => void
@@ -56,6 +57,8 @@ export function FormReserva({
   dias?:           DiaReserva[]
   onCambiarFecha?: (fecha: string) => void
   cargandoItems?:  boolean
+  errorItems?:     string | null
+  onReintentarItems?: () => void
 }) {
   // Arranca con los datos de la reserva editada desde el primer render: el
   // recorte de jugadores por modalidad corre antes que el efecto de abajo.
@@ -92,8 +95,8 @@ export function FormReserva({
   // Si el horario elegido ya no entra (p. ej. pasó a dobles), se deselecciona.
   // Mientras se carga otro día no se decide nada.
   useEffect(() => {
-    if (!cargandoItems && hora && !libres.includes(hora)) setHora(null)
-  }, [libres, hora, cargandoItems])
+    if (!cargandoItems && !errorItems && hora && !libres.includes(hora)) setHora(null)
+  }, [libres, hora, cargandoItems, errorItems])
 
   const requeridos = jugadoresRequeridos(modalidad)
   useEffect(() => {
@@ -102,7 +105,7 @@ export function FormReserva({
 
   const cancha = canchas.find(c => c.id === canchaId)
   const excluir = [...jugadores.map(j => j.clave), ...(titular ? [titular.clave] : [])]
-  const completo = !!canchaId && !!hora && !cargandoItems && jugadores.length === requeridos && (!staff || !!titular)
+  const completo = !!canchaId && !!hora && !cargandoItems && !errorItems && jugadores.length === requeridos && (!staff || !!titular)
 
   function pedirConfirmacion() {
     if (!completo || enviando) return
@@ -190,6 +193,11 @@ export function FormReserva({
                 <Text style={estilosTenis.label}>HORARIO · {etiquetaDiaCorta(fecha)}</Text>
                 {cargandoItems ? (
                   <ActivityIndicator color={colors.oro} style={s.espacio} />
+                ) : errorItems ? (
+                  <>
+                    <Aviso tipo="error">{errorItems}</Aviso>
+                    {onReintentarItems && <Boton texto="REINTENTAR" variante="secundario" onPress={onReintentarItems} />}
+                  </>
                 ) : libres.length === 0 ? (
                   <Text style={estilosTenis.vacio}>{canchaId ? 'No quedan horarios libres en esta cancha ese día.' : 'Elegí una cancha.'}</Text>
                 ) : (

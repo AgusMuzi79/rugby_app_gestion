@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { View, Text, ScrollView, RefreshControl, Alert, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { Header } from '@/components/shared/Header'
 import { ReservarAgenda } from '@/components/shared/ReservarAgenda'
 import { AgendaEventos } from '@/components/socio/AgendaEventos'
@@ -8,7 +9,7 @@ import { FEATURES } from '@/constants/features'
 import { useAgenda } from '@/hooks/useAgenda'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { useMisReservasTenis } from '@/hooks/useTenisSocio'
-import { opcionesReserva, reservasTenisAgenda } from '@/lib/agenda'
+import { agendaVacia, opcionesReserva, reservasTenisAgenda } from '@/lib/agenda'
 import { CONFIG_DEFECTO, etiquetaDiaCorta, fechaArgentina, inicioReal, type MiReserva } from '@/lib/tenis'
 import { colors, fonts } from '@/constants/theme'
 
@@ -61,7 +62,15 @@ export default function AgendaScreen() {
     tenisActivo:   FEATURES.tenis,
     esSocio:       true,
   })
-  const sinEventos = agenda && !error && agenda.divisiones.length === 0 && turnosTenis.length === 0
+  // Si falló la carga de la agenda o de los turnos de tenis no se afirma que no hay nada.
+  const sinEventos = agendaVacia({
+    agendaCargada: !!agenda,
+    errorAgenda:   error,
+    errorTenis:    tenis.error,
+    tenisActivo:   FEATURES.tenis,
+    divisiones:    agenda?.divisiones.length ?? 0,
+    turnosTenis:   turnosTenis.length,
+  })
 
   return (
     <View style={s.root}>
@@ -90,7 +99,7 @@ export default function AgendaScreen() {
             onCancelar: pedirCancelacion,
           } : undefined}
         />
-        {FEATURES.tenis && tenis.error && <Text style={s.vacio}>{tenis.error}</Text>}
+        {FEATURES.tenis && tenis.error && <ErrorCarga mensaje={tenis.error} onReintentar={refetchTenis} />}
         {sinEventos && (
           <Text style={s.vacio}>
             {opciones.length > 0

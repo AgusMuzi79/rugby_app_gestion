@@ -156,7 +156,11 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
           canchas={base.canchas}
           config={config}
           items={disp?.items ?? []}
-          cargandoItems={!disp}
+          // Otro día en edición: spinner mientras carga; si falló, el error con
+          // REINTENTAR dentro del formulario (no un spinner para siempre).
+          cargandoItems={!disp && (loading || !error)}
+          errorItems={!disp && !loading ? error : null}
+          onReintentarItems={refetch}
           ahoraMs={ahoraMs}
           canchaInicial={form.cancha}
           horaInicial={form.hora}
