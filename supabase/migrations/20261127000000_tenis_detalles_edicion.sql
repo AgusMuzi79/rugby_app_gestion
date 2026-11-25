@@ -19,7 +19,8 @@
 --      'jugador_quitado' (trigger de delete: un jugador que había pagado sale por una edición o
 --      una corrección; monto = lo que pagó, a devolver) y 'cambio_turno' (un jugador cobrado que
 --      sigue y cuyo cargo cambió; monto = monto_cobrado − cargo: > 0 devolver, < 0 cobrar; uno
---      abierto por jugador y reserva, se actualiza con cada edición y se cierra solo al saldarse).
+--      abierto por jugador y reserva, se actualiza con cada edición y se cierra solo al saldarse
+--      cobrando; DESHACER el cobro no lo cierra). Los cierres automáticos no llevan resuelto_por.
 --      RLS cerrada; gestor y canchero lo leen con tenis_cobros_ajustes_pendientes() y lo cierran
 --      con tenis_cobro_ajuste_resolver().
 -- 2. Aviso "Cambió tu turno de tenis" a los jugadores socio (no titulares) que siguen en una
@@ -27,7 +28,8 @@
 --    trigger AFTER UPDATE de inicio/cancha_id/modalidad en tenis_reservas, con los jugadores de
 --    ANTES de que la edición saque o sume gente (los que salen pierden el pendiente por el
 --    trigger de delete; los que entran sólo reciben 'agregado'). Un 'agregado' todavía sin
---    mandar ya muestra el turno nuevo (se arma al reclamar): no se suma 'cambio'. Cada movida
+--    mandar ni reclamar ya muestra el turno nuevo (se arma al reclamar): no se suma 'cambio';
+--    si tenis-cron ya lo reclamó (texto con el turno viejo, reclamo de menos de 10 min), sí. Cada movida
 --    avisa; una movida nueva reemplaza el 'cambio' pendiente (descarte 'reemplazado'). Unique
 --    (reserva, socio) pasa a ser sólo para 'agregado' (nunca dos) + un 'cambio' pendiente por
 --    jugador. tenis_avisos_jugadores_reclamar() devuelve el motivo.
@@ -98,8 +100,11 @@ alter table tenis_cobros_ajustes enable row level security;
 revoke all on table tenis_cobros_ajustes from public, anon, authenticated;
 grant all on table tenis_cobros_ajustes to service_role;
 
--- Deja el ajuste 'cambio_turno' de un jugador al día con su diferencia: abierto con
--- monto = monto_cobrado − cargo si hay diferencia; cerrado si no (saldado o no cobrado).
+-- Deja el ajuste 'cambio_turno' de un jugador cobrado al día con su diferencia: abierto con
+-- monto = monto_cobrado − cargo si hay diferencia; cerrado si se saldó (lo cobrado = cargo).
+-- Un jugador no cobrado (DESHACER) no toca el ajuste: nadie lo saldó, queda abierto para
+-- que staff lo resuelva (la reserva ya muestra el cargo entero pendiente). Los cierres
+-- automáticos dejan resuelto_por en null (no los hizo staff con "ya está resuelto").
 create or replace function tenis_cobro_ajuste_sincronizar(p_jugador_id uuid)
 returns void
 language plpgsql
@@ -111,14 +116,14 @@ declare
   v_dif int;
 begin
   select * into v_j from tenis_reserva_jugadores where id = p_jugador_id;
-  if not found then
+  if not found or not v_j.cobrado then
     return;
   end if;
-  v_dif := case when v_j.cobrado then v_j.monto_cobrado - v_j.cargo else 0 end;
+  v_dif := v_j.monto_cobrado - v_j.cargo;
 
   if v_dif = 0 then
     update tenis_cobros_ajustes a
-       set resuelto_at = tenis_ahora(), resuelto_por = auth.uid()
+       set resuelto_at = tenis_ahora(), resuelto_por = null
      where a.reserva_id = v_j.reserva_id and a.motivo = 'cambio_turno' and a.resuelto_at is null
        and coalesce(a.socio_id, a.invitado_id) = coalesce(v_j.socio_id, v_j.invitado_id);
     return;
@@ -139,7 +144,8 @@ $$;
 
 -- Sale de la reserva alguien que había pagado (edición del titular o corrección del
 -- canchero): queda a devolver todo lo que pagó, y su 'cambio_turno' abierto se cierra (lo
--- reemplaza éste). No aplica cuando se borra la reserva entera ni la persona.
+-- reemplaza éste; cierre automático, resuelto_por null). No aplica cuando se borra la
+-- reserva entera ni la persona.
 create or replace function tenis_cobros_ajustes_tg_jugador_quitado()
 returns trigger
 language plpgsql
@@ -155,7 +161,7 @@ begin
   end if;
 
   update tenis_cobros_ajustes a
-     set resuelto_at = tenis_ahora(), resuelto_por = auth.uid()
+     set resuelto_at = tenis_ahora(), resuelto_por = null
    where a.reserva_id = old.reserva_id and a.motivo = 'cambio_turno' and a.resuelto_at is null
      and coalesce(a.socio_id, a.invitado_id) = coalesce(old.socio_id, old.invitado_id);
 
@@ -670,11 +676,14 @@ begin
     and j.socio_id is not null
     and not j.es_titular
     and j.socio_id is distinct from new.titular_socio_id
-    -- Un "te sumaron" sin mandar ya va a mostrar el turno nuevo.
+    -- Un "te sumaron" sin mandar ni reclamar (o con el reclamo vencido, la misma regla de
+    -- 10 minutos de tenis_avisos_jugadores_reclamar) se arma al reclamar: ya va a mostrar el
+    -- turno nuevo. Si tenis-cron ya lo reclamó, el texto tiene el turno viejo: va el cambio.
     and not exists (
       select 1 from tenis_avisos_jugadores a
       where a.reserva_id = j.reserva_id and a.socio_id = j.socio_id and a.motivo = 'agregado'
         and a.enviado_at is null and a.descartado_at is null
+        and (a.reclamado_at is null or a.reclamado_at <= tenis_ahora() - interval '10 minutes')
     );
   return null;
 end;

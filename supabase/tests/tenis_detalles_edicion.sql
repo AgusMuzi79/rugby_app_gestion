@@ -381,6 +381,10 @@ select pg_temp.espera(
 select tenis_jugadores_corregir(pg_temp.id('m'), pg_temp.j(2));
 select pg_temp.espera(pg_temp.ajustes('m'), 'jugador_quitado:10000:S2,jugador_quitado:10000:S4',
   'corrección: S4 sale con todo lo pagado a devolver; su cambio de turno se cierra');
+select pg_temp.espera(
+  (select coalesce(resuelto_por::text, 'null') from tenis_cobros_ajustes
+    where reserva_id = pg_temp.id('m') and socio_id = pg_temp.so(4) and motivo = 'cambio_turno'),
+  'null', 'cierre automático del cambio de turno: sin resuelto_por de staff');
 
 select pg_temp.espera(
   (tenis_cobro_ajuste_resolver((select id from tenis_cobros_ajustes where reserva_id = pg_temp.id('m')
@@ -418,6 +422,27 @@ select pg_temp.espera(
   (select string_agg(cobrado::text || '/' || (monto_cobrado = cargo)::text, ',') from tenis_reserva_jugadores
     where reserva_id = pg_temp.id('g')), 'true/true,true/true', 'aprobar comprobante: monto_cobrado = cargo de cada uno');
 select pg_temp.espera(pg_temp.totales('g'), '25000/25000/0', 'comprobante aprobado: todo cobrado');
+
+-- DESHACER con un ajuste de cambio de turno abierto: el ajuste sigue abierto (no lo saldó
+-- nadie) y la reserva muestra el cargo entero pendiente; cobrar de nuevo sí lo cierra.
+select tenis_cobro_marcar(pg_temp.fila('m', 2), true);
+select pg_temp.como('p1');
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('m'), pg_temp.ca(3), pg_temp.t('2026-11-21 12:00'), 'dobles', pg_temp.j(2, 3, 4))$$),
+  'ok', 'pasar m a dobles con S2 cobrado');
+select pg_temp.espera(pg_temp.ajustes('m'), 'cambio_turno:-1000:S2,jugador_quitado:10000:S4', 'S2 debe la diferencia');
+select pg_temp.como('canchero');
+select tenis_cobro_marcar(pg_temp.fila('m', 2), false);
+select pg_temp.espera(pg_temp.ajustes('m'), 'cambio_turno:-1000:S2,jugador_quitado:10000:S4',
+  'deshacer el cobro no cierra el ajuste abierto');
+select pg_temp.espera(pg_temp.cobro('m', 2) || ' ' || pg_temp.res_jug('m', 2, 'pendiente'), 'false/null/10000 10000',
+  'deshacer: debe el cargo entero');
+select tenis_cobro_marcar(pg_temp.fila('m', 2), true);
+select pg_temp.espera(pg_temp.ajustes('m'), 'jugador_quitado:10000:S4', 'cobrar el cargo entero cierra el ajuste');
+select pg_temp.espera(
+  (select count(*) || '/' || count(*) filter (where resuelto_at is not null and resuelto_por is null)
+     from tenis_cobros_ajustes
+    where reserva_id = pg_temp.id('m') and socio_id = pg_temp.so(2) and motivo = 'cambio_turno'),
+  '2/2', 'cierres automáticos al saldar: sin resuelto_por de staff');
 
 -- ─── 2. Aviso "Cambió tu turno de tenis" ──────────────────────────────────────
 -- n: p2 (S2) con S3, cancha 05 domingo 22 14:00 singles.
@@ -488,5 +513,22 @@ select pg_temp.entregar('o', 2);
 select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('o'), pg_temp.ca(2), pg_temp.t('2026-11-22 16:00'), 'dobles', pg_temp.j(2, 1, 4))$$),
   'ok', 'pasar o a dobles en el mismo horario');
 select pg_temp.espera(pg_temp.avisos_de('o', 2), 'agregado:enviado,cambio:pendiente', 'sólo la modalidad: aviso de cambio');
+
+-- Un "te sumaron" que el cron ya reclamó (texto armado con el turno viejo) no tapa el cambio.
+select pg_temp.espera(pg_temp.avisos_de('o', 1), 'agregado:pendiente', 'S1: te sumaron sin mandar');
+select pg_temp.ahora('2026-11-20 10:05');
+select tenis_avisos_jugadores_reclamar(100);
+select pg_temp.ahora('2026-11-20 10:06');
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('o'), pg_temp.ca(2), pg_temp.t('2026-11-22 15:00'), 'dobles', pg_temp.j(2, 1, 4))$$),
+  'ok', 'mover o con el "te sumaron" reclamado');
+select pg_temp.espera(pg_temp.avisos_de('o', 1), 'agregado:pendiente,cambio:pendiente',
+  '"te sumaron" en vuelo: también recibe el cambio');
+-- Reclamo vencido (10 min): el "te sumaron" se vuelve a armar con el turno nuevo.
+select pg_temp.ahora('2026-11-20 10:20');
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('o'), pg_temp.ca(2), pg_temp.t('2026-11-22 14:00'), 'dobles', pg_temp.j(2, 1, 4))$$),
+  'ok', 'mover o con el reclamo vencido');
+select pg_temp.espera(pg_temp.avisos_de('o', 1), 'agregado:pendiente,cambio:descartado-reemplazado',
+  'reclamo vencido: sin cambio nuevo (el "te sumaron" sale con el turno nuevo)');
+select pg_temp.ahora('2026-11-20 10:00');
 
 rollback;
