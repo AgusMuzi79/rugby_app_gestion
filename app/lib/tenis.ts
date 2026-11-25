@@ -129,7 +129,10 @@ export interface InvitadoEntrada {
 
 // Lo que se manda en `p_jugadores` / `p_titular` (tenis_resolver_persona):
 // socio del padrón, socio o invitado ya cargado por DNI, o invitado nuevo.
-export type JugadorEntrada = { socio_id: string } | { dni: string } | { invitado: InvitadoEntrada }
+// { invitado_id } sólo en tenis_editar_reserva, para un invitado que ya juega
+// en esa reserva (el socio no ve su DNI).
+export type JugadorEntrada =
+  | { socio_id: string } | { dni: string } | { invitado: InvitadoEntrada } | { invitado_id: string }
 
 export interface CargoJugador {
   nombre: string
@@ -145,15 +148,28 @@ export interface ResultadoReserva {
 
 // tenis_mis_reservas(): resumen de la reserva + lo del socio logueado.
 // puede_cancelar lo decide el servidor (titular, confirmada y en plazo).
+// personas: quién juega (con ids), para precargar la edición.
+export interface PersonaReserva {
+  socio_id:    string | null
+  invitado_id: string | null
+  nombre:      string
+  es_titular:  boolean
+}
+
 export interface MiReserva {
   id:               string
   cancha:           string
+  cancha_id:        string | null
+  origen:           string | null
   inicio:           string
   fin:              string
   modalidad:        Modalidad
   estado:           string
   es_titular:       boolean
   jugadores:        CargoJugador[]
+  personas:         PersonaReserva[]
+  // socio del logueado (para "con quién juego"); null si el servidor no lo manda.
+  mi_socio_id:      string | null
   total:            number | null
   mi_cargo:         number | null
   mi_motivo:        string | null
@@ -270,6 +286,16 @@ function parsearCargos(raw: unknown): CargoJugador[] {
   }))
 }
 
+function parsearPersonas(raw: unknown): PersonaReserva[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(esObjeto).map(j => ({
+    socio_id:    texto(j.socio_id),
+    invitado_id: texto(j.invitado_id),
+    nombre:      texto(j.nombre) ?? '—',
+    es_titular:  j.es_titular === true,
+  }))
+}
+
 export function parsearResultadoReserva(raw: unknown): ResultadoReserva | null {
   if (!esObjeto(raw)) return null
   const id = texto(raw.reserva_id)
@@ -287,12 +313,16 @@ export function parsearMisReservas(raw: unknown): MiReserva[] {
     return [{
       id,
       cancha:           texto(r.cancha_nombre) ?? '',
+      cancha_id:        texto(r.cancha_id),
+      origen:           texto(r.origen),
       inicio,
       fin,
       modalidad:        r.modalidad === 'dobles' ? 'dobles' : 'singles',
       estado:           texto(r.estado) ?? 'confirmada',
       es_titular:       r.es_titular === true,
       jugadores:        parsearCargos(r.jugadores),
+      personas:         parsearPersonas(r.jugadores),
+      mi_socio_id:      texto(r.mi_socio_id),
       total:            r.total === undefined || r.total === null ? null : numero(r.total),
       mi_cargo:         r.mi_cargo === undefined || r.mi_cargo === null ? null : numero(r.mi_cargo),
       mi_motivo:        texto(r.mi_motivo),
@@ -661,6 +691,40 @@ export function puedeCancelar(inicio: string, ahoraMs: number, horas: number = C
   return Date.parse(inicio) - ahoraMs >= horas * 60 * MIN_MS
 }
 
+// "EDITAR RESERVA": sólo el titular de una reserva suya (origen 'socio',
+// confirmada) y con el mismo plazo que cancelar. El servidor lo vuelve a validar
+// (tenis_editar_reserva: reserva_no_editable / fuera_de_plazo).
+export function puedeEditar(
+  r: Pick<MiReserva, 'es_titular' | 'estado' | 'origen' | 'inicio'>,
+  ahoraMs: number,
+  horas: number = CONFIG_DEFECTO.cancelacion_horas,
+): boolean {
+  return r.es_titular && r.estado === 'confirmada' && r.origen === 'socio' && puedeCancelar(r.inicio, ahoraMs, horas)
+}
+
+// Los otros jugadores de la reserva como elegidos del formulario (sin el
+// titular): socio por socio_id, invitado por invitado_id. La clave es la misma
+// que usa el buscador para un socio (socio_id); el invitado usa 'inv:<id>'.
+export interface JugadorPrecargado {
+  clave:   string
+  nombre:  string
+  entrada: JugadorEntrada
+}
+
+export function jugadoresParaEditar(r: Pick<MiReserva, 'personas'>): JugadorPrecargado[] {
+  return r.personas.flatMap((p): JugadorPrecargado[] => {
+    if (p.es_titular) return []
+    if (p.socio_id) return [{ clave: p.socio_id, nombre: p.nombre, entrada: { socio_id: p.socio_id } }]
+    if (p.invitado_id) return [{ clave: `inv:${p.invitado_id}`, nombre: p.nombre, entrada: { invitado_id: p.invitado_id } }]
+    return []
+  })
+}
+
+// La grilla sin la reserva que se está editando: su propio turno queda libre.
+export function itemsSinReserva<T extends Pick<ItemGrilla, 'reserva_id'>>(items: T[], reservaId: string | null | undefined): T[] {
+  return reservaId ? items.filter(i => i.reserva_id !== reservaId) : items
+}
+
 const DIAS_CORTO = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
 
 export interface DiaReserva {
@@ -801,7 +865,8 @@ const MENSAJES: Record<string, string> = {
   reserva_inexistente:     'No se encontró la reserva.',
   estado_invalido:         'La reserva ya no se puede modificar.',
   reserva_finalizada:      'Ese turno ya terminó.',
-  fuera_de_plazo:          'Ya no se puede cancelar: faltan menos de 3 horas.',
+  fuera_de_plazo:          'Ya no se puede cancelar ni cambiar: faltan menos de 3 horas.',
+  reserva_no_editable:     'Esta reserva no se puede cambiar desde la app. Consultá en el club.',
   token_invalido:          'El link no es válido o ya venció.',
   hold_vencido:            'Pasaron los 15 minutos y el turno se liberó.',
   reserva_cancelada:       'La reserva fue cancelada.',

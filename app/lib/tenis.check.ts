@@ -38,6 +38,9 @@ import {
   pasaOptimizador,
   posicionBloque,
   puedeCancelar,
+  puedeEditar,
+  jugadoresParaEditar,
+  itemsSinReserva,
   resumenPrecio,
   validarInvitado,
   validarRangoHorario,
@@ -321,6 +324,8 @@ const CODIGOS_CONTRATO = [
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
   'hueco_invalido',
+  // 20261126000000_tenis_editar_reserva.
+  'reserva_no_editable',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -397,6 +402,51 @@ caso('mis reservas: resumen + es_titular, mi_cargo y puede_cancelar del servidor
   assert.equal(m.mi_motivo, 'carnet_gratis')
   assert.equal(m.total, 16000)
   assert.equal(parsearMisReservas([{ ...resumenStaff, es_titular: true, puede_cancelar: true }])[0].puede_cancelar, true)
+})
+
+caso('mis reservas: cancha_id, origen y personas (para editar)', () => {
+  const [m] = parsearMisReservas([{ ...resumenStaff, es_titular: false, puede_cancelar: false }])
+  assert.equal(m.cancha_id, 'c1')
+  assert.equal(m.origen, 'invitado')
+  assert.deepEqual(m.personas, [
+    { socio_id: null, invitado_id: I1, nombre: 'Ana Paz', es_titular: true },
+    { socio_id: S1, invitado_id: null, nombre: 'Pérez Juan', es_titular: false },
+  ])
+})
+
+caso('editar: sólo el titular, reserva propia confirmada y hasta 3 h antes', () => {
+  const inicio = `${FECHA}T18:00:00-03:00`
+  const base = { es_titular: true, estado: 'confirmada', origen: 'socio', inicio }
+  const antes = Date.parse(`${FECHA}T15:00:00-03:00`)
+  assert.equal(puedeEditar(base, antes), true)
+  assert.equal(puedeEditar(base, antes + 60_000), false)
+  assert.equal(puedeEditar({ ...base, es_titular: false }, antes), false)
+  assert.equal(puedeEditar({ ...base, origen: 'telefonica' }, antes), false)
+  assert.equal(puedeEditar({ ...base, origen: null }, antes), false)
+  assert.equal(puedeEditar({ ...base, estado: 'pendiente_comprobante' }, antes), false)
+})
+
+caso('editar: los otros jugadores precargados (socio por socio_id, invitado por invitado_id)', () => {
+  const personas = [
+    { socio_id: S1, invitado_id: null, nombre: 'Titular', es_titular: true },
+    { socio_id: 'sx', invitado_id: null, nombre: 'Gómez Ana', es_titular: false },
+    { socio_id: null, invitado_id: I1, nombre: 'Ana Paz', es_titular: false },
+    { socio_id: null, invitado_id: null, nombre: '—', es_titular: false },
+  ]
+  assert.deepEqual(jugadoresParaEditar({ personas }), [
+    { clave: 'sx', nombre: 'Gómez Ana', entrada: { socio_id: 'sx' } },
+    { clave: `inv:${I1}`, nombre: 'Ana Paz', entrada: { invitado_id: I1 } },
+  ])
+})
+
+caso('editar: la reserva editada no ocupa su propio turno en la grilla', () => {
+  const propia = item({ reserva_id: R1, mio: true })
+  const otra = item({ reserva_id: null, inicio: `${FECHA}T10:00:00-03:00`, fin: `${FECHA}T11:00:00-03:00` })
+  assert.deepEqual(itemsSinReserva([propia, otra], R1), [otra])
+  assert.deepEqual(itemsSinReserva([propia, otra], null), [propia, otra])
+  const ahora = Date.parse(`${FECHA}T08:00:00-03:00`)
+  assert.equal(iniciosLibres([propia, otra], 'c1', FECHA, 'singles', CONFIG_DEFECTO, ahora).includes('18:00'), false)
+  assert.equal(iniciosLibres(itemsSinReserva([propia, otra], R1), 'c1', FECHA, 'singles', CONFIG_DEFECTO, ahora).includes('18:00'), true)
 })
 
 caso('comprobantes pendientes: resumen + titular {nombre, dni, email}', () => {

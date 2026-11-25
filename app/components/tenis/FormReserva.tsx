@@ -1,22 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
+import { View, Text, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { colors, fonts } from '@/constants/theme'
 import {
   duracionModalidad, duracionTexto, etiquetaDiaCorta, horaDeMinutos, iniciosLibres, inicioReal, isoArgentina,
-  jugadoresRequeridos, minutosDeHora, resumenPrecio,
-  type Cancha, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type TenisConfig,
+  itemsSinReserva, jugadoresRequeridos, minutosDeHora, resumenPrecio,
+  type Cancha, type DiaReserva, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type TenisConfig,
 } from '@/lib/tenis'
 import type { ResultadoTenis } from '@/hooks/useTenisRpc'
 import { AvisoSanciones } from './AvisoSanciones'
 import { BuscadorJugador, type JugadorElegido } from './BuscadorJugador'
-import { Aviso, BarraModal, Boton, Chip, Titulo, estilosTenis } from './ui'
+import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } from './ui'
 
 // Formulario de reserva: cancha, singles o dobles, horario libre y jugadores
 // (socios del padrón o invitados). El titular es quien reserva (socio) o se
 // elige (reserva telefónica del gestor, `staff`). El precio lo calcula el
 // servidor y se muestra al confirmar.
+// Con `edicion` el socio titular cambia una reserva suya: arranca con su día,
+// modalidad, horario, cancha y jugadores; puede cambiar de día (`dias` +
+// `onCambiarFecha`, la grilla la recarga el padre: `cargandoItems` mientras
+// tanto) y su propio turno cuenta como libre. Sin aviso de sanciones (ya lo
+// aceptó al reservar).
+
+export interface EdicionReserva {
+  reservaId: string
+  modalidad: Modalidad
+  jugadores: JugadorElegido[]
+}
 
 export interface DatosReserva {
   canchaId:  string
@@ -28,6 +39,7 @@ export interface DatosReserva {
 
 export function FormReserva({
   visible, onCerrar, fecha, canchas, config, items, ahoraMs, canchaInicial, horaInicial, staff = false, onConfirmar,
+  edicion, dias, onCambiarFecha, cargandoItems = false,
 }: {
   visible:       boolean
   onCerrar:      () => void
@@ -40,12 +52,18 @@ export function FormReserva({
   horaInicial:   string | null
   staff?:        boolean
   onConfirmar:   (d: DatosReserva) => Promise<ResultadoTenis<ResultadoReserva>>
+  edicion?:        EdicionReserva
+  dias?:           DiaReserva[]
+  onCambiarFecha?: (fecha: string) => void
+  cargandoItems?:  boolean
 }) {
+  // Arranca con los datos de la reserva editada desde el primer render: el
+  // recorte de jugadores por modalidad corre antes que el efecto de abajo.
   const [canchaId,  setCanchaId]  = useState<string | null>(canchaInicial)
-  const [modalidad, setModalidad] = useState<Modalidad>('singles')
+  const [modalidad, setModalidad] = useState<Modalidad>(edicion?.modalidad ?? 'singles')
   const [hora,      setHora]      = useState<string | null>(horaInicial)
   const [titular,   setTitular]   = useState<JugadorElegido | null>(null)
-  const [jugadores, setJugadores] = useState<JugadorElegido[]>([])
+  const [jugadores, setJugadores] = useState<JugadorElegido[]>(edicion?.jugadores ?? [])
   const [enviando,  setEnviando]  = useState(false)
   // Guard sincrónico: un doble toque en "ENTENDIDO, CONFIRMAR" llega antes de
   // que `enviando` se vuelva a renderizar y no debe mandar la reserva dos veces.
@@ -58,20 +76,24 @@ export function FormReserva({
   // Cada vez que se abre arranca limpio con la celda tocada.
   useEffect(() => {
     if (!visible) return
-    setCanchaId(canchaInicial); setHora(horaInicial); setModalidad('singles')
-    setTitular(null); setJugadores([]); setError(null); setResultado(null); setAvisando(false)
-  }, [visible, canchaInicial, horaInicial])
+    setCanchaId(canchaInicial); setHora(horaInicial); setModalidad(edicion?.modalidad ?? 'singles')
+    setTitular(null); setJugadores(edicion?.jugadores ?? []); setError(null); setResultado(null); setAvisando(false)
+  }, [visible, canchaInicial, horaInicial, edicion])
+
+  const reservaEditada = edicion?.reservaId
+  const itemsVisibles = useMemo(() => itemsSinReserva(items, reservaEditada), [items, reservaEditada])
 
   // El socio sólo ve horarios que no dejan huecos inutilizables (optimizador);
   // la reserva telefónica del staff no lo aplica.
   const libres = useMemo(
-    () => (canchaId ? iniciosLibres(items, canchaId, fecha, modalidad, config, ahoraMs, { optimizador: !staff }) : []),
-    [items, canchaId, fecha, modalidad, config, ahoraMs, staff],
+    () => (canchaId ? iniciosLibres(itemsVisibles, canchaId, fecha, modalidad, config, ahoraMs, { optimizador: !staff }) : []),
+    [itemsVisibles, canchaId, fecha, modalidad, config, ahoraMs, staff],
   )
   // Si el horario elegido ya no entra (p. ej. pasó a dobles), se deselecciona.
+  // Mientras se carga otro día no se decide nada.
   useEffect(() => {
-    if (hora && !libres.includes(hora)) setHora(null)
-  }, [libres, hora])
+    if (!cargandoItems && hora && !libres.includes(hora)) setHora(null)
+  }, [libres, hora, cargandoItems])
 
   const requeridos = jugadoresRequeridos(modalidad)
   useEffect(() => {
@@ -80,11 +102,11 @@ export function FormReserva({
 
   const cancha = canchas.find(c => c.id === canchaId)
   const excluir = [...jugadores.map(j => j.clave), ...(titular ? [titular.clave] : [])]
-  const completo = !!canchaId && !!hora && jugadores.length === requeridos && (!staff || !!titular)
+  const completo = !!canchaId && !!hora && !cargandoItems && jugadores.length === requeridos && (!staff || !!titular)
 
   function pedirConfirmacion() {
     if (!completo || enviando) return
-    if (staff) void confirmar()
+    if (staff || edicion) void confirmar()
     else setAvisando(true)
   }
 
@@ -117,12 +139,12 @@ export function FormReserva({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
       <SafeAreaView style={estilosTenis.sheet}>
-        <BarraModal titulo={staff ? 'RESERVA TELEFÓNICA' : 'RESERVAR CANCHA'} onCerrar={onCerrar} />
+        <BarraModal titulo={staff ? 'RESERVA TELEFÓNICA' : edicion ? 'EDITAR RESERVA' : 'RESERVAR CANCHA'} onCerrar={onCerrar} />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={estilosTenis.sheetCuerpo} keyboardShouldPersistTaps="handled">
             {resumen && resultado ? (
               <View accessibilityLiveRegion="polite">
-                <Titulo>¡Reserva hecha!</Titulo>
+                <Titulo>{edicion ? '¡Reserva cambiada!' : '¡Reserva hecha!'}</Titulo>
                 <Text style={estilosTenis.textoCard}>
                   Cancha {cancha?.nombre} · {etiquetaDiaCorta(fecha)} · arranca a las {hora ? inicioReal(hora, config.margen_inicio_min) : ''}
                 </Text>
@@ -146,6 +168,12 @@ export function FormReserva({
               </View>
             ) : (
               <>
+                {edicion && dias && onCambiarFecha && (
+                  <>
+                    <Text style={estilosTenis.label}>DÍA</Text>
+                    <SelectorDia dias={dias} fecha={fecha} onElegir={onCambiarFecha} />
+                  </>
+                )}
                 <Text style={estilosTenis.label}>CANCHA</Text>
                 <View style={estilosTenis.fila}>
                   {canchas.map(c => (
@@ -160,7 +188,9 @@ export function FormReserva({
                 </View>
 
                 <Text style={estilosTenis.label}>HORARIO · {etiquetaDiaCorta(fecha)}</Text>
-                {libres.length === 0 ? (
+                {cargandoItems ? (
+                  <ActivityIndicator color={colors.oro} style={s.espacio} />
+                ) : libres.length === 0 ? (
                   <Text style={estilosTenis.vacio}>{canchaId ? 'No quedan horarios libres en esta cancha ese día.' : 'Elegí una cancha.'}</Text>
                 ) : (
                   <View style={estilosTenis.fila}>
@@ -193,7 +223,7 @@ export function FormReserva({
                 )}
 
                 {error && <Aviso tipo="error">{error}</Aviso>}
-                <Boton texto="CONFIRMAR RESERVA" onPress={pedirConfirmacion} cargando={enviando} disabled={!completo} />
+                <Boton texto={edicion ? 'GUARDAR CAMBIOS' : 'CONFIRMAR RESERVA'} onPress={pedirConfirmacion} cargando={enviando} disabled={!completo} />
                 <Aviso>El precio se calcula al confirmar: con Carnet Tenis el primer turno del día no se cobra.</Aviso>
               </>
             )}
