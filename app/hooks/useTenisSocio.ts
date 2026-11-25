@@ -7,7 +7,7 @@ import { ERROR_CARGA_TENIS, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Reservas de tenis del socio (sección Tenis de la Agenda): la grilla del día
 // elegido (`tenis_disponibilidad`, sin nombres de otros) y sus reservas
-// (`tenis_mis_reservas`). Reservar y cancelar recargan las dos.
+// (`tenis_mis_reservas`). Reservar, editar y cancelar recargan las dos.
 
 export function useTenisSocio(fecha: string) {
   const [disp,     setDisp]     = useState<Disponibilidad | null>(null)
@@ -55,6 +55,21 @@ export function useTenisSocio(fecha: string) {
     return res ? { ok: true, data: res } : { ok: false, mensaje: 'La reserva se hizo pero no se pudo leer el detalle. Mirala en Mis reservas.' }
   }, [refetch])
 
+  // El titular cambia su reserva (`tenis_editar_reserva`): mismo turno nuevo,
+  // jugadores y respuesta que reservar; la reserva conserva su id.
+  const editar = useCallback(async (reservaId: string, args: {
+    canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]
+  }): Promise<ResultadoTenis<ResultadoReserva>> => {
+    const r = await rpcTenis('tenis_editar_reserva', {
+      p_reserva_id: reservaId, p_cancha_id: args.canchaId, p_inicio: args.inicio,
+      p_modalidad: args.modalidad, p_jugadores: args.jugadores,
+    }, 'No se pudo cambiar la reserva. Probá de nuevo.')
+    if (!r.ok) return r
+    const res = parsearResultadoReserva(r.data)
+    refetch()
+    return res ? { ok: true, data: res } : { ok: false, mensaje: 'La reserva se cambió pero no se pudo leer el detalle. Mirala en Mis reservas.' }
+  }, [refetch])
+
   const cancelar = useCallback(async (reservaId: string, motivo: string | null): Promise<ResultadoTenis<null>> => {
     const r = await rpcTenis('tenis_cancelar', { p_reserva_id: reservaId, p_motivo: motivo }, 'No se pudo cancelar la reserva. Probá de nuevo.')
     if (!r.ok) return r
@@ -62,7 +77,7 @@ export function useTenisSocio(fecha: string) {
     return { ok: true, data: null }
   }, [refetch])
 
-  return { disp, reservas, loading, error, refetch, reservar, cancelar }
+  return { disp, reservas, loading, error, refetch, reservar, editar, cancelar }
 }
 
 // Búsqueda de jugadores del padrón (`tenis_buscar_jugadores`): socios
