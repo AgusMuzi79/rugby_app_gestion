@@ -82,6 +82,22 @@ export function mostrarTabAgenda(estado: {
   return false
 }
 
+// Mensaje definitivo "No tenés eventos…": sólo si la agenda cargó, ninguna carga
+// falló (los turnos de tenis cuentan si tenis está encendido) y no hay nada que
+// mostrar. Con un error no se puede afirmar que no hay nada: se muestra el error.
+export function agendaVacia(p: {
+  agendaCargada: boolean
+  errorAgenda:   string | null
+  errorTenis:    string | null
+  tenisActivo:   boolean
+  divisiones:    number
+  turnosTenis:   number
+}): boolean {
+  if (!p.agendaCargada || p.errorAgenda) return false
+  if (p.tenisActivo && p.errorTenis) return false
+  return p.divisiones === 0 && p.turnosTenis === 0
+}
+
 // El RPC devuelve jsonb: se valida la forma antes de usarlo.
 export function parsearAgenda(raw: unknown): Agenda {
   if (!raw || typeof raw !== 'object') return AGENDA_VACIA

@@ -14,8 +14,10 @@
 //     además el aviso de advertencia.
 //   - comprobante en revisión al terminar el turno (comprobantes_sin_revisar): sin aviso, sólo se
 //     cuenta (lo resuelve la gestora o el canchero desde la app).
-// Después manda los avisos "Te sumaron a un turno de tenis" de la outbox tenis_avisos_jugadores
-// (migración 20261125000000): los socios que otro agregó a una reserva (y sus tutores). Los
+// Después manda los avisos de la outbox tenis_avisos_jugadores (migraciones 20261125000000 y
+// 20261127000000) a los socios y sus tutores: "Te sumaron a un turno de tenis" (otro los agregó
+// a una reserva) y "Cambió tu turno de tenis" (la reserva en la que siguen cambió de
+// día/horario, cancha o modalidad; textoAvisoJugador elige el texto por motivo). Los
 // reclama con tenis_avisos_jugadores_reclamar() (descarta los de reservas canceladas o terminadas
 // y los de jugadores que ya no están) y marca cada uno con tenis_avisos_jugadores_marcar():
 // entregado, sin_dispositivo (no se reintenta) o error (se reintenta en la corrida siguiente,
@@ -30,19 +32,19 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import {
   TENIS_CONFIG_DEFAULT,
+  clasificarAvisosJugadores,
   describirTurno,
   escapeHtml,
   formatoPesos,
   parsearAvisosJugadores,
   parsearResumenProcesar,
-  textoJugadorAgregado,
+  textoAvisoJugador,
   type AvisoReserva,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
 import {
   cargarConfig,
   cargarReservas,
-  clavePush,
   mailAInvitado,
   pushASocios,
   pushASociosDetalle,
@@ -65,7 +67,7 @@ interface ResumenAvisosJugadores {
   avisos_jugadores_descartados: number
 }
 
-/** "Te sumaron a un turno de tenis": reclama la outbox, manda los push y marca cada aviso. */
+/** "Te sumaron" / "Cambió tu turno": reclama la outbox, manda los push y marca cada aviso. */
 async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) => void): Promise<ResumenAvisosJugadores> {
   const out: ResumenAvisosJugadores = {
     avisos_jugadores: 0,
@@ -85,27 +87,23 @@ async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) =>
   const pushes: AvisoPush[] = reclamo.avisos.map((a) => ({
     clave: a.id,
     socioId: a.socio_id,
-    ...textoJugadorAgregado(a, cfg),
-    data: { type: 'tenis_jugador_agregado', reserva_id: a.reserva_id },
+    ...textoAvisoJugador(a, cfg),
+    data: { type: a.motivo === 'cambio' ? 'tenis_reserva_cambiada' : 'tenis_jugador_agregado', reserva_id: a.reserva_id },
   }))
 
   // Si el envío entero falla, todos quedan con error y se reintentan en la corrida siguiente.
-  let estados = new Map<string, EstadoPush>()
-  let motivo = 'expo: no entregado'
+  let envio: { estados: Map<string, EstadoPush> } | { error: string }
   try {
-    estados = await pushASociosDetalle(pushes)
+    envio = { estados: await pushASociosDetalle(pushes) }
   } catch (e) {
-    motivo = e instanceof Error ? e.message : String(e)
-    fallo('push a jugadores agregados', e)
+    envio = { error: e instanceof Error ? e.message : String(e) }
+    fallo('push a jugadores', e)
   }
 
-  const resultados = pushes.map((p) => {
-    const resultado = estados.get(clavePush(p)) ?? 'error'
-    if (resultado === 'entregado') out.avisos_jugadores_entregados++
-    else if (resultado === 'sin_dispositivo') out.avisos_jugadores_sin_dispositivo++
-    else out.avisos_jugadores_error++
-    return { id: p.clave, resultado, error: resultado === 'error' ? motivo : null }
-  })
+  const { resultados, entregados, sin_dispositivo, con_error } = clasificarAvisosJugadores(reclamo.avisos, envio)
+  out.avisos_jugadores_entregados = entregados
+  out.avisos_jugadores_sin_dispositivo = sin_dispositivo
+  out.avisos_jugadores_error = con_error
   const { error: errMarcar } = await supabaseAdmin.rpc('tenis_avisos_jugadores_marcar', { p_resultados: resultados })
   if (errMarcar) fallo('marcar avisos a jugadores (vuelven a salir a los 10 minutos)', errMarcar.message)
   return out

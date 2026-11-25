@@ -38,7 +38,11 @@ import {
   pathComprobanteValido,
   puedeCancelar,
   sumarDias,
+  clasificarAvisosJugadores,
+  clavePush,
   textoJugadorAgregado,
+  textoJugadorCambio,
+  textoAvisoJugador,
   tokenConForma,
   totalCargos,
   validarTurno,
@@ -373,6 +377,58 @@ await caso('reclamo de avisos a jugadores: tolerante, descarta filas sin id, soc
   assert.equal(p.avisos[0].cancha, '01')
   assert.equal(p.avisos[0].inicio.toISOString(), '2026-11-21T21:00:00.000Z')
   assert.deepEqual(parsearAvisosJugadores(null), { descartados: 0, avisos: [] })
+  // Sin motivo (tenis-cron nueva con la migración anterior): "te sumaron".
+  assert.equal(p.avisos[0].motivo, 'agregado')
+  const c = parsearAvisosJugadores({ avisos: [
+    { id: a, reserva_id: r, socio_id: s, motivo: 'cambio', inicio: '2026-11-21T21:00:00+00:00' },
+    { id: a, reserva_id: r, socio_id: s, motivo: 'otro', inicio: '2026-11-21T21:00:00+00:00' },
+  ] })
+  assert.deepEqual(c.avisos.map((x) => x.motivo), ['cambio', 'agregado'])
+})
+
+await caso('aviso "cambió tu turno": título, quién lo cambió, turno real (+5), cancha y modalidad', () => {
+  const t = textoJugadorCambio(
+    { titular_nombre: 'Juan Pérez', inicio: ar('2026-11-26T18:00'), cancha: '03', modalidad: 'dobles' }, CFG)
+  assert.equal(t.title, 'Cambió tu turno de tenis')
+  assert.equal(t.body, 'Juan Pérez lo cambió: jueves 26/11, 18:05 · Cancha 03 · Dobles.')
+  const s = textoJugadorCambio(
+    { titular_nombre: '', inicio: new Date('2026-11-21T11:00:00Z'), cancha: null, modalidad: 'singles' }, CFG)
+  assert.equal(s.body, 'Lo cambiaron: sábado 21/11, 08:05 · Singles.')
+  // Elige el texto por motivo.
+  const base = { titular_nombre: 'Ana', inicio: ar('2026-11-26T18:00'), cancha: '01', modalidad: 'singles' }
+  assert.equal(textoAvisoJugador({ ...base, motivo: 'cambio' }, CFG).title, 'Cambió tu turno de tenis')
+  assert.equal(textoAvisoJugador({ ...base, motivo: 'agregado' }, CFG).title, 'Te sumaron a un turno de tenis')
+})
+
+await caso('resultado de cada aviso a jugadores para marcar (entregado, sin teléfono, error)', () => {
+  const avisos = [
+    { id: 'a1', socio_id: 's1' },
+    { id: 'a2', socio_id: 's2' },
+    { id: 'a3', socio_id: 's3' },
+    { id: 'a4', socio_id: 's4' },
+  ]
+  assert.equal(clavePush({ clave: 'a1', socioId: 's1' }), 'a1#s1')
+  const estados = new Map([
+    [clavePush({ clave: 'a1', socioId: 's1' }), 'entregado' as const],
+    [clavePush({ clave: 'a2', socioId: 's2' }), 'sin_dispositivo' as const],
+    [clavePush({ clave: 'a3', socioId: 's3' }), 'error' as const],
+    // a4 no vino en el resultado: cuenta como error (se reintenta).
+  ])
+  const r = clasificarAvisosJugadores(avisos, { estados })
+  assert.deepEqual(r.resultados, [
+    { id: 'a1', resultado: 'entregado', error: null },
+    { id: 'a2', resultado: 'sin_dispositivo', error: null },
+    { id: 'a3', resultado: 'error', error: 'expo: no entregado' },
+    { id: 'a4', resultado: 'error', error: 'expo: no entregado' },
+  ])
+  assert.deepEqual([r.entregados, r.sin_dispositivo, r.con_error], [1, 1, 2])
+
+  // El envío entero falló (enviarPush tiró): todos error con el motivo, para reintentar.
+  const caido = clasificarAvisosJugadores(avisos, { error: 'expo 503' })
+  assert.deepEqual(caido.resultados.map((x) => `${x.id}:${x.resultado}:${x.error}`),
+    ['a1:error:expo 503', 'a2:error:expo 503', 'a3:error:expo 503', 'a4:error:expo 503'])
+  assert.deepEqual([caido.entregados, caido.sin_dispositivo, caido.con_error], [0, 0, 4])
+  assert.deepEqual(clasificarAvisosJugadores([], { estados: new Map() }).resultados, [])
 })
 
 console.log(`\n${casos} casos ok`)

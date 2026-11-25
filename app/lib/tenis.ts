@@ -73,6 +73,10 @@ export interface JugadorGrilla {
   cargo:        number
   motivo:       string | null
   cobrado:      boolean
+  // Lo que se cobró de verdad (null = no cobrado o servidor anterior) y, si se
+  // editó la reserva después de cobrar, cargo − cobrado (> 0 falta, < 0 devolver).
+  monto_cobrado: number | null
+  diferencia:    number
   check_in_at:  string | null
   socio_id:     string | null
   invitado_id:  string | null
@@ -220,6 +224,8 @@ function parsearJugadorGrilla(raw: unknown): JugadorGrilla | null {
     cargo:        numero(raw.cargo),
     motivo:       texto(raw.motivo ?? raw.motivo_cargo),
     cobrado:      raw.cobrado === true,
+    monto_cobrado: raw.monto_cobrado === null || raw.monto_cobrado === undefined ? null : numero(raw.monto_cobrado),
+    diferencia:    numero(raw.diferencia),
     check_in_at:  texto(raw.check_in_at),
     socio_id:     texto(raw.socio_id),
     invitado_id:  texto(raw.invitado_id),
@@ -798,6 +804,53 @@ export function montoCargo(cargo: number): string {
   return cargo === 0 ? 'Sin cargo' : formatMonto(cargo)
 }
 
+// Jugador cobrado cuyo cargo cambió al editar la reserva: "Pagó $ 9.000 · falta
+// cobrar $ 1.000" o "… · hay que devolver $ 1.000". null si no hay diferencia.
+export function textoDiferenciaCobro(j: Pick<JugadorGrilla, 'cobrado' | 'monto_cobrado' | 'diferencia'>): string | null {
+  if (!j.cobrado || j.diferencia === 0) return null
+  const pago = `Pagó ${formatMonto(j.monto_cobrado ?? 0)}`
+  return j.diferencia > 0
+    ? `${pago} · falta cobrar ${formatMonto(j.diferencia)}`
+    : `${pago} · hay que devolver ${formatMonto(-j.diferencia)}`
+}
+
+// tenis_cobros_ajustes_pendientes(): plata a devolver (monto > 0) o a cobrar
+// (monto < 0) fuera de la reserva: alguien que pagó y salió al editarla o
+// corregirla ('jugador_quitado') o un cobrado cuyo cargo cambió ('cambio_turno').
+export interface AjusteCobro {
+  id:           string
+  reserva_id:   string
+  nombre:       string
+  numero_socio: string | null
+  dni:          string | null
+  monto:        number
+  motivo:       'jugador_quitado' | 'cambio_turno'
+  cancha:       string
+  inicio:       string
+}
+
+export function parsearAjustesCobro(raw: unknown): AjusteCobro[] {
+  const lista = Array.isArray(raw) ? raw : []
+  return lista.filter(esObjeto).flatMap(o => {
+    const id = texto(o.id)
+    const reserva = texto(o.reserva_id)
+    const inicio = texto(o.inicio)
+    const monto = numero(o.monto)
+    if (!id || !reserva || !inicio || monto === 0) return []
+    return [{
+      id,
+      reserva_id:   reserva,
+      nombre:       texto(o.nombre) || '—',
+      numero_socio: texto(o.numero_socio),
+      dni:          texto(o.dni),
+      monto,
+      motivo:       o.motivo === 'cambio_turno' ? 'cambio_turno' : 'jugador_quitado',
+      cancha:       texto(o.cancha_nombre) ?? '',
+      inicio,
+    } satisfies AjusteCobro]
+  })
+}
+
 export interface ResumenPrecio {
   lineas: { nombre: string; monto: string; detalle: string }[]
   total:  string
@@ -867,6 +920,7 @@ const MENSAJES: Record<string, string> = {
   reserva_finalizada:      'Ese turno ya terminó.',
   fuera_de_plazo:          'Ya no se puede cancelar ni cambiar: faltan menos de 3 horas.',
   reserva_no_editable:     'Esta reserva no se puede cambiar desde la app. Consultá en el club.',
+  reintentar:              'La reserva cambió mientras la editabas. Probá de nuevo.',
   token_invalido:          'El link no es válido o ya venció.',
   hold_vencido:            'Pasaron los 15 minutos y el turno se liberó.',
   reserva_cancelada:       'La reserva fue cancelada.',

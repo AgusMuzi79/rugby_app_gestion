@@ -1,20 +1,25 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { View, Text, Modal, Image, TextInput, ScrollView, ActivityIndicator, Linking, Alert, StyleSheet, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
-import { accionesTenis, useComprobantesPendientes, type ComprobantePendiente } from '@/hooks/useTenisGestor'
+import { accionesTenis, useAjustesCobro, useComprobantesPendientes, type ComprobantePendiente } from '@/hooks/useTenisGestor'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { etiquetaDiaCorta, fechaArgentina, horaArgentina, inicioReal } from '@/lib/tenis'
 import { formatMonto } from '@/lib/formatoMonto'
+import { AjustesCobro } from './AjustesCobro'
 import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 
 // Comprobantes de transferencia de invitados (reserva desde la web) que
 // esperan revisión: ver la imagen, aprobar o rechazar con motivo (el rechazo
-// le manda un mail al invitado con ese motivo).
+// le manda un mail al invitado con ese motivo). Arriba, los ajustes de cobro
+// pendientes (devoluciones / diferencias de reservas editadas o corregidas).
 
 export function ComprobantesPendientes() {
-  const { lista, loading, error, refetch } = useComprobantesPendientes()
+  const { lista, loading, error, refetch: refetchComprobantes } = useComprobantesPendientes()
+  const ajustes = useAjustesCobro()
+  const refetchAjustes = ajustes.refetch
+  const refetch = useCallback(() => { refetchComprobantes(); refetchAjustes() }, [refetchComprobantes, refetchAjustes])
   useRefreshOnFocus(refetch)
   const [imagen, setImagen] = useState<string | null>(null)
   const [abriendo, setAbriendo] = useState<string | null>(null)
@@ -55,15 +60,28 @@ export function ComprobantesPendientes() {
     if (await resolver(rechazando, false, motivo.trim())) { setRechazando(null); setMotivo('') }
   }
 
-  if (loading && lista.length === 0 && !error) return <ActivityIndicator color={colors.oro} style={s.cargando} />
-  if (error && lista.length === 0) return <ErrorCarga mensaje={error} onReintentar={refetch} />
+  // Cada lista muestra su propio error con REINTENTAR: si falla una, no puede
+  // parecer vacía ("sin ajustes" / "no hay comprobantes").
+  const sinDatos = lista.length === 0 && ajustes.lista.length === 0
+  if (sinDatos && !error && !ajustes.error && (loading || ajustes.loading)) {
+    return <ActivityIndicator color={colors.oro} style={s.cargando} />
+  }
 
   return (
     <ScrollView
       contentContainerStyle={s.contenido}
       refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.oro} />}
     >
-      {lista.length === 0 && <Text style={estilosTenis.vacio}>No hay comprobantes para revisar.</Text>}
+      {ajustes.error && (
+        <View style={s.errorAjustes}>
+          <Text style={estilosTenis.label}>AJUSTES PENDIENTES</Text>
+          <ErrorCarga mensaje={ajustes.error} onReintentar={refetchAjustes} />
+        </View>
+      )}
+      <AjustesCobro lista={ajustes.lista} onCambio={refetchAjustes} />
+      {error
+        ? <ErrorCarga mensaje={error} onReintentar={refetchComprobantes} />
+        : lista.length === 0 && !loading && <Text style={estilosTenis.vacio}>No hay comprobantes para revisar.</Text>}
       {errorAccion && !rechazando && <Aviso tipo="error">{errorAccion}</Aviso>}
       {lista.map(c => (
         <View key={c.reserva_id} style={[estilosTenis.card, s.card]}>
@@ -122,6 +140,7 @@ export function ComprobantesPendientes() {
 const s = StyleSheet.create({
   contenido: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 60 },
   cargando:  { marginVertical: 24 },
+  errorAjustes: { marginBottom: 12 },
   card:      { marginBottom: 12 },
   titular:   { fontFamily: fonts.label, fontSize: 16, letterSpacing: 1, color: colors.oro },
   acciones:  { flexDirection: 'row', gap: 12 },

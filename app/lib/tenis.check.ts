@@ -13,7 +13,9 @@ import {
   codigoErrorTenis,
   entradaJugadorExistente,
   esBloque,
+  parsearAjustesCobro,
   parsearCheckin,
+  textoDiferenciaCobro,
   parsearComprobantes,
   parsearItem,
   parsearMisReservas,
@@ -326,6 +328,8 @@ const CODIGOS_CONTRATO = [
   'hueco_invalido',
   // 20261126000000_tenis_editar_reserva.
   'reserva_no_editable',
+  // 20261127000000_tenis_detalles_edicion.
+  'reintentar',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
 ]
 
@@ -583,6 +587,50 @@ caso('AVISO_SANCIONES: avisa de sanciones, suspensión y que paga el titular', (
   assert.match(AVISO_SANCIONES.texto, /sanciones/)
   assert.match(AVISO_SANCIONES.texto, /suspendido/)
   assert.match(AVISO_SANCIONES.texto, /titular/)
+})
+
+caso('cobro después de editar: monto cobrado y diferencia del resumen', () => {
+  const r = parsearItem({
+    ...resumenStaff, tipo: 'reserva_web', jugadores: [
+      { jugador_id: 'j1', nombre: 'Gómez Ana', es_titular: false, cargo: 10000, cobrado: true, monto_cobrado: 9000, diferencia: 1000 },
+      { jugador_id: 'j2', nombre: 'Díaz Sofía', es_titular: false, cargo: 9000, cobrado: true, monto_cobrado: 10000, diferencia: -1000 },
+      { jugador_id: 'j3', nombre: 'Viejo', es_titular: false, cargo: 9000, cobrado: true },
+    ],
+  })
+  const [a, b, c] = r?.jugadores ?? []
+  assert.equal(a.monto_cobrado, 9000)
+  assert.equal(a.diferencia, 1000)
+  assert.equal(b.diferencia, -1000)
+  // Servidor anterior (sin los campos): cobrado = el cargo, sin diferencia.
+  assert.equal(c.monto_cobrado, null)
+  assert.equal(c.diferencia, 0)
+  assert.equal(textoDiferenciaCobro(a), 'Pagó $ 9.000 · falta cobrar $ 1.000')
+  assert.equal(textoDiferenciaCobro(b), 'Pagó $ 10.000 · hay que devolver $ 1.000')
+  assert.equal(textoDiferenciaCobro(c), null)
+  assert.equal(textoDiferenciaCobro({ cobrado: false, monto_cobrado: null, diferencia: 0 }), null)
+})
+
+caso('ajustes de cobro: devolver o cobrar, tolerante a basura', () => {
+  const lista = parsearAjustesCobro([
+    { id: 'a1', reserva_id: R1, nombre: 'Gómez Ana', numero_socio: '1002', dni: null, monto: 10000, motivo: 'jugador_quitado',
+      created_at: `${FECHA}T10:00:00-03:00`, cancha_nombre: '03', inicio: `${FECHA}T12:00:00-03:00`, estado: 'confirmada' },
+    { id: 'a2', reserva_id: R1, nombre: 'Ana Paz', dni: '30111777', monto: -1000, motivo: 'cambio_turno', inicio: `${FECHA}T12:00:00-03:00` },
+    { id: 'a3', reserva_id: R1, monto: 0, motivo: 'jugador_quitado', inicio: `${FECHA}T12:00:00-03:00` },
+    { reserva_id: R1, monto: 5, motivo: 'jugador_quitado' },
+    'basura', null,
+  ])
+  assert.equal(lista.length, 2)
+  assert.deepEqual(lista[0], {
+    id: 'a1', reserva_id: R1, nombre: 'Gómez Ana', numero_socio: '1002', dni: null, monto: 10000, motivo: 'jugador_quitado',
+    cancha: '03', inicio: `${FECHA}T12:00:00-03:00`,
+  })
+  assert.equal(lista[1].motivo, 'cambio_turno')
+  assert.equal(lista[1].monto, -1000)
+  assert.deepEqual(parsearAjustesCobro(null), [])
+})
+
+caso('reintentar: la reserva cambió mientras se editaba', () => {
+  assert.match(mensajeErrorTenis({ code: 'P0001', message: 'reintentar' }, 'x'), /Probá de nuevo/)
 })
 
 console.log(`\n${casos} casos ok`)

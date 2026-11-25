@@ -588,16 +588,21 @@ export function describirTurno(inicio: Date, cancha: string | null, cfg: TenisCo
   return cancha ? `${base} · cancha ${cancha}` : base
 }
 
-// ─── Aviso a los jugadores que otro sumó a una reserva ────────────────────────
-// Outbox tenis_avisos_jugadores (migración 20261125000000): tenis-cron la reclama con
-// tenis_avisos_jugadores_reclamar() y marca cada aviso con tenis_avisos_jugadores_marcar().
+// ─── Avisos a los jugadores: "te sumaron" y "cambió tu turno" ──────────────────
+// Outbox tenis_avisos_jugadores (migraciones 20261125000000 y 20261127000000): tenis-cron la
+// reclama con tenis_avisos_jugadores_reclamar() y marca cada aviso con
+// tenis_avisos_jugadores_marcar(). motivo 'agregado': otro lo sumó a una reserva; 'cambio': la
+// reserva en la que sigue cambió de día/horario, cancha o modalidad.
+
+export type MotivoAvisoJugador = 'agregado' | 'cambio'
 
 export interface AvisoJugador {
   /** id de la fila de la outbox (lo que se marca). */
   id: string
   reserva_id: string
   socio_id: string
-  /** Quien reservó (socio o invitado), el que "te agregó". */
+  motivo: MotivoAvisoJugador
+  /** Quien reservó (socio o invitado), el que "te agregó" o "lo cambió". */
   titular_nombre: string | null
   cancha: string | null
   inicio: Date
@@ -626,6 +631,8 @@ export function parsearAvisosJugadores(json: unknown): ReclamoAvisosJugadores {
       id,
       reserva_id: reservaId,
       socio_id: socioId,
+      // Sin motivo (migración anterior) o desconocido: "te sumaron".
+      motivo: o.motivo === 'cambio' ? 'cambio' : 'agregado',
       titular_nombre: textoONull(o.titular_nombre),
       cancha: textoONull(o.cancha),
       inicio,
@@ -636,19 +643,78 @@ export function parsearAvisosJugadores(json: unknown): ReclamoAvisosJugadores {
   return { descartados: Number.isFinite(d) ? d : 0, avisos }
 }
 
-/** "Juan Pérez te agregó: jueves 26/11, 18:05 · Cancha 03 · Dobles." (hora real, día local). */
-export function textoJugadorAgregado(
-  a: Pick<AvisoJugador, 'titular_nombre' | 'inicio' | 'cancha' | 'modalidad'>,
-  cfg: TenisConfig,
-): { title: string; body: string } {
+type TurnoAviso = Pick<AvisoJugador, 'titular_nombre' | 'inicio' | 'cancha' | 'modalidad'>
+
+/** "jueves 26/11, 18:05 · Cancha 03 · Dobles" (hora real, día local). */
+function turnoAviso(a: TurnoAviso, cfg: TenisConfig): string {
   const fecha = fechaLocal(a.inicio)
   const [, mes, dia] = fecha.split('-')
   const partes = [`${DIAS[diaSemanaIso(fecha) - 1]} ${dia}/${mes}, ${horaInicioReal(a.inicio, cfg)}`]
   if (a.cancha) partes.push(`Cancha ${a.cancha}`)
   if (esModalidad(a.modalidad)) partes.push(a.modalidad === 'singles' ? 'Singles' : 'Dobles')
+  return partes.join(' · ')
+}
+
+/** "Juan Pérez te agregó: jueves 26/11, 18:05 · Cancha 03 · Dobles." */
+export function textoJugadorAgregado(a: TurnoAviso, cfg: TenisConfig): { title: string; body: string } {
   const nombre = a.titular_nombre?.trim()
   const quien = nombre ? `${nombre} te agregó` : 'Te agregaron'
-  return { title: 'Te sumaron a un turno de tenis', body: `${quien}: ${partes.join(' · ')}.` }
+  return { title: 'Te sumaron a un turno de tenis', body: `${quien}: ${turnoAviso(a, cfg)}.` }
+}
+
+/** "Juan Pérez lo cambió: jueves 26/11, 18:05 · Cancha 03 · Dobles." (el turno nuevo). */
+export function textoJugadorCambio(a: TurnoAviso, cfg: TenisConfig): { title: string; body: string } {
+  const nombre = a.titular_nombre?.trim()
+  const quien = nombre ? `${nombre} lo cambió` : 'Lo cambiaron'
+  return { title: 'Cambió tu turno de tenis', body: `${quien}: ${turnoAviso(a, cfg)}.` }
+}
+
+/** Texto del aviso según su motivo. */
+export function textoAvisoJugador(
+  a: TurnoAviso & Pick<AvisoJugador, 'motivo'>,
+  cfg: TenisConfig,
+): { title: string; body: string } {
+  return a.motivo === 'cambio' ? textoJugadorCambio(a, cfg) : textoJugadorAgregado(a, cfg)
+}
+
+// ─── Resultado de cada push para marcar la outbox ─────────────────────────────
+
+/** Estado de un aviso push: llegó a algún teléfono, nadie tiene teléfono, o Expo no lo entregó. */
+export type EstadoPush = 'entregado' | 'sin_dispositivo' | 'error'
+
+/** Clave de un aviso (clave + socio) en el resultado del envío (pushASociosDetalle). */
+export function clavePush(a: { clave: string; socioId: string }): string {
+  return `${a.clave}#${a.socioId}`
+}
+
+export interface ResultadoAvisoJugador {
+  id: string
+  resultado: EstadoPush
+  error: string | null
+}
+
+/**
+ * Lo que se le pasa a tenis_avisos_jugadores_marcar() por cada aviso reclamado, más los conteos.
+ * `estados`: resultado del envío por clavePush({ clave: id, socioId }); un aviso sin estado cuenta
+ * como error ('expo: no entregado'). `error`: el envío entero falló (enviarPush tiró): todos
+ * quedan con error y ese motivo, y se reintentan en la corrida siguiente.
+ */
+export function clasificarAvisosJugadores(
+  avisos: { id: string; socio_id: string }[],
+  envio: { estados: Map<string, EstadoPush> } | { error: string },
+): { resultados: ResultadoAvisoJugador[]; entregados: number; sin_dispositivo: number; con_error: number } {
+  const out = { resultados: [] as ResultadoAvisoJugador[], entregados: 0, sin_dispositivo: 0, con_error: 0 }
+  for (const a of avisos) {
+    const resultado: EstadoPush = 'estados' in envio
+      ? envio.estados.get(clavePush({ clave: a.id, socioId: a.socio_id })) ?? 'error'
+      : 'error'
+    if (resultado === 'entregado') out.entregados++
+    else if (resultado === 'sin_dispositivo') out.sin_dispositivo++
+    else out.con_error++
+    const motivo = 'error' in envio ? envio.error : 'expo: no entregado'
+    out.resultados.push({ id: a.id, resultado, error: resultado === 'error' ? motivo : null })
+  }
+  return out
 }
 
 export function escapeHtml(texto: string): string {

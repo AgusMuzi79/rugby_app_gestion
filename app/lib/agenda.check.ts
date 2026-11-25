@@ -7,6 +7,7 @@ import {
   AGENDA_VACIA,
   agruparAgenda,
   agruparPorFecha,
+  agendaVacia,
   lineaTenis,
   otrosJugadores,
   reservasTenisAgenda,
@@ -267,6 +268,19 @@ caso('tenis: con quién juego (sin mí), siendo titular o jugador', () => {
 caso('tenis: línea de la card con arranque real (+5 min), cancha y modalidad', () => {
   assert.equal(lineaTenis(tenis({}), 5), 'Tenis · 18:05 · Cancha 03 · Singles')
   assert.equal(lineaTenis(tenis({ modalidad: 'dobles' }), 5), 'Tenis · 18:05 · Cancha 03 · Dobles')
+})
+
+caso('agenda vacía: sólo si cargó todo sin errores y no hay nada', () => {
+  const base = { agendaCargada: true, errorAgenda: null, errorTenis: null, tenisActivo: true, divisiones: 0, turnosTenis: 0 }
+  assert.equal(agendaVacia(base), true)
+  // Falló la carga de los turnos de tenis: no se puede afirmar que no hay nada.
+  assert.equal(agendaVacia({ ...base, errorTenis: 'No se pudieron cargar tus turnos de tenis.' }), false)
+  // Con tenis apagado su error no cuenta (no se pide).
+  assert.equal(agendaVacia({ ...base, tenisActivo: false, errorTenis: 'x' }), true)
+  assert.equal(agendaVacia({ ...base, errorAgenda: 'x' }), false)
+  assert.equal(agendaVacia({ ...base, agendaCargada: false }), false)
+  assert.equal(agendaVacia({ ...base, divisiones: 1 }), false)
+  assert.equal(agendaVacia({ ...base, turnosTenis: 2 }), false)
 })
 
 console.log(`\n${casos} casos OK`)

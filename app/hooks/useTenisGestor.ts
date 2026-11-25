@@ -3,12 +3,12 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { FEATURES } from '@/constants/features'
 import {
-  esGestorTenis, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva, parsearSanciones,
-  type Checkin, type ComprobantePendiente, type Disponibilidad, type Infraccion, type JugadorEntrada, type Modalidad, type Suspension,
+  esGestorTenis, parsearAjustesCobro, parsearCheckin, parsearComprobantes, parsearDisponibilidad, parsearResultadoReserva, parsearSanciones,
+  type AjusteCobro, type Checkin, type ComprobantePendiente, type Disponibilidad, type Infraccion, type JugadorEntrada, type Modalidad, type Suspension,
   type ResultadoReserva, type TenisConfig, type TipoBloque,
 } from '@/lib/tenis'
 
-export type { Checkin, ComprobantePendiente, Infraccion, Suspension } from '@/lib/tenis'
+export type { AjusteCobro, Checkin, ComprobantePendiente, Infraccion, Suspension } from '@/lib/tenis'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Gestión de canchas de tenis (pestaña Canchas de Subcomisión) y lo que
@@ -167,6 +167,10 @@ export const accionesTenis = {
       p_reserva_id: reservaId, p_jugadores: jugadores, p_registrar_infraccion: infraccion, p_nota: nota,
     }, 'No se pudieron corregir los jugadores.')),
 
+  // Ajuste de cobro (devolución o diferencia) ya resuelto en el club.
+  ajusteResolver: (id: string) =>
+    sinDatos(rpcTenis('tenis_cobro_ajuste_resolver', { p_id: id }, 'No se pudo marcar el ajuste.')),
+
   extension: (canchaId: string, hasta: string, reservaOrigen: string) =>
     sinDatos(rpcTenis('tenis_extension', {
       p_cancha_id: canchaId, p_hasta: hasta, p_reserva_origen: reservaOrigen,
@@ -186,6 +190,24 @@ export function useComprobantesPendientes() {
     setLoading(true)
     const r = await rpcTenis('tenis_comprobantes_pendientes', {}, ERROR_CARGA_TENIS)
     if (r.ok) { setLista(parsearComprobantes(r.data)); setError(null) } else setError(r.mensaje)
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { refetch() }, [refetch])
+  return { lista, loading, error, refetch }
+}
+
+// ─── Ajustes de cobro pendientes ──────────────────────────────────────────────
+
+export function useAjustesCobro() {
+  const [lista,   setLista]   = useState<AjusteCobro[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+
+  const refetch = useCallback(async () => {
+    setLoading(true)
+    const r = await rpcTenis('tenis_cobros_ajustes_pendientes', {}, ERROR_CARGA_TENIS)
+    if (r.ok) { setLista(parsearAjustesCobro(r.data)); setError(null) } else setError(r.mensaje)
     setLoading(false)
   }, [])
 
