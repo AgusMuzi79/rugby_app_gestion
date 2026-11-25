@@ -384,6 +384,14 @@ select pg_temp.espera(
 select pg_temp.espera(pg_temp.err(format($f$select tenis_editar_reserva(pg_temp.id('e2'), pg_temp.ca(1), pg_temp.t('2026-11-22 14:00'), 'singles',
   '[{"invitado_id":"%s"}]')$f$, gen_random_uuid())), 'parametros', 'invitado_id de alguien que no juega en la reserva');
 
+-- ─── Mis reservas: el socio logueado (Agenda: "con quién juego") ─────────────
+
+select pg_temp.como('p2');
+select pg_temp.espera(
+  (select string_agg(distinct x->>'mi_socio_id', ',') from jsonb_array_elements(tenis_mis_reservas()) x),
+  'b0000000-0000-0000-0000-000000000002', 'tenis_mis_reservas trae mi_socio_id');
+select pg_temp.como('p1');
+
 -- ─── Hoy se pueden dejar 30 minutos libres ────────────────────────────────────
 
 select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('e1'), pg_temp.ca(5), pg_temp.t('2026-11-20 20:30'), 'singles', pg_temp.j(2))$$),

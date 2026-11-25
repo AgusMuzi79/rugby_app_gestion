@@ -168,6 +168,8 @@ export interface MiReserva {
   es_titular:       boolean
   jugadores:        CargoJugador[]
   personas:         PersonaReserva[]
+  // socio del logueado (para "con quién juego"); null si el servidor no lo manda.
+  mi_socio_id:      string | null
   total:            number | null
   mi_cargo:         number | null
   mi_motivo:        string | null
@@ -320,6 +322,7 @@ export function parsearMisReservas(raw: unknown): MiReserva[] {
       es_titular:       r.es_titular === true,
       jugadores:        parsearCargos(r.jugadores),
       personas:         parsearPersonas(r.jugadores),
+      mi_socio_id:      texto(r.mi_socio_id),
       total:            r.total === undefined || r.total === null ? null : numero(r.total),
       mi_cargo:         r.mi_cargo === undefined || r.mi_cargo === null ? null : numero(r.mi_cargo),
       mi_motivo:        texto(r.mi_motivo),

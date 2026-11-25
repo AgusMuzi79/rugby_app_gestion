@@ -100,3 +100,33 @@ export async function buscarJugadoresTenis(q: string): Promise<ResultadoTenis<Ju
     }),
   }
 }
+
+// Mis reservas de tenis para la Agenda del socio (`tenis_mis_reservas`), sin
+// la grilla. `activo` = FEATURES.tenis: apagado no pide nada.
+export function useMisReservasTenis(activo: boolean) {
+  const [reservas, setReservas] = useState<MiReserva[]>([])
+  const [loading,  setLoading]  = useState(activo)
+  const [error,    setError]    = useState<string | null>(null)
+  const pedido = useRef(0)
+
+  const refetch = useCallback(async () => {
+    if (!activo) return
+    const n = ++pedido.current
+    setLoading(true)
+    const r = await rpcTenis('tenis_mis_reservas', {}, 'No se pudieron cargar tus turnos de tenis.')
+    if (n !== pedido.current) return
+    if (r.ok) { setReservas(parsearMisReservas(r.data)); setError(null) } else setError(r.mensaje)
+    setLoading(false)
+  }, [activo])
+
+  useEffect(() => { refetch() }, [refetch])
+
+  const cancelar = useCallback(async (reservaId: string): Promise<ResultadoTenis<null>> => {
+    const r = await rpcTenis('tenis_cancelar', { p_reserva_id: reservaId, p_motivo: null }, 'No se pudo cancelar la reserva. Probá de nuevo.')
+    if (!r.ok) return r
+    await refetch()
+    return { ok: true, data: null }
+  }, [refetch])
+
+  return { reservas, loading, error, refetch, cancelar }
+}

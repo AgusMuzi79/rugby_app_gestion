@@ -10,8 +10,16 @@ import { colors, fonts } from '@/constants/theme'
 // Botón RESERVAR de la Agenda (arriba de los eventos). Con una sola opción la
 // abre directo; con gimnasio y tenis primero pregunta cuál. Sin opciones no
 // se dibuja. Tenis se monta al abrir el sheet, así cada apertura recarga.
+// editarTenis: la Agenda pide abrir tenis con esa reserva en edición (botón
+// EDITAR de una card); onCerrar avisa al cerrar cualquier sheet y onCambioTenis
+// cuando se reservó, editó o canceló, así la Agenda recarga sus turnos.
 
-export function ReservarAgenda({ opciones }: { opciones: OpcionReserva[] }) {
+export function ReservarAgenda({ opciones, editarTenis = null, onCerrar, onCambioTenis }: {
+  opciones:       OpcionReserva[]
+  editarTenis?:   string | null
+  onCerrar?:      () => void
+  onCambioTenis?: () => void
+}) {
   const [abierta, setAbierta] = useState<OpcionReserva | 'elegir' | null>(null)
   const tenisRef = useRef<TenisSocioRef>(null)
   // iOS no presenta un modal mientras se cierra otro: la opción elegida se
@@ -20,7 +28,7 @@ export function ReservarAgenda({ opciones }: { opciones: OpcionReserva[] }) {
 
   if (opciones.length === 0) return null
 
-  const cerrar = () => setAbierta(null)
+  const cerrar = () => { setAbierta(null); onCerrar?.() }
   const elegir = (o: OpcionReserva) => {
     if (Platform.OS === 'ios') {
       pendiente.current = o
@@ -67,7 +75,7 @@ export function ReservarAgenda({ opciones }: { opciones: OpcionReserva[] }) {
 
       <AvisoGimnasio visible={abierta === 'gimnasio'} onCerrar={cerrar} />
 
-      <Modal visible={abierta === 'tenis'} animationType="slide" presentationStyle="pageSheet" onRequestClose={cerrar}>
+      <Modal visible={abierta === 'tenis' || (!!editarTenis && opciones.includes('tenis'))} animationType="slide" presentationStyle="pageSheet" onRequestClose={cerrar}>
         <SafeAreaView style={estilosTenis.sheet}>
           <BarraModal titulo="TENIS" onCerrar={cerrar} />
           <ScrollView
@@ -76,7 +84,7 @@ export function ReservarAgenda({ opciones }: { opciones: OpcionReserva[] }) {
               <RefreshControl refreshing={false} onRefresh={() => tenisRef.current?.refetch()} tintColor={colors.oro} />
             }
           >
-            <TenisSocio ref={tenisRef} />
+            <TenisSocio ref={tenisRef} editarInicial={editarTenis} onCambio={onCambioTenis} />
           </ScrollView>
         </SafeAreaView>
       </Modal>

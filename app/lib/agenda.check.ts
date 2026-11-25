@@ -5,7 +5,11 @@
 import assert from 'node:assert/strict'
 import {
   AGENDA_VACIA,
+  agruparAgenda,
   agruparPorFecha,
+  lineaTenis,
+  otrosJugadores,
+  reservasTenisAgenda,
   etiquetaFecha,
   horaCorta,
   lineaEvento,
@@ -18,6 +22,7 @@ import {
   type DivisionAgenda,
   type EventoAgenda,
 } from './agenda'
+import type { MiReserva } from './tenis'
 
 let casos = 0
 function caso(nombre: string, fn: () => void) {
@@ -184,6 +189,84 @@ caso('opcionesReserva: cliente gimnasio nunca tiene tenis', () => {
 caso('opcionesReserva: con el flag de tenis apagado el socio sólo tiene gimnasio', () => {
   assert.deepEqual(opcionesReserva({ tieneGimnasio: false, tenisActivo: false, esSocio: true }), [])
   assert.deepEqual(opcionesReserva({ tieneGimnasio: true, tenisActivo: false, esSocio: true }), ['gimnasio'])
+})
+
+// ─── Mis turnos de tenis en la Agenda ─────────────────────────────────────────
+
+const YO = 's-yo'
+function tenis(p: Partial<MiReserva>): MiReserva {
+  return {
+    id: 'r', cancha: '03', cancha_id: 'c3', origen: 'socio',
+    inicio: '2026-10-20T18:00:00-03:00', fin: '2026-10-20T19:00:00-03:00',
+    modalidad: 'singles', estado: 'confirmada', es_titular: true, jugadores: [],
+    personas: [
+      { socio_id: YO, invitado_id: null, nombre: 'Yo Mismo', es_titular: true },
+      { socio_id: 's2', invitado_id: null, nombre: 'Gómez Ana', es_titular: false },
+    ],
+    mi_socio_id: YO, total: 9000, mi_cargo: 0, mi_motivo: null, cancelable_hasta: null, puede_cancelar: true, ...p,
+  }
+}
+const AHORA = Date.parse('2026-10-20T10:00:00-03:00')
+
+caso('tenis en la agenda: sólo reservas vivas que no terminaron, por horario', () => {
+  const lista = reservasTenisAgenda([
+    tenis({ id: 'tarde', inicio: '2026-10-21T18:00:00-03:00', fin: '2026-10-21T19:00:00-03:00' }),
+    tenis({ id: 'hoy' }),
+    tenis({ id: 'cancelada', estado: 'cancelada' }),
+    tenis({ id: 'jugada', estado: 'jugada' }),
+    tenis({ id: 'pasada', inicio: '2026-10-20T08:00:00-03:00', fin: '2026-10-20T09:00:00-03:00' }),
+    tenis({ id: 'comprobante', estado: 'pendiente_comprobante', inicio: '2026-10-20T12:00:00-03:00', fin: '2026-10-20T13:00:00-03:00' }),
+    tenis({ id: 'lejos', inicio: '2026-10-28T18:00:00-03:00', fin: '2026-10-28T19:00:00-03:00' }),
+  ], AHORA)
+  assert.deepEqual(lista.map(r => r.id), ['comprobante', 'hoy', 'tarde'])
+})
+
+caso('tenis en la agenda: la que está en juego todavía se ve', () => {
+  const ahora = Date.parse('2026-10-20T18:30:00-03:00')
+  assert.deepEqual(reservasTenisAgenda([tenis({})], ahora).map(r => r.id), ['r'])
+})
+
+caso('agenda mezclada: eventos y tenis por día y hora (sin hora al final)', () => {
+  const grupos = agruparAgenda(
+    [
+      ev({ id: 'a', fecha: '2026-10-20', hora: '20:30:00' }),
+      ev({ id: 'b', fecha: '2026-10-20', hora: null }),
+      ev({ id: 'c', fecha: '2026-10-22', hora: '09:00:00' }),
+    ],
+    [
+      tenis({ id: 't1', inicio: '2026-10-20T18:00:00-03:00' }),
+      tenis({ id: 't2', inicio: '2026-10-21T08:00:00-03:00' }),
+    ],
+  )
+  assert.deepEqual(
+    grupos.map(g => `${g.fecha}:${g.items.map(i => (i.tipo === 'tenis' ? i.reserva.id : i.evento.id)).join(',')}`),
+    ['2026-10-20:t1,a,b', '2026-10-21:t2', '2026-10-22:c'],
+  )
+})
+
+caso('agenda mezclada: sólo tenis (sin división) igual arma los días', () => {
+  assert.deepEqual(agruparAgenda([], [tenis({})]).map(g => g.fecha), ['2026-10-20'])
+  assert.deepEqual(agruparAgenda([], []), [])
+})
+
+caso('tenis: con quién juego (sin mí), siendo titular o jugador', () => {
+  assert.deepEqual(otrosJugadores(tenis({})), ['Gómez Ana'])
+  const comoJugador = tenis({
+    es_titular: false,
+    personas: [
+      { socio_id: 's9', invitado_id: null, nombre: 'Titular Otro', es_titular: true },
+      { socio_id: YO, invitado_id: null, nombre: 'Yo Mismo', es_titular: false },
+      { socio_id: null, invitado_id: 'i1', nombre: 'Ana Paz', es_titular: false },
+    ],
+  })
+  assert.deepEqual(otrosJugadores(comoJugador), ['Titular Otro', 'Ana Paz'])
+  // Sin mi_socio_id (servidor viejo): siendo titular, el titular soy yo.
+  assert.deepEqual(otrosJugadores(tenis({ mi_socio_id: null })), ['Gómez Ana'])
+})
+
+caso('tenis: línea de la card con arranque real (+5 min), cancha y modalidad', () => {
+  assert.equal(lineaTenis(tenis({}), 5), 'Tenis · 18:05 · Cancha 03 · Singles')
+  assert.equal(lineaTenis(tenis({ modalidad: 'dobles' }), 5), 'Tenis · 18:05 · Cancha 03 · Dobles')
 })
 
 console.log(`\n${casos} casos OK`)

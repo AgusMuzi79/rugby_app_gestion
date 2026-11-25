@@ -29,7 +29,8 @@
 --     invitado_id → parametros.
 --   · Devuelve el mismo resumen que tenis_reservar (tenis_reserva_resumen).
 --
--- Código nuevo: reserva_no_editable.
+-- Código nuevo: reserva_no_editable. Además tenis_mis_reservas() suma
+-- mi_socio_id (Agenda del socio: "con quién juego"); mismos grants que antes.
 --
 -- Deploy: aplicar después de 20261112000000. No hay Edge Function que cambiar.
 
@@ -276,3 +277,43 @@ $$;
 
 revoke execute on function tenis_editar_reserva(uuid, uuid, timestamptz, text, jsonb) from public, anon;
 grant  execute on function tenis_editar_reserva(uuid, uuid, timestamptz, text, jsonb) to authenticated, service_role;
+
+-- tenis_mis_reservas(): igual que en 20261112000000 más mi_socio_id (el socio
+-- logueado), para que la Agenda muestre "con quién juego" sin el propio socio.
+create or replace function tenis_mis_reservas()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_socio uuid := get_socio_id();
+  v_ahora timestamptz := tenis_ahora();
+  v_horas int := (select c.cancelacion_horas from tenis_config c where c.id);
+begin
+  if v_socio is null then
+    perform tenis_error('sin_socio');
+  end if;
+
+  return coalesce((
+    select jsonb_agg(
+      tenis_reserva_resumen(r.id) || jsonb_build_object(
+        'es_titular',       r.titular_socio_id = v_socio,
+        'mi_socio_id',      v_socio,
+        'mi_cargo',         j.cargo,
+        'mi_motivo',        j.motivo_cargo,
+        'mi_cobrado',       j.cobrado,
+        'mi_cargo_no_show', j.cargo_no_show,
+        'mi_cargo_no_show_cobrado', j.cargo_no_show_cobrado,
+        'cancelable_hasta', r.inicio - make_interval(hours => v_horas),
+        'puede_cancelar',   r.titular_socio_id = v_socio and r.estado = 'confirmada'
+                            and r.inicio - make_interval(hours => v_horas) >= v_ahora
+      ) order by r.inicio)
+    from tenis_reservas r
+    join tenis_reserva_jugadores j on j.reserva_id = r.id and j.socio_id = v_socio
+    where r.estado <> 'vencida'
+      and r.inicio >= v_ahora - interval '30 days'
+  ), '[]'::jsonb);
+end;
+$$;
