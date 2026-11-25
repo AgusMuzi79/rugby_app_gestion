@@ -60,17 +60,28 @@ export function ComprobantesPendientes() {
     if (await resolver(rechazando, false, motivo.trim())) { setRechazando(null); setMotivo('') }
   }
 
-  const sinAjustes = ajustes.lista.length === 0
-  if (loading && lista.length === 0 && sinAjustes && !error) return <ActivityIndicator color={colors.oro} style={s.cargando} />
-  if (error && lista.length === 0 && sinAjustes) return <ErrorCarga mensaje={error} onReintentar={refetch} />
+  // Cada lista muestra su propio error con REINTENTAR: si falla una, no puede
+  // parecer vacía ("sin ajustes" / "no hay comprobantes").
+  const sinDatos = lista.length === 0 && ajustes.lista.length === 0
+  if (sinDatos && !error && !ajustes.error && (loading || ajustes.loading)) {
+    return <ActivityIndicator color={colors.oro} style={s.cargando} />
+  }
 
   return (
     <ScrollView
       contentContainerStyle={s.contenido}
       refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.oro} />}
     >
+      {ajustes.error && (
+        <View style={s.errorAjustes}>
+          <Text style={estilosTenis.label}>AJUSTES PENDIENTES</Text>
+          <ErrorCarga mensaje={ajustes.error} onReintentar={refetchAjustes} />
+        </View>
+      )}
       <AjustesCobro lista={ajustes.lista} onCambio={refetchAjustes} />
-      {lista.length === 0 && <Text style={estilosTenis.vacio}>No hay comprobantes para revisar.</Text>}
+      {error
+        ? <ErrorCarga mensaje={error} onReintentar={refetchComprobantes} />
+        : lista.length === 0 && !loading && <Text style={estilosTenis.vacio}>No hay comprobantes para revisar.</Text>}
       {errorAccion && !rechazando && <Aviso tipo="error">{errorAccion}</Aviso>}
       {lista.map(c => (
         <View key={c.reserva_id} style={[estilosTenis.card, s.card]}>
@@ -129,6 +140,7 @@ export function ComprobantesPendientes() {
 const s = StyleSheet.create({
   contenido: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 60 },
   cargando:  { marginVertical: 24 },
+  errorAjustes: { marginBottom: 12 },
   card:      { marginBottom: 12 },
   titular:   { fontFamily: fonts.label, fontSize: 16, letterSpacing: 1, color: colors.oro },
   acciones:  { flexDirection: 'row', gap: 12 },

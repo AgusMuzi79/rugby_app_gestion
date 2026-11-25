@@ -46,7 +46,21 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
   }
 
   function marcarCobro(j: JugadorGrilla) {
-    correr(`cobro-${j.id}`, () => accionesTenis.cobroMarcar(j.id, !j.cobrado), true)
+    const accion = () => correr(`cobro-${j.id}`, () => accionesTenis.cobroMarcar(j.id, !j.cobrado), true)
+    // DESHACER con una diferencia de cobro: el ajuste para staff no se cierra solo
+    // (nadie lo saldó); queda en "Ajustes pendientes" y la reserva vuelve a deber el cargo.
+    if (j.cobrado && j.diferencia !== 0) {
+      Alert.alert(
+        'Deshacer el cobro',
+        `${j.nombre} tiene una diferencia de cobro. Si deshacés, queda debiendo el cargo entero y el ajuste sigue en "Ajustes pendientes" hasta que lo resuelvas o vuelvas a marcar el cobro. ¿Confirmás?`,
+        [
+          { text: 'No', style: 'cancel' },
+          { text: 'Deshacer', style: 'destructive', onPress: accion },
+        ],
+      )
+      return
+    }
+    accion()
   }
 
   // Cobrado con diferencia (se editó la reserva después de cobrar): marcar de
