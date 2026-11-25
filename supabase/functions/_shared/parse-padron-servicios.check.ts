@@ -12,6 +12,7 @@ import {
   normalizarConcepto,
   claveVinculo,
   SERVICIOS_MAPEADOS,
+  MAPEO_CONCEPTOS,
   UMBRAL_BAJA_MASIVA,
   type SocioRef,
   type VinculoActual,
@@ -138,9 +139,14 @@ caso('un archivo sin bandas devuelve cero filas y cero conceptos', () => {
   assert.equal(p.conceptos.length, 0)
 })
 
-caso('los servicios mapeados son exactamente los seis del catálogo', () => {
+caso('los servicios mapeados son exactamente los siete del catálogo', () => {
   assert.deepEqual([...SERVICIOS_MAPEADOS].sort(),
-    ['Carnet Tenis', 'Gimnasio', 'Hockey', 'Hockey Inclusivo', 'Rugby', 'Rugby Inclusivo'])
+    ['Carnet Tenis', 'Gimnasio', 'Hockey', 'Hockey Inclusivo', 'Pileta', 'Rugby', 'Rugby Inclusivo'])
+})
+
+caso('"Socio con Temporada Abonada" (temporada de pileta en NUVIX) va al servicio Pileta', () => {
+  assert.deepEqual(MAPEO_CONCEPTOS[normalizarConcepto('Socio con Temporada Abonada')],
+    { servicio: 'Pileta', catalogoPrecio: 'Pileta' })
 })
 
 // ─── Diff ─────────────────────────────────────────────────────────────────────
@@ -261,7 +267,7 @@ caso('importe como texto numérico de PostgREST se compara por valor', () => {
 caso('servicios ausentes del archivo base: los mapeados sin ninguna fila', () => {
   const d = diffBase()
   // El fixture trae bandas de Gimnasio (3 variantes), Rugby y Hockey.
-  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Rugby Inclusivo'])
+  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Pileta', 'Rugby Inclusivo'])
   // Las bajas del fixture (Gimnasio, Rugby) son de servicios presentes.
   assert.ok(d.eliminados.length > 0)
   assert.ok(d.eliminados.every((e) => e.servicioAusente === false))
@@ -277,7 +283,7 @@ caso('export parcial sin la banda de Rugby: Rugby ausente y sus bajas marcadas',
     ...banda('CARNET TENIS', []),
   ]
   const d = calcularDiffServicios({ padron: parsePadronServicios(rows), socios: SOCIOS, precios: PRECIOS, vinculos: VINCULOS })
-  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Rugby', 'Rugby Inclusivo'])
+  assert.deepEqual(d.serviciosAusentes, ['Carnet Tenis', 'Hockey Inclusivo', 'Pileta', 'Rugby', 'Rugby Inclusivo'])
   const rugby = d.eliminados.filter((e) => e.servicio === 'Rugby')
   assert.deepEqual(rugby.map((e) => e.vinculoId).sort(), ['v2', 'v4'])
   assert.ok(rugby.every((e) => e.servicioAusente === true))

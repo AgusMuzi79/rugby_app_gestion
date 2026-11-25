@@ -7,7 +7,7 @@
 //
 // Nombres que `importar-servicios` busca por nombre exacto
 // (`supabase/functions/_shared/parse-padron-servicios.ts`, SERVICIOS_MAPEADOS);
-// `socios-qr` además busca "%gimnasio%". Renombrarlos rompe el import y el lector.
+// `socios-qr` además busca "%gimnasio%" y "%pileta%". Renombrarlos rompe el import y el lector.
 export const NOMBRES_MAPEADOS: ReadonlySet<string> = new Set([
   'Gimnasio',
   'Rugby',
@@ -15,6 +15,7 @@ export const NOMBRES_MAPEADOS: ReadonlySet<string> = new Set([
   'Carnet Tenis',
   'Rugby Inclusivo',
   'Hockey Inclusivo',
+  'Pileta',
 ])
 
 export function nombreBloqueado(nombre: string): boolean {

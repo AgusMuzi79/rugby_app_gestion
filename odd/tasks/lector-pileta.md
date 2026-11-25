@@ -91,6 +91,14 @@ Route evidence: mapping touched 4+ files (mapping trigger) and the change spans 
 - `socios-qr` deployed (v23) and `admin-usuarios` deployed (v31), function code identical to `origin/main`. Both answer 401 without a token.
 - OTA `eas update --branch production`, runtime 1.0.9, Android + iOS, group `b0c99a89-dce8-447c-a525-f8c80e560f96`, published from the worktree (same tree as `main`) with `app/.env.local` copied from the main checkout.
 
+### T6 — Pileta from the NUVIX services import (2026-11-25)
+
+- Secretaría now loads the pool season in NUVIX. In the 2026-11-25 `servicios_frecuencias.xls` it is the band «Socio con Temporada Abonada» (8 members: 7051, 7179, 7180, 7181, 16080, 16129, 16702, 16703; all exist in `socios`; 7051 already had "Pileta" by hand). The two imports run that morning did not add it: the concept was not mapped.
+- Change: `MAPEO_CONCEPTOS['SOCIO CON TEMPORADA ABONADA'] = Pileta` (`parse-padron-servicios.ts`), so `importar-servicios` mirrors it like Gimnasio. "Pileta" is now also locked against rename/delete in Secretaría › Servicios (`web/lib/serviciosCatalogo.ts`). Copy of the import screen and the function header updated.
+- Consequence: NUVIX is the source of truth for Pileta. A hand-ticked "Pileta" not present in NUVIX shows up as a removal "(cargado a mano)" in the preview. If an export has no «Temporada Abonada» band, Pileta goes to `serviciosAusentes` and its removals come unticked.
+- Evidence: `parse-padron-servicios.check.ts` RED (mapping missing) → GREEN, 24 cases ok. `serviciosCatalogo.check.ts` RED (Pileta not locked) → GREEN, 5 cases ok. The repo parser run on the real file yields 8 Pileta rows, and the only unmapped concepts are the ones in `CONCEPTOS_IGNORADOS`. `tsc --noEmit` in `web/`: exit 0.
+- Deploy needed: `importar-servicios` (Edge Function) + web (Vercel, on merge to `main`). No migration, no OTA.
+
 ## Next step
 
-Secretaría assigns the "Pileta" service to members; admin creates the pileta scanner account; test on a phone with a member with and without "Pileta". Still to decide: season end date and how non-members get in.
+Deploy T6 and re-run the services import; admin creates the pileta scanner account; test on a phone with a member with and without "Pileta". Still to decide: season end date and how non-members get in.

@@ -3,7 +3,7 @@
 // Importador del "Padrón de Servicios por Socio/Frecuencia" de NUVIX desde el
 // panel de Secretaría. Deja `socio_servicios` como espejo del archivo para los
 // servicios mapeados (Gimnasio, Rugby, Hockey, Carnet Tenis, Rugby Inclusivo,
-// Hockey Inclusivo) — ver parse-padron-servicios.ts y
+// Hockey Inclusivo, Pileta) — ver parse-padron-servicios.ts y
 // odd/tasks/import-servicios-panel.md. Los demás servicios nunca se tocan.
 //
 // Se corre después del Padrón Extendido (importar-socios): matchea por

@@ -28,14 +28,14 @@ caso('un servicio mapeado por el importador no se puede eliminar aunque no tenga
 })
 
 caso('un servicio sin socios ni mapeo se puede eliminar', () => {
-  assert.equal(motivoNoEliminar('Pileta', 0), null)
+  assert.equal(motivoNoEliminar('Natación', 0), null)
 })
 
-caso('los seis nombres mapeados quedan bloqueados para renombrar', () => {
-  for (const n of ['Gimnasio', 'Rugby', 'Hockey', 'Carnet Tenis', 'Rugby Inclusivo', 'Hockey Inclusivo']) {
+caso('los siete nombres mapeados quedan bloqueados para renombrar', () => {
+  for (const n of ['Gimnasio', 'Rugby', 'Hockey', 'Carnet Tenis', 'Rugby Inclusivo', 'Hockey Inclusivo', 'Pileta']) {
     assert.equal(nombreBloqueado(n), true, n)
   }
-  assert.equal(nombreBloqueado('Pileta'), false)
+  assert.equal(nombreBloqueado('Natación'), false)
   assert.equal(nombreBloqueado('gimnasio'), false) // el importador compara exacto
 })
 
