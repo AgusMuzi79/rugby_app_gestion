@@ -21,7 +21,11 @@ export interface TenisSocioRef {
   refetch: () => void
 }
 
-export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, ref) {
+// editarInicial: id de una reserva a editar apenas carga (botón EDITAR de la
+// Agenda). onCambio: avisa que se reservó, editó o canceló (la Agenda recarga).
+export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | null; onCambio?: () => void }>(function TenisSocio(
+  { editarInicial = null, onCambio }, ref,
+) {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
   const [fecha, setFecha] = useState(() => fechaArgentina(Date.now()))
   const { disp, reservas, loading, error, refetch, reservar, editar, cancelar } = useTenisSocio(fecha)
@@ -31,6 +35,7 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
   const ultimaDisp = useRef<Disponibilidad | null>(null)
   if (disp) ultimaDisp.current = disp
   const base = disp ?? ultimaDisp.current
+  const editarAtendido = useRef<string | null>(null)
   const [cancelando, setCancelando] = useState<string | null>(null)
 
   // La hora avanza sola: las celdas que pasan dejan de ofrecerse.
@@ -56,6 +61,7 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
             const res = await cancelar(r.id, null)
             setCancelando(null)
             if (!res.ok) Alert.alert('No se pudo cancelar', res.mensaje)
+            else onCambio?.()
           },
         },
       ],
@@ -70,6 +76,16 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
       edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r) },
     })
   }
+
+  // Pedido de la Agenda: abrir la edición de esa reserva una sola vez.
+  useEffect(() => {
+    if (!editarInicial || editarAtendido.current === editarInicial) return
+    const r = reservas.find(x => x.id === editarInicial)
+    if (!r) return
+    editarAtendido.current = editarInicial
+    if (puedeEditar(r, Date.now(), config.cancelacion_horas)) abrirEdicion(r)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editarInicial, reservas])
 
   const activas = reservas.filter(r => ['pendiente_comprobante', 'confirmada'].includes(r.estado) && Date.parse(r.fin) > ahoraMs)
 
@@ -147,9 +163,11 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
           edicion={form.edicion}
           dias={dias}
           onCambiarFecha={setFecha}
-          onConfirmar={d => {
+          onConfirmar={async d => {
             const edicion = form.edicion
-            return edicion ? editar(edicion.reservaId, d) : reservar(d)
+            const res = edicion ? await editar(edicion.reservaId, d) : await reservar(d)
+            if (res.ok) onCambio?.()
+            return res
           }}
         />
       )}

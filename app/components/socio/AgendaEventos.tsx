@@ -1,18 +1,31 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import {
-  DIAS_AGENDA, agruparPorFecha, etiquetaFecha, horaCorta, lineaEvento, type Agenda,
+  DIAS_AGENDA, agruparAgenda, etiquetaFecha, horaCorta, lineaEvento, lineaTenis, otrosJugadores,
+  type Agenda, type EventoAgenda,
 } from '@/lib/agenda'
+import { CONFIG_DEFECTO, ESTADOS_RESERVA, puedeCancelar, puedeEditar, type MiReserva } from '@/lib/tenis'
 import { letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 
-// Sección "MIS EVENTOS" de la Agenda del socio: eventos de sus divisiones en
-// los próximos DIAS_AGENDA días, agrupados por día. Sin división no se muestra (sólo gimnasio).
+// Sección "MIS EVENTOS" de la Agenda del socio: eventos de sus divisiones y
+// sus turnos de tenis (FEATURES.tenis, `tenis`) en los próximos DIAS_AGENDA
+// días, mezclados por día y hora. Sin división ni turnos de tenis no se
+// muestra (sólo gimnasio). El titular edita o cancela su turno desde la card.
 
-export function AgendaEventos({ agenda, loading, error, onReintentar }: {
+export interface TenisAgenda {
+  reservas:   MiReserva[]   // ya filtradas con reservasTenisAgenda
+  ahoraMs:    number
+  cancelando: string | null
+  onEditar:   (r: MiReserva) => void
+  onCancelar: (r: MiReserva) => void
+}
+
+export function AgendaEventos({ agenda, loading, error, onReintentar, tenis }: {
   agenda:       Agenda | null
   loading:      boolean
   error:        string | null
   onReintentar: () => void
+  tenis?:       TenisAgenda
 }) {
   if (error) {
     return (
@@ -27,9 +40,10 @@ export function AgendaEventos({ agenda, loading, error, onReintentar }: {
   if (!agenda) {
     return loading ? <ActivityIndicator color={colors.oro} style={{ marginTop: 24 }} /> : null
   }
-  if (agenda.divisiones.length === 0) return null
+  const reservas = tenis?.reservas ?? []
+  if (agenda.divisiones.length === 0 && reservas.length === 0) return null
 
-  const grupos = agruparPorFecha(agenda.eventos)
+  const grupos = agruparAgenda(agenda.eventos, reservas)
 
   return (
     <View style={s.bloque}>
@@ -40,24 +54,75 @@ export function AgendaEventos({ agenda, loading, error, onReintentar }: {
         grupos.map(g => (
           <View key={g.fecha} style={s.dia}>
             <Text style={s.diaTitulo}>{etiquetaFecha(g.fecha)}</Text>
-            {g.eventos.map(ev => {
-              const hora = horaCorta(ev.hora)
-              return (
-                <View key={ev.id} style={s.card}>
-                  <View style={s.badge}>
-                    <Text style={s.badgeText}>{letraEvento(ev.tipo)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.titulo}>{lineaEvento(ev, agenda.divisiones)}</Text>
-                    {(hora || ev.lugar) && (
-                      <Text style={s.detalle}>{[hora, ev.lugar].filter(Boolean).join(' · ')}</Text>
-                    )}
-                  </View>
-                </View>
-              )
-            })}
+            {g.items.map(i => (i.tipo === 'tenis' && tenis
+              ? <CardTenis key={`t-${i.reserva.id}`} r={i.reserva} tenis={tenis} />
+              : i.tipo === 'evento'
+                ? <CardEvento key={i.evento.id} ev={i.evento} agenda={agenda} />
+                : null))}
           </View>
         ))
+      )}
+    </View>
+  )
+}
+
+function CardEvento({ ev, agenda }: { ev: EventoAgenda; agenda: Agenda }) {
+  const hora = horaCorta(ev.hora)
+  return (
+    <View style={s.card}>
+      <View style={s.badge}>
+        <Text style={s.badgeText}>{letraEvento(ev.tipo)}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.titulo}>{lineaEvento(ev, agenda.divisiones)}</Text>
+        {(hora || ev.lugar) && (
+          <Text style={s.detalle}>{[hora, ev.lugar].filter(Boolean).join(' · ')}</Text>
+        )}
+      </View>
+    </View>
+  )
+}
+
+// Turno de tenis: arranque real (+5 min), cancha, modalidad y con quién juega.
+// El titular ve EDITAR (reserva suya, confirmada, hasta 3 h antes) y CANCELAR.
+function CardTenis({ r, tenis }: { r: MiReserva; tenis: TenisAgenda }) {
+  const otros = otrosJugadores(r)
+  const horas = CONFIG_DEFECTO.cancelacion_horas
+  const cancelable = r.es_titular && r.puede_cancelar && puedeCancelar(r.inicio, tenis.ahoraMs, horas)
+  const editable = puedeEditar(r, tenis.ahoraMs, horas)
+  return (
+    <View style={[s.card, s.cardTenis]}>
+      <View style={s.filaTenis}>
+        <View style={s.badge}>
+          <Text style={s.badgeText}>T</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.titulo}>{lineaTenis(r, CONFIG_DEFECTO.margen_inicio_min)}</Text>
+          {otros.length > 0 && <Text style={s.detalle}>Con {otros.join(', ')}</Text>}
+          {r.estado !== 'confirmada' && <Text style={s.detalle}>{ESTADOS_RESERVA[r.estado] ?? r.estado}</Text>}
+        </View>
+      </View>
+      {(editable || cancelable) && (
+        <View style={s.acciones}>
+          {editable && (
+            <TouchableOpacity style={s.accion} onPress={() => tenis.onEditar(r)} activeOpacity={0.75} accessibilityRole="button">
+              <Text style={s.accionTexto}>EDITAR</Text>
+            </TouchableOpacity>
+          )}
+          {cancelable && (
+            <TouchableOpacity
+              style={s.accion}
+              onPress={() => tenis.onCancelar(r)}
+              disabled={tenis.cancelando === r.id}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+            >
+              {tenis.cancelando === r.id
+                ? <ActivityIndicator color={colors.oro} />
+                : <Text style={s.accionTexto}>CANCELAR</Text>}
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   )
@@ -80,6 +145,11 @@ const s = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.oro,
   },
+  cardTenis:   { flexDirection: 'column', alignItems: 'stretch' },
+  filaTenis:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  acciones:    { flexDirection: 'row', gap: 10, marginTop: 4 },
+  accion:      { minHeight: 44, minWidth: 96, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.oro, borderRadius: 4, paddingHorizontal: 16 },
+  accionTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 2, color: colors.oro },
   badgeText: { fontFamily: fonts.label, fontSize: 14, color: colors.sobreOro },
   titulo:    { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '600', color: colors.texto },
   detalle:   { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.textoSecundario, marginTop: 2 },

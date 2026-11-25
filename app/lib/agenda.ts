@@ -1,4 +1,5 @@
 import { etiquetaEvento } from './tipoEvento'
+import { fechaArgentina, horaArgentina, inicioReal, type MiReserva } from './tenis'
 
 // Agenda del socio (RPC `agenda_socio`, migración 20261023000000): eventos de
 // las divisiones donde juega + si tiene el servicio de gimnasio. Lógica pura,
@@ -140,4 +141,69 @@ export function lineaEvento(ev: EventoAgenda, divisiones: DivisionAgenda[]): str
     if (div) linea += ` · ${div.nombre}`
   }
   return linea
+}
+
+// ─── Mis turnos de tenis en la Agenda (FEATURES.tenis) ────────────────────────
+// Salen de tenis_mis_reservas() (titular o jugador). Se mezclan con los eventos
+// de división por día y hora.
+
+// Estados de una reserva que todavía ocupa la cancha y no se jugó.
+const ESTADOS_TENIS_AGENDA = ['pendiente_confirmacion', 'pendiente_comprobante', 'confirmada']
+
+// Reservas vivas que no terminaron (la que está en juego se sigue viendo),
+// dentro de la ventana de la Agenda (fecha de Argentina), por horario.
+export function reservasTenisAgenda(reservas: MiReserva[], ahoraMs: number, dias: number = DIAS_AGENDA): MiReserva[] {
+  const hoy = fechaArgentina(ahoraMs)
+  const [y, m, d] = hoy.split('-').map(Number)
+  const limite = new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10)
+  return reservas
+    .filter(r => ESTADOS_TENIS_AGENDA.includes(r.estado) && Date.parse(r.fin) > ahoraMs && fechaArgentina(r.inicio) <= limite)
+    .sort((a, b) => Date.parse(a.inicio) - Date.parse(b.inicio))
+}
+
+export type ItemAgenda = { tipo: 'evento'; evento: EventoAgenda } | { tipo: 'tenis'; reserva: MiReserva }
+
+export interface GrupoAgenda {
+  fecha: string
+  items: ItemAgenda[]
+}
+
+function claveHora(i: ItemAgenda): string {
+  if (i.tipo === 'tenis') return horaArgentina(i.reserva.inicio)
+  return i.evento.hora ? i.evento.hora.slice(0, 5) : '99'
+}
+
+function fechaItem(i: ItemAgenda): string {
+  return i.tipo === 'tenis' ? fechaArgentina(i.reserva.inicio) : i.evento.fecha
+}
+
+// Como agruparPorFecha, con los turnos de tenis mezclados: por día y hora (sin
+// hora, al final del día; a la misma hora, el tenis primero).
+export function agruparAgenda(eventos: EventoAgenda[], reservas: MiReserva[]): GrupoAgenda[] {
+  const items: ItemAgenda[] = [
+    ...reservas.map(reserva => ({ tipo: 'tenis' as const, reserva })),
+    ...eventos.map(evento => ({ tipo: 'evento' as const, evento })),
+  ]
+  const ordenados = items
+    .map((item, orden) => ({ item, orden, fecha: fechaItem(item), hora: claveHora(item) }))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.hora.localeCompare(b.hora) || a.orden - b.orden)
+  const grupos: GrupoAgenda[] = []
+  for (const o of ordenados) {
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo && ultimo.fecha === o.fecha) ultimo.items.push(o.item)
+    else grupos.push({ fecha: o.fecha, items: [o.item] })
+  }
+  return grupos
+}
+
+// Con quién juego: todos menos yo (mi_socio_id; si no viene y soy titular, el titular).
+export function otrosJugadores(r: Pick<MiReserva, 'personas' | 'mi_socio_id' | 'es_titular'>): string[] {
+  return r.personas
+    .filter(p => (r.mi_socio_id ? p.socio_id !== r.mi_socio_id : !(r.es_titular && p.es_titular)))
+    .map(p => p.nombre)
+}
+
+// 'Tenis · 18:05 · Cancha 03 · Singles' (arranque real: grilla + margen).
+export function lineaTenis(r: Pick<MiReserva, 'inicio' | 'cancha' | 'modalidad'>, margenMin: number): string {
+  return `Tenis · ${inicioReal(r.inicio, margenMin)} · Cancha ${r.cancha} · ${r.modalidad === 'dobles' ? 'Dobles' : 'Singles'}`
 }
