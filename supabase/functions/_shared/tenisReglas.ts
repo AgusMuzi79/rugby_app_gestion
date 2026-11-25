@@ -588,6 +588,69 @@ export function describirTurno(inicio: Date, cancha: string | null, cfg: TenisCo
   return cancha ? `${base} · cancha ${cancha}` : base
 }
 
+// ─── Aviso a los jugadores que otro sumó a una reserva ────────────────────────
+// Outbox tenis_avisos_jugadores (migración 20261125000000): tenis-cron la reclama con
+// tenis_avisos_jugadores_reclamar() y marca cada aviso con tenis_avisos_jugadores_marcar().
+
+export interface AvisoJugador {
+  /** id de la fila de la outbox (lo que se marca). */
+  id: string
+  reserva_id: string
+  socio_id: string
+  /** Quien reservó (socio o invitado), el que "te agregó". */
+  titular_nombre: string | null
+  cancha: string | null
+  inicio: Date
+  modalidad: string | null
+}
+
+export interface ReclamoAvisosJugadores {
+  /** Pendientes que se descartaron sin mandar (reserva cancelada o terminada, jugador quitado). */
+  descartados: number
+  avisos: AvisoJugador[]
+}
+
+/** Tolerante: una fila sin id, socio o inicio válidos se ignora (vuelve a reclamarse a los 10 min). */
+export function parsearAvisosJugadores(json: unknown): ReclamoAvisosJugadores {
+  const r = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const avisos: AvisoJugador[] = []
+  for (const x of Array.isArray(r.avisos) ? r.avisos : []) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const id = uuidONull(o.id)
+    const reservaId = uuidONull(o.reserva_id)
+    const socioId = uuidONull(o.socio_id)
+    const inicio = typeof o.inicio === 'string' ? new Date(o.inicio) : null
+    if (!id || !reservaId || !socioId || !inicio || Number.isNaN(inicio.getTime())) continue
+    avisos.push({
+      id,
+      reserva_id: reservaId,
+      socio_id: socioId,
+      titular_nombre: textoONull(o.titular_nombre),
+      cancha: textoONull(o.cancha),
+      inicio,
+      modalidad: textoONull(o.modalidad),
+    })
+  }
+  const d = Number(r.descartados)
+  return { descartados: Number.isFinite(d) ? d : 0, avisos }
+}
+
+/** "Juan Pérez te agregó: jueves 26/11, 18:05 · Cancha 03 · Dobles." (hora real, día local). */
+export function textoJugadorAgregado(
+  a: Pick<AvisoJugador, 'titular_nombre' | 'inicio' | 'cancha' | 'modalidad'>,
+  cfg: TenisConfig,
+): { title: string; body: string } {
+  const fecha = fechaLocal(a.inicio)
+  const [, mes, dia] = fecha.split('-')
+  const partes = [`${DIAS[diaSemanaIso(fecha) - 1]} ${dia}/${mes}, ${horaInicioReal(a.inicio, cfg)}`]
+  if (a.cancha) partes.push(`Cancha ${a.cancha}`)
+  if (esModalidad(a.modalidad)) partes.push(a.modalidad === 'singles' ? 'Singles' : 'Dobles')
+  const nombre = a.titular_nombre?.trim()
+  const quien = nombre ? `${nombre} te agregó` : 'Te agregaron'
+  return { title: 'Te sumaron a un turno de tenis', body: `${quien}: ${partes.join(' · ')}.` }
+}
+
 export function escapeHtml(texto: string): string {
   return texto
     .replace(/&/g, '&amp;')
