@@ -1,20 +1,20 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { View, Text, ActivityIndicator, Alert, StyleSheet } from 'react-native'
 import { colors, fonts } from '@/constants/theme'
 import { useTenisSocio } from '@/hooks/useTenisSocio'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import {
   CONFIG_DEFECTO, ESTADOS_RESERVA, diasReservables, etiquetaDiaCorta, fechaArgentina, horaArgentina,
-  inicioReal, puedeCancelar, montoCargo, type MiReserva,
+  inicioReal, jugadoresParaEditar, puedeCancelar, puedeEditar, montoCargo, type Disponibilidad, type MiReserva,
 } from '@/lib/tenis'
 import { formatMonto } from '@/lib/formatoMonto'
 import { GrillaCanchas } from './GrillaCanchas'
-import { FormReserva } from './FormReserva'
+import { FormReserva, type EdicionReserva } from './FormReserva'
 import { Boton, Leyenda, SelectorDia, Titulo, estilosTenis } from './ui'
 
 // Sección "Tenis" de la Agenda del socio (FEATURES.tenis): día (hoy + 2), la
-// grilla por cancha, el formulario de reserva y "Mis reservas" con cancelar
-// (hasta 3 h antes). Las reglas (límites, precios, suspensión) las aplica el
+// grilla por cancha, el formulario de reserva y "Mis reservas" con editar y
+// cancelar (titular, hasta 3 h antes). Las reglas (límites, precios, suspensión) las aplica el
 // servidor; acá se muestran sus mensajes.
 
 export interface TenisSocioRef {
@@ -24,8 +24,13 @@ export interface TenisSocioRef {
 export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, ref) {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
   const [fecha, setFecha] = useState(() => fechaArgentina(Date.now()))
-  const { disp, reservas, loading, error, refetch, reservar, cancelar } = useTenisSocio(fecha)
-  const [form, setForm] = useState<{ cancha: string | null; hora: string | null } | null>(null)
+  const { disp, reservas, loading, error, refetch, reservar, editar, cancelar } = useTenisSocio(fecha)
+  const [form, setForm] = useState<{ cancha: string | null; hora: string | null; edicion?: EdicionReserva } | null>(null)
+  // Al cambiar de día con el formulario abierto (edición) la disponibilidad
+  // vuelve a null mientras carga: el formulario sigue con las últimas canchas.
+  const ultimaDisp = useRef<Disponibilidad | null>(null)
+  if (disp) ultimaDisp.current = disp
+  const base = disp ?? ultimaDisp.current
   const [cancelando, setCancelando] = useState<string | null>(null)
 
   // La hora avanza sola: las celdas que pasan dejan de ofrecerse.
@@ -36,7 +41,7 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
 
   useImperativeHandle(ref, () => ({ refetch: () => { setAhoraMs(Date.now()); refetch() } }), [refetch])
 
-  const config = disp?.config ?? CONFIG_DEFECTO
+  const config = base?.config ?? CONFIG_DEFECTO
   const dias = useMemo(() => diasReservables(ahoraMs, config.anticipacion_dias), [ahoraMs, config.anticipacion_dias])
 
   function pedirCancelacion(r: MiReserva) {
@@ -55,6 +60,15 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
         },
       ],
     )
+  }
+
+  function abrirEdicion(r: MiReserva) {
+    setFecha(fechaArgentina(r.inicio))
+    setForm({
+      cancha: r.cancha_id,
+      hora: horaArgentina(r.inicio),
+      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r) },
+    })
   }
 
   const activas = reservas.filter(r => ['pendiente_comprobante', 'confirmada'].includes(r.estado) && Date.parse(r.fin) > ahoraMs)
@@ -104,7 +118,12 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
             {r.total !== null && <Text style={estilosTenis.textoCard}>Total {formatMonto(r.total)}</Text>}
             {r.es_titular && (
               sePuede ? (
-                <Boton texto="CANCELAR RESERVA" variante="secundario" cargando={cancelando === r.id} onPress={() => pedirCancelacion(r)} />
+                <>
+                  {puedeEditar(r, ahoraMs, config.cancelacion_horas) && (
+                    <Boton texto="EDITAR RESERVA" variante="secundario" onPress={() => abrirEdicion(r)} />
+                  )}
+                  <Boton texto="CANCELAR RESERVA" variante="secundario" cargando={cancelando === r.id} onPress={() => pedirCancelacion(r)} />
+                </>
               ) : (
                 <Text style={estilosTenis.mutedCard}>Ya no se puede cancelar: faltan menos de {config.cancelacion_horas} horas.</Text>
               )
@@ -113,18 +132,25 @@ export const TenisSocio = forwardRef<TenisSocioRef>(function TenisSocio(_props, 
         )
       })}
 
-      {disp && form && (
+      {base && form && (
         <FormReserva
           visible
           onCerrar={() => setForm(null)}
           fecha={fecha}
-          canchas={disp.canchas}
+          canchas={base.canchas}
           config={config}
-          items={disp.items}
+          items={disp?.items ?? []}
+          cargandoItems={!disp}
           ahoraMs={ahoraMs}
           canchaInicial={form.cancha}
           horaInicial={form.hora}
-          onConfirmar={d => reservar(d)}
+          edicion={form.edicion}
+          dias={dias}
+          onCambiarFecha={setFecha}
+          onConfirmar={d => {
+            const edicion = form.edicion
+            return edicion ? editar(edicion.reservaId, d) : reservar(d)
+          }}
         />
       )}
     </View>

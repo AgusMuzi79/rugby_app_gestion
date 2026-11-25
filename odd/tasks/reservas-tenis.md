@@ -197,6 +197,12 @@ Approved (medium, granted by Agus, reliability lens) and acknowledged. Advisory 
 - Not done: `app/lib/database.types.ts` regeneration — the production types break unrelated `useEventos.ts`/`useFichajes.ts` (pre-existing drift); kept the untyped tennis RPC wrapper; separate follow-up.
 - `FEATURES.tenis` stays `false` in app and web; no OTA, no web publish of the flag.
 
+## Editar reserva (2026-11-25, branch `feat/tenis-editar-reserva`)
+- The titular edits their own member booking from "MIS RESERVAS" ("EDITAR RESERVA" next to "CANCELAR RESERVA"): day (within the 2-day window), singles/dobles, time, court and players. Editable = titular, `origen = 'socio'`, `confirmada`, at least `cancelacion_horas` (3 h) before the original start. Guest web and staff bookings are out of scope.
+- Migration `20261126000000_tenis_editar_reserva.sql` (not applied yet): RPC `tenis_editar_reserva(p_reserva_id, p_cancha_id, p_inicio, p_modalidad, p_jugadores)`, same jugadores shape as `tenis_reservar` plus `{invitado_id}` only for a guest already in that booking. Updates the same row (keeps the id); the new slot passes every new-booking rule (overlap → `turno_ocupado`, optimizer → `hueco_invalido` except today, busy players, suspended/moroso, 1/day on the new day, 2 active without counting itself). Players that stay keep their row (cobro/check-in kept only if court, start and modality are unchanged); removed ones are deleted; new ones are plain INSERTs into `tenis_reserva_jugadores`. Charges recomputed with `tenis_cargo_jugador` excluding this booking. New code `reserva_no_editable`; `fuera_de_plazo` copy now says "cancelar ni cambiar".
+- App: `FormReserva` takes `edicion` (prefilled, day selector, own slot shown as free, no sanctions dialog, double-submit guard kept); helpers `puedeEditar`, `jugadoresParaEditar`, `itemsSinReserva` in `lib/tenis.ts`.
+- Tests: `supabase/tests/tenis_editar_reserva.sql` (48 checks) + `reservas_tenis.sql` still green; `tenis.check.ts` cases.
+
 ## Progress
 - 2026-11-20: design closed with Agus and the tennis subco manager; document created; branch `feat/reservas-tenis` from `origin/main` (`afe721b`).
 - 2026-11-20: T1–T4 merged; T5 reconciled the layers and ran all checks (see T5 notes).
