@@ -14,8 +14,10 @@
 //     además el aviso de advertencia.
 //   - comprobante en revisión al terminar el turno (comprobantes_sin_revisar): sin aviso, sólo se
 //     cuenta (lo resuelve la gestora o el canchero desde la app).
-// Después manda los avisos "Te sumaron a un turno de tenis" de la outbox tenis_avisos_jugadores
-// (migración 20261125000000): los socios que otro agregó a una reserva (y sus tutores). Los
+// Después manda los avisos de la outbox tenis_avisos_jugadores (migraciones 20261125000000 y
+// 20261127000000) a los socios y sus tutores: "Te sumaron a un turno de tenis" (otro los agregó
+// a una reserva) y "Cambió tu turno de tenis" (la reserva en la que siguen cambió de
+// día/horario, cancha o modalidad; textoAvisoJugador elige el texto por motivo). Los
 // reclama con tenis_avisos_jugadores_reclamar() (descarta los de reservas canceladas o terminadas
 // y los de jugadores que ya no están) y marca cada uno con tenis_avisos_jugadores_marcar():
 // entregado, sin_dispositivo (no se reintenta) o error (se reintenta en la corrida siguiente,
@@ -35,7 +37,7 @@ import {
   formatoPesos,
   parsearAvisosJugadores,
   parsearResumenProcesar,
-  textoJugadorAgregado,
+  textoAvisoJugador,
   type AvisoReserva,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
@@ -65,7 +67,7 @@ interface ResumenAvisosJugadores {
   avisos_jugadores_descartados: number
 }
 
-/** "Te sumaron a un turno de tenis": reclama la outbox, manda los push y marca cada aviso. */
+/** "Te sumaron" / "Cambió tu turno": reclama la outbox, manda los push y marca cada aviso. */
 async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) => void): Promise<ResumenAvisosJugadores> {
   const out: ResumenAvisosJugadores = {
     avisos_jugadores: 0,
@@ -85,8 +87,8 @@ async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) =>
   const pushes: AvisoPush[] = reclamo.avisos.map((a) => ({
     clave: a.id,
     socioId: a.socio_id,
-    ...textoJugadorAgregado(a, cfg),
-    data: { type: 'tenis_jugador_agregado', reserva_id: a.reserva_id },
+    ...textoAvisoJugador(a, cfg),
+    data: { type: a.motivo === 'cambio' ? 'tenis_reserva_cambiada' : 'tenis_jugador_agregado', reserva_id: a.reserva_id },
   }))
 
   // Si el envío entero falla, todos quedan con error y se reintentan en la corrida siguiente.

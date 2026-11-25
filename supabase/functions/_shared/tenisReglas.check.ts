@@ -39,6 +39,8 @@ import {
   puedeCancelar,
   sumarDias,
   textoJugadorAgregado,
+  textoJugadorCambio,
+  textoAvisoJugador,
   tokenConForma,
   totalCargos,
   validarTurno,
@@ -373,6 +375,27 @@ await caso('reclamo de avisos a jugadores: tolerante, descarta filas sin id, soc
   assert.equal(p.avisos[0].cancha, '01')
   assert.equal(p.avisos[0].inicio.toISOString(), '2026-11-21T21:00:00.000Z')
   assert.deepEqual(parsearAvisosJugadores(null), { descartados: 0, avisos: [] })
+  // Sin motivo (tenis-cron nueva con la migración anterior): "te sumaron".
+  assert.equal(p.avisos[0].motivo, 'agregado')
+  const c = parsearAvisosJugadores({ avisos: [
+    { id: a, reserva_id: r, socio_id: s, motivo: 'cambio', inicio: '2026-11-21T21:00:00+00:00' },
+    { id: a, reserva_id: r, socio_id: s, motivo: 'otro', inicio: '2026-11-21T21:00:00+00:00' },
+  ] })
+  assert.deepEqual(c.avisos.map((x) => x.motivo), ['cambio', 'agregado'])
+})
+
+await caso('aviso "cambió tu turno": título, quién lo cambió, turno real (+5), cancha y modalidad', () => {
+  const t = textoJugadorCambio(
+    { titular_nombre: 'Juan Pérez', inicio: ar('2026-11-26T18:00'), cancha: '03', modalidad: 'dobles' }, CFG)
+  assert.equal(t.title, 'Cambió tu turno de tenis')
+  assert.equal(t.body, 'Juan Pérez lo cambió: jueves 26/11, 18:05 · Cancha 03 · Dobles.')
+  const s = textoJugadorCambio(
+    { titular_nombre: '', inicio: new Date('2026-11-21T11:00:00Z'), cancha: null, modalidad: 'singles' }, CFG)
+  assert.equal(s.body, 'Lo cambiaron: sábado 21/11, 08:05 · Singles.')
+  // Elige el texto por motivo.
+  const base = { titular_nombre: 'Ana', inicio: ar('2026-11-26T18:00'), cancha: '01', modalidad: 'singles' }
+  assert.equal(textoAvisoJugador({ ...base, motivo: 'cambio' }, CFG).title, 'Cambió tu turno de tenis')
+  assert.equal(textoAvisoJugador({ ...base, motivo: 'agregado' }, CFG).title, 'Te sumaron a un turno de tenis')
 })
 
 console.log(`\n${casos} casos ok`)

@@ -22,12 +22,23 @@
 --      abierto por jugador y reserva, se actualiza con cada edición y se cierra solo al saldarse).
 --      RLS cerrada; gestor y canchero lo leen con tenis_cobros_ajustes_pendientes() y lo cierran
 --      con tenis_cobro_ajuste_resolver().
--- 2. Locks de tenis_editar_reserva: si otra edición movió la reserva a una cancha cuyo lock
+-- 2. Aviso "Cambió tu turno de tenis" a los jugadores socio (no titulares) que siguen en una
+--    reserva cuando cambian día/horario, cancha o modalidad. Misma outbox, motivo 'cambio':
+--    trigger AFTER UPDATE de inicio/cancha_id/modalidad en tenis_reservas, con los jugadores de
+--    ANTES de que la edición saque o sume gente (los que salen pierden el pendiente por el
+--    trigger de delete; los que entran sólo reciben 'agregado'). Un 'agregado' todavía sin
+--    mandar ya muestra el turno nuevo (se arma al reclamar): no se suma 'cambio'. Cada movida
+--    avisa; una movida nueva reemplaza el 'cambio' pendiente (descarte 'reemplazado'). Unique
+--    (reserva, socio) pasa a ser sólo para 'agregado' (nunca dos) + un 'cambio' pendiente por
+--    jugador. tenis_avisos_jugadores_reclamar() devuelve el motivo.
+-- 3. Locks de tenis_editar_reserva: si otra edición movió la reserva a una cancha cuyo lock
 --    no se tomó mientras se esperaba, ya no se toma ese lock fuera de orden (posible deadlock):
 --    se aborta con el código nuevo 'reintentar'. Un deadlock_detected (40P01) también sale
 --    como 'reintentar' (la edición se deshace entera).
 --
--- Deploy: aplicar después de las tres anteriores. No hay Edge Function que cambiar.
+-- Deploy: aplicar después de las tres anteriores y ANTES de deployar la tenis-cron nueva (que
+-- distingue el motivo). Con la tenis-cron anterior un 'cambio' saldría con el texto de
+-- "Te sumaron".
 
 -- ─── 1. Lo cobrado por jugador ────────────────────────────────────────────────
 
@@ -480,7 +491,8 @@ begin
 
   -- Mover la fila al turno nuevo: la constraint de exclusión no la compara
   -- consigo misma (turno_ocupado sólo contra otras reservas) y, ya movida,
-  -- tenis_validar_hueco no la ve ni en su lugar viejo ni en el nuevo.
+  -- tenis_validar_hueco no la ve ni en su lugar viejo ni en el nuevo. El trigger
+  -- tenis_avisos_jugadores_cambio encola el aviso de los jugadores de ahora.
   if v_cambia then
     begin
       update tenis_reservas
@@ -593,11 +605,166 @@ exception
 end;
 $$;
 
+-- ─── 2. Aviso "Cambió tu turno de tenis" ──────────────────────────────────────
+
+alter table tenis_avisos_jugadores drop constraint tenis_avisos_jugadores_uq;
+alter table tenis_avisos_jugadores drop constraint tenis_avisos_jugadores_motivo_check;
+alter table tenis_avisos_jugadores
+  add constraint tenis_avisos_jugadores_motivo_check check (motivo in ('agregado', 'cambio'));
+alter table tenis_avisos_jugadores drop constraint tenis_avisos_jugadores_descarte_check;
+alter table tenis_avisos_jugadores
+  add constraint tenis_avisos_jugadores_descarte_check
+  check (descarte in ('reserva_inactiva', 'turno_pasado', 'jugador_quitado', 'sin_dispositivo',
+                      'reintentos_agotados', 'reemplazado'));
+
+-- 'agregado': nunca dos por (reserva, socio). 'cambio': uno pendiente por (reserva, socio).
+create unique index tenis_avisos_jugadores_agregado_uq
+  on tenis_avisos_jugadores (reserva_id, socio_id) where motivo = 'agregado';
+create unique index tenis_avisos_jugadores_cambio_pendiente_uq
+  on tenis_avisos_jugadores (reserva_id, socio_id)
+  where motivo = 'cambio' and enviado_at is null and descartado_at is null;
+
+-- Igual que en 20261125000000 con el conflicto contra el unique parcial de 'agregado'.
+create or replace function tenis_avisos_jugadores_encolar(p_reserva_id uuid, p_socio_id uuid default null)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into tenis_avisos_jugadores (reserva_id, socio_id, motivo)
+  select j.reserva_id, j.socio_id, 'agregado'
+  from tenis_reserva_jugadores j
+  join tenis_reservas r on r.id = j.reserva_id
+  where j.reserva_id = p_reserva_id
+    and (p_socio_id is null or j.socio_id = p_socio_id)
+    and j.socio_id is not null
+    and not j.es_titular
+    and j.socio_id is distinct from r.titular_socio_id
+    and r.origen <> 'extension'
+    and r.estado in ('pendiente_comprobante', 'confirmada')
+  on conflict (reserva_id, socio_id) where motivo = 'agregado' do nothing
+$$;
+
+-- La reserva cambió de día/horario, cancha o modalidad: aviso a los jugadores socio que
+-- están ahora (antes de que la edición saque o sume gente). Reemplaza el 'cambio' pendiente.
+create or replace function tenis_avisos_jugadores_tg_cambio()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.origen = 'extension' or new.estado not in ('pendiente_comprobante', 'confirmada') then
+    return null;
+  end if;
+
+  update tenis_avisos_jugadores a
+     set descartado_at = tenis_ahora(), descarte = 'reemplazado', reclamado_at = null
+   where a.reserva_id = new.id and a.motivo = 'cambio'
+     and a.enviado_at is null and a.descartado_at is null;
+
+  insert into tenis_avisos_jugadores (reserva_id, socio_id, motivo)
+  select j.reserva_id, j.socio_id, 'cambio'
+  from tenis_reserva_jugadores j
+  where j.reserva_id = new.id
+    and j.socio_id is not null
+    and not j.es_titular
+    and j.socio_id is distinct from new.titular_socio_id
+    -- Un "te sumaron" sin mandar ya va a mostrar el turno nuevo.
+    and not exists (
+      select 1 from tenis_avisos_jugadores a
+      where a.reserva_id = j.reserva_id and a.socio_id = j.socio_id and a.motivo = 'agregado'
+        and a.enviado_at is null and a.descartado_at is null
+    );
+  return null;
+end;
+$$;
+
+create trigger tenis_avisos_jugadores_cambio
+  after update of inicio, cancha_id, modalidad on tenis_reservas
+  for each row
+  when (old.inicio is distinct from new.inicio
+        or old.cancha_id is distinct from new.cancha_id
+        or old.modalidad is distinct from new.modalidad)
+  execute function tenis_avisos_jugadores_tg_cambio();
+
+-- Igual que en 20261125000000, más 'motivo' en cada aviso ('agregado' | 'cambio').
+create or replace function tenis_avisos_jugadores_reclamar(p_limite int default 200)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ahora       timestamptz := tenis_ahora();
+  v_descartados int := 0;
+  v_n           int;
+  v_avisos      jsonb;
+begin
+  update tenis_avisos_jugadores a
+     set descartado_at = v_ahora,
+         descarte = case when r.estado not in ('pendiente_comprobante', 'confirmada') then 'reserva_inactiva'
+                         else 'turno_pasado' end
+    from tenis_reservas r
+   where r.id = a.reserva_id
+     and a.enviado_at is null and a.descartado_at is null
+     and (r.estado not in ('pendiente_comprobante', 'confirmada') or r.fin <= v_ahora);
+  get diagnostics v_n = row_count;
+  v_descartados := v_descartados + v_n;
+
+  update tenis_avisos_jugadores a
+     set descartado_at = v_ahora, descarte = 'jugador_quitado'
+   where a.enviado_at is null and a.descartado_at is null
+     and not exists (
+       select 1 from tenis_reserva_jugadores j
+       where j.reserva_id = a.reserva_id and j.socio_id = a.socio_id and not j.es_titular
+     );
+  get diagnostics v_n = row_count;
+  v_descartados := v_descartados + v_n;
+
+  with libres as (
+    select a.id
+    from tenis_avisos_jugadores a
+    where a.enviado_at is null and a.descartado_at is null
+      and (a.reclamado_at is null or a.reclamado_at <= v_ahora - interval '10 minutes')
+    order by a.created_at
+    limit greatest(coalesce(p_limite, 200), 1)
+    for update skip locked
+  ), reclamados as (
+    update tenis_avisos_jugadores a
+       set reclamado_at = v_ahora, intentos = a.intentos + 1
+      from libres l
+     where a.id = l.id
+    returning a.id, a.reserva_id, a.socio_id, a.motivo
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'id',             c.id,
+           'reserva_id',     c.reserva_id,
+           'socio_id',       c.socio_id,
+           'motivo',         c.motivo,
+           'titular_nombre', tenis_nombre_persona(r.titular_socio_id, r.titular_invitado_id),
+           'cancha',         k.nombre,
+           'inicio',         r.inicio,
+           'modalidad',      r.modalidad
+         ) order by r.inicio, c.id), '[]'::jsonb)
+    into v_avisos
+  from reclamados c
+  join tenis_reservas r on r.id = c.reserva_id
+  left join tenis_canchas k on k.id = r.cancha_id;
+
+  return jsonb_build_object('descartados', v_descartados, 'avisos', v_avisos);
+end;
+$$;
+
 -- ─── Permisos ─────────────────────────────────────────────────────────────────
 
 revoke execute on function tenis_jugadores_tg_monto_cobrado()           from public, anon, authenticated;
 revoke execute on function tenis_cobro_ajuste_sincronizar(uuid)         from public, anon, authenticated;
 revoke execute on function tenis_cobros_ajustes_tg_jugador_quitado()    from public, anon, authenticated;
+revoke execute on function tenis_avisos_jugadores_tg_cambio()           from public, anon, authenticated;
+revoke execute on function tenis_avisos_jugadores_encolar(uuid, uuid)   from public, anon, authenticated;
+revoke execute on function tenis_avisos_jugadores_reclamar(int)         from public, anon, authenticated;
+grant  execute on function tenis_avisos_jugadores_reclamar(int)         to service_role;
 
 revoke execute on function tenis_cobros_ajustes_pendientes()            from public, anon;
 revoke execute on function tenis_cobro_ajuste_resolver(uuid)            from public, anon;

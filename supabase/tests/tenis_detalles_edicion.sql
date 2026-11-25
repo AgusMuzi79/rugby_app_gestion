@@ -1,5 +1,6 @@
 -- Pruebas de la migración 20261127000000_tenis_detalles_edicion: editar una reserva de tenis
--- no pierde lo cobrado (monto_cobrado, diferencia, ajustes para staff).
+-- no pierde lo cobrado (monto_cobrado, diferencia, ajustes para staff) y avisa a los jugadores
+-- que siguen cuando cambia el turno ("Cambió tu turno de tenis", motivo 'cambio').
 --
 -- SQL plano para correr en un Postgres DESCARTABLE (nunca contra producción):
 --   docker run --rm -d --name tenis-pg -e POSTGRES_PASSWORD=x postgres:17
@@ -417,5 +418,75 @@ select pg_temp.espera(
   (select string_agg(cobrado::text || '/' || (monto_cobrado = cargo)::text, ',') from tenis_reserva_jugadores
     where reserva_id = pg_temp.id('g')), 'true/true,true/true', 'aprobar comprobante: monto_cobrado = cargo de cada uno');
 select pg_temp.espera(pg_temp.totales('g'), '25000/25000/0', 'comprobante aprobado: todo cobrado');
+
+-- ─── 2. Aviso "Cambió tu turno de tenis" ──────────────────────────────────────
+-- n: p2 (S2) con S3, cancha 05 domingo 22 14:00 singles.
+
+select pg_temp.como('p2');
+select pg_temp.guardar('n', tenis_reservar(pg_temp.ca(5), pg_temp.t('2026-11-22 14:00'), 'singles', pg_temp.j(3)));
+select pg_temp.espera(pg_temp.avisos_de('n', 3), 'agregado:pendiente', 'S3: te sumaron');
+select pg_temp.entregar('n', 3);
+
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(5), pg_temp.t('2026-11-22 15:00'), 'singles', pg_temp.j(3))$$),
+  'ok', 'mover n a las 15:00');
+select pg_temp.espera(pg_temp.avisos_de('n', 3), 'agregado:enviado,cambio:pendiente', 'mover: aviso de cambio al que sigue');
+select pg_temp.espera(pg_temp.avisos_de('n', 2), '', 'el titular no recibe aviso');
+
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(5), pg_temp.t('2026-11-22 15:00'), 'singles', pg_temp.j(3))$$),
+  'ok', 'editar n sin cambiar el turno');
+select pg_temp.espera(pg_temp.avisos_de('n', 3), 'agregado:enviado,cambio:pendiente', 'sin cambio de turno no hay aviso nuevo');
+
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(6), pg_temp.t('2026-11-22 16:00'), 'singles', pg_temp.j(3))$$),
+  'ok', 'mover n de nuevo (cancha 06 16:00)');
+select pg_temp.espera(pg_temp.avisos_de('n', 3), 'agregado:enviado,cambio:descartado-reemplazado,cambio:pendiente',
+  'una movida nueva reemplaza el cambio pendiente');
+select pg_temp.espera((pg_temp.err(format($$insert into tenis_avisos_jugadores (reserva_id, socio_id, motivo) values (%L, %L, 'cambio')$$,
+  pg_temp.id('n'), pg_temp.so(3))) like '%duplicate key%')::text, 'true', 'un solo cambio pendiente por jugador');
+select pg_temp.espera((pg_temp.err(format($$insert into tenis_avisos_jugadores (reserva_id, socio_id, motivo) values (%L, %L, 'agregado')$$,
+  pg_temp.id('n'), pg_temp.so(3))) like '%duplicate key%')::text, 'true', 'nunca dos "te sumaron"');
+
+select pg_temp.ahora('2026-11-20 10:05');
+select pg_temp.espera(
+  (select e->>'motivo' || '|' || (e->>'cancha') || '|' || ((e->>'inicio')::timestamptz = pg_temp.t('2026-11-22 16:00'))::text
+          || '|' || (e->>'titular_nombre')
+     from jsonb_array_elements((tenis_avisos_jugadores_reclamar(100))->'avisos') e
+    where (e->>'reserva_id')::uuid = pg_temp.id('n')),
+  'cambio|06|true|Gómez Ana', 'reclamo: motivo cambio con el turno nuevo y el titular');
+select pg_temp.entregar('n', 3);
+select pg_temp.ahora('2026-11-20 10:00');
+
+-- Mover a dobles 10:00 sumando a S4 y S1: S3 recibe cambio; S4 y S1 sólo "te sumaron".
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(5), pg_temp.t('2026-11-22 10:00'), 'dobles', pg_temp.j(3, 4, 1))$$),
+  'ok', 'mover n a dobles sumando jugadores');
+select pg_temp.espera(pg_temp.avisos_de('n', 3), 'agregado:enviado,cambio:descartado-reemplazado,cambio:enviado,cambio:pendiente',
+  'el que sigue: otro aviso de cambio (cada movida avisa)');
+select pg_temp.espera(pg_temp.avisos_de('n', 4) || ' ' || pg_temp.avisos_de('n', 1), 'agregado:pendiente agregado:pendiente',
+  'los que se suman: sólo "te sumaron"');
+
+-- Mover y sacar a S3 y S1: el cambio pendiente de S3 se borra; S4 (te sumaron sin mandar) no suma cambio.
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(5), pg_temp.t('2026-11-22 12:00'), 'singles', pg_temp.j(4))$$),
+  'ok', 'mover n a singles sólo con S4');
+select pg_temp.espera(pg_temp.avisos_de('n', 3),
+  'agregado:enviado,cambio:descartado-reemplazado,cambio:descartado-reemplazado,cambio:enviado',
+  'el que sale no queda con un cambio pendiente (el anterior reemplazado, el nuevo borrado al salir)');
+select pg_temp.espera(pg_temp.avisos_de('n', 4), 'agregado:pendiente', '"te sumaron" sin mandar ya muestra el turno nuevo: sin cambio');
+
+-- Cambio pendiente de una reserva cancelada: se descarta al reclamar.
+select pg_temp.entregar('n', 4);
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('n'), pg_temp.ca(5), pg_temp.t('2026-11-22 13:00'), 'singles', pg_temp.j(4))$$),
+  'ok', 'mover n a las 13:00');
+select pg_temp.espera(pg_temp.avisos_de('n', 4), 'agregado:enviado,cambio:pendiente', 'S4: aviso de cambio');
+select tenis_cancelar(pg_temp.id('n'), 'no puedo');
+select tenis_avisos_jugadores_reclamar(100);
+select pg_temp.espera(pg_temp.avisos_de('n', 4), 'agregado:enviado,cambio:descartado-reserva_inactiva',
+  'reserva cancelada: el cambio pendiente se descarta');
+
+-- Mover cambiando sólo la modalidad también avisa. o: p3 (S3) con S2, cancha 02 22 16:00.
+select pg_temp.como('p3');
+select pg_temp.guardar('o', tenis_reservar(pg_temp.ca(2), pg_temp.t('2026-11-22 16:00'), 'singles', pg_temp.j(2)));
+select pg_temp.entregar('o', 2);
+select pg_temp.espera(pg_temp.err($$select tenis_editar_reserva(pg_temp.id('o'), pg_temp.ca(2), pg_temp.t('2026-11-22 16:00'), 'dobles', pg_temp.j(2, 1, 4))$$),
+  'ok', 'pasar o a dobles en el mismo horario');
+select pg_temp.espera(pg_temp.avisos_de('o', 2), 'agregado:enviado,cambio:pendiente', 'sólo la modalidad: aviso de cambio');
 
 rollback;
