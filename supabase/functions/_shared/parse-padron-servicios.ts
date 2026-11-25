@@ -46,6 +46,8 @@ export const MAPEO_CONCEPTOS: Record<string, DestinoConcepto> = {
   'CARNET TENIS':           { servicio: 'Carnet Tenis',     catalogoPrecio: 'Carnet Tenis' },
   'RUGBY INCLUSIVO':        { servicio: 'Rugby Inclusivo',  catalogoPrecio: 'Rugby Inclusivo' },
   'HOCKEY INCLUSIVO':       { servicio: 'Hockey Inclusivo', catalogoPrecio: 'Hockey Inclusivo' },
+  // Temporada de pileta (Secretaría la carga en NUVIX con este concepto desde 2026-11-25).
+  'SOCIO CON TEMPORADA ABONADA': { servicio: 'Pileta',    catalogoPrecio: 'Pileta' },
 }
 
 // Conceptos del padrón que no son vínculos en socio_servicios (cuotas de

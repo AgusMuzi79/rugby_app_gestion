@@ -3,7 +3,7 @@
 // Sección "Padrón de Servicios" de la página de importación de socios.
 // Llama a la Edge Function importar-servicios (preview/confirmar), que deja
 // socio_servicios como espejo del archivo para Gimnasio, Rugby, Hockey,
-// Carnet Tenis, Rugby Inclusivo y Hockey Inclusivo. Las bajas se pueden
+// Carnet Tenis, Rugby Inclusivo, Hockey Inclusivo y Pileta. Las bajas se pueden
 // destildar una por una antes de confirmar; al confirmar se mandan las que
 // quedaron tildadas (`bajas_aprobadas`) y sólo esas se aplican. Si el archivo
 // no trae ninguna fila de un servicio (`servicios_ausentes`, p. ej. un export
@@ -239,7 +239,7 @@ function SeccionImportarServicios({ onAplicado }: { onAplicado: () => void }) {
       <p className="font-lora text-xs tracking-widest text-tinta/50 mb-2">IMPORTAR PADRÓN DE SERVICIOS (NUVIX)</p>
       <p className="font-lora text-xs text-tinta/50 mb-4">
         Correlo después del Padrón Extendido, así los socios nuevos ya existen. Deja los servicios Gimnasio,
-        Rugby, Hockey, Carnet Tenis, Rugby Inclusivo y Hockey Inclusivo exactamente como en el archivo: agrega,
+        Rugby, Hockey, Carnet Tenis, Rugby Inclusivo, Hockey Inclusivo y Pileta («Socio con Temporada Abonada») exactamente como en el archivo: agrega,
         actualiza y quita (también los cargados a mano). Los demás servicios no se tocan.
       </p>
       <div className="flex gap-3 items-center">
