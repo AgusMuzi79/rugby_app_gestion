@@ -11,20 +11,39 @@ export function Seccion({ titulo, children }: { titulo: string; children: React.
   )
 }
 
+// One step of the booking form: a heading and its controls, separated by a
+// hairline instead of a card. The heading takes focus when the sticky bar
+// sends the visitor back to a missing step.
+export function Paso({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
+  return (
+    <section aria-labelledby={`${id}-titulo`} className="border-t border-gris-claro pt-6 mt-8 first:border-t-0 first:pt-0 first:mt-0 scroll-mt-6">
+      <h2 id={`${id}-titulo`} tabIndex={-1} className="font-playfair italic text-xl text-tinta mb-4 outline-none">{titulo}</h2>
+      {children}
+    </section>
+  )
+}
+
+// Small group title inside a step (fieldset legend or band title).
+export const ETIQUETA_GRUPO = 'font-lora text-sm font-medium text-tinta/85 mb-2'
+
 export function Campo(p: {
   id: string
   label: string
   value: string
   onChange: (v: string) => void
+  onBlur?: () => void
   error?: string
+  ayuda?: string
   type?: string
   inputMode?: 'numeric' | 'email' | 'text'
   autoComplete?: string
 }) {
   const errId = `${p.id}-error`
+  const ayudaId = `${p.id}-ayuda`
+  const describe = [p.ayuda ? ayudaId : null, p.error ? errId : null].filter(Boolean).join(' ') || undefined
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={p.id} className="font-lora text-xs tracking-widest text-tinta/80">{p.label}</label>
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={p.id} className="font-lora text-sm font-medium text-tinta">{p.label}</label>
       <input
         id={p.id}
         type={p.type ?? 'text'}
@@ -32,25 +51,29 @@ export function Campo(p: {
         autoComplete={p.autoComplete}
         value={p.value}
         onChange={e => p.onChange(e.target.value)}
+        onBlur={p.onBlur}
         aria-invalid={p.error ? true : undefined}
-        aria-describedby={p.error ? errId : undefined}
-        className="font-lora text-tinta bg-transparent border-b border-borde-control py-2 text-base outline-none focus:border-oro transition-colors"
+        aria-describedby={describe}
+        className={`font-lora text-base text-tinta bg-card border px-3 py-2.5 min-h-11 caret-oro outline-none transition-colors placeholder:text-texto-2 focus:border-oro ${
+          p.error ? 'border-rojo-texto' : 'border-borde-control hover:border-tinta/60'
+        }`}
       />
-      {p.error && <p id={errId} className="font-lora text-rojo-texto text-sm">{p.error}</p>}
+      {p.ayuda && <p id={ayudaId} className="font-lora text-sm text-texto-2">{p.ayuda}</p>}
+      {p.error && <p id={errId} className="font-lora text-sm text-rojo-texto">{p.error}</p>}
     </div>
   )
 }
 
-export function Opcion(p: { activo: boolean; onClick: () => void; children: React.ReactNode; label?: string }) {
+export function Opcion(p: { activo: boolean; onClick: () => void; children: React.ReactNode; label?: string; className?: string }) {
   return (
     <button
       type="button"
       onClick={p.onClick}
       aria-pressed={p.activo}
       aria-label={p.label}
-      className={`font-lora text-sm tracking-wide px-3 py-2 min-h-11 border transition-colors ${
-        p.activo ? 'bg-oro text-papel border-oro' : 'text-tinta border-borde-control hover:border-oro'
-      }`}
+      className={`font-lora text-sm px-3 py-2 min-h-11 border transition-colors disabled:opacity-60 ${
+        p.activo ? 'bg-oro text-papel border-oro font-semibold' : 'bg-card text-tinta border-borde-control hover:border-oro'
+      } ${p.className ?? ''}`}
     >
       {p.children}
     </button>

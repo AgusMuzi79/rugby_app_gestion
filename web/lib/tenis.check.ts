@@ -9,6 +9,7 @@ import {
   inicioIso, turnosDesdeLibres, vencimientoComprobante, formatearFechaHora, validarComprobante,
   mensajeTenis, mensajeRespuesta, pantallaConfirmar, jugadoresPayload, CODIGOS_TENIS, CONFIG_DEFAULT,
   configDesde, resultadoInvitados, mensajeFalloInvitados,
+  horariosDisponibles, franjaDeHora, horariosPorFranja, etiquetaDia, diaCorto, duracionTexto, faltaParaReservar,
   type JugadorForm,
 } from './tenis'
 
@@ -160,6 +161,77 @@ caso('free slots: grouped per court from the function `libres`, in court order, 
   assert.deepEqual(r[0].turnos[0], { hora: '08:00', empieza: '08:05', inicio: '2026-11-21T11:00:00.000Z' })
   assert.deepEqual(r[1].turnos.map(t => t.empieza), ['08:05'])
   assert.deepEqual(turnosDesdeLibres(canchas, undefined).map(c => c.turnos.length), [0, 0])
+})
+
+caso('time slots: one list of free start times, deduplicated across courts, with the courts free at each', () => {
+  const canchas = [{ id: 'c1', nombre: '01' }, { id: 'c2', nombre: '02' }, { id: 'c3', nombre: '03' }]
+  const libres = {
+    singles: [
+      { cancha_id: 'c3', inicio: '2026-11-26T21:00:00.000Z', hora: '18:00', hora_real: '18:05' },
+      { cancha_id: 'c1', inicio: '2026-11-26T21:00:00.000Z', hora: '18:00', hora_real: '18:05' },
+      { cancha_id: 'c2', inicio: '2026-11-26T11:00:00.000Z', hora: '08:00', hora_real: '08:05' },
+      { cancha_id: 'otra', inicio: '2026-11-26T12:00:00.000Z', hora: '09:00', hora_real: '09:05' },
+      { cancha_id: 'c1', inicio: '2026-11-26T16:30:00.000Z', hora: '13:30' },
+      { basura: true },
+    ],
+    dobles: [{ cancha_id: 'c2', inicio: '2026-11-26T22:00:00.000Z', hora: '19:00', hora_real: '19:05' }],
+  }
+  const s = horariosDisponibles(canchas, libres, 'singles')
+  assert.deepEqual(s.map(h => h.hora), ['08:00', '13:30', '18:00'])
+  assert.deepEqual(s[2], {
+    hora: '18:00', horaReal: '18:05', inicio: '2026-11-26T21:00:00.000Z', franja: 'noche',
+    canchas: [{ id: 'c1', nombre: '01' }, { id: 'c3', nombre: '03' }],
+  })
+  assert.equal(s[1].horaReal, '13:30') // no hora_real → the booked time
+  assert.deepEqual(horariosDisponibles(canchas, libres, 'dobles').map(h => [h.horaReal, h.canchas.length]), [['19:05', 1]])
+  assert.deepEqual(horariosDisponibles(canchas, undefined, 'singles'), [])
+  assert.deepEqual(horariosDisponibles(canchas, { singles: 'x' }, 'singles'), [])
+})
+
+caso('time bands: morning before 12, afternoon 12 to 18, night from 18; empty bands are dropped', () => {
+  assert.equal(franjaDeHora('08:00'), 'manana')
+  assert.equal(franjaDeHora('11:30'), 'manana')
+  assert.equal(franjaDeHora('12:00'), 'tarde')
+  assert.equal(franjaDeHora('17:30'), 'tarde')
+  assert.equal(franjaDeHora('18:00'), 'noche')
+  assert.equal(franjaDeHora('21:30'), 'noche')
+  const canchas = [{ id: 'c1', nombre: '01' }]
+  const h = horariosDisponibles(canchas, { singles: [
+    { cancha_id: 'c1', inicio: '2026-11-26T22:00:00.000Z', hora: '19:00', hora_real: '19:05' },
+    { cancha_id: 'c1', inicio: '2026-11-26T11:00:00.000Z', hora: '08:00', hora_real: '08:05' },
+  ] }, 'singles')
+  const g = horariosPorFranja(h)
+  assert.deepEqual(g.map(x => [x.franja, x.titulo, x.horarios.length]), [['manana', 'Mañana', 1], ['noche', 'Noche', 1]])
+})
+
+caso('day labels: today and tomorrow are named, the rest show short weekday and day', () => {
+  assert.equal(diaCorto('2026-11-25'), 'mié 25')
+  assert.equal(diaCorto('2026-11-29'), 'dom 29')
+  assert.equal(etiquetaDia('2026-11-25', '2026-11-25'), 'Hoy · mié 25')
+  assert.equal(etiquetaDia('2026-11-26', '2026-11-25'), 'Mañana · jue 26')
+  assert.equal(etiquetaDia('2026-11-27', '2026-11-25'), 'vie 27')
+  assert.equal(etiquetaDia('2026-12-01', '2026-11-30'), 'Mañana · mar 01')
+})
+
+caso('durations: whole hours and hours with minutes', () => {
+  assert.equal(duracionTexto(60), '1 h')
+  assert.equal(duracionTexto(90), '1 h 30')
+  assert.equal(duracionTexto(120), '2 h')
+  assert.equal(duracionTexto(45), '45 min')
+})
+
+caso('booking bar: says the first thing still missing, in page order', () => {
+  const base = { hayHorario: true, hayCancha: true, modalidad: 'singles' as const, erroresTitular: {}, erroresJugadores: [{}] }
+  assert.equal(faltaParaReservar(base), null)
+  assert.deepEqual(faltaParaReservar({ ...base, hayHorario: false, hayCancha: false, erroresTitular: { dni: 'x' } }),
+    { paso: 'horario', mensaje: 'Elegí un horario' })
+  assert.deepEqual(faltaParaReservar({ ...base, hayCancha: false }), { paso: 'cancha', mensaje: 'Elegí una cancha' })
+  assert.deepEqual(faltaParaReservar({ ...base, erroresTitular: { email: 'x' }, erroresJugadores: [{ dni: 'x' }] }),
+    { paso: 'titular', mensaje: 'Completá tus datos' })
+  assert.deepEqual(faltaParaReservar({ ...base, erroresJugadores: [{ dni: 'x' }] }),
+    { paso: 'jugadores', mensaje: 'Completá los datos de tu rival' })
+  assert.deepEqual(faltaParaReservar({ ...base, modalidad: 'dobles', erroresJugadores: [{}, {}, { nombre: 'x' }] }),
+    { paso: 'jugadores', mensaje: 'Completá los datos de los otros jugadores' })
 })
 
 caso('receipt deadline: 3 h before the turn, formatted in Argentina', () => {

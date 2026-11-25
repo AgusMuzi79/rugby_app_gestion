@@ -81,10 +81,10 @@ function nombreValido(v: string) {
 
 export function validarTitular(t: Titular): Errores<keyof Titular> {
   const e: Errores<keyof Titular> = {}
-  if (!normalizarDni(t.dni)) e.dni = 'Ingresá un DNI válido (sólo números).'
-  if (!nombreValido(t.nombre)) e.nombre = 'Ingresá tu nombre.'
-  if (!nombreValido(t.apellido)) e.apellido = 'Ingresá tu apellido.'
-  if (!validarEmail(t.email)) e.email = 'Ingresá un email válido.'
+  if (!normalizarDni(t.dni)) e.dni = 'El DNI tiene que tener 7 u 8 números.'
+  if (!nombreValido(t.nombre)) e.nombre = 'Escribí tu nombre (al menos 2 letras).'
+  if (!nombreValido(t.apellido)) e.apellido = 'Escribí tu apellido (al menos 2 letras).'
+  if (!validarEmail(t.email)) e.email = 'Revisá el email: tiene que ser como nombre@mail.com.'
   return e
 }
 
@@ -105,12 +105,12 @@ export function validarJugadores(jugadores: JugadorForm[], dniTitular: string): 
   return jugadores.map(j => {
     const e: Errores<'dni' | 'nombre' | 'apellido'> = {}
     const dni = normalizarDni(j.dni)
-    if (!dni) e.dni = 'Ingresá un DNI válido (sólo números).'
-    else if (vistos.has(dni)) e.dni = 'Este DNI ya está en la reserva.'
+    if (!dni) e.dni = 'El DNI tiene que tener 7 u 8 números.'
+    else if (vistos.has(dni)) e.dni = 'Este DNI ya está en la reserva: cada jugador lleva el suyo.'
     else vistos.add(dni)
     if (j.tipo === 'invitado') {
-      if (!nombreValido(j.nombre)) e.nombre = 'Ingresá el nombre.'
-      if (!nombreValido(j.apellido)) e.apellido = 'Ingresá el apellido.'
+      if (!nombreValido(j.nombre)) e.nombre = 'Escribí el nombre (al menos 2 letras).'
+      if (!nombreValido(j.apellido)) e.apellido = 'Escribí el apellido (al menos 2 letras).'
     }
     return e
   })
@@ -201,6 +201,100 @@ export function turnosDesdeLibres(canchas: Cancha[], libres: unknown): { cancha:
     cancha,
     turnos: (porCancha.get(cancha.id) ?? []).sort((a, b) => a.inicio.localeCompare(b.inicio)),
   }))
+}
+
+// ---------- time-first picker ----------
+
+export type Franja = 'manana' | 'tarde' | 'noche'
+// One start time free in at least one court. `hora` = booked module (`inicio`
+// is what the booking sends); `horaReal` = real start after court sweeping.
+export type Horario = { hora: string; horaReal: string; inicio: string; franja: Franja; canchas: Cancha[] }
+
+const FRANJAS: { franja: Franja; titulo: string }[] = [
+  { franja: 'manana', titulo: 'Mañana' },
+  { franja: 'tarde', titulo: 'Tarde' },
+  { franja: 'noche', titulo: 'Noche' },
+]
+
+// Morning before 12, afternoon 12 to 18, night from 18 ("HH:MM", Argentina).
+export function franjaDeHora(hora: string): Franja {
+  const h = Number(hora.slice(0, 2))
+  return h < 12 ? 'manana' : h < 18 ? 'tarde' : 'noche'
+}
+
+// The function's free starts (`disponibilidad.libres`) for one match type,
+// deduplicated by start: each time lists the courts free then, in `canchas`
+// order. The server already applied every rule (incl. the no-gap optimizer).
+export function horariosDisponibles(canchas: Cancha[], libres: unknown, modalidad: Modalidad): Horario[] {
+  const porModalidad = libres && typeof libres === 'object' ? (libres as Record<string, unknown>)[modalidad] : undefined
+  const orden = new Map(canchas.map((c, i) => [c.id, i]))
+  const porInicio = new Map<string, Horario>()
+  for (const { cancha, turnos } of turnosDesdeLibres(canchas, porModalidad)) {
+    for (const t of turnos) {
+      let h = porInicio.get(t.inicio)
+      if (!h) {
+        h = { hora: t.hora, horaReal: t.empieza, inicio: t.inicio, franja: franjaDeHora(t.hora), canchas: [] }
+        porInicio.set(t.inicio, h)
+      }
+      h.canchas.push(cancha)
+    }
+  }
+  return [...porInicio.values()]
+    .map(h => ({ ...h, canchas: h.canchas.sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0)) }))
+    .sort((a, b) => a.inicio.localeCompare(b.inicio))
+}
+
+// Times grouped by band, in day order; bands without times are left out.
+export function horariosPorFranja(horarios: Horario[]): { franja: Franja; titulo: string; horarios: Horario[] }[] {
+  return FRANJAS
+    .map(f => ({ ...f, horarios: horarios.filter(h => h.franja === f.franja) }))
+    .filter(f => f.horarios.length > 0)
+}
+
+const DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+
+// "mié 25"
+export function diaCorto(fecha: string): string {
+  return `${DIAS_CORTOS[new Date(fecha + 'T12:00:00Z').getUTCDay()]} ${fecha.slice(8, 10)}`
+}
+
+// Day chip: "Hoy · mié 25", "Mañana · jue 26", then "vie 27". `hoy` is the Argentina date.
+export function etiquetaDia(fecha: string, hoy: string): string {
+  const dias = Math.round((Date.parse(fecha + 'T12:00:00Z') - Date.parse(hoy + 'T12:00:00Z')) / 86_400_000)
+  if (dias === 0) return `Hoy · ${diaCorto(fecha)}`
+  if (dias === 1) return `Mañana · ${diaCorto(fecha)}`
+  return diaCorto(fecha)
+}
+
+// 60 → "1 h", 90 → "1 h 30", 45 → "45 min".
+export function duracionTexto(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m} min`
+  return m === 0 ? `${h} h` : `${h} h ${m}`
+}
+
+export type PasoFaltante = 'horario' | 'cancha' | 'titular' | 'jugadores'
+
+// First thing still missing before the booking can be sent, in page order
+// (null when everything is ready). Shown in the sticky booking bar.
+export function faltaParaReservar(p: {
+  hayHorario: boolean
+  hayCancha: boolean
+  modalidad: Modalidad
+  erroresTitular: object
+  erroresJugadores: object[]
+}): { paso: PasoFaltante; mensaje: string } | null {
+  if (!p.hayHorario) return { paso: 'horario', mensaje: 'Elegí un horario' }
+  if (!p.hayCancha) return { paso: 'cancha', mensaje: 'Elegí una cancha' }
+  if (!sinErrores(p.erroresTitular)) return { paso: 'titular', mensaje: 'Completá tus datos' }
+  if (!sinErrores(p.erroresJugadores)) {
+    return {
+      paso: 'jugadores',
+      mensaje: p.modalidad === 'singles' ? 'Completá los datos de tu rival' : 'Completá los datos de los otros jugadores',
+    }
+  }
+  return null
 }
 
 export function vencimientoComprobante(inicio: string, horasAntes = CONFIG_DEFAULT.comprobante_horas_antes): string {
