@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  CONFIG_DEFAULT, configDesde, fechasReservables, hoyArgentina, formatearFecha, formatearFechaHora, formatearPrecio,
-  jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, sinErrores,
-  turnosDesdeLibres, validarJugadores, validarTitular,
-  type Cancha, type JugadorForm, type Libre, type Modalidad, type TenisConfig, type Titular, type Turno,
+  CONFIG_DEFAULT, configDesde, diaCorto, duracionTexto, etiquetaDia, faltaParaReservar, fechasReservables,
+  formatearFecha, formatearFechaHora, formatearPrecio, horariosDisponibles, horariosPorFranja, hoyArgentina,
+  jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, validarJugadores, validarTitular,
+  type Cancha, type JugadorForm, type Libre, type Modalidad, type PasoFaltante, type TenisConfig, type Titular,
 } from '@/lib/tenis'
 import { tenisInvitados, type Resultado } from './api'
 import AvisoSanciones from './AvisoSanciones'
-import { Aviso, BotonPrincipal, Campo, Opcion, Seccion } from './ui'
+import { Campo, ETIQUETA_GRUPO, Opcion, Paso, Seccion } from './ui'
 
 // tenis-invitados `disponibilidad`: free starts per match type come computed
 // by the function (`libres`); `ocupados` is not needed here.
@@ -25,9 +25,17 @@ type RespuestaReservar = {
   jugadores?: { nombre: string; cargo: number; motivo?: string | null; es_titular?: boolean }[]
   email_enviado?: boolean
 }
-type Seleccion = { cancha: Cancha; turno: Turno }
+// What was booked, kept for the "pending" screen (the grid may reload after).
+type Reservado = { fecha: string; cancha: Cancha; empieza: string; modalidad: Modalidad }
 
 const TITULAR_VACIO: Titular = { dni: '', nombre: '', apellido: '', email: '' }
+const NOMBRE_MODALIDAD: Record<Modalidad, string> = { singles: 'Singles', dobles: 'Dobles' }
+const BOTON_SECUNDARIO =
+  'font-lora text-sm text-tinta bg-card border border-borde-control px-4 min-h-11 hover:border-oro transition-colors'
+
+function capitalizar(t: string) {
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
 
 export default function ReservarForm() {
   // Bookable days come from the clock and the server `anticipacion_dias`
@@ -42,13 +50,18 @@ export default function ReservarForm() {
   const [fecha, setFecha] = useState(fechas[0])
   const [modalidad, setModalidad] = useState<Modalidad>('singles')
   const [disp, setDisp] = useState<{ estado: 'cargando' | 'ok' | 'error'; data?: Disponibilidad; error?: string }>({ estado: 'cargando' })
-  const [seleccion, setSeleccion] = useState<Seleccion | null>(null)
+  // Time first (`inicio` of the start), then one of the courts free at it.
+  const [horaSel, setHoraSel] = useState<string | null>(null)
+  const [canchaSel, setCanchaSel] = useState<string | null>(null)
   const [titular, setTitular] = useState<Titular>(TITULAR_VACIO)
   const [jugadores, setJugadores] = useState<JugadorForm[]>([jugadorVacio()])
   const [intentado, setIntentado] = useState(false)
+  // Fields left at least once: their errors show inline before any submit.
+  const [tocados, setTocados] = useState<ReadonlySet<string>>(() => new Set())
   const [enviando, setEnviando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
   const [listo, setListo] = useState<RespuestaReservar | null>(null)
+  const [reservado, setReservado] = useState<Reservado | null>(null)
   // Sanctions notice open: the booking is sent only after "ENTENDIDO, RESERVAR".
   const [avisando, setAvisando] = useState(false)
   const pedido = useRef(0)
@@ -93,17 +106,29 @@ export default function ReservarForm() {
   useEffect(() => { if (listo) listoRef.current?.focus() }, [listo])
 
   const config = configDesde(disp.data?.config)
-  const libres = useMemo(() => disp.estado === 'ok'
-    ? turnosDesdeLibres(disp.data?.canchas ?? [], disp.data?.libres?.[modalidad])
+  // One deduplicated list of start times free in at least one court.
+  const horarios = useMemo(() => disp.estado === 'ok'
+    ? horariosDisponibles(disp.data?.canchas ?? [], disp.data?.libres, modalidad)
     : [],
   [disp, modalidad])
+  const franjas = useMemo(() => horariosPorFranja(horarios), [horarios])
+  const horario = horarios.find(h => h.inicio === horaSel) ?? null
+  const cancha = horario?.canchas.find(c => c.id === canchaSel) ?? null
 
-  // Selection no longer free (other match type or reloaded grid) → drop it.
+  // Another day, match type or a reloaded grid: drop a time that is no longer
+  // free, and move the court to the first free one at the chosen time.
   useEffect(() => {
-    if (seleccion && !libres.some(c => c.cancha.id === seleccion.cancha.id && c.turnos.some(t => t.inicio === seleccion.turno.inicio))) {
-      setSeleccion(null)
-    }
-  }, [libres, seleccion])
+    if (!horaSel) return
+    const h = horarios.find(x => x.inicio === horaSel)
+    if (!h) { setHoraSel(null); setCanchaSel(null); return }
+    if (!canchaSel || !h.canchas.some(c => c.id === canchaSel)) setCanchaSel(h.canchas[0]?.id ?? null)
+  }, [horarios, horaSel, canchaSel])
+
+  function elegirHorario(inicio: string) {
+    setHoraSel(inicio)
+    setCanchaSel(horarios.find(h => h.inicio === inicio)?.canchas[0]?.id ?? null)
+    setErrorEnvio(null)
+  }
 
   function cambiarModalidad(m: Modalidad) {
     setModalidad(m)
@@ -115,34 +140,59 @@ export default function ReservarForm() {
     setJugadores(prev => prev.map((j, k) => (k === i ? { ...j, ...cambio } : j)))
   }
 
+  function tocar(id: string) {
+    setTocados(prev => (prev.has(id) ? prev : new Set(prev).add(id)))
+  }
+  const ver = (id: string, error: string | undefined) => (intentado || tocados.has(id) ? error : undefined)
+
   const erroresTitular = validarTitular(titular)
   const erroresJugadores = validarJugadores(jugadores, titular.dni)
   const resumen = resumenPrecios(modalidad, jugadores, config)
+  const falta = faltaParaReservar({
+    hayHorario: !!horario, hayCancha: !!cancha, modalidad, erroresTitular, erroresJugadores,
+  })
 
-  // Submit validates and opens the sanctions notice; `reservar` sends.
+  // Takes the visitor to the first missing step: the first invalid field, or
+  // the step heading for the time and court pickers.
+  function irA(paso: PasoFaltante) {
+    let id = `paso-${paso}-titulo`
+    if (paso === 'titular') {
+      const k = (['dni', 'nombre', 'apellido', 'email'] as const).find(c => erroresTitular[c])
+      if (k) id = `titular-${k}`
+    } else if (paso === 'jugadores') {
+      const i = erroresJugadores.findIndex(e => Object.keys(e).length > 0)
+      const k = (['dni', 'nombre', 'apellido'] as const).find(c => erroresJugadores[i]?.[c])
+      if (i >= 0 && k) id = `jugador-${i}-${k}`
+    }
+    const el = document.getElementById(id)
+    if (!el) return
+    const reducir = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ block: 'center', behavior: reducir ? 'auto' : 'smooth' })
+    el.focus({ preventScroll: true })
+  }
+
+  // Submit validates and opens the sanctions notice; `reservar` sends. While
+  // something is missing the button is aria-disabled: pressing it shows the
+  // errors and takes the visitor to the first missing step.
   function enviar(e: React.FormEvent) {
     e.preventDefault()
     if (enviandoRef.current) return
     setIntentado(true)
     setErrorEnvio(null)
-    if (!seleccion) { setErrorEnvio('Elegí una cancha y un horario.'); return }
-    if (!sinErrores(erroresTitular) || !sinErrores(erroresJugadores)) {
-      setErrorEnvio('Revisá los datos marcados.')
-      return
-    }
+    if (falta) { irA(falta.paso); return }
     setAvisando(true)
   }
 
   async function reservar() {
     setAvisando(false)
-    if (enviandoRef.current || !seleccion) return
+    if (enviandoRef.current || !horario || !cancha) return
     enviandoRef.current = true
     setEnviando(true)
     let r: Resultado<RespuestaReservar>
     try {
       r = await tenisInvitados<RespuestaReservar>('reservar', {
-        cancha_id: seleccion.cancha.id,
-        inicio: seleccion.turno.inicio,
+        cancha_id: cancha.id,
+        inicio: horario.inicio,
         modalidad,
         titular: {
           dni: normalizarDni(titular.dni),
@@ -156,7 +206,11 @@ export default function ReservarForm() {
       enviandoRef.current = false
       setEnviando(false)
     }
-    if (r.ok) { setListo(r.data); return }
+    if (r.ok) {
+      setReservado({ fecha, cancha, empieza: horario.horaReal, modalidad })
+      setListo(r.data)
+      return
+    }
     setErrorEnvio(r.error)
     // The grid changed since it was loaded: reload the free starts.
     if (r.codigo === 'turno_ocupado' || r.codigo === 'bloqueado' || r.codigo === 'hueco_invalido') void cargar(fecha)
@@ -175,7 +229,7 @@ export default function ReservarForm() {
             ? 'No pudimos mandarte el mail de confirmación'
             : `Revisá tu mail: tenés ${config.hold_min} minutos para confirmar la reserva`}
         </h2>
-        <div className="font-lora text-sm text-tinta/80 leading-relaxed flex flex-col gap-3">
+        <div className="font-lora text-sm text-tinta/85 leading-relaxed flex flex-col gap-3">
           {listo.email_enviado === false ? (
             <p role="alert" className="text-rojo-texto">
               No pudimos mandar el mail a <strong>{titular.email.trim()}</strong>. Sin el enlace no se puede
@@ -188,156 +242,248 @@ export default function ReservarForm() {
               abrís a tiempo, el turno se libera. Revisá también la carpeta de spam.
             </p>
           )}
-          {seleccion && (
+          {reservado && (
             <p>
-              Cancha {seleccion.cancha.nombre} · {formatearFecha(fecha)} · empieza {seleccion.turno.empieza} ·{' '}
-              {modalidad === 'singles' ? 'Singles' : 'Dobles'}
+              Cancha {reservado.cancha.nombre} · {formatearFecha(reservado.fecha)} · empieza{' '}
+              <span className="tabular-nums">{reservado.empieza}</span> · {NOMBRE_MODALIDAD[reservado.modalidad]}
             </p>
           )}
           {listo.hold_vence_at && <p>Confirmá antes de: {formatearFechaHora(listo.hold_vence_at)}.</p>}
           {listo.jugadores && listo.jugadores.length > 0 && (
             <ul className="flex flex-col gap-1">
               {listo.jugadores.map((j, i) => (
-                <li key={i} className="flex justify-between gap-4"><span>{j.nombre}</span><span>{formatearPrecio(j.cargo)}</span></li>
+                <li key={i} className="flex justify-between gap-4">
+                  <span>{j.nombre}</span><span className="tabular-nums">{formatearPrecio(j.cargo)}</span>
+                </li>
               ))}
             </ul>
           )}
           {typeof listo.total === 'number' && (
-            <p className="text-tinta font-semibold">Total a transferir: {formatearPrecio(listo.total)}</p>
+            <p className="text-tinta font-semibold tabular-nums">Total a transferir: {formatearPrecio(listo.total)}</p>
           )}
         </div>
       </Seccion>
     )
   }
 
+  const seleccionTexto = [
+    capitalizar(diaCorto(fecha)),
+    horario?.horaReal,
+    cancha ? `Cancha ${cancha.nombre}` : null,
+    NOMBRE_MODALIDAD[modalidad],
+  ].filter(Boolean).join(' · ')
+  const siguienteDia = fechas[fechas.indexOf(fecha) + 1]
+  const listoParaReservar = !falta
+
   return (
     <form onSubmit={enviar} noValidate aria-busy={enviando}>
       {/* Every control is disabled while the booking is being sent. */}
       <fieldset disabled={enviando} className="min-w-0 border-0 p-0 m-0">
-      <Seccion titulo="1. Día y tipo de partido">
-        <fieldset className="mb-4">
-          <legend className="font-lora text-xs tracking-widest text-tinta/80 mb-2">DÍA</legend>
-          <div className="flex flex-wrap gap-2">
-            {fechas.map(f => (
-              <Opcion key={f} activo={f === fecha} onClick={() => setFecha(f)}>{formatearFecha(f)}</Opcion>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className="font-lora text-xs tracking-widest text-tinta/80 mb-2">PARTIDO</legend>
-          <div className="flex flex-wrap gap-2">
-            <Opcion activo={modalidad === 'singles'} onClick={() => cambiarModalidad('singles')}>Singles · {config.singles_min / 60} h</Opcion>
-            <Opcion activo={modalidad === 'dobles'} onClick={() => cambiarModalidad('dobles')}>Dobles · {config.dobles_min / 60} h</Opcion>
-          </div>
-        </fieldset>
-      </Seccion>
+        <Paso id="paso-dia" titulo="Día y partido">
+          <fieldset className="mb-5">
+            <legend className={ETIQUETA_GRUPO}>Día</legend>
+            <div className="flex flex-wrap gap-2">
+              {fechas.map(f => (
+                <Opcion key={f} activo={f === fecha} onClick={() => setFecha(f)} label={formatearFecha(f)}>
+                  <span className="tabular-nums">{etiquetaDia(f, hoy)}</span>
+                </Opcion>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className={ETIQUETA_GRUPO}>Partido</legend>
+            <div className="flex flex-wrap gap-2">
+              <Opcion activo={modalidad === 'singles'} onClick={() => cambiarModalidad('singles')}>
+                Singles · {duracionTexto(config.singles_min)}
+              </Opcion>
+              <Opcion activo={modalidad === 'dobles'} onClick={() => cambiarModalidad('dobles')}>
+                Dobles · {duracionTexto(config.dobles_min)}
+              </Opcion>
+            </div>
+          </fieldset>
+        </Paso>
 
-      <Seccion titulo="2. Cancha y horario">
-        <p className="font-lora text-sm text-texto-2 mb-4">
-          El turno arranca {config.margen_inicio_min} minutos después del horario reservado (barrido de cancha).
-        </p>
-        {disp.estado === 'cargando' && <p role="status" className="font-lora text-sm text-texto-2">Cargando horarios…</p>}
-        {disp.estado === 'error' && (
-          <div role="alert" className="font-lora text-sm text-rojo-texto flex flex-col gap-3 items-start">
-            <p>{disp.error}</p>
-            <button type="button" onClick={() => void cargar(fecha)} className="underline text-oro">Reintentar</button>
-          </div>
-        )}
-        {disp.estado === 'ok' && (
-          libres.every(c => c.turnos.length === 0)
-            ? <p className="font-lora text-sm text-texto-2">No quedan turnos libres ese día. Probá con otro día.</p>
-            : (
-              <div className="flex flex-col gap-5">
-                {libres.filter(c => c.turnos.length > 0).map(({ cancha, turnos }) => (
-                  <fieldset key={cancha.id}>
-                    <legend className="font-lora text-xs tracking-widest text-tinta/80 mb-2">CANCHA {cancha.nombre}</legend>
-                    <div className="flex flex-wrap gap-2">
-                      {turnos.map(t => (
-                        <Opcion
-                          key={t.inicio}
-                          activo={seleccion?.cancha.id === cancha.id && seleccion.turno.inicio === t.inicio}
-                          onClick={() => setSeleccion({ cancha, turno: t })}
-                          label={`Cancha ${cancha.nombre}, empieza ${t.empieza}`}
-                        >
-                          {t.empieza}
-                        </Opcion>
-                      ))}
-                    </div>
-                  </fieldset>
+        <Paso id="paso-horario" titulo="Horario">
+          <p className="font-lora text-sm text-texto-2 mb-4">
+            Ves la hora real de inicio: el turno arranca {config.margen_inicio_min} minutos después del horario
+            reservado (barrido de cancha).
+          </p>
+          {disp.estado === 'cargando' && (
+            <div role="status">
+              <span className="sr-only">Cargando horarios…</span>
+              <div aria-hidden className="grid grid-cols-3 min-[360px]:grid-cols-4 sm:grid-cols-5 gap-2">
+                {Array.from({ length: 10 }, (_, i) => (
+                  <div key={i} className="h-16 bg-card border border-gris-claro motion-safe:animate-pulse" />
                 ))}
               </div>
-            )
-        )}
-      </Seccion>
-
-      <Seccion titulo="3. Tus datos">
-        <div className="flex flex-col gap-5">
-          <Campo id="titular-dni" label="DNI" inputMode="numeric" autoComplete="off" value={titular.dni}
-            onChange={v => setTitular({ ...titular, dni: v })} error={intentado ? erroresTitular.dni : undefined} />
-          <Campo id="titular-nombre" label="NOMBRE" autoComplete="given-name" value={titular.nombre}
-            onChange={v => setTitular({ ...titular, nombre: v })} error={intentado ? erroresTitular.nombre : undefined} />
-          <Campo id="titular-apellido" label="APELLIDO" autoComplete="family-name" value={titular.apellido}
-            onChange={v => setTitular({ ...titular, apellido: v })} error={intentado ? erroresTitular.apellido : undefined} />
-          <Campo id="titular-email" label="EMAIL" type="email" inputMode="email" autoComplete="email" value={titular.email}
-            onChange={v => setTitular({ ...titular, email: v })} error={intentado ? erroresTitular.email : undefined} />
-          <p className="font-lora text-sm text-texto-2">
-            Sos responsable de la reserva: si nadie se presenta, se te cobra el turno completo.
-          </p>
-        </div>
-      </Seccion>
-
-      <Seccion titulo={`4. ${jugadores.length === 1 ? 'Tu rival' : 'Los otros jugadores'}`}>
-        <div className="flex flex-col gap-6">
-          {jugadores.map((j, i) => {
-            const err = intentado ? erroresJugadores[i] : {}
-            const base = `jugador-${i}`
-            return (
-              <fieldset key={i} className="flex flex-col gap-4 border-t border-gris-claro pt-4 first:border-t-0 first:pt-0">
-                <legend className="font-lora text-xs tracking-widest text-tinta/80 mb-2">JUGADOR {i + 2}</legend>
-                <div className="flex flex-wrap gap-2">
-                  <Opcion activo={j.tipo === 'socio'} onClick={() => editarJugador(i, { tipo: 'socio' })}>Socio del club</Opcion>
-                  <Opcion activo={j.tipo === 'invitado'} onClick={() => editarJugador(i, { tipo: 'invitado' })}>No socio</Opcion>
-                </div>
-                <Campo id={`${base}-dni`} label="DNI" inputMode="numeric" autoComplete="off" value={j.dni}
-                  onChange={v => editarJugador(i, { dni: v })} error={err.dni} />
-                {j.tipo === 'invitado' && (
-                  <>
-                    <Campo id={`${base}-nombre`} label="NOMBRE" autoComplete="off" value={j.nombre}
-                      onChange={v => editarJugador(i, { nombre: v })} error={err.nombre} />
-                    <Campo id={`${base}-apellido`} label="APELLIDO" autoComplete="off" value={j.apellido}
-                      onChange={v => editarJugador(i, { apellido: v })} error={err.apellido} />
-                  </>
-                )}
-              </fieldset>
-            )
-          })}
-        </div>
-      </Seccion>
-
-      <Seccion titulo="5. Resumen">
-        <ul className="font-lora text-sm text-tinta/80 flex flex-col gap-2 mb-4">
-          {resumen.lineas.map((l, i) => (
-            <li key={i} className="flex justify-between gap-4">
-              <span>{l.etiqueta}</span>
-              <span className={l.precio === null ? 'text-texto-2' : 'text-tinta'}>
-                {l.precio === null ? 'precio según socio' : formatearPrecio(l.precio)}
-              </span>
-            </li>
+            </div>
+          )}
+          {disp.estado === 'error' && (
+            <div role="alert" className="font-lora text-sm flex flex-col gap-3 items-start">
+              <p className="text-rojo-texto">No pudimos cargar los horarios. {disp.error}</p>
+              <button type="button" onClick={() => void cargar(fecha)} className={BOTON_SECUNDARIO}>Reintentar</button>
+            </div>
+          )}
+          {disp.estado === 'ok' && horarios.length === 0 && (
+            <div className="font-lora text-sm flex flex-col gap-3 items-start">
+              <p className="text-tinta/85">No quedan turnos libres para este día. Probá con otro día.</p>
+              {siguienteDia && (
+                <button type="button" onClick={() => setFecha(siguienteDia)} className={BOTON_SECUNDARIO}>
+                  Ver {etiquetaDia(siguienteDia, hoy)}
+                </button>
+              )}
+            </div>
+          )}
+          {disp.estado === 'ok' && franjas.map(f => (
+            <fieldset key={f.franja} className="mb-5 last:mb-0">
+              <legend className={ETIQUETA_GRUPO}>{f.titulo}</legend>
+              <div className="grid grid-cols-3 min-[360px]:grid-cols-4 sm:grid-cols-5 gap-2">
+                {f.horarios.map(h => {
+                  const activo = h.inicio === horaSel
+                  const n = h.canchas.length
+                  return (
+                    <Opcion
+                      key={h.inicio}
+                      activo={activo}
+                      onClick={() => elegirHorario(h.inicio)}
+                      label={`Empieza ${h.horaReal}, ${n} ${n === 1 ? 'cancha libre' : 'canchas libres'}`}
+                      className="flex flex-col items-center justify-center gap-1 min-h-16"
+                    >
+                      <span className="text-lg leading-none tabular-nums">{h.horaReal}</span>
+                      <span className={`text-xs font-normal ${activo ? 'text-papel' : 'text-texto-2'}`}>
+                        {n} {n === 1 ? 'cancha' : 'canchas'}
+                      </span>
+                    </Opcion>
+                  )
+                })}
+              </div>
+            </fieldset>
           ))}
-        </ul>
-        <p className="font-lora text-base text-tinta font-semibold flex justify-between gap-4 border-t border-gris-claro pt-3">
-          <span>Total{resumen.hayPendientes ? ' (sin socios)' : ''}</span>
-          <span>{formatearPrecio(resumen.total)}</span>
-        </p>
-        <p className="font-lora text-sm text-texto-2 mt-3">
-          El pago es por transferencia. Después de confirmar por mail, subís el comprobante hasta{' '}
-          {config.comprobante_horas_antes} horas antes del turno.
-        </p>
-      </Seccion>
+        </Paso>
 
-      {errorEnvio && <Aviso tono="error">{errorEnvio}</Aviso>}
-      <BotonPrincipal type="submit" disabled={enviando}>{enviando ? 'RESERVANDO…' : 'RESERVAR'}</BotonPrincipal>
+        {horario && (
+          <Paso id="paso-cancha" titulo="Cancha">
+            <fieldset>
+              <legend className={ETIQUETA_GRUPO}>
+                Libres a las <span className="tabular-nums">{horario.horaReal}</span>
+              </legend>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {horario.canchas.map(c => (
+                  <Opcion key={c.id} activo={c.id === canchaSel} onClick={() => setCanchaSel(c.id)}>
+                    <span className="tabular-nums">Cancha {c.nombre}</span>
+                  </Opcion>
+                ))}
+              </div>
+            </fieldset>
+          </Paso>
+        )}
+
+        <Paso id="paso-titular" titulo="Tus datos">
+          <div className="flex flex-col gap-4">
+            <Campo id="titular-dni" label="DNI" inputMode="numeric" autoComplete="off" ayuda="7 u 8 números."
+              value={titular.dni} onChange={v => setTitular({ ...titular, dni: v })}
+              onBlur={() => tocar('titular-dni')} error={ver('titular-dni', erroresTitular.dni)} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Campo id="titular-nombre" label="Nombre" autoComplete="given-name" value={titular.nombre}
+                onChange={v => setTitular({ ...titular, nombre: v })}
+                onBlur={() => tocar('titular-nombre')} error={ver('titular-nombre', erroresTitular.nombre)} />
+              <Campo id="titular-apellido" label="Apellido" autoComplete="family-name" value={titular.apellido}
+                onChange={v => setTitular({ ...titular, apellido: v })}
+                onBlur={() => tocar('titular-apellido')} error={ver('titular-apellido', erroresTitular.apellido)} />
+            </div>
+            <Campo id="titular-email" label="Email" type="email" inputMode="email" autoComplete="email"
+              ayuda="Te mandamos el enlace para confirmar la reserva." value={titular.email}
+              onChange={v => setTitular({ ...titular, email: v })}
+              onBlur={() => tocar('titular-email')} error={ver('titular-email', erroresTitular.email)} />
+            <p className="font-lora text-sm text-tinta/85">
+              Sos responsable de la reserva: si nadie se presenta, se te cobra el turno completo.
+            </p>
+          </div>
+        </Paso>
+
+        <Paso id="paso-jugadores" titulo={jugadores.length === 1 ? 'Tu rival' : 'Los otros jugadores'}>
+          <div className="flex flex-col gap-6">
+            {jugadores.map((j, i) => {
+              const err = erroresJugadores[i] ?? {}
+              const base = `jugador-${i}`
+              return (
+                <fieldset key={i} className="flex flex-col gap-4 border-t border-gris-claro pt-5 first:border-t-0 first:pt-0">
+                  <legend className={ETIQUETA_GRUPO}>Jugador {i + 2}</legend>
+                  <div className="flex flex-wrap gap-2">
+                    <Opcion activo={j.tipo === 'socio'} onClick={() => editarJugador(i, { tipo: 'socio' })}>Socio del club</Opcion>
+                    <Opcion activo={j.tipo === 'invitado'} onClick={() => editarJugador(i, { tipo: 'invitado' })}>No socio</Opcion>
+                  </div>
+                  <Campo id={`${base}-dni`} label="DNI" inputMode="numeric" autoComplete="off"
+                    ayuda={j.tipo === 'socio' ? 'Con el DNI alcanza.' : undefined} value={j.dni}
+                    onChange={v => editarJugador(i, { dni: v })}
+                    onBlur={() => tocar(`${base}-dni`)} error={ver(`${base}-dni`, err.dni)} />
+                  {j.tipo === 'invitado' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Campo id={`${base}-nombre`} label="Nombre" autoComplete="off" value={j.nombre}
+                        onChange={v => editarJugador(i, { nombre: v })}
+                        onBlur={() => tocar(`${base}-nombre`)} error={ver(`${base}-nombre`, err.nombre)} />
+                      <Campo id={`${base}-apellido`} label="Apellido" autoComplete="off" value={j.apellido}
+                        onChange={v => editarJugador(i, { apellido: v })}
+                        onBlur={() => tocar(`${base}-apellido`)} error={ver(`${base}-apellido`, err.apellido)} />
+                    </div>
+                  )}
+                </fieldset>
+              )
+            })}
+          </div>
+        </Paso>
+
+        <Paso id="paso-resumen" titulo="Resumen">
+          <ul className="font-lora text-sm text-tinta/85 flex flex-col gap-2 mb-3">
+            {resumen.lineas.map((l, i) => (
+              <li key={i} className="flex justify-between gap-4">
+                <span>{l.etiqueta}</span>
+                <span className={l.precio === null ? 'text-texto-2' : 'text-tinta tabular-nums'}>
+                  {l.precio === null ? 'precio según socio' : formatearPrecio(l.precio)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="font-lora text-base text-tinta font-semibold flex justify-between gap-4 border-t border-gris-claro pt-3">
+            <span>Total{resumen.hayPendientes ? ' (sin socios)' : ''}</span>
+            <span className="tabular-nums">{formatearPrecio(resumen.total)}</span>
+          </p>
+          <p className="font-lora text-sm text-texto-2 mt-3">
+            El pago es por transferencia. Después de confirmar por mail, subís el comprobante hasta{' '}
+            {config.comprobante_horas_antes} horas antes del turno.
+          </p>
+        </Paso>
       </fieldset>
+
+      {/* Booking bar: sticks to the bottom of the viewport while the form
+          scrolls, inside the page width. It sits in the flow after the last
+          step, so it never covers it. */}
+      <div className="sticky bottom-0 z-10 mt-10 -mx-4 sm:-mx-6 border-t border-gris-claro bg-dark px-4 sm:px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        {errorEnvio && <p role="alert" className="font-lora text-sm text-rojo-texto mb-2">{errorEnvio}</p>}
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1 font-lora">
+            <p className="text-sm text-tinta/85 truncate tabular-nums">{seleccionTexto}</p>
+            <p className="flex items-baseline gap-2 min-w-0" aria-live="polite">
+              <span className="text-xl font-semibold text-tinta tabular-nums">{formatearPrecio(resumen.total)}</span>
+              {falta
+                ? <span className="text-sm text-oro truncate">{falta.mensaje}</span>
+                : <span className="text-sm text-texto-2 truncate">{resumen.hayPendientes ? 'sin contar socios' : 'en total'}</span>}
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={enviando}
+            aria-disabled={listoParaReservar ? undefined : true}
+            className={`shrink-0 font-lora text-sm font-semibold tracking-wider px-6 min-h-12 border transition-colors disabled:opacity-60 ${
+              listoParaReservar
+                ? 'bg-oro text-papel border-oro hover:bg-oro/90'
+                : 'bg-transparent text-texto-2 border-borde-control hover:border-oro hover:text-tinta'
+            }`}
+          >
+            {enviando ? 'RESERVANDO…' : 'RESERVAR'}
+          </button>
+        </div>
+      </div>
       {avisando && <AvisoSanciones onVolver={() => setAvisando(false)} onConfirmar={() => void reservar()} />}
     </form>
   )
