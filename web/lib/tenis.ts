@@ -327,3 +327,9 @@ export function pantallaConfirmar(codigo: string | undefined): 'invalido' | 'ven
   }
   return 'error'
 }
+
+// Notice shown before a guest booking is sent. Same copy as app/lib/tenis.ts.
+export const AVISO_SANCIONES = {
+  titulo: 'Antes de confirmar',
+  texto:  'Si no cumplís con la reserva (no te presentás o los jugadores no están bien cargados), se aplican sanciones: la primera vez es un aviso y después podés quedar suspendido para reservar. Si no se presentan, el titular paga el turno de todos.',
+} as const

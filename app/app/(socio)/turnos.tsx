@@ -1,38 +1,32 @@
-import { useCallback, useRef } from 'react'
 import { View, Text, ScrollView, RefreshControl, StyleSheet } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
-import { TurnosGimnasio } from '@/components/shared/TurnosGimnasio'
+import { ReservarAgenda } from '@/components/shared/ReservarAgenda'
 import { AgendaEventos } from '@/components/socio/AgendaEventos'
-import { TenisSocio, type TenisSocioRef } from '@/components/tenis/TenisSocio'
 import { FEATURES } from '@/constants/features'
 import { useAgenda } from '@/hooks/useAgenda'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
-import { puedeVerAgenda } from '@/lib/agenda'
+import { opcionesReserva } from '@/lib/agenda'
 import { colors, fonts } from '@/constants/theme'
 
-// Pestaña "Agenda" del socio (ruta histórica `turnos`): eventos de sus
-// divisiones y, si tiene el servicio, el turnero del gimnasio debajo.
+// Pestaña "Agenda" del socio (ruta histórica `turnos`): arriba el botón
+// RESERVAR (gimnasio si tiene el servicio; tenis con FEATURES.tenis, para todo
+// socio) y debajo los eventos de sus divisiones. El turnero y la sección Tenis
+// se abren en sheets desde el botón (components/shared/ReservarAgenda.tsx).
 // La agenda la carga el layout (decide si se ve la pestaña); acá se recarga al
-// volver a la pestaña. Con FEATURES.tenis, debajo de los eventos va la
-// sección Tenis (reservas de canchas), que ve todo socio activo.
+// volver a la pestaña.
 
 export default function AgendaScreen() {
   const insets = useSafeAreaInsets()
-  const { agenda, loading, error, refetch: refetchAgenda } = useAgenda()
-  const tenisRef = useRef<TenisSocioRef>(null)
-  const refetch = useCallback(async () => {
-    tenisRef.current?.refetch()
-    await refetchAgenda()
-  }, [refetchAgenda])
+  const { agenda, loading, error, refetch } = useAgenda()
   useRefreshOnFocus(refetch)
 
-  const eventos = (
-    <>
-      <AgendaEventos agenda={agenda} loading={loading} error={error} onReintentar={refetchAgenda} />
-      {FEATURES.tenis && <TenisSocio ref={tenisRef} />}
-    </>
-  )
+  const opciones = opcionesReserva({
+    tieneGimnasio: agenda?.tiene_gimnasio ?? false,
+    tenisActivo:   FEATURES.tenis,
+    esSocio:       true,
+  })
+  const sinEventos = agenda && !error && agenda.divisiones.length === 0
 
   return (
     <View style={s.root}>
@@ -40,19 +34,20 @@ export default function AgendaScreen() {
         <Header />
       </View>
 
-      {agenda?.tiene_gimnasio ? (
-        <TurnosGimnasio encabezado={eventos} onRefresh={refetch} />
-      ) : (
-        <ScrollView
-          contentContainerStyle={s.contenido}
-          refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.oro} />}
-        >
-          {eventos}
-          {!FEATURES.tenis && agenda && !error && !puedeVerAgenda(agenda) && (
-            <Text style={s.vacio}>No tenés eventos de división ni turnos de gimnasio.</Text>
-          )}
-        </ScrollView>
-      )}
+      <ScrollView
+        contentContainerStyle={s.contenido}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.oro} />}
+      >
+        <ReservarAgenda opciones={opciones} />
+        <AgendaEventos agenda={agenda} loading={loading} error={error} onReintentar={refetch} />
+        {sinEventos && (
+          <Text style={s.vacio}>
+            {opciones.length > 0
+              ? 'No tenés eventos de división esta semana.'
+              : 'No tenés eventos de división ni reservas disponibles.'}
+          </Text>
+        )}
+      </ScrollView>
     </View>
   )
 }

@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict'
 import {
-  normalizarDni, validarEmail, validarTitular, validarJugadores, jugadoresRequeridos,
+  AVISO_SANCIONES, normalizarDni, validarEmail, validarTitular, validarJugadores, jugadoresRequeridos,
   formatearPrecio, resumenPrecios, fechasReservables, hoyArgentina, horaArgentina,
   inicioIso, turnosDesdeLibres, vencimientoComprobante, formatearFechaHora, validarComprobante,
   mensajeTenis, mensajeRespuesta, pantallaConfirmar, jugadoresPayload, CODIGOS_TENIS, CONFIG_DEFAULT,
@@ -213,6 +213,13 @@ caso('confirm page: which screen each code shows', () => {
   assert.equal(pantallaConfirmar('estado_invalido'), 'vencido')
   assert.equal(pantallaConfirmar(undefined), 'error')
   assert.equal(pantallaConfirmar('parametros'), 'error')
+})
+
+caso('AVISO_SANCIONES: warns about sanctions, suspension and that the holder pays', () => {
+  assert.equal(AVISO_SANCIONES.titulo, 'Antes de confirmar')
+  assert.match(AVISO_SANCIONES.texto, /sanciones/)
+  assert.match(AVISO_SANCIONES.texto, /suspendido/)
+  assert.match(AVISO_SANCIONES.texto, /titular/)
 })
 
 console.log(`\n${casos} casos ok`)

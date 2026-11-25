@@ -12,6 +12,7 @@ import {
   mostrarTabAgenda,
   parsearAgenda,
   nombreMisDivisiones,
+  opcionesReserva,
   puedeVerAgenda,
   ventanaAgenda,
   type DivisionAgenda,
@@ -155,6 +156,34 @@ caso('nombreMisDivisiones: una, dos y tres divisiones', () => {
   assert.equal(nombreMisDivisiones([M15]), 'M15')
   assert.equal(nombreMisDivisiones([M15, SUB14]), 'M15 y Sub 14')
   assert.equal(nombreMisDivisiones([M15, SUB14, M21]), 'M15, Sub 14 y M21')
+})
+
+// ─── Botón RESERVAR ───────────────────────────────────────────────────────────
+
+caso('opcionesReserva: sin gimnasio ni tenis no hay botón', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: false, tenisActivo: false, esSocio: true }), [])
+})
+
+caso('opcionesReserva: sólo gimnasio', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: true, tenisActivo: false, esSocio: true }), ['gimnasio'])
+})
+
+caso('opcionesReserva: sólo tenis (socio sin gimnasio, tenis activo)', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: false, tenisActivo: true, esSocio: true }), ['tenis'])
+})
+
+caso('opcionesReserva: gimnasio y tenis, en ese orden', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: true, tenisActivo: true, esSocio: true }), ['gimnasio', 'tenis'])
+})
+
+caso('opcionesReserva: cliente gimnasio nunca tiene tenis', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: true, tenisActivo: true, esSocio: false }), ['gimnasio'])
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: false, tenisActivo: true, esSocio: false }), [])
+})
+
+caso('opcionesReserva: con el flag de tenis apagado el socio sólo tiene gimnasio', () => {
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: false, tenisActivo: false, esSocio: true }), [])
+  assert.deepEqual(opcionesReserva({ tieneGimnasio: true, tenisActivo: false, esSocio: true }), ['gimnasio'])
 })
 
 console.log(`\n${casos} casos OK`)

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { View, Text, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
@@ -9,6 +9,7 @@ import {
   type Cancha, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type TenisConfig,
 } from '@/lib/tenis'
 import type { ResultadoTenis } from '@/hooks/useTenisRpc'
+import { AvisoSanciones } from './AvisoSanciones'
 import { BuscadorJugador, type JugadorElegido } from './BuscadorJugador'
 import { Aviso, BarraModal, Boton, Chip, Titulo, estilosTenis } from './ui'
 
@@ -46,14 +47,19 @@ export function FormReserva({
   const [titular,   setTitular]   = useState<JugadorElegido | null>(null)
   const [jugadores, setJugadores] = useState<JugadorElegido[]>([])
   const [enviando,  setEnviando]  = useState(false)
+  // Guard sincrónico: un doble toque en "ENTENDIDO, CONFIRMAR" llega antes de
+  // que `enviando` se vuelva a renderizar y no debe mandar la reserva dos veces.
+  const enviandoRef = useRef(false)
   const [error,     setError]     = useState<string | null>(null)
   const [resultado, setResultado] = useState<ResultadoReserva | null>(null)
+  // Socio: antes de reservar se muestra el aviso de sanciones (el staff no).
+  const [avisando,  setAvisando]  = useState(false)
 
   // Cada vez que se abre arranca limpio con la celda tocada.
   useEffect(() => {
     if (!visible) return
     setCanchaId(canchaInicial); setHora(horaInicial); setModalidad('singles')
-    setTitular(null); setJugadores([]); setError(null); setResultado(null)
+    setTitular(null); setJugadores([]); setError(null); setResultado(null); setAvisando(false)
   }, [visible, canchaInicial, horaInicial])
 
   // El socio sólo ve horarios que no dejan huecos inutilizables (optimizador);
@@ -76,18 +82,31 @@ export function FormReserva({
   const excluir = [...jugadores.map(j => j.clave), ...(titular ? [titular.clave] : [])]
   const completo = !!canchaId && !!hora && jugadores.length === requeridos && (!staff || !!titular)
 
+  function pedirConfirmacion() {
+    if (!completo || enviando) return
+    if (staff) void confirmar()
+    else setAvisando(true)
+  }
+
   async function confirmar() {
-    if (!completo || !canchaId || !hora) return
+    setAvisando(false)
+    if (!completo || !canchaId || !hora || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     setError(null)
-    const r = await onConfirmar({
-      canchaId,
-      inicio: isoArgentina(fecha, hora),
-      modalidad,
-      jugadores: jugadores.map(j => j.entrada),
-      titular: titular?.entrada,
-    })
-    setEnviando(false)
+    let r: Awaited<ReturnType<typeof onConfirmar>>
+    try {
+      r = await onConfirmar({
+        canchaId,
+        inicio: isoArgentina(fecha, hora),
+        modalidad,
+        jugadores: jugadores.map(j => j.entrada),
+        titular: titular?.entrada,
+      })
+    } finally {
+      enviandoRef.current = false
+      setEnviando(false)
+    }
     if (r.ok) setResultado(r.data)
     else setError(r.mensaje)
   }
@@ -174,12 +193,13 @@ export function FormReserva({
                 )}
 
                 {error && <Aviso tipo="error">{error}</Aviso>}
-                <Boton texto="CONFIRMAR RESERVA" onPress={confirmar} cargando={enviando} disabled={!completo} />
+                <Boton texto="CONFIRMAR RESERVA" onPress={pedirConfirmacion} cargando={enviando} disabled={!completo} />
                 <Aviso>El precio se calcula al confirmar: con Carnet Tenis el primer turno del día no se cobra.</Aviso>
               </>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
+        <AvisoSanciones visible={avisando} onVolver={() => setAvisando(false)} onConfirmar={() => void confirmar()} />
       </SafeAreaView>
     </Modal>
   )

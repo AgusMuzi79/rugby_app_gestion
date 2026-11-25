@@ -8,6 +8,7 @@ import {
   type Cancha, type JugadorForm, type Libre, type Modalidad, type TenisConfig, type Titular, type Turno,
 } from '@/lib/tenis'
 import { tenisInvitados, type Resultado } from './api'
+import AvisoSanciones from './AvisoSanciones'
 import { Aviso, BotonPrincipal, Campo, Opcion, Seccion } from './ui'
 
 // tenis-invitados `disponibilidad`: free starts per match type come computed
@@ -48,6 +49,8 @@ export default function ReservarForm() {
   const [enviando, setEnviando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
   const [listo, setListo] = useState<RespuestaReservar | null>(null)
+  // Sanctions notice open: the booking is sent only after "ENTENDIDO, RESERVAR".
+  const [avisando, setAvisando] = useState(false)
   const pedido = useRef(0)
   // Synchronous in-flight guard: a second submit before React re-renders
   // (double click, Enter + click) must not create a second hold and email.
@@ -116,7 +119,8 @@ export default function ReservarForm() {
   const erroresJugadores = validarJugadores(jugadores, titular.dni)
   const resumen = resumenPrecios(modalidad, jugadores, config)
 
-  async function enviar(e: React.FormEvent) {
+  // Submit validates and opens the sanctions notice; `reservar` sends.
+  function enviar(e: React.FormEvent) {
     e.preventDefault()
     if (enviandoRef.current) return
     setIntentado(true)
@@ -126,6 +130,12 @@ export default function ReservarForm() {
       setErrorEnvio('Revisá los datos marcados.')
       return
     }
+    setAvisando(true)
+  }
+
+  async function reservar() {
+    setAvisando(false)
+    if (enviandoRef.current || !seleccion) return
     enviandoRef.current = true
     setEnviando(true)
     let r: Resultado<RespuestaReservar>
@@ -328,6 +338,7 @@ export default function ReservarForm() {
       {errorEnvio && <Aviso tono="error">{errorEnvio}</Aviso>}
       <BotonPrincipal type="submit" disabled={enviando}>{enviando ? 'RESERVANDO…' : 'RESERVAR'}</BotonPrincipal>
       </fieldset>
+      {avisando && <AvisoSanciones onVolver={() => setAvisando(false)} onConfirmar={() => void reservar()} />}
     </form>
   )
 }

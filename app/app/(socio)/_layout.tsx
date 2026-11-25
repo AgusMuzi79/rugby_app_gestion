@@ -9,8 +9,8 @@ import { FEATURES } from '@/constants/features'
 export default function SocioLayout() {
   // La agenda se carga una vez acá: decide si se ve la pestaña y la pantalla
   // la lee del contexto. Oculta mientras carga; si falla se muestra (la
-  // pantalla ofrece Reintentar). Con FEATURES.tenis la ve todo socio: tiene
-  // la sección de reservas de tenis.
+  // pantalla ofrece Reintentar). Con FEATURES.tenis la ve todo socio: el
+  // botón RESERVAR le ofrece tenis.
   const agenda = useAgendaEstado()
   const verAgenda = verTabAgenda(FEATURES.tenis, mostrarTabAgenda(agenda))
 
