@@ -5,7 +5,9 @@ import { supabaseAdmin } from './supabase-admin.ts'
 import { enviarEmail, emailTemplate } from './email.ts'
 import { enviarPush, esTokenExpo, trocear, type PushItem } from './expoPush.ts'
 import { tutoresPorSocio } from './tutores.ts'
-import { configDesdeFila, type TenisConfig } from './tenisReglas.ts'
+import { clavePush, configDesdeFila, type EstadoPush, type TenisConfig } from './tenisReglas.ts'
+
+export { clavePush, type EstadoPush }
 
 const LOTE_IN = 100
 
@@ -152,13 +154,6 @@ export interface AvisoPush {
   title: string
   body: string
   data?: Record<string, unknown>
-}
-
-export type EstadoPush = 'entregado' | 'sin_dispositivo' | 'error'
-
-/** Clave de un aviso en el resultado de pushASociosDetalle. */
-export function clavePush(a: Pick<AvisoPush, 'clave' | 'socioId'>): string {
-  return `${a.clave}#${a.socioId}`
 }
 
 /**

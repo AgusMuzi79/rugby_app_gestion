@@ -32,6 +32,7 @@ import { supabaseAdmin } from '../_shared/supabase-admin.ts'
 import { corsHeaders, jsonOk, jsonError } from '../_shared/cors.ts'
 import {
   TENIS_CONFIG_DEFAULT,
+  clasificarAvisosJugadores,
   describirTurno,
   escapeHtml,
   formatoPesos,
@@ -44,7 +45,6 @@ import {
 import {
   cargarConfig,
   cargarReservas,
-  clavePush,
   mailAInvitado,
   pushASocios,
   pushASociosDetalle,
@@ -92,22 +92,18 @@ async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) =>
   }))
 
   // Si el envío entero falla, todos quedan con error y se reintentan en la corrida siguiente.
-  let estados = new Map<string, EstadoPush>()
-  let motivo = 'expo: no entregado'
+  let envio: { estados: Map<string, EstadoPush> } | { error: string }
   try {
-    estados = await pushASociosDetalle(pushes)
+    envio = { estados: await pushASociosDetalle(pushes) }
   } catch (e) {
-    motivo = e instanceof Error ? e.message : String(e)
-    fallo('push a jugadores agregados', e)
+    envio = { error: e instanceof Error ? e.message : String(e) }
+    fallo('push a jugadores', e)
   }
 
-  const resultados = pushes.map((p) => {
-    const resultado = estados.get(clavePush(p)) ?? 'error'
-    if (resultado === 'entregado') out.avisos_jugadores_entregados++
-    else if (resultado === 'sin_dispositivo') out.avisos_jugadores_sin_dispositivo++
-    else out.avisos_jugadores_error++
-    return { id: p.clave, resultado, error: resultado === 'error' ? motivo : null }
-  })
+  const { resultados, entregados, sin_dispositivo, con_error } = clasificarAvisosJugadores(reclamo.avisos, envio)
+  out.avisos_jugadores_entregados = entregados
+  out.avisos_jugadores_sin_dispositivo = sin_dispositivo
+  out.avisos_jugadores_error = con_error
   const { error: errMarcar } = await supabaseAdmin.rpc('tenis_avisos_jugadores_marcar', { p_resultados: resultados })
   if (errMarcar) fallo('marcar avisos a jugadores (vuelven a salir a los 10 minutos)', errMarcar.message)
   return out

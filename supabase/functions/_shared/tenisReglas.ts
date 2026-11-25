@@ -677,6 +677,46 @@ export function textoAvisoJugador(
   return a.motivo === 'cambio' ? textoJugadorCambio(a, cfg) : textoJugadorAgregado(a, cfg)
 }
 
+// ─── Resultado de cada push para marcar la outbox ─────────────────────────────
+
+/** Estado de un aviso push: llegó a algún teléfono, nadie tiene teléfono, o Expo no lo entregó. */
+export type EstadoPush = 'entregado' | 'sin_dispositivo' | 'error'
+
+/** Clave de un aviso (clave + socio) en el resultado del envío (pushASociosDetalle). */
+export function clavePush(a: { clave: string; socioId: string }): string {
+  return `${a.clave}#${a.socioId}`
+}
+
+export interface ResultadoAvisoJugador {
+  id: string
+  resultado: EstadoPush
+  error: string | null
+}
+
+/**
+ * Lo que se le pasa a tenis_avisos_jugadores_marcar() por cada aviso reclamado, más los conteos.
+ * `estados`: resultado del envío por clavePush({ clave: id, socioId }); un aviso sin estado cuenta
+ * como error ('expo: no entregado'). `error`: el envío entero falló (enviarPush tiró): todos
+ * quedan con error y ese motivo, y se reintentan en la corrida siguiente.
+ */
+export function clasificarAvisosJugadores(
+  avisos: { id: string; socio_id: string }[],
+  envio: { estados: Map<string, EstadoPush> } | { error: string },
+): { resultados: ResultadoAvisoJugador[]; entregados: number; sin_dispositivo: number; con_error: number } {
+  const out = { resultados: [] as ResultadoAvisoJugador[], entregados: 0, sin_dispositivo: 0, con_error: 0 }
+  for (const a of avisos) {
+    const resultado: EstadoPush = 'estados' in envio
+      ? envio.estados.get(clavePush({ clave: a.id, socioId: a.socio_id })) ?? 'error'
+      : 'error'
+    if (resultado === 'entregado') out.entregados++
+    else if (resultado === 'sin_dispositivo') out.sin_dispositivo++
+    else out.con_error++
+    const motivo = 'error' in envio ? envio.error : 'expo: no entregado'
+    out.resultados.push({ id: a.id, resultado, error: resultado === 'error' ? motivo : null })
+  }
+  return out
+}
+
 export function escapeHtml(texto: string): string {
   return texto
     .replace(/&/g, '&amp;')
