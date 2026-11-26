@@ -6,6 +6,10 @@ import { GrillaGestor } from '@/components/tenis/GrillaGestor'
 import { ComprobantesPendientes } from '@/components/tenis/ComprobantesPendientes'
 import { Sanciones } from '@/components/tenis/Sanciones'
 import { ReglasPrecios } from '@/components/tenis/ReglasPrecios'
+import { ListadoReservas } from '@/components/tenis/ListadoReservas'
+import { Canceladas } from '@/components/tenis/Canceladas'
+import { Reportes } from '@/components/tenis/Reportes'
+import { CarteleraTenis } from '@/components/tenis/CarteleraTenis'
 import { Chip } from '@/components/tenis/ui'
 import { useEsGestorTenis } from '@/hooks/useTenisGestor'
 import { FEATURES } from '@/constants/features'
@@ -13,15 +17,19 @@ import { colors, fonts } from '@/constants/theme'
 import type { TenisConfig } from '@/lib/tenis'
 
 // Pestaña "Canchas" de la subcomisión de tenis (y admin), con FEATURES.tenis:
-// grilla del día, comprobantes de invitados, infracciones / suspensiones y
-// reglas y precios. El gestor trabaja sólo desde acá (no hay panel web).
+// grilla del día, listado de reservas, canceladas, comprobantes de invitados,
+// infracciones / suspensiones, reportes, cartelera y reglas y precios. El gestor trabaja sólo desde acá (no hay panel web).
 
-type Seccion = 'grilla' | 'comprobantes' | 'sanciones' | 'reglas'
+type Seccion = 'grilla' | 'reservas' | 'canceladas' | 'comprobantes' | 'sanciones' | 'reportes' | 'cartelera' | 'reglas'
 
 const SECCIONES: { id: Seccion; label: string }[] = [
   { id: 'grilla', label: 'GRILLA' },
+  { id: 'reservas', label: 'RESERVAS' },
+  { id: 'canceladas', label: 'CANCELADAS' },
   { id: 'comprobantes', label: 'COMPROBANTES' },
   { id: 'sanciones', label: 'SANCIONES' },
+  { id: 'reportes', label: 'REPORTES' },
+  { id: 'cartelera', label: 'CARTELERA' },
   { id: 'reglas', label: 'REGLAS' },
 ]
 
@@ -48,8 +56,12 @@ export default function CanchasScreen() {
         <View style={[s.flex, seccion !== 'grilla' && s.oculto]}>
           <GrillaGestor key={version} onConfig={onConfig} />
         </View>
+        {seccion === 'reservas' && <ListadoReservas />}
+        {seccion === 'canceladas' && <Canceladas />}
         {seccion === 'comprobantes' && <ComprobantesPendientes />}
         {seccion === 'sanciones' && <Sanciones />}
+        {seccion === 'reportes' && <Reportes />}
+        {seccion === 'cartelera' && <CarteleraTenis />}
         {seccion === 'reglas' && (
           config
             ? <ReglasPrecios config={config} onGuardado={() => setVersion(v => v + 1)} />
