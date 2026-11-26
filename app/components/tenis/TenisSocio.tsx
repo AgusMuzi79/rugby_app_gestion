@@ -14,6 +14,7 @@ import { Boton, Titulo, estilosTenis } from './ui'
 import { NavegadorDia, SelectorVista, type VistaTenis } from './NavegadorDia'
 import { DisponibilidadSemana } from './DisponibilidadSemana'
 import { diasVista, esDiaReservable, reservasPorCancha } from '@/lib/tenisGrilla'
+import { NovedadesTenis } from './NovedadesTenis'
 
 // Sección "Tenis" de la Agenda del socio (FEATURES.tenis): la grilla del día
 // (se ven `dias_vista` días y se reserva hasta `anticipacion_dias`), la vista
@@ -81,7 +82,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
     setForm({
       cancha: r.cancha_id,
       hora: horaArgentina(r.inicio),
-      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r) },
+      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r), comentario: r.comentario ?? null },
     })
   }
 
@@ -100,6 +101,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
   return (
     <View style={s.root}>
       <Titulo>TENIS</Titulo>
+      <NovedadesTenis />
       <Text style={s.subtitulo}>Tocá un horario libre para reservar. Hasta {config.anticipacion_dias} días antes.</Text>
       <SelectorVista vista={vista} onCambiar={setVista} />
 

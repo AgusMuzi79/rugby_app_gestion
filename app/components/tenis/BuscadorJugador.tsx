@@ -3,14 +3,17 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet 
 import { colors, fonts } from '@/constants/theme'
 import { buscarJugadoresTenis } from '@/hooks/useTenisSocio'
 import { normalizarDni } from '@/lib/entradaDni'
-import { validarInvitado, type JugadorBuscado, type JugadorEntrada } from '@/lib/tenis'
+import { type JugadorBuscado, type JugadorEntrada } from '@/lib/tenis'
+import { elegidoInvitado } from '@/lib/tenisReserva'
 import { Aviso, Boton, Chip, estilosTenis } from './ui'
 
 // Elegir un jugador: un socio del padrón (búsqueda por nombre o Nº de socio,
-// nunca texto libre) o un invitado no socio con DNI, nombre y apellido.
+// nunca texto libre) o un invitado no socio con DNI, nombre y apellido. Con
+// `dniOpcional` (reservas del socio y del staff) el invitado puede ir sólo con
+// nombre y apellido, como en OnDepor; corregir jugadores sigue pidiendo DNI.
 
 export interface JugadorElegido {
-  clave:   string // socio_id o 'dni:<dni>', para no repetir jugadores
+  clave:   string // socio_id, 'dni:<dni>', 'nom:<nombre apellido>' o 'designar:<n>', para no repetir jugadores
   nombre:  string
   entrada: JugadorEntrada
 }
@@ -21,10 +24,11 @@ export function elegidoDeSocio(j: JugadorBuscado): JugadorElegido {
 
 const MIN_BUSQUEDA = 3
 
-export function BuscadorJugador({ excluir, onElegir, permitirInvitado = true }: {
+export function BuscadorJugador({ excluir, onElegir, permitirInvitado = true, dniOpcional = false }: {
   excluir: string[]
   onElegir: (j: JugadorElegido) => void
   permitirInvitado?: boolean
+  dniOpcional?: boolean
 }) {
   const [modo, setModo] = useState<'socio' | 'invitado'>('socio')
   const [q, setQ] = useState('')
@@ -56,12 +60,9 @@ export function BuscadorJugador({ excluir, onElegir, permitirInvitado = true }: 
   }, [q])
 
   function agregarInvitado() {
-    const inv = { dni: normalizarDni(dni), nombre: nombre.trim(), apellido: apellido.trim() }
-    const falla = validarInvitado(inv)
-    if (falla) { setError(falla); return }
-    const clave = `dni:${inv.dni}`
-    if (excluir.includes(clave)) { setError('Ese invitado ya está en la reserva.'); return }
-    onElegir({ clave, nombre: `${inv.nombre} ${inv.apellido} (invitado)`, entrada: { invitado: inv } })
+    const r = elegidoInvitado({ dni, nombre, apellido }, excluir, { dniOpcional })
+    if (!r.ok) { setError(r.mensaje); return }
+    onElegir(r.elegido)
     setDni(''); setNombre(''); setApellido(''); setError(null)
   }
 
@@ -111,10 +112,10 @@ export function BuscadorJugador({ excluir, onElegir, permitirInvitado = true }: 
             style={[estilosTenis.input, s.espacio]}
             value={dni}
             onChangeText={t => setDni(normalizarDni(t))}
-            placeholder="DNI"
+            placeholder={dniOpcional ? 'DNI (opcional)' : 'DNI'}
             placeholderTextColor={colors.muted}
             keyboardType="number-pad"
-            accessibilityLabel="DNI del invitado"
+            accessibilityLabel={dniOpcional ? 'DNI del invitado, opcional' : 'DNI del invitado'}
           />
           <TextInput
             style={[estilosTenis.input, s.espacio]}

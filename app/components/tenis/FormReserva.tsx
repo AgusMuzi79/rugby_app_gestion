@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { View, Text, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, Modal, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
 import { colors, fonts } from '@/constants/theme'
 import {
   duracionModalidad, duracionTexto, etiquetaDiaCorta, horaDeMinutos, iniciosLibres, inicioReal, isoArgentina,
   itemsSinReserva, jugadoresRequeridos, minutosDeHora, resumenPrecio,
-  type Cancha, type DiaReserva, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type TenisConfig,
+  type Cancha, type DiaReserva, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type ResumenPrecio, type TenisConfig,
 } from '@/lib/tenis'
+import {
+  COMENTARIO_MAX, claveCotizacion, elegidoADesignar, esEntradaADesignar, normalizarComentario, type Cotizacion,
+} from '@/lib/tenisReserva'
 import type { ResultadoTenis } from '@/hooks/useTenisRpc'
+import { cotizarTenis } from '@/hooks/useTenisSocio'
 import { AvisoSanciones } from './AvisoSanciones'
 import { BuscadorJugador, type JugadorElegido } from './BuscadorJugador'
 import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } from './ui'
@@ -23,11 +27,15 @@ import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } fro
 // tanto) y su propio turno cuenta como libre. Sin aviso de sanciones (ya lo
 // aceptó al reservar). Si la grilla del día nuevo no carga, `errorItems` se
 // muestra en el formulario con REINTENTAR (`onReintentarItems`).
+// Como en OnDepor: un jugador puede ser "Socio a designar" (se elige después,
+// editando la reserva), el invitado puede ir sin DNI y el socio deja un
+// comentario opcional y ve el precio (`tenis_cotizar`) antes de confirmar.
 
 export interface EdicionReserva {
   reservaId: string
   modalidad: Modalidad
   jugadores: JugadorElegido[]
+  comentario?: string | null
 }
 
 export interface DatosReserva {
@@ -36,6 +44,8 @@ export interface DatosReserva {
   modalidad: Modalidad
   jugadores: JugadorEntrada[]
   titular?:  JugadorEntrada
+  // Sólo la reserva del socio (p_comentario); la telefónica no lo manda.
+  comentario?: string | null
 }
 
 export function FormReserva({
@@ -67,6 +77,7 @@ export function FormReserva({
   const [hora,      setHora]      = useState<string | null>(horaInicial)
   const [titular,   setTitular]   = useState<JugadorElegido | null>(null)
   const [jugadores, setJugadores] = useState<JugadorElegido[]>(edicion?.jugadores ?? [])
+  const [comentario, setComentario] = useState(edicion?.comentario ?? '')
   const [enviando,  setEnviando]  = useState(false)
   // Guard sincrónico: un doble toque en "ENTENDIDO, CONFIRMAR" llega antes de
   // que `enviando` se vuelva a renderizar y no debe mandar la reserva dos veces.
@@ -80,7 +91,8 @@ export function FormReserva({
   useEffect(() => {
     if (!visible) return
     setCanchaId(canchaInicial); setHora(horaInicial); setModalidad(edicion?.modalidad ?? 'singles')
-    setTitular(null); setJugadores(edicion?.jugadores ?? []); setError(null); setResultado(null); setAvisando(false)
+    setTitular(null); setJugadores(edicion?.jugadores ?? []); setComentario(edicion?.comentario ?? '')
+    setError(null); setResultado(null); setAvisando(false)
   }, [visible, canchaInicial, horaInicial, edicion])
 
   const reservaEditada = edicion?.reservaId
@@ -107,6 +119,29 @@ export function FormReserva({
   const excluir = [...jugadores.map(j => j.clave), ...(titular ? [titular.clave] : [])]
   const completo = !!canchaId && !!hora && !cargandoItems && !errorItems && jugadores.length === requeridos && (!staff || !!titular)
 
+  // Cotización del socio: medio segundo después del último cambio de cancha,
+  // horario o jugadores; sólo vale la respuesta del pedido vigente. La
+  // telefónica no cotiza (el precio depende del titular, que no es quien llama).
+  const pedidoCotizacion = !staff && completo && canchaId && hora
+    ? { canchaId, inicio: isoArgentina(fecha, hora), modalidad, jugadores: jugadores.map(j => j.entrada), reservaId: reservaEditada ?? null }
+    : null
+  const claveCot = pedidoCotizacion ? claveCotizacion(pedidoCotizacion) : null
+  const pedidoCotRef = useRef(pedidoCotizacion)
+  pedidoCotRef.current = pedidoCotizacion
+  const [cotizacion, setCotizacion] = useState<{ clave: string; data: Cotizacion | null; error: string | null } | null>(null)
+  useEffect(() => {
+    const args = pedidoCotRef.current
+    if (!claveCot || !args) return
+    let vigente = true
+    const t = setTimeout(async () => {
+      const r = await cotizarTenis(args)
+      if (vigente) setCotizacion({ clave: claveCot, data: r.ok ? r.data : null, error: r.ok ? null : r.mensaje })
+    }, 500)
+    return () => { vigente = false; clearTimeout(t) }
+  }, [claveCot])
+  const cotActual = cotizacion && cotizacion.clave === claveCot ? cotizacion : null
+  const resumenCot = cotActual?.data ? resumenPrecio(cotActual.data) : null
+
   function pedirConfirmacion() {
     if (!completo || enviando) return
     if (staff || edicion) void confirmar()
@@ -127,6 +162,7 @@ export function FormReserva({
         modalidad,
         jugadores: jugadores.map(j => j.entrada),
         titular: titular?.entrada,
+        ...(staff ? {} : { comentario: normalizarComentario(comentario) }),
       })
     } finally {
       enviandoRef.current = false
@@ -152,19 +188,7 @@ export function FormReserva({
                   Cancha {cancha?.nombre} · {etiquetaDiaCorta(fecha)} · arranca a las {hora ? inicioReal(hora, config.margen_inicio_min) : ''}
                 </Text>
                 <View style={[estilosTenis.card, s.espacio]}>
-                  {resumen.lineas.map((l, i) => (
-                    <View key={i} style={s.lineaPrecio}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={estilosTenis.textoCard}>{l.nombre}</Text>
-                        {!!l.detalle && <Text style={estilosTenis.mutedCard}>{l.detalle}</Text>}
-                      </View>
-                      <Text style={s.monto}>{l.monto}</Text>
-                    </View>
-                  ))}
-                  <View style={[s.lineaPrecio, s.total]}>
-                    <Text style={s.totalTexto}>TOTAL</Text>
-                    <Text style={s.totalTexto}>{resumen.total}</Text>
-                  </View>
+                  <LineasPrecio resumen={resumen} />
                 </View>
                 <Aviso>Se paga en el club antes de entrar a la cancha. Si alguien no se presenta, el turno completo se le cobra a quien reservó.</Aviso>
                 <Boton texto="LISTO" onPress={onCerrar} />
@@ -224,15 +248,66 @@ export function FormReserva({
                   {staff ? 'JUGADORES' : 'CON QUIÉN JUGÁS'} ({jugadores.length}/{requeridos})
                 </Text>
                 {jugadores.map(j => (
-                  <FilaJugador key={j.clave} nombre={j.nombre} onQuitar={() => setJugadores(js => js.filter(x => x.clave !== j.clave))} />
+                  <FilaJugador
+                    key={j.clave}
+                    nombre={j.nombre}
+                    aDesignar={esEntradaADesignar(j.entrada)}
+                    onQuitar={() => setJugadores(js => js.filter(x => x.clave !== j.clave))}
+                  />
                 ))}
                 {jugadores.length < requeridos && (
-                  <BuscadorJugador excluir={excluir} onElegir={j => setJugadores(js => [...js, j])} />
+                  <>
+                    <BuscadorJugador excluir={excluir} dniOpcional onElegir={j => setJugadores(js => [...js, j])} />
+                    <Boton
+                      texto="SOCIO A DESIGNAR"
+                      variante="secundario"
+                      onPress={() => setJugadores(js => (js.length < requeridos ? [...js, elegidoADesignar(js.map(x => x.clave))] : js))}
+                    />
+                    <Text style={estilosTenis.mutedCard}>
+                      {staff
+                        ? 'Guarda el lugar con precio socio; el jugador se corrige después desde la grilla.'
+                        : 'Guarda el lugar con precio socio; elegís al jugador después editando la reserva.'}
+                    </Text>
+                  </>
+                )}
+
+                {!staff && (
+                  <>
+                    <Text style={estilosTenis.label}>COMENTARIO (OPCIONAL)</Text>
+                    <TextInput
+                      style={[estilosTenis.input, s.comentario]}
+                      value={comentario}
+                      onChangeText={setComentario}
+                      maxLength={COMENTARIO_MAX}
+                      multiline
+                      placeholder="Algo que la gestora tenga que saber"
+                      placeholderTextColor={colors.muted}
+                      accessibilityLabel="Comentario de la reserva, opcional"
+                    />
+                    <Text style={s.contador}>{comentario.length}/{COMENTARIO_MAX}</Text>
+                  </>
+                )}
+
+                {!staff && completo && (
+                  <View style={[estilosTenis.card, s.espacio]} accessibilityLiveRegion="polite">
+                    <Text style={estilosTenis.label}>PRECIO</Text>
+                    {!cotActual ? (
+                      <ActivityIndicator color={colors.oro} />
+                    ) : resumenCot ? (
+                      <LineasPrecio resumen={resumenCot} />
+                    ) : (
+                      <Text style={s.errorCot}>{cotActual.error}</Text>
+                    )}
+                  </View>
                 )}
 
                 {error && <Aviso tipo="error">{error}</Aviso>}
                 <Boton texto={edicion ? 'GUARDAR CAMBIOS' : 'CONFIRMAR RESERVA'} onPress={pedirConfirmacion} cargando={enviando} disabled={!completo} />
-                <Aviso>El precio se calcula al confirmar: con Carnet Tenis el primer turno del día no se cobra.</Aviso>
+                <Aviso>
+                  {staff
+                    ? 'El precio se calcula al confirmar: con Carnet Tenis el primer turno del día no se cobra.'
+                    : 'Con Carnet Tenis el primer turno del día no se cobra. Se paga en el club antes de entrar.'}
+                </Aviso>
               </>
             )}
           </ScrollView>
@@ -243,10 +318,32 @@ export function FormReserva({
   )
 }
 
-export function FilaJugador({ nombre, onQuitar }: { nombre: string; onQuitar?: () => void }) {
+function LineasPrecio({ resumen }: { resumen: ResumenPrecio }) {
+  return (
+    <>
+      {resumen.lineas.map((l, i) => (
+        <View key={i} style={s.lineaPrecio}>
+          <View style={{ flex: 1 }}>
+            <Text style={estilosTenis.textoCard}>{l.nombre}</Text>
+            {!!l.detalle && <Text style={estilosTenis.mutedCard}>{l.detalle}</Text>}
+          </View>
+          <Text style={s.monto}>{l.monto}</Text>
+        </View>
+      ))}
+      <View style={[s.lineaPrecio, s.total]}>
+        <Text style={s.totalTexto}>TOTAL</Text>
+        <Text style={s.totalTexto}>{resumen.total}</Text>
+      </View>
+    </>
+  )
+}
+
+// `aDesignar`: lugar guardado para un socio que se elige después.
+export function FilaJugador({ nombre, onQuitar, aDesignar = false }: { nombre: string; onQuitar?: () => void; aDesignar?: boolean }) {
   return (
     <View style={s.filaJugador}>
-      <Text style={[estilosTenis.textoCard, { flex: 1 }]}>{nombre}</Text>
+      <Text style={[estilosTenis.textoCard, { flex: 1 }, aDesignar && s.aDesignar]}>{nombre}</Text>
+      {aDesignar && <Text style={s.marcaDesignar}>A DESIGNAR</Text>}
       {onQuitar && (
         <TouchableOpacity onPress={onQuitar} style={s.quitar} accessibilityRole="button" accessibilityLabel={`Quitar a ${nombre}`}>
           <Feather name="x-circle" size={20} color={colors.muted} />
@@ -264,4 +361,12 @@ const s = StyleSheet.create({
   totalTexto:  { fontFamily: fonts.label, fontSize: 15, letterSpacing: 1, color: colors.oro, flex: 1 },
   filaJugador: { minHeight: 44, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.borde },
   quitar:      { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  aDesignar:   { fontStyle: 'italic', color: colors.textoSecundario },
+  marcaDesignar: {
+    fontFamily: fonts.label, fontSize: 11, letterSpacing: 1, color: colors.oro,
+    borderWidth: 1, borderColor: colors.oro, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2,
+  },
+  comentario:  { minHeight: 72, textAlignVertical: 'top', paddingTop: 10 },
+  contador:    { fontFamily: fonts.mono, fontSize: 12, color: colors.muted, alignSelf: 'flex-end' },
+  errorCot:    { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.rojoTexto },
 })
