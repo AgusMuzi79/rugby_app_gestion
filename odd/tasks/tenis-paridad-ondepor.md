@@ -65,11 +65,11 @@ Tournaments, Rincón del Hincha, Viumi, TOTP on QR check-in (open decision), tut
 
 ## Tasks
 - [x] P0 — Feature document + Engram mirror. Route: inline.
-- [ ] P1 — DB migration + SQL tests (contract 1–16). Route: delegated writer, worktree `tenis-p-db`.
-- [ ] P2 — Edge Functions + guest web (hours per weekday, comment) + F10. Route: delegated writer, worktree `tenis-p-fn`.
-- [ ] P3 — Grid/calendar redesign. Route: delegated writer, worktree `tenis-p-grilla`.
-- [ ] P4 — Manager screens (list, history, cancellations, bulk cancel, no-show collect, reports, news board, hours/window in Reglas). Route: delegated writer, worktree `tenis-p-gestion`.
-- [ ] P5 — Member/canchero flows (comment, a designar, guests by name, quote, news in the sheet, canchero card/receipts/extension). Route: delegated writer, worktree `tenis-p-flujo`.
+- [x] P1 — DB migration + SQL tests (contract 1–16). Route: delegated writer, worktree `tenis-p-db`.
+- [x] P2 — Edge Functions + guest web (hours per weekday, comment) + F10. Route: delegated writer, worktree `tenis-p-fn`.
+- [x] P3 — Grid/calendar redesign. Route: delegated writer, worktree `tenis-p-grilla`.
+- [x] P4 — Manager screens (list, history, cancellations, bulk cancel, no-show collect, reports, news board, hours/window in Reglas). Route: delegated writer, worktree `tenis-p-gestion`.
+- [x] P5 — Member/canchero flows (comment, a designar, guests by name, quote, news in the sheet, canchero card/receipts/extension). Route: delegated writer, worktree `tenis-p-flujo`.
 - [ ] P6 — Integration, checks, sliced review, PRs, deploy with OK.
 
 Route evidence: 5 parallel writers in separate worktrees with disjoint file ownership; authorised by Agus 2026-11-26.
@@ -83,3 +83,8 @@ Route evidence: 5 parallel writers in separate worktrees with disjoint file owne
 
 ## Progress
 - 2026-11-26: analysis of OnDepor (features + mobile UI) and audit of the current code; document created on branch `feat/tenis-paridad-ondepor` from `origin/main` (`58508b4`).
+- 2026-11-26: P1 `6de95b3` (migration + 165 SQL tests), P2 `10b078e` (functions + guest web + F10), P3 `d3852c5` (grid redesign), P4 `61299e9` (manager screens), P5 `49bf3d6` (member/canchero flows) merged into this branch (`98d17be`); integration `6df2508` + `572e19f` (parsers, phone-booking comment/quote, keep placeholders on correction, canchero a-designar collection, novedad totals via RPC).
+- Checks after integration: app tsc clean; 58 `app/lib/*.check.ts` ok; `tenisReglas.check` 36; `web/lib/tenis.check` 27; web tsc clean; strict tsc of the 3 functions clean; SQL tests 176/40/49/76/165 ok. The four older SQL files run with the full chain only differ by design (weekday hours, visible names) or by a pre-existing 1127 behaviour.
+- Deviations from the contract: staff see any date (window applies to members); names shown as stored in the padrón ("Pérez Juan"), not "APELLIDO, NOMBRE"; canchero can cancel single bookings, bulk cancel is gestor-only; news mail in Resend batches of 100.
+- Open: decision on a paid "Socio a designar" replaced by a real player (today: refund + full charge to the new player); canchero card has no separate no-show-only collect button; `CorregirJugadores` still asks DNI for new guests; history starts with this migration (older bookings have no versions); Android CSV export goes as text.
+- Next: P6 sliced review, PR(s), backup + migration + functions deploy + OTA only with Agus's OK.
