@@ -218,11 +218,13 @@ export type HorarioDia = { desde: string; hasta: string }
 const HORA_RE = /^\d{2}:\d{2}(:\d{2})?$/
 
 // `disponibilidad.horario`: the hours of the requested day, null when the
-// courts are closed that day, undefined when the function did not send it.
+// courts are closed that day (also `{ abierto: false }`, the database shape),
+// undefined when the function did not send it.
 export function horarioDesde(x: unknown): HorarioDia | null | undefined {
   if (x === null) return null
   if (!x || typeof x !== 'object') return undefined
   const o = x as Record<string, unknown>
+  if (o.abierto === false) return null
   if (typeof o.desde !== 'string' || typeof o.hasta !== 'string') return undefined
   if (!HORA_RE.test(o.desde) || !HORA_RE.test(o.hasta)) return undefined
   return { desde: o.desde.slice(0, 5), hasta: o.hasta.slice(0, 5) }

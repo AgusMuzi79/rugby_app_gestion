@@ -269,6 +269,8 @@ caso('comment: optional, up to 280 characters after trimming', () => {
 caso('opening hours of the day: read from `disponibilidad.horario`; null = closed, missing = unknown', () => {
   assert.deepEqual(horarioDesde({ desde: '10:00:00', hasta: '17:00' }), { desde: '10:00', hasta: '17:00' })
   assert.equal(horarioDesde(null), null)
+  assert.equal(horarioDesde({ desde: '10:00', hasta: '17:00', abierto: false }), null)
+  assert.deepEqual(horarioDesde({ desde: '10:00', hasta: '17:00', abierto: true }), { desde: '10:00', hasta: '17:00' })
   assert.equal(horarioDesde(undefined), undefined)
   assert.equal(horarioDesde({ desde: 'x', hasta: '17:00' }), undefined)
   assert.equal(textoHorario({ desde: '10:00', hasta: '17:00' }), 'de 10 a 17 h')

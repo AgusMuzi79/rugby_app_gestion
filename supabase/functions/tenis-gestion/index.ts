@@ -369,15 +369,21 @@ async function handlePublicarNovedad(userId: string, body: Record<string, unknow
     console.error('tenis-gestion: mails de la novedad:', e instanceof Error ? e.message : String(e))
   }
 
-  const { error: errCuentas } = await supabaseAdmin
-    .from('tenis_novedades')
-    .update({ push_enviados: pushEnviados, mails_enviados: mailsEnviados })
-    .eq('id', novedadId)
+  // Totales del envío (tenis_novedad_marcar_enviada, service role). El reclamo de arriba ya
+  // impide un segundo envío; si esto falla sólo quedan los contadores en 0.
+  const { data: marcada, error: errCuentas } = await supabaseAdmin.rpc('tenis_novedad_marcar_enviada', {
+    p_id: novedadId,
+    p_push: pushEnviados,
+    p_mails: mailsEnviados,
+  })
   if (errCuentas) console.error('tenis-gestion: no se guardaron los totales de la novedad:', errCuentas.message)
+  const enviadaFinal = marcada && typeof marcada === 'object' && typeof (marcada as Record<string, unknown>).enviada_at === 'string'
+    ? (marcada as Record<string, unknown>).enviada_at as string
+    : enviadaAt
 
   return jsonOk({
     ok: true,
-    enviada_at: enviadaAt,
+    enviada_at: enviadaFinal,
     destinatarios: socios.length,
     push_enviados: pushEnviados,
     mails_enviados: mailsEnviados,
