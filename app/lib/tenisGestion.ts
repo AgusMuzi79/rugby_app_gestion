@@ -3,7 +3,7 @@
 // horarios por día. Lógica pura, sin React; verificada en tenisGestion.check.ts.
 // Los RPC son de la migración 20261128000000: se parsean de forma tolerante.
 
-import { esFechaValida, esHoraValida, etiquetaDiaCorta, fechaArgentina, horaArgentina, minutosDeHora } from './tenis'
+import { esFechaValida, esHoraValida, etiquetaDiaCorta, fechaArgentina, horaArgentina, minutosDeHora, type HorarioDia } from './tenis'
 
 // ─── Parseo ───────────────────────────────────────────────────────────────────
 
@@ -402,12 +402,8 @@ export function parsearNovedades(raw: unknown): NovedadTenis[] {
 
 // ─── Horarios por día (tenis_horarios) ────────────────────────────────────────
 
-export interface HorarioDia {
-  dia_semana: number // ISO 1 = lunes … 7 = domingo
-  hora_desde: string // HH:MM
-  hora_hasta: string
-  activo:     boolean
-}
+// La fila vive en lib/tenis.ts (config.horarios); se reexporta acá.
+export type { HorarioDia }
 
 export const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 

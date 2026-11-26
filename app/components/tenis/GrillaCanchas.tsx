@@ -23,7 +23,8 @@ export function GrillaCanchas({
   fecha:    string
   config:   TenisConfig
   // Horario de ese día (payload `horario`); sin él, el de la config.
-  horario?: { desde: string; hasta: string } | null
+  // abierto = false: ese día las canchas no abren.
+  horario?: { desde: string; hasta: string; abierto?: boolean } | null
   canchas:  Cancha[]
   items:    ItemGrilla[]
   ahoraMs:  number
@@ -41,6 +42,9 @@ export function GrillaCanchas({
   const porCancha = useMemo(() => bloquesPorCancha(items, canchas, fecha, cfg), [items, canchas, fecha, cfg])
   const conteo = useMemo(() => reservasPorCancha(items, canchas), [items, canchas])
 
+  if (horario?.abierto === false) {
+    return <Text style={s.vacio} accessibilityRole="text">Cerrado: las canchas no abren este día.</Text>
+  }
   if (canchas.length === 0) {
     return <Text style={s.vacio}>No hay canchas habilitadas.</Text>
   }

@@ -120,6 +120,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
         ahoraMs={ahoraMs}
         reservas={disp ? reservasPorCancha(disp.items, disp.canchas).total : null}
         canchas={base?.canchas.length ?? 0}
+        cerrado={disp?.horario?.abierto === false}
         onCambiar={setFecha}
       />
       {loading && !disp ? (
@@ -128,7 +129,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
         <ErrorCarga mensaje={error} onReintentar={refetch} />
       ) : disp ? (
         <>
-          {!reservable && (
+          {!reservable && disp.horario?.abierto !== false && (
             <Text style={s.soloVer}>Este día se puede mirar pero todavía no reservar. Se puede reservar hasta {config.anticipacion_dias} días antes.</Text>
           )}
           <GrillaCanchas
@@ -141,7 +142,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
             reservable={reservable}
             onPressLibre={(cancha, hora) => setForm({ cancha, hora })}
           />
-          {reservable && (
+          {reservable && disp.horario?.abierto !== false && (
             <Boton texto="RESERVAR CANCHA" variante="secundario" onPress={() => setForm({ cancha: disp.canchas[0]?.id ?? null, hora: null })} />
           )}
         </>

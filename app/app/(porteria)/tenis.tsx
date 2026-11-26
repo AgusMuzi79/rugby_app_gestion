@@ -20,7 +20,9 @@ import {
   CONFIG_DEFECTO, RESULTADO_CHECKIN, fechaArgentina, horaArgentina, inicioReal, montoCargo, resultadoCheckin,
   type Cancha, type ItemGrilla,
 } from '@/lib/tenis'
-import { canchasLibresExtension, etiquetasSaldo, jugadorTrasCobro, type EtiquetaSaldo } from '@/lib/tenisReserva'
+import {
+  NOMBRE_A_DESIGNAR, aDesignarTrasCobro, canchasLibresExtension, etiquetasSaldo, jugadorTrasCobro, type EtiquetaSaldo,
+} from '@/lib/tenisReserva'
 
 // Pestaña "Tenis" del Canchero (FEATURES.tenis): consulta por DNI (o por el QR
 // del carnet, que trae el número de socio) si la
@@ -122,6 +124,17 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
     onCobrado()
   }
 
+  // Titular: cobra un lugar "Socio a designar" de su reserva (lo paga él).
+  const [cobrandoAd, setCobrandoAd] = useState<string | null>(null)
+  async function cobrarADesignar(id: string) {
+    setCobrandoAd(id)
+    const r = await accionesTenis.cobroMarcar(id, true)
+    setCobrandoAd(null)
+    if (!r.ok) { setError(r.mensaje); return }
+    setJugador(j => j && aDesignarTrasCobro(j, id))
+    onCobrado()
+  }
+
   const saldo = jugador ? etiquetasSaldo(jugador) : []
   const puedeExtender = !!c.reserva && (res === 'ok' || res === 'comprobante_pendiente')
 
@@ -162,6 +175,22 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
         {jugador && jugador.cargo > 0 && !cobrado && !!jugador.id && (
           <Boton texto="MARCAR COBRADO" onPress={cobrar} cargando={cobrando} />
         )}
+        {jugador?.a_designar.map((a, i) => (
+          <View key={a.jugador_id} style={s.aDesignar}>
+            <Text style={estilosTenis.textoCard}>
+              {NOMBRE_A_DESIGNAR}{jugador.a_designar.length > 1 ? ` ${i + 1}` : ''} · {montoCargo(a.cargo)}
+              {a.cargo > 0 ? (a.pendiente > 0 ? ' · PENDIENTE' : ' · COBRADO') : ''}
+            </Text>
+            {a.pendiente > 0 && (
+              <Boton
+                texto={a.cobrado ? 'COBRÉ LA DIFERENCIA' : 'COBRAR LUGAR A DESIGNAR'}
+                variante="secundario"
+                onPress={() => cobrarADesignar(a.jugador_id)}
+                cargando={cobrandoAd === a.jugador_id}
+              />
+            )}
+          </View>
+        ))}
         {jugador && cobrado && jugador.diferencia !== 0 && !!jugador.id && (
           <Boton
             texto={jugador.diferencia > 0 ? 'COBRÉ LA DIFERENCIA' : 'YA LE DEVOLVÍ LA DIFERENCIA'}
@@ -422,6 +451,7 @@ const s = StyleSheet.create({
   nombre:        { fontFamily: fonts.titulo, fontSize: 22, color: colors.texto },
   alerta:        { fontFamily: fonts.label, fontSize: 15, color: colors.rojoTexto },
   saldo:         { fontFamily: fonts.label, fontSize: 15, letterSpacing: 0.5 },
+  aDesignar:     { marginTop: 6, gap: 4 },
   camara:        { flex: 1, backgroundColor: colors.fondo },
   errorCamara:   { position: 'absolute', left: 16, right: 16, bottom: 32 },
 })

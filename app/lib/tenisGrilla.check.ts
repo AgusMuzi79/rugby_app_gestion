@@ -94,7 +94,7 @@ caso('paginar de a 3', () => {
 caso('nombres del bloque: todos los jugadores en mayúsculas; bloques con su título', () => {
   const r = item({ jugadores: [
     { nombre: 'Pérez, Juan' }, { nombre: 'Socio a designar' },
-  ].map(j => ({ ...j, id: '', es_titular: false, cargo: 0, motivo: null, cobrado: false, monto_cobrado: null, diferencia: 0, check_in_at: null, socio_id: null, invitado_id: null, numero_socio: null, dni: null })) })
+  ].map(j => ({ ...j, id: '', es_titular: false, cargo: 0, motivo: null, cobrado: false, monto_cobrado: null, diferencia: 0, cargo_no_show: 0, cargo_no_show_cobrado: false, a_designar: false, check_in_at: null, socio_id: null, invitado_id: null, numero_socio: null, dni: null })) })
   assert.deepEqual(nombresBloque(r), ['PÉREZ, JUAN', 'SOCIO A DESIGNAR'])
   assert.deepEqual(nombresBloque(item({ tipo: 'entrenamiento', titulo: 'Academia' })), ['ACADEMIA'])
   assert.deepEqual(nombresBloque(item({ tipo: 'no_disponible' })), ['NO DISPONIBLE'])
@@ -115,7 +115,9 @@ caso('reservas por cancha: cuenta reservas, no bloques', () => {
 
 caso('disponibilidad: horario y reservable del payload', () => {
   const d = parsearDisponibilidad({ horario: { desde: '09:00:00', hasta: '22:00:00' }, reservable: false, config: { dias_vista: 14 } })
-  assert.deepEqual(d.horario, { desde: '09:00', hasta: '22:00' })
+  assert.deepEqual(d.horario, { desde: '09:00', hasta: '22:00', abierto: true })
+  const cerrado = parsearDisponibilidad({ horario: { desde: '10:00', hasta: '17:00', abierto: false } })
+  assert.deepEqual(cerrado.horario, { desde: '10:00', hasta: '17:00', abierto: false })
   assert.equal(d.reservable, false)
   assert.equal(d.config.dias_vista, 14)
   const v = parsearDisponibilidad(null)
@@ -134,7 +136,10 @@ caso('semana: parseo tolerante de tenis_disponibilidad_semana', () => {
   assert.deepEqual(s[0].slots, [{ hora: '08:00', libres: 8, total: 8 }])
   assert.equal(s[1].reservable, false)
   assert.equal(s[1].slots[0].libres, 3)
+  assert.equal(s[0].abierto, true)
   assert.deepEqual(parsearSemana(null), [])
+  const c = parsearSemana([{ fecha: FECHA, reservable: true, horario: { desde: '10:00', hasta: '17:00', abierto: false }, slots: [] }])
+  assert.equal(c[0].abierto, false)
 })
 
 if (fallas > 0) { console.error(`\n${fallas} caso(s) fallaron`); process.exit(1) }

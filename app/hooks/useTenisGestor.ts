@@ -92,10 +92,11 @@ export interface BloqueEditable {
 export const accionesTenis = {
   reservarStaff: async (a: {
     canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; titular: JugadorEntrada
+    comentario?: string | null
   }): Promise<ResultadoTenis<ResultadoReserva>> => {
     const r = await rpcTenis('tenis_reservar_staff', {
       p_cancha_id: a.canchaId, p_inicio: a.inicio, p_modalidad: a.modalidad,
-      p_jugadores: a.jugadores, p_titular: a.titular, p_origen: 'telefonica',
+      p_jugadores: a.jugadores, p_titular: a.titular, p_origen: 'telefonica', p_comentario: a.comentario ?? null,
     }, 'No se pudo hacer la reserva. Probá de nuevo.')
     if (!r.ok) return r
     const res = parsearResultadoReserva(r.data)
@@ -161,7 +162,8 @@ export const accionesTenis = {
     sinDatos(rpcTenis('tenis_cobro_marcar', { p_jugador_id: jugadorId, p_cobrado: cobrado }, 'No se pudo marcar el cobro.')),
 
   // `p_jugadores`: todos los jugadores menos el titular, como en tenis_reservar
-  // (un invitado que ya estaba va como `{ dni }`: la base no acepta invitado_id).
+  // (lib/tenis entradaJugadorExistente: un invitado que ya estaba va como
+  // `{ dni }` o, sin DNI, `{ invitado_id }`; un lugar a designar, `{ a_designar: true }`).
   jugadoresCorregir: (reservaId: string, jugadores: JugadorCorregido[], infraccion: boolean, nota: string | null = null) =>
     sinDatos(rpcTenis('tenis_jugadores_corregir', {
       p_reserva_id: reservaId, p_jugadores: jugadores, p_registrar_infraccion: infraccion, p_nota: nota,

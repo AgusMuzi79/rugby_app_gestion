@@ -9,7 +9,7 @@ import {
   type Cancha, type DiaReserva, type ItemGrilla, type JugadorEntrada, type Modalidad, type ResultadoReserva, type ResumenPrecio, type TenisConfig,
 } from '@/lib/tenis'
 import {
-  COMENTARIO_MAX, claveCotizacion, elegidoADesignar, esEntradaADesignar, normalizarComentario, type Cotizacion,
+  COMENTARIO_MAX, claveCotizacion, elegidoADesignar, esEntradaADesignar, normalizarComentario, titularSocioCotizable, type Cotizacion,
 } from '@/lib/tenisReserva'
 import type { ResultadoTenis } from '@/hooks/useTenisRpc'
 import { cotizarTenis } from '@/hooks/useTenisSocio'
@@ -29,7 +29,8 @@ import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } fro
 // muestra en el formulario con REINTENTAR (`onReintentarItems`).
 // Como en OnDepor: un jugador puede ser "Socio a designar" (se elige después,
 // editando la reserva), el invitado puede ir sin DNI y el socio deja un
-// comentario opcional y ve el precio (`tenis_cotizar`) antes de confirmar.
+// comentario opcional y ve el precio (`tenis_cotizar`) antes de confirmar. La
+// telefónica también lleva comentario y, con un titular socio, cotiza a su nombre.
 
 export interface EdicionReserva {
   reservaId: string
@@ -44,7 +45,7 @@ export interface DatosReserva {
   modalidad: Modalidad
   jugadores: JugadorEntrada[]
   titular?:  JugadorEntrada
-  // Sólo la reserva del socio (p_comentario); la telefónica no lo manda.
+  // p_comentario (socio y telefónica).
   comentario?: string | null
 }
 
@@ -119,11 +120,17 @@ export function FormReserva({
   const excluir = [...jugadores.map(j => j.clave), ...(titular ? [titular.clave] : [])]
   const completo = !!canchaId && !!hora && !cargandoItems && !errorItems && jugadores.length === requeridos && (!staff || !!titular)
 
-  // Cotización del socio: medio segundo después del último cambio de cancha,
-  // horario o jugadores; sólo vale la respuesta del pedido vigente. La
-  // telefónica no cotiza (el precio depende del titular, que no es quien llama).
-  const pedidoCotizacion = !staff && completo && canchaId && hora
-    ? { canchaId, inicio: isoArgentina(fecha, hora), modalidad, jugadores: jugadores.map(j => j.entrada), reservaId: reservaEditada ?? null }
+  // Cotización: medio segundo después del último cambio de cancha, horario o
+  // jugadores; sólo vale la respuesta del pedido vigente. La telefónica cotiza
+  // a nombre del titular elegido, sólo si es socio del padrón (el precio
+  // depende de él, no de quien carga la reserva).
+  const titularCot = staff ? titularSocioCotizable(titular?.entrada) : null
+  const cotiza = !staff || !!titularCot
+  const pedidoCotizacion = cotiza && completo && canchaId && hora
+    ? {
+        canchaId, inicio: isoArgentina(fecha, hora), modalidad, jugadores: jugadores.map(j => j.entrada),
+        reservaId: staff ? null : reservaEditada ?? null, titularSocioId: titularCot,
+      }
     : null
   const claveCot = pedidoCotizacion ? claveCotizacion(pedidoCotizacion) : null
   const pedidoCotRef = useRef(pedidoCotizacion)
@@ -162,7 +169,7 @@ export function FormReserva({
         modalidad,
         jugadores: jugadores.map(j => j.entrada),
         titular: titular?.entrada,
-        ...(staff ? {} : { comentario: normalizarComentario(comentario) }),
+        comentario: normalizarComentario(comentario),
       })
     } finally {
       enviandoRef.current = false
@@ -271,24 +278,20 @@ export function FormReserva({
                   </>
                 )}
 
-                {!staff && (
-                  <>
-                    <Text style={estilosTenis.label}>COMENTARIO (OPCIONAL)</Text>
-                    <TextInput
-                      style={[estilosTenis.input, s.comentario]}
-                      value={comentario}
-                      onChangeText={setComentario}
-                      maxLength={COMENTARIO_MAX}
-                      multiline
-                      placeholder="Algo que la gestora tenga que saber"
-                      placeholderTextColor={colors.muted}
-                      accessibilityLabel="Comentario de la reserva, opcional"
-                    />
-                    <Text style={s.contador}>{comentario.length}/{COMENTARIO_MAX}</Text>
-                  </>
-                )}
+                <Text style={estilosTenis.label}>COMENTARIO (OPCIONAL)</Text>
+                <TextInput
+                  style={[estilosTenis.input, s.comentario]}
+                  value={comentario}
+                  onChangeText={setComentario}
+                  maxLength={COMENTARIO_MAX}
+                  multiline
+                  placeholder={staff ? 'Algo que el canchero tenga que saber' : 'Algo que la gestora tenga que saber'}
+                  placeholderTextColor={colors.muted}
+                  accessibilityLabel="Comentario de la reserva, opcional"
+                />
+                <Text style={s.contador}>{comentario.length}/{COMENTARIO_MAX}</Text>
 
-                {!staff && completo && (
+                {cotiza && completo && (
                   <View style={[estilosTenis.card, s.espacio]} accessibilityLiveRegion="polite">
                     <Text style={estilosTenis.label}>PRECIO</Text>
                     {!cotActual ? (
@@ -304,7 +307,7 @@ export function FormReserva({
                 {error && <Aviso tipo="error">{error}</Aviso>}
                 <Boton texto={edicion ? 'GUARDAR CAMBIOS' : 'CONFIRMAR RESERVA'} onPress={pedirConfirmacion} cargando={enviando} disabled={!completo} />
                 <Aviso>
-                  {staff
+                  {staff && !titularCot
                     ? 'El precio se calcula al confirmar: con Carnet Tenis el primer turno del día no se cobra.'
                     : 'Con Carnet Tenis el primer turno del día no se cobra. Se paga en el club antes de entrar.'}
                 </Aviso>

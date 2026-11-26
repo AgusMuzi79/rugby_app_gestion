@@ -75,7 +75,7 @@ function Pagina({ dias, ancho, colW, ahoraMs, onElegirDia }: {
         {dias.map(d => (
           <View key={d.fecha} style={[s.encabezado, { width: colW }]}>
             <Text style={s.dia} accessibilityRole="header">{etiquetaDiaCorta(d.fecha)}</Text>
-            {!d.reservable && <Text style={s.soloVer}>Sólo ver</Text>}
+            {!d.abierto ? <Text style={s.soloVer}>Cerrado</Text> : !d.reservable && <Text style={s.soloVer}>Sólo ver</Text>}
           </View>
         ))}
       </View>

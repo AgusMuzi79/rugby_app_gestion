@@ -73,6 +73,7 @@ export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void
         ahoraMs={ahoraMs}
         reservas={grilla ? reservasPorCancha(grilla.items, grilla.canchas).total : null}
         canchas={grilla?.canchas.length ?? 0}
+        cerrado={grilla?.horario?.abierto === false}
         onCambiar={setFecha}
       />
       {loading && !grilla ? (

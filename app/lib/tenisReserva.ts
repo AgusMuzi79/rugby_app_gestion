@@ -101,8 +101,15 @@ export function parsearCotizacion(raw: unknown): Cotizacion | null {
 // Identifica un pedido de cotización: si no cambió, no se vuelve a pedir.
 export function claveCotizacion(a: {
   canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; reservaId: string | null
+  titularSocioId?: string | null
 }): string {
-  return JSON.stringify([a.canchaId, a.inicio, a.modalidad, a.jugadores, a.reservaId])
+  return JSON.stringify([a.canchaId, a.inicio, a.modalidad, a.jugadores, a.reservaId, a.titularSocioId ?? null])
+}
+
+// Reserva telefónica: se cotiza sólo con un titular socio del padrón
+// (tenis_cotizar recibe su socio_id); un titular invitado no se cotiza.
+export function titularSocioCotizable(e: JugadorEntrada | null | undefined): string | null {
+  return e && 'socio_id' in e && typeof e.socio_id === 'string' && e.socio_id ? e.socio_id : null
 }
 
 // ─── Saldo del check-in (canchero) ────────────────────────────────────────────
@@ -134,6 +141,20 @@ export function jugadorTrasCobro<T extends {
 }>(j: T): T {
   const cobradoAhora = j.cobrado ? Math.max(j.diferencia, 0) : j.cargo
   return { ...j, cobrado: true, monto_cobrado: j.cargo, diferencia: 0, pendiente: Math.max(0, j.pendiente - cobradoAhora) }
+}
+
+// Después de cobrar un lugar "Socio a designar" del titular: queda cobrado y
+// su pendiente sale del total del titular.
+export function aDesignarTrasCobro<T extends {
+  pendiente: number; a_designar: { jugador_id: string; cargo: number; cobrado: boolean; pendiente: number }[]
+}>(j: T, jugadorId: string): T {
+  const a = j.a_designar.find(x => x.jugador_id === jugadorId)
+  if (!a) return j
+  return {
+    ...j,
+    pendiente: Math.max(0, j.pendiente - a.pendiente),
+    a_designar: j.a_designar.map(x => x.jugador_id === jugadorId ? { ...x, cobrado: true, pendiente: 0 } : x),
+  }
 }
 
 // ─── Extensión en otra cancha ─────────────────────────────────────────────────

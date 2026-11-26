@@ -3,7 +3,7 @@ import { Platform, Share } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import { fechaArgentina, parsearDisponibilidad, type Cancha, type TenisConfig } from '@/lib/tenis'
 import {
-  parsearCanceladas, parsearHistorial, parsearHorarios, parsearListado, parsearNovedades, parsearReporte,
+  parsearCanceladas, parsearHistorial, parsearListado, parsearNovedades, parsearReporte,
   type CanceladoPor, type FilaReporte, type HistorialReserva, type HorarioDia, type NovedadTenis,
   type ReservaCancelada, type ReservaListada, type TipoReporte,
 } from '@/lib/tenisGestion'
@@ -146,25 +146,7 @@ export function useNovedadesGestion() {
   return useCarga<NovedadTenis[]>([], cargar)
 }
 
-// ─── Horarios por día y días visibles ─────────────────────────────────────────
-
-// `tenis_grilla` trae la config cruda: `horarios` (en config o en la raíz) y
-// `dias_vista`, que el parser general de lib/tenis.ts todavía no lee.
-export function useConfigExtra(config: TenisConfig, version: number) {
-  const cargar = useCallback(async (): Promise<ResultadoTenis<{ horarios: HorarioDia[]; diasVista: number }>> => {
-    void version // recarga después de guardar
-    const r = await rpcTenis('tenis_grilla', { p_fecha: fechaArgentina(Date.now()) }, ERROR_CARGA_TENIS)
-    if (!r.ok) return r
-    const raw = (r.data ?? {}) as Record<string, unknown>
-    const cfg = (raw.config ?? {}) as Record<string, unknown>
-    const dias = Number(cfg.dias_vista)
-    return ok({
-      horarios:  parsearHorarios(cfg.horarios ?? raw.horarios, config.hora_desde, config.hora_hasta),
-      diasVista: Number.isInteger(dias) && dias > 0 ? dias : 7,
-    })
-  }, [config.hora_desde, config.hora_hasta, version])
-  return useCarga<{ horarios: HorarioDia[]; diasVista: number } | null>(null, cargar)
-}
+// ─── Canchas ──────────────────────────────────────────────────────────────────
 
 // Canchas activas (filtro del listado), de la grilla de hoy.
 export function useCanchasTenis() {
@@ -173,34 +155,6 @@ export function useCanchasTenis() {
     return r.ok ? ok(parsearDisponibilidad(r.data).canchas) : r
   }, [])
   return useCarga<Cancha[]>([], cargar).datos
-}
-
-// ─── Datos de la reserva que la grilla no parsea ──────────────────────────────
-
-export interface ExtraReserva {
-  comentario: string | null
-  // Por jugador (tenis_reserva_jugadores.id): cargo extra del no-show.
-  noShow:     Record<string, { cargo: number; cobrado: boolean }>
-}
-
-export function useExtraReserva(reservaId: string | null | undefined, fecha: string) {
-  const cargar = useCallback(async (): Promise<ResultadoTenis<ExtraReserva | null>> => {
-    const r = await rpcTenis('tenis_grilla', { p_fecha: fecha }, ERROR_CARGA_TENIS)
-    if (!r.ok) return r
-    const items = Array.isArray((r.data as { items?: unknown })?.items) ? (r.data as { items: unknown[] }).items : []
-    const it = items.find(x => (x as { reserva_id?: unknown })?.reserva_id === reservaId) as Record<string, unknown> | undefined
-    if (!it) return ok(null)
-    const noShow: ExtraReserva['noShow'] = {}
-    for (const j of Array.isArray(it.jugadores) ? it.jugadores : []) {
-      const o = j as Record<string, unknown>
-      const id = typeof o.jugador_id === 'string' ? o.jugador_id : null
-      const cargo = Number(o.cargo_no_show)
-      if (id && Number.isFinite(cargo) && cargo > 0) noShow[id] = { cargo, cobrado: o.cargo_no_show_cobrado === true }
-    }
-    const comentario = typeof it.comentario === 'string' && it.comentario.trim() ? it.comentario : null
-    return ok({ comentario, noShow })
-  }, [reservaId, fecha])
-  return useCarga<ExtraReserva | null>(null, cargar, !!reservaId)
 }
 
 // ─── Acciones ─────────────────────────────────────────────────────────────────

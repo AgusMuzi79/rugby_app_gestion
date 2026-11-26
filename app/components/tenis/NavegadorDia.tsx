@@ -7,14 +7,16 @@ import { fechaLarga } from '@/lib/tenisGrilla'
 
 // Barra de arriba de la grilla (como OnDepor): día anterior / siguiente, "Hoy",
 // la fecha larga, "N reservas · 8 canchas" y los colores (se despliegan).
-// `dias` = los días que se pueden mirar, en orden.
+// `dias` = los días que se pueden mirar, en orden. `cerrado`: ese día las
+// canchas no abren (tenis_horarios).
 
-export function NavegadorDia({ dias, fecha, ahoraMs, reservas, canchas, onCambiar }: {
+export function NavegadorDia({ dias, fecha, ahoraMs, reservas, canchas, cerrado = false, onCambiar }: {
   dias:      string[]
   fecha:     string
   ahoraMs:   number
   reservas:  number | null
   canchas:   number
+  cerrado?:  boolean
   onCambiar: (fecha: string) => void
 }) {
   const [colores, setColores] = useState(false)
@@ -30,7 +32,7 @@ export function NavegadorDia({ dias, fecha, ahoraMs, reservas, canchas, onCambia
         <View style={s.centro}>
           <Text style={s.fecha} accessibilityRole="header" numberOfLines={1}>{fechaLarga(fecha)}</Text>
           <Text style={s.resumen} numberOfLines={1}>
-            {reservas === null ? '' : `${reservas} ${reservas === 1 ? 'reserva' : 'reservas'} · `}{canchas} canchas
+            {cerrado ? 'Cerrado' : `${reservas === null ? '' : `${reservas} ${reservas === 1 ? 'reserva' : 'reservas'} · `}${canchas} canchas`}
           </Text>
         </View>
         <Flecha icono="chevron-right" label="Día siguiente" destino={siguiente} onCambiar={onCambiar} />

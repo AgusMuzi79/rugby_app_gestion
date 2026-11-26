@@ -3,9 +3,9 @@ import { View, Text, Modal, ScrollView, Alert, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, fonts } from '@/constants/theme'
 import { accionesTenis } from '@/hooks/useTenisGestor'
-import { accionesGestion, useExtraReserva } from '@/hooks/useTenisGestion'
+import { accionesGestion } from '@/hooks/useTenisGestion'
 import {
-  ESTADOS_RESERVA, esBloque, estiloItem, etiquetaMotivo, fechaArgentina, horaArgentina, inicioReal, montoCargo, textoDiferenciaCobro,
+  ESTADOS_RESERVA, esBloque, estiloItem, etiquetaMotivo, horaArgentina, inicioReal, montoCargo, textoDiferenciaCobro,
   type ItemGrilla, type JugadorGrilla, type TenisConfig,
 } from '@/lib/tenis'
 import { formatMonto } from '@/lib/formatoMonto'
@@ -41,9 +41,8 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
   const [cancelando, setCancelando] = useState(false)
   const est = estiloItem(item)
   const bloque = esBloque(item)
-  // Comentario y cargo del no-show: llegan en tenis_grilla pero el parser de la grilla no los lee.
-  const extra = useExtraReserva(bloque ? null : item.reserva_id, fechaArgentina(item.inicio))
-  const noShow = extra.datos?.noShow ?? {}
+  // Cargo del no-show por jugador (0 = no hay).
+  const noShow = (j: JugadorGrilla) => j.cargo_no_show > 0 ? { cargo: j.cargo_no_show, cobrado: j.cargo_no_show_cobrado } : null
 
   async function correr(clave: string, accion: () => Promise<{ ok: true } | { ok: false; mensaje: string }>, cerrar = false) {
     setOcupado(clave)
@@ -57,7 +56,7 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
 
   function marcarCobro(j: JugadorGrilla) {
     // Con cargo de no-show, el turno y el no-show se cobran por separado.
-    const accion = () => correr(`cobro-${j.id}`, () => noShow[j.id]
+    const accion = () => correr(`cobro-${j.id}`, () => noShow(j)
       ? accionesGestion.cobroConcepto(j.id, !j.cobrado, 'turno')
       : accionesTenis.cobroMarcar(j.id, !j.cobrado), true)
     // DESHACER con una diferencia de cobro: el ajuste para staff no se cierra solo
@@ -77,13 +76,9 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
   }
 
   function marcarNoShow(j: JugadorGrilla) {
-    const ns = noShow[j.id]
+    const ns = noShow(j)
     if (!ns) return
-    const accion = () => correr(`ns-${j.id}`, async () => {
-      const r = await accionesGestion.cobroConcepto(j.id, !ns.cobrado, 'no_show')
-      if (r.ok) extra.refetch()
-      return r
-    })
+    const accion = () => correr(`ns-${j.id}`, () => accionesGestion.cobroConcepto(j.id, !ns.cobrado, 'no_show'), true)
     if (ns.cobrado) {
       Alert.alert('Deshacer el cobro del no-show', `${j.nombre} vuelve a deber ${formatMonto(ns.cargo)}. ¿Confirmás?`, [
         { text: 'No', style: 'cancel' },
@@ -157,7 +152,7 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
           {!!item.estado && <Text style={estilosTenis.mutedCard}>{ESTADOS_RESERVA[item.estado] ?? item.estado}</Text>}
           {!!item.comprobante_estado && <Text style={estilosTenis.mutedCard}>{COMPROBANTE[item.comprobante_estado] ?? item.comprobante_estado}</Text>}
 
-          {!!extra.datos?.comentario && <Text style={estilosTenis.textoCard}>Comentario: {extra.datos.comentario}</Text>}
+          {!!item.comentario?.trim() && <Text style={estilosTenis.textoCard}>Comentario: {item.comentario}</Text>}
 
           {!bloque && (
             <>
@@ -187,14 +182,14 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
                       onPress={() => marcarCobro(j)}
                     />
                   )}
-                  {!!noShow[j.id] && j.id !== '' && (
+                  {!!noShow(j) && j.id !== '' && (
                     <>
-                      <Text style={noShow[j.id].cobrado ? s.ok : s.diferencia}>
-                        No se presentó: cargo de {formatMonto(noShow[j.id].cargo)} · {noShow[j.id].cobrado ? 'cobrado' : 'pendiente'}
+                      <Text style={j.cargo_no_show_cobrado ? s.ok : s.diferencia}>
+                        No se presentó: cargo de {formatMonto(j.cargo_no_show)} · {j.cargo_no_show_cobrado ? 'cobrado' : 'pendiente'}
                       </Text>
                       <Boton
-                        texto={noShow[j.id].cobrado ? 'NO-SHOW COBRADO · DESHACER' : 'COBRÉ EL NO-SHOW'}
-                        variante={noShow[j.id].cobrado ? 'secundario' : 'primario'}
+                        texto={j.cargo_no_show_cobrado ? 'NO-SHOW COBRADO · DESHACER' : 'COBRÉ EL NO-SHOW'}
+                        variante={j.cargo_no_show_cobrado ? 'secundario' : 'primario'}
                         cargando={ocupado === `ns-${j.id}`}
                         onPress={() => marcarNoShow(j)}
                       />

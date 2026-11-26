@@ -160,11 +160,14 @@ export function useTenisSemana(desde: string, dias: number, modalidad: Modalidad
 // Precio de una reserva antes de confirmarla (`tenis_cotizar`, no escribe
 // nada): mismas validaciones que reservar, así que un error es el mismo
 // mensaje que daría confirmar. `reservaId` al editar (su turno no cuenta).
+// `titularSocioId`: reserva telefónica del gestor para ese socio (sin reservaId).
 export async function cotizarTenis(a: {
   canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; reservaId: string | null
+  titularSocioId?: string | null
 }): Promise<ResultadoTenis<Cotizacion>> {
   const r = await rpcTenis('tenis_cotizar', {
     p_cancha_id: a.canchaId, p_inicio: a.inicio, p_modalidad: a.modalidad, p_jugadores: a.jugadores, p_reserva_id: a.reservaId,
+    ...(a.titularSocioId ? { p_titular_socio_id: a.titularSocioId } : {}),
   }, 'No se pudo calcular el precio.')
   if (!r.ok) return r
   const c = parsearCotizacion(r.data)

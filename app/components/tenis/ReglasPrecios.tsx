@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { View, Text, TextInput, ScrollView, Switch, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 import { colors } from '@/constants/theme'
 import { accionesTenis } from '@/hooks/useTenisGestor'
-import { accionesGestion, useConfigExtra } from '@/hooks/useTenisGestion'
-import { DIAS_SEMANA, validarHorarios, type HorarioDia } from '@/lib/tenisGestion'
+import { accionesGestion } from '@/hooks/useTenisGestion'
+import { DIAS_SEMANA, parsearHorarios, validarHorarios, type HorarioDia } from '@/lib/tenisGestion'
 import { esHoraValida, type TenisConfig } from '@/lib/tenis'
 import { formatMonto } from '@/lib/formatoMonto'
 import { Aviso, Boton, Titulo, estilosTenis } from './ui'
@@ -51,23 +51,25 @@ const SECCIONES: { titulo: string; campos: { k: CampoNumero; label: string; peso
   },
 ]
 
+// Horarios por día y días visibles vienen en la config (tenis_grilla); un
+// servidor sin horarios (config.horarios vacío) guarda sólo el horario general.
+function horariosDe(c: TenisConfig): HorarioDia[] | null {
+  return c.horarios.length ? parsearHorarios(c.horarios, c.hora_desde, c.hora_hasta) : null
+}
+
 export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onGuardado: () => void }) {
   const [form, setForm] = useState<TenisConfig>(config)
   const [textos, setTextos] = useState<Record<string, string>>({})
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState(false)
-  const [versionExtra, setVersionExtra] = useState(0)
-  const extra = useConfigExtra(config, versionExtra)
-  const [horarios, setHorarios] = useState<HorarioDia[] | null>(null)
-  const [diasVista, setDiasVista] = useState('')
+  const [horarios, setHorarios] = useState<HorarioDia[] | null>(() => horariosDe(config))
+  const [diasVista, setDiasVista] = useState(String(config.dias_vista))
 
-  useEffect(() => { setForm(config); setTextos({}) }, [config])
   useEffect(() => {
-    if (!extra.datos) return
-    setHorarios(extra.datos.horarios)
-    setDiasVista(String(extra.datos.diasVista))
-  }, [extra.datos])
+    setForm(config); setTextos({})
+    setHorarios(horariosDe(config)); setDiasVista(String(config.dias_vista))
+  }, [config])
 
   function cambiarDia(dia: number, cambio: Partial<HorarioDia>) {
     setHorarios(h => h && h.map(x => x.dia_semana === dia ? { ...x, ...cambio } : x))
@@ -104,7 +106,6 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
     if (!r.ok) { setError(r.mensaje); return }
     if (rh && !rh.ok) { setError(rh.mensaje); onGuardado(); return }
     setOk(true)
-    setVersionExtra(v => v + 1)
     onGuardado()
   }
 
@@ -125,8 +126,7 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
         </View>
 
         <Titulo>HORARIO POR DÍA</Titulo>
-        {!horarios && !extra.error && <Text style={estilosTenis.mutedCard}>Cargando horarios…</Text>}
-        {extra.error && <Aviso tipo="error">No se pudieron cargar los horarios por día. Se guarda sólo el horario general.</Aviso>}
+        {!horarios && <Aviso tipo="error">No se pudieron cargar los horarios por día. Se guarda sólo el horario general.</Aviso>}
         {horarios?.map(h => (
           <View key={h.dia_semana} style={s.dia}>
             <View style={s.diaTop}>

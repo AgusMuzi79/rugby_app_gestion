@@ -8,6 +8,8 @@ import {
   NOMBRE_A_DESIGNAR,
   canchasLibresExtension,
   claveCotizacion,
+  titularSocioCotizable,
+  aDesignarTrasCobro,
   elegidoADesignar,
   elegidoInvitado,
   esEntradaADesignar,
@@ -76,6 +78,14 @@ caso('cotización: la clave cambia con cancha, horario o jugadores', () => {
   assert.equal(claveCotizacion(base), claveCotizacion({ ...base }))
   assert.notEqual(claveCotizacion(base), claveCotizacion({ ...base, canchaId: 'c2' }))
   assert.notEqual(claveCotizacion(base), claveCotizacion({ ...base, jugadores: [{ a_designar: true }] }))
+  assert.notEqual(claveCotizacion(base), claveCotizacion({ ...base, titularSocioId: 's9' }))
+})
+
+caso('cotización telefónica: sólo con un titular socio', () => {
+  assert.equal(titularSocioCotizable({ socio_id: 's9' }), 's9')
+  assert.equal(titularSocioCotizable({ dni: '30111777' }), null)
+  assert.equal(titularSocioCotizable({ invitado: { dni: '30111777', nombre: 'Ana', apellido: 'Paz' } }), null)
+  assert.equal(titularSocioCotizable(null), null)
 })
 
 caso('check-in: saldo del jugador con datos nuevos y con un servidor anterior', () => {
@@ -85,6 +95,7 @@ caso('check-in: saldo del jugador con datos nuevos y con un servidor anterior', 
   })
   assert.deepEqual(c.jugador, {
     id: 'j1', cargo: 10000, cobrado: true, monto_cobrado: 9000, diferencia: 1000, cargo_no_show: 18000, cargo_no_show_cobrado: false, pendiente: 19000,
+    pendiente_propio: 19000, a_designar: [],
   })
   const viejo = parsearCheckin({ jugador: { jugador_id: 'j2', cargo: 9000, cobrado: false }, resultado: 'ok' })
   assert.equal(viejo.jugador?.pendiente, 9000)
@@ -152,6 +163,15 @@ caso('editar: "Socio a designar" se precarga y el comentario se lee', () => {
   assert.equal(pre.length, 1)
   assert.deepEqual(pre[0].entrada, { a_designar: true })
   assert.equal(pre[0].nombre, NOMBRE_A_DESIGNAR)
+})
+
+
+caso('check-in: cobrar un "a designar" del titular baja su pendiente', () => {
+  const j = { pendiente: 18000, a_designar: [{ jugador_id: 'a1', cargo: 9000, cobrado: false, pendiente: 9000 }] }
+  const t = aDesignarTrasCobro(j, 'a1')
+  assert.equal(t.pendiente, 9000)
+  assert.deepEqual(t.a_designar, [{ jugador_id: 'a1', cargo: 9000, cobrado: true, pendiente: 0 }])
+  assert.equal(aDesignarTrasCobro(j, 'otro'), j)
 })
 
 console.log(`\n${casos} casos ok`)

@@ -133,6 +133,8 @@ export interface SlotSemana {
 export interface DiaSemana {
   fecha:      string
   reservable: boolean
+  // false: ese día las canchas no abren (horario.abierto); sin horario, true.
+  abierto:    boolean
   slots:      SlotSemana[]
 }
 
@@ -141,7 +143,7 @@ function num(v: unknown): number {
   return typeof n === 'number' && Number.isFinite(n) ? n : 0
 }
 
-// tenis_disponibilidad_semana → [{fecha, reservable, slots:[{hora, libres, total}]}].
+// tenis_disponibilidad_semana → [{fecha, reservable, horario, slots:[{hora, libres, total}]}].
 export function parsearSemana(raw: unknown): DiaSemana[] {
   if (!Array.isArray(raw)) return []
   return raw.flatMap((d): DiaSemana[] => {
@@ -154,6 +156,7 @@ export function parsearSemana(raw: unknown): DiaSemana[] {
       if (typeof x.hora !== 'string' || !/^\d{2}:\d{2}/.test(x.hora)) return []
       return [{ hora: x.hora.slice(0, 5), libres: num(x.libres), total: num(x.total) }]
     }) : []
-    return [{ fecha: o.fecha, reservable: o.reservable === true, slots }]
+    const h = o.horario && typeof o.horario === 'object' ? o.horario as Record<string, unknown> : null
+    return [{ fecha: o.fecha, reservable: o.reservable === true, abierto: h?.abierto !== false, slots }]
   })
 }
