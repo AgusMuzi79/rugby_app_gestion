@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   View, Text, TextInput, ScrollView, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Modal, Linking, StyleSheet,
 } from 'react-native'
@@ -8,23 +8,28 @@ import { parsearQR } from '@/lib/qrCarnet'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { GrillaCanchas } from '@/components/tenis/GrillaCanchas'
 import { DetalleItem } from '@/components/tenis/DetalleItem'
-import { Aviso, BarraModal, Boton, Leyenda, Titulo, estilosTenis } from '@/components/tenis/ui'
+import { Aviso, BarraModal, Boton, Chip, Leyenda, Titulo, estilosTenis } from '@/components/tenis/ui'
+import { ComprobantesPendientes } from '@/components/tenis/ComprobantesPendientes'
 import { accionesTenis, checkinTenis, useTenisGrilla, type Checkin } from '@/hooks/useTenisGestor'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { FEATURES } from '@/constants/features'
 import { colors, fonts } from '@/constants/theme'
 import { normalizarDni } from '@/lib/entradaDni'
+import { formatMonto } from '@/lib/formatoMonto'
 import {
   CONFIG_DEFECTO, RESULTADO_CHECKIN, fechaArgentina, horaArgentina, inicioReal, montoCargo, resultadoCheckin,
-  type ItemGrilla,
+  type Cancha, type ItemGrilla,
 } from '@/lib/tenis'
+import { canchasLibresExtension, etiquetasSaldo, jugadorTrasCobro, type EtiquetaSaldo } from '@/lib/tenisReserva'
 
 // Pestaña "Tenis" del Canchero (FEATURES.tenis): consulta por DNI (o por el QR
 // del carnet, que trae el número de socio) si la
 // persona tiene reserva ahora (de 15 min antes al final del turno), si pagó y
 // si está suspendida; al dar ok queda registrado el ingreso. Debajo, la grilla
 // de hoy: tocar una reserva permite marcar cobros, corregir jugadores o
-// registrar una extensión.
+// registrar una extensión. La tarjeta muestra lo que debe cada uno (turno,
+// diferencias, no-show) y permite extender en cualquier cancha libre; los
+// comprobantes y ajustes de cobro se revisan desde acá también.
 
 // Colores del resultado (mismos que el escáner): blanco/#1A7A1A 5.46 ·
 // #15110A/#E67E22 6.60 · blanco/#CC4127 4.82.
@@ -86,23 +91,39 @@ function EscanerCarnet({ onNumero, onCerrar }: { onNumero: (numero: string) => v
   )
 }
 
-function TarjetaCheckin({ c, onCobrado }: { c: Checkin; onCobrado: () => void }) {
+const TONO_SALDO: Record<EtiquetaSaldo['tono'], { color: string }> = {
+  debe:  { color: colors.rojoTexto },
+  favor: { color: colors.confirmacion },
+  info:  { color: colors.muted },
+}
+
+type ReservaCheckin = NonNullable<Checkin['reserva']>
+
+function TarjetaCheckin({ c, onCobrado, onExtender }: {
+  c: Checkin; onCobrado: () => void; onExtender: (r: ReservaCheckin) => void
+}) {
   const res = resultadoCheckin(c.resultado)
   const ui = RESULTADO_CHECKIN[res]
   const color = NIVEL[ui.nivel]
   const [cobrando, setCobrando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [cobrado, setCobrado] = useState(c.jugador?.cobrado ?? false)
+  // El saldo se actualiza acá al cobrar: volver a consultar registraría otro ingreso.
+  const [jugador, setJugador] = useState(c.jugador)
+  const cobrado = jugador?.cobrado ?? false
 
+  // Cobra el turno entero o, si ya estaba cobrado con diferencia, la salda.
   async function cobrar() {
-    if (!c.jugador?.id) return
+    if (!jugador?.id) return
     setCobrando(true)
-    const r = await accionesTenis.cobroMarcar(c.jugador.id, true)
+    const r = await accionesTenis.cobroMarcar(jugador.id, true)
     setCobrando(false)
     if (!r.ok) { setError(r.mensaje); return }
-    setCobrado(true)
+    setJugador(j => j && jugadorTrasCobro(j))
     onCobrado()
   }
+
+  const saldo = jugador ? etiquetasSaldo(jugador) : []
+  const puedeExtender = !!c.reserva && (res === 'ok' || res === 'comprobante_pendiente')
 
   return (
     <View style={s.tarjeta} accessibilityLiveRegion="polite">
@@ -125,21 +146,104 @@ function TarjetaCheckin({ c, onCobrado }: { c: Checkin; onCobrado: () => void })
             Cancha {c.reserva.cancha} · {inicioReal(c.reserva.inicio)} a {horaArgentina(c.reserva.fin)} · {c.reserva.modalidad === 'dobles' ? 'Dobles' : 'Singles'}
           </Text>
         )}
-        {c.jugador && (
+        {jugador && (
           <Text style={estilosTenis.textoCard}>
-            {c.jugador.cargo === 0 ? 'Sin cargo' : `Cobrar ${montoCargo(c.jugador.cargo)}`}
-            {c.jugador.cargo > 0 ? (cobrado ? ' · COBRADO' : ' · PENDIENTE') : ''}
+            {jugador.cargo === 0 ? 'Sin cargo' : `Turno ${montoCargo(jugador.cargo)}`}
+            {jugador.cargo > 0 ? (cobrado ? ' · COBRADO' : ' · PENDIENTE') : ''}
+            {cobrado && jugador.monto_cobrado !== null && jugador.monto_cobrado !== jugador.cargo ? ` (pagó ${formatMonto(jugador.monto_cobrado)})` : ''}
           </Text>
         )}
+        {saldo.map(e => (
+          <Text key={e.texto} style={[s.saldo, TONO_SALDO[e.tono]]}>{e.texto}</Text>
+        ))}
         {res === 'comprobante_pendiente' && (
           <Aviso>El comprobante de pago todavía no fue revisado. Revisalo o cobrale en el momento.</Aviso>
         )}
-        {c.jugador && c.jugador.cargo > 0 && !cobrado && !!c.jugador.id && (
+        {jugador && jugador.cargo > 0 && !cobrado && !!jugador.id && (
           <Boton texto="MARCAR COBRADO" onPress={cobrar} cargando={cobrando} />
+        )}
+        {jugador && cobrado && jugador.diferencia !== 0 && !!jugador.id && (
+          <Boton
+            texto={jugador.diferencia > 0 ? 'COBRÉ LA DIFERENCIA' : 'YA LE DEVOLVÍ LA DIFERENCIA'}
+            onPress={cobrar}
+            cargando={cobrando}
+          />
+        )}
+        {puedeExtender && c.reserva && (
+          <Boton texto="REGISTRAR EXTENSIÓN" variante="secundario" onPress={() => onExtender(c.reserva as ReservaCheckin)} />
         )}
         {error && <Aviso tipo="error">{error}</Aviso>}
       </View>
     </View>
+  )
+}
+
+// Extensión: siguen jugando después del turno, en la misma cancha o en
+// cualquier otra libre para esa media hora / hora (como en OnDepor). Las
+// canchas libres salen de la grilla de hoy; el servidor lo vuelve a validar.
+function ExtensionCancha({ reserva, canchas, items, onCerrar, onHecho }: {
+  reserva:  ReservaCheckin
+  canchas:  Cancha[]
+  items:    ItemGrilla[]
+  onCerrar: () => void
+  onHecho:  () => void
+}) {
+  const [minutos, setMinutos] = useState(30)
+  const [canchaId, setCanchaId] = useState<string | null>(reserva.cancha_id)
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const hasta = new Date(Date.parse(reserva.fin) + minutos * 60_000).toISOString()
+  const libres = useMemo(() => canchasLibresExtension(items, canchas, reserva.fin, hasta), [items, canchas, reserva.fin, hasta])
+  const elegida = libres.find(c => c.id === canchaId) ?? null
+
+  async function confirmar() {
+    if (!elegida || enviando) return
+    setEnviando(true)
+    setError(null)
+    const r = await accionesTenis.extension(elegida.id, hasta, reserva.id)
+    setEnviando(false)
+    if (!r.ok) { setError(r.mensaje); return }
+    onHecho()
+  }
+
+  return (
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
+      <SafeAreaView style={estilosTenis.sheet}>
+        <BarraModal titulo="EXTENSIÓN" onCerrar={onCerrar} />
+        <ScrollView contentContainerStyle={estilosTenis.sheetCuerpo}>
+          <Text style={estilosTenis.textoCard}>
+            Termina a las {horaArgentina(reserva.fin)} en la cancha {reserva.cancha}. La extensión se cobra como un turno más.
+          </Text>
+          <Text style={estilosTenis.label}>CUÁNTO MÁS</Text>
+          <View style={estilosTenis.fila}>
+            <Chip texto="+30 MIN" activo={minutos === 30} onPress={() => setMinutos(30)} />
+            <Chip texto="+1 H" activo={minutos === 60} onPress={() => setMinutos(60)} />
+          </View>
+          <Text style={estilosTenis.label}>CANCHA LIBRE · {horaArgentina(reserva.fin)} A {horaArgentina(hasta)}</Text>
+          {libres.length === 0 ? (
+            <Text style={estilosTenis.vacio}>No hay canchas libres en ese horario.</Text>
+          ) : (
+            <View style={estilosTenis.fila}>
+              {libres.map(c => (
+                <Chip
+                  key={c.id}
+                  texto={c.id === reserva.cancha_id ? `${c.nombre} (LA MISMA)` : c.nombre}
+                  activo={c.id === elegida?.id}
+                  onPress={() => setCanchaId(c.id)}
+                />
+              ))}
+            </View>
+          )}
+          {error && <Aviso tipo="error">{error}</Aviso>}
+          <Boton
+            texto={elegida ? `EXTENDER EN CANCHA ${elegida.nombre}` : 'ELEGÍ UNA CANCHA'}
+            onPress={confirmar}
+            cargando={enviando}
+            disabled={!elegida}
+          />
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   )
 }
 
@@ -170,6 +274,8 @@ export default function TenisCancheroScreen() {
   const [errorCheckin, setErrorCheckin] = useState<string | null>(null)
   const [detalle, setDetalle] = useState<ItemGrilla | null>(null)
   const [escaneando, setEscaneando] = useState(false)
+  const [extendiendo, setExtendiendo] = useState<ReservaCheckin | null>(null)
+  const [revisando, setRevisando] = useState(false)
 
   async function consultar(q: { dni: string } | { numeroSocio: string }) {
     setConsultando(true)
@@ -232,7 +338,15 @@ export default function TenisCancheroScreen() {
           <Boton texto="CONSULTAR" onPress={consultarDni} cargando={consultando} disabled={dni.length < 6} />
           <Boton texto="ESCANEAR CARNET (QR)" variante="secundario" onPress={() => setEscaneando(true)} disabled={consultando} />
           {errorCheckin && <Aviso tipo="error">{errorCheckin}</Aviso>}
-          {checkin && <TarjetaCheckin key={JSON.stringify(checkin)} c={checkin} onCobrado={refetch} />}
+          {checkin && (
+            <TarjetaCheckin
+              key={JSON.stringify(checkin)}
+              c={checkin}
+              onCobrado={refetch}
+              onExtender={r => (grilla ? setExtendiendo(r) : setErrorCheckin('No se pudo cargar la grilla de hoy. Deslizá para recargar y probá de nuevo.'))}
+            />
+          )}
+          <Boton texto="COMPROBANTES Y AJUSTES DE COBRO" variante="secundario" onPress={() => setRevisando(true)} />
 
           <Titulo>HOY</Titulo>
           {loading && !grilla ? (
@@ -257,6 +371,25 @@ export default function TenisCancheroScreen() {
       </KeyboardAvoidingView>
 
       {escaneando && <EscanerCarnet onNumero={porQR} onCerrar={() => setEscaneando(false)} />}
+
+      {extendiendo && grilla && (
+        <ExtensionCancha
+          reserva={extendiendo}
+          canchas={grilla.canchas}
+          items={grilla.items}
+          onCerrar={() => setExtendiendo(null)}
+          onHecho={() => { setExtendiendo(null); refetch() }}
+        />
+      )}
+
+      {revisando && (
+        <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setRevisando(false); refetch() }}>
+          <SafeAreaView style={estilosTenis.sheet}>
+            <BarraModal titulo="COMPROBANTES Y AJUSTES" onCerrar={() => { setRevisando(false); refetch() }} />
+            <ComprobantesPendientes />
+          </SafeAreaView>
+        </Modal>
+      )}
 
       {detalle && grilla && (
         <DetalleItem
@@ -287,6 +420,7 @@ const s = StyleSheet.create({
   tarjetaCuerpo: { padding: 16, gap: 4 },
   nombre:        { fontFamily: fonts.titulo, fontSize: 22, color: colors.texto },
   alerta:        { fontFamily: fonts.label, fontSize: 15, color: colors.rojoTexto },
+  saldo:         { fontFamily: fonts.label, fontSize: 15, letterSpacing: 0.5 },
   camara:        { flex: 1, backgroundColor: colors.fondo },
   errorCamara:   { position: 'absolute', left: 16, right: 16, bottom: 32 },
 })

@@ -135,8 +135,17 @@ export interface InvitadoEntrada {
 // socio del padrón, socio o invitado ya cargado por DNI, o invitado nuevo.
 // { invitado_id } sólo en tenis_editar_reserva, para un invitado que ya juega
 // en esa reserva (el socio no ve su DNI).
+// { a_designar: true }: lugar reservado para un socio que se elige después
+// (se cobra precio socio). { invitado: { nombre, apellido } }: invitado del
+// socio o del staff sin DNI (una fila nueva por reserva).
 export type JugadorEntrada =
   | { socio_id: string } | { dni: string } | { invitado: InvitadoEntrada } | { invitado_id: string }
+  | { a_designar: true } | { invitado: InvitadoSinDni }
+
+export interface InvitadoSinDni {
+  nombre:   string
+  apellido: string
+}
 
 export interface CargoJugador {
   nombre: string
@@ -158,6 +167,7 @@ export interface PersonaReserva {
   invitado_id: string | null
   nombre:      string
   es_titular:  boolean
+  a_designar?: boolean
 }
 
 export interface MiReserva {
@@ -179,6 +189,7 @@ export interface MiReserva {
   mi_motivo:        string | null
   cancelable_hasta: string | null
   puede_cancelar:   boolean
+  comentario?:      string | null
 }
 
 // ─── Parseo tolerante de las respuestas jsonb ─────────────────────────────────
@@ -299,6 +310,7 @@ function parsearPersonas(raw: unknown): PersonaReserva[] {
     invitado_id: texto(j.invitado_id),
     nombre:      texto(j.nombre) ?? '—',
     es_titular:  j.es_titular === true,
+    ...(j.a_designar === true ? { a_designar: true } : {}),
   }))
 }
 
@@ -334,6 +346,7 @@ export function parsearMisReservas(raw: unknown): MiReserva[] {
       mi_motivo:        texto(r.mi_motivo),
       cancelable_hasta: texto(r.cancelable_hasta),
       puede_cancelar:   r.puede_cancelar === true,
+      comentario:       texto(r.comentario),
     } satisfies MiReserva]
   })
 }
@@ -379,7 +392,13 @@ export function parsearComprobantes(raw: unknown): ComprobantePendiente[] {
 export interface Checkin {
   persona:    { tipo: 'socio' | 'invitado'; nombre: string; semaforo: string | null } | null
   reserva:    { id: string; cancha_id: string | null; cancha: string; inicio: string; fin: string; modalidad: Modalidad } | null
-  jugador:    { id: string | null; cargo: number; cobrado: boolean } | null
+  // Saldo (contrato 14): lo cobrado, cargo − cobrado (> 0 falta, < 0 a favor),
+  // el cargo por no-show y lo que falta cobrar en total.
+  jugador:    {
+    id: string | null; cargo: number; cobrado: boolean
+    monto_cobrado: number | null; diferencia: number
+    cargo_no_show: number; cargo_no_show_cobrado: boolean; pendiente: number
+  } | null
   suspendido: boolean
   resultado:  string
 }
@@ -400,7 +419,19 @@ export function parsearCheckin(raw: unknown): Checkin {
       fin:       texto(r.fin) ?? '',
       modalidad: r.modalidad === 'dobles' ? 'dobles' : 'singles',
     } : null,
-    jugador:    j ? { id: texto(j.jugador_id), cargo: numero(j.cargo), cobrado: j.cobrado === true } : null,
+    jugador:    j ? {
+      id:                    texto(j.jugador_id),
+      cargo:                 numero(j.cargo),
+      cobrado:               j.cobrado === true,
+      monto_cobrado:         j.monto_cobrado === undefined || j.monto_cobrado === null ? null : numero(j.monto_cobrado),
+      diferencia:            numero(j.diferencia),
+      cargo_no_show:         numero(j.cargo_no_show),
+      cargo_no_show_cobrado: j.cargo_no_show_cobrado === true,
+      // Servidor anterior sin `pendiente`: lo que falta del turno.
+      pendiente:             j.pendiente === undefined || j.pendiente === null
+        ? (j.cobrado === true ? 0 : numero(j.cargo))
+        : numero(j.pendiente),
+    } : null,
     suspendido: o.suspendido === true,
     resultado:  texto(o.resultado) ?? 'sin_reserva',
   }
@@ -718,10 +749,11 @@ export interface JugadorPrecargado {
 }
 
 export function jugadoresParaEditar(r: Pick<MiReserva, 'personas'>): JugadorPrecargado[] {
-  return r.personas.flatMap((p): JugadorPrecargado[] => {
+  return r.personas.flatMap((p, i): JugadorPrecargado[] => {
     if (p.es_titular) return []
     if (p.socio_id) return [{ clave: p.socio_id, nombre: p.nombre, entrada: { socio_id: p.socio_id } }]
     if (p.invitado_id) return [{ clave: `inv:${p.invitado_id}`, nombre: p.nombre, entrada: { invitado_id: p.invitado_id } }]
+    if (p.a_designar) return [{ clave: `designar:${i}`, nombre: 'Socio a designar', entrada: { a_designar: true } }]
     return []
   })
 }

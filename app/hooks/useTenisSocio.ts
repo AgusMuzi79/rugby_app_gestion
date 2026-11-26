@@ -3,6 +3,7 @@ import {
   parsearDisponibilidad, parsearMisReservas, parsearResultadoReserva,
   type Disponibilidad, type JugadorBuscado, type JugadorEntrada, type MiReserva, type Modalidad, type ResultadoReserva,
 } from '@/lib/tenis'
+import { parsearCotizacion, parsearNovedades, type Cotizacion, type NovedadTenis } from '@/lib/tenisReserva'
 import { ERROR_CARGA_TENIS, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Reservas de tenis del socio (sección Tenis de la Agenda): la grilla del día
@@ -44,10 +45,11 @@ export function useTenisSocio(fecha: string) {
   }, [refetch])
 
   const reservar = useCallback(async (args: {
-    canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]
+    canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; comentario?: string | null
   }): Promise<ResultadoTenis<ResultadoReserva>> => {
     const r = await rpcTenis('tenis_reservar', {
       p_cancha_id: args.canchaId, p_inicio: args.inicio, p_modalidad: args.modalidad, p_jugadores: args.jugadores,
+      p_comentario: args.comentario ?? null,
     }, 'No se pudo hacer la reserva. Probá de nuevo.')
     if (!r.ok) return r
     const res = parsearResultadoReserva(r.data)
@@ -58,11 +60,11 @@ export function useTenisSocio(fecha: string) {
   // El titular cambia su reserva (`tenis_editar_reserva`): mismo turno nuevo,
   // jugadores y respuesta que reservar; la reserva conserva su id.
   const editar = useCallback(async (reservaId: string, args: {
-    canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]
+    canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; comentario?: string | null
   }): Promise<ResultadoTenis<ResultadoReserva>> => {
     const r = await rpcTenis('tenis_editar_reserva', {
       p_reserva_id: reservaId, p_cancha_id: args.canchaId, p_inicio: args.inicio,
-      p_modalidad: args.modalidad, p_jugadores: args.jugadores,
+      p_modalidad: args.modalidad, p_jugadores: args.jugadores, p_comentario: args.comentario ?? null,
     }, 'No se pudo cambiar la reserva. Probá de nuevo.')
     if (!r.ok) return r
     const res = parsearResultadoReserva(r.data)
@@ -129,4 +131,36 @@ export function useMisReservasTenis(activo: boolean) {
   }, [refetch])
 
   return { reservas, loading, error, refetch, cancelar }
+}
+
+// Precio de una reserva antes de confirmarla (`tenis_cotizar`, no escribe
+// nada): mismas validaciones que reservar, así que un error es el mismo
+// mensaje que daría confirmar. `reservaId` al editar (su turno no cuenta).
+export async function cotizarTenis(a: {
+  canchaId: string; inicio: string; modalidad: Modalidad; jugadores: JugadorEntrada[]; reservaId: string | null
+}): Promise<ResultadoTenis<Cotizacion>> {
+  const r = await rpcTenis('tenis_cotizar', {
+    p_cancha_id: a.canchaId, p_inicio: a.inicio, p_modalidad: a.modalidad, p_jugadores: a.jugadores, p_reserva_id: a.reservaId,
+  }, 'No se pudo calcular el precio.')
+  if (!r.ok) return r
+  const c = parsearCotizacion(r.data)
+  return c ? { ok: true, data: c } : { ok: false, mensaje: 'No se pudo calcular el precio.' }
+}
+
+// Novedades de tenis para la hoja del socio (`tenis_novedades_listar`),
+// destacadas primero.
+export function useNovedadesTenis(limite = 20) {
+  const [novedades, setNovedades] = useState<NovedadTenis[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState<string | null>(null)
+
+  const refetch = useCallback(async () => {
+    setLoading(true)
+    const r = await rpcTenis('tenis_novedades_listar', { p_limit: limite }, 'No se pudieron cargar las novedades de tenis.')
+    if (r.ok) { setNovedades(parsearNovedades(r.data)); setError(null) } else setError(r.mensaje)
+    setLoading(false)
+  }, [limite])
+
+  useEffect(() => { refetch() }, [refetch])
+  return { novedades, loading, error, refetch }
 }

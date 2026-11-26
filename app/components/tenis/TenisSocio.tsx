@@ -10,6 +10,7 @@ import {
 import { formatMonto } from '@/lib/formatoMonto'
 import { GrillaCanchas } from './GrillaCanchas'
 import { FormReserva, type EdicionReserva } from './FormReserva'
+import { NovedadesTenis } from './NovedadesTenis'
 import { Boton, Leyenda, SelectorDia, Titulo, estilosTenis } from './ui'
 
 // Sección "Tenis" de la Agenda del socio (FEATURES.tenis): día (hoy + 2), la
@@ -73,7 +74,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
     setForm({
       cancha: r.cancha_id,
       hora: horaArgentina(r.inicio),
-      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r) },
+      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r), comentario: r.comentario ?? null },
     })
   }
 
@@ -92,6 +93,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
   return (
     <View style={s.root}>
       <Titulo>TENIS</Titulo>
+      <NovedadesTenis />
       <Text style={s.subtitulo}>Tocá un horario libre para reservar. Hasta {config.anticipacion_dias} días antes.</Text>
       <SelectorDia dias={dias} fecha={fecha} onElegir={setFecha} />
 
