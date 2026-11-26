@@ -447,6 +447,10 @@ const MOTIVOS: Record<string, string> = {
   jugador_sin_nombre: 'Ese DNI no es de un socio: completá nombre y apellido.',
   comprobante_invalido: 'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
   comprobante_no_subido: 'No encontramos el archivo. Subilo de nuevo.',
+  comentario_largo: 'El comentario puede tener hasta 280 caracteres.',
+  motivo_cancelacion: 'Escribí el motivo de la cancelación.',
+  novedad_inexistente: 'Esa novedad ya no existe.',
+  novedad_ya_enviada: 'Esa novedad ya se mandó.',
 }
 
 export function motivoTenis(codigo: string): string {
@@ -723,4 +727,157 @@ export function escapeHtml(texto: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+// ─── Horario por día de semana (tenis_horarios, migración 20261128000000) ──────
+// Lunes a viernes 08–22, sábado 09–22, domingo 10–17 (seed). Un día sin fila usa el horario de
+// tenis_config; un día con activo = false está cerrado. La base valida igual (tenis_validar_turno).
+
+export interface HorarioSemana {
+  /** ISO: 1 = lunes … 7 = domingo. */
+  dia_semana: number
+  hora_desde: string
+  hora_hasta: string
+  activo: boolean
+}
+
+export interface HorarioDia {
+  desde: string
+  hasta: string
+}
+
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$|^24:00(:00)?$/
+
+/** Filas de tenis_horarios (las horas llegan como 'HH:MM:SS'); descarta las que no se entienden. */
+export function parsearHorarios(json: unknown): HorarioSemana[] {
+  if (!Array.isArray(json)) return []
+  const out: HorarioSemana[] = []
+  for (const x of json) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const dia = Number(o.dia_semana)
+    if (!Number.isInteger(dia) || dia < 1 || dia > 7) continue
+    if (typeof o.hora_desde !== 'string' || typeof o.hora_hasta !== 'string') continue
+    if (!HORA_RE.test(o.hora_desde) || !HORA_RE.test(o.hora_hasta)) continue
+    const desde = o.hora_desde.slice(0, 5)
+    const hasta = o.hora_hasta.slice(0, 5)
+    if (minutosDeHora(desde) >= minutosDeHora(hasta)) continue
+    out.push({ dia_semana: dia, hora_desde: desde, hora_hasta: hasta, activo: o.activo !== false })
+  }
+  return out
+}
+
+/** Horario de las canchas para una fecha local; null = ese día está cerrado. */
+export function horarioDelDia(fecha: string, horarios: HorarioSemana[], cfg: TenisConfig): HorarioDia | null {
+  const fila = horarios.find((h) => h.dia_semana === diaSemanaIso(fecha))
+  if (!fila) return { desde: cfg.hora_desde.slice(0, 5), hasta: cfg.hora_hasta.slice(0, 5) }
+  return fila.activo ? { desde: fila.hora_desde, hasta: fila.hora_hasta } : null
+}
+
+/**
+ * La config con la apertura y el cierre de ese día, para usar con validarTurno, dejaHuecoValido y
+ * dentroDeHorario. Día cerrado (null): 00:00–00:00, ningún turno entra.
+ */
+export function configDelDia(cfg: TenisConfig, horario: HorarioDia | null): TenisConfig {
+  return horario
+    ? { ...cfg, hora_desde: horario.desde, hora_hasta: horario.hasta }
+    : { ...cfg, hora_desde: '00:00', hora_hasta: '00:00' }
+}
+
+// ─── Comentario de la reserva ─────────────────────────────────────────────────
+
+export const COMENTARIO_MAX = 280
+
+/** Recortado; vacío o ausente = null. ok:false si no es texto o pasa de COMENTARIO_MAX. */
+export function normalizarComentario(x: unknown): { ok: true; comentario: string | null } | { ok: false } {
+  if (x === undefined || x === null) return { ok: true, comentario: null }
+  if (typeof x !== 'string') return { ok: false }
+  const t = x.trim()
+  if (t.length > COMENTARIO_MAX) return { ok: false }
+  return { ok: true, comentario: t || null }
+}
+
+// ─── Cancelar varias (tenis_cancelar_varias) ──────────────────────────────────
+
+export const CANCELAR_VARIAS_MAX = 100
+
+/** Ids de reserva del body: uuid, sin repetir, de 1 a CANCELAR_VARIAS_MAX. null = inválido. */
+export function parsearIdsReserva(x: unknown): string[] | null {
+  if (!Array.isArray(x) || x.length === 0) return null
+  if (!x.every((id) => typeof id === 'string' && UUID_RE.test(id))) return null
+  const unicos = [...new Set(x as string[])]
+  return unicos.length <= CANCELAR_VARIAS_MAX ? unicos : null
+}
+
+/**
+ * Respuesta de tenis_cancelar_varias: { canceladas: [tenis_aviso], omitidas: [{reserva_id, codigo}] }.
+ * Tolerante: una cancelada puede venir como aviso o como uuid suelto; una omitida sin código queda
+ * como 'estado_invalido'.
+ */
+export function parsearCancelarVarias(json: unknown): { canceladas: string[]; omitidas: { reserva_id: string; codigo: string }[] } {
+  const r = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const canceladas = new Set<string>()
+  for (const x of Array.isArray(r.canceladas) ? r.canceladas : []) {
+    const id = typeof x === 'string' ? uuidONull(x) : x && typeof x === 'object' ? uuidONull((x as Record<string, unknown>).reserva_id) : null
+    if (id) canceladas.add(id)
+  }
+  const omitidas: { reserva_id: string; codigo: string }[] = []
+  for (const x of Array.isArray(r.omitidas) ? r.omitidas : []) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const id = uuidONull(o.reserva_id)
+    if (!id) continue
+    omitidas.push({ reserva_id: id, codigo: typeof o.codigo === 'string' && /^[a-z0-9_]+$/.test(o.codigo) ? o.codigo : 'estado_invalido' })
+  }
+  return { canceladas: [...canceladas], omitidas }
+}
+
+// ─── Cartelera de novedades (tenis_novedades) ─────────────────────────────────
+
+/** socio ids de tenis_audiencia_novedades(): setof uuid (strings) o filas con socio_id. */
+export function parsearSocioIds(json: unknown): string[] {
+  const lista = Array.isArray(json) ? json : [json]
+  const out = new Set<string>()
+  for (const x of lista) {
+    if (typeof x === 'string') {
+      const id = uuidONull(x)
+      if (id) out.add(id)
+    } else if (x && typeof x === 'object') {
+      const o = x as Record<string, unknown>
+      const id = uuidONull(o.socio_id) ?? uuidONull(o.tenis_audiencia_novedades)
+      if (id) out.add(id)
+    }
+  }
+  return [...out]
+}
+
+const PUSH_BODY_MAX = 178
+
+/** Push de una novedad: "Tenis: <título>" y el texto recortado a lo que muestra el teléfono. */
+export function textoPushNovedad(n: { titulo: string; texto: string }): { title: string; body: string } {
+  const texto = n.texto.replace(/\s+/g, ' ').trim()
+  if (!texto) return { title: `Tenis: ${n.titulo.trim()}`, body: 'Hay una novedad en la cartelera de tenis.' }
+  const body = texto.length <= PUSH_BODY_MAX ? texto : `${texto.slice(0, PUSH_BODY_MAX - 1).trimEnd()}…`
+  return { title: `Tenis: ${n.titulo.trim()}`, body }
+}
+
+/** Cuerpo del mail de una novedad (va dentro de emailTemplate). */
+export function htmlNovedad(n: { titulo: string; texto: string }): string {
+  const parrafo = escapeHtml(n.texto.trim()).replace(/\r?\n/g, '<br>')
+  return `
+    <p style="font-size:13px;color:#555;letter-spacing:1px;margin:0 0 8px">CARTELERA DE TENIS</p>
+    <h2 style="font-size:20px;margin:0 0 16px">${escapeHtml(n.titulo.trim())}</h2>
+    <p style="font-size:16px;line-height:1.6">${parrafo}</p>
+    <p style="font-size:14px;color:#555">También la ves en la app de UNCAS, en las reservas de tenis.</p>
+  `
+}
+
+// ─── Mails ────────────────────────────────────────────────────────────────────
+
+/** Dirección a la que vale la pena mandar: no vacía y no sintética del padrón (@uncas.local). */
+export function mailDestino(x: unknown): string | null {
+  if (typeof x !== 'string') return null
+  const t = x.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return null
+  return t.endsWith('@uncas.local') ? null : t
 }

@@ -2,19 +2,22 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  CONFIG_DEFAULT, configDesde, diaCorto, duracionTexto, etiquetaDia, faltaParaReservar, fechasReservables,
-  formatearFecha, formatearFechaHora, formatearPrecio, horariosDisponibles, horariosPorFranja, hoyArgentina,
-  jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, validarJugadores, validarTitular,
+  COMENTARIO_MAX, CONFIG_DEFAULT, configDesde, diaCorto, duracionTexto, etiquetaDia, faltaParaReservar, fechasReservables,
+  formatearFecha, formatearFechaHora, formatearPrecio, horarioDesde, horariosDisponibles, horariosPorFranja, hoyArgentina,
+  jugadoresPayload, jugadoresRequeridos, jugadorVacio, normalizarDni, resumenPrecios, textoHorario, validarComentario,
+  validarJugadores, validarTitular,
   type Cancha, type JugadorForm, type Libre, type Modalidad, type PasoFaltante, type TenisConfig, type Titular,
 } from '@/lib/tenis'
 import { tenisInvitados, type Resultado } from './api'
 import AvisoSanciones from './AvisoSanciones'
-import { Campo, ETIQUETA_GRUPO, Opcion, Paso, Seccion } from './ui'
+import { Campo, CampoTexto, ETIQUETA_GRUPO, Opcion, Paso, Seccion } from './ui'
 
 // tenis-invitados `disponibilidad`: free starts per match type come computed
-// by the function (`libres`); `ocupados` is not needed here.
+// by the function (`libres`, already within that weekday's opening hours);
+// `horario` = the day's hours (null = closed); `ocupados` is not needed here.
 type Disponibilidad = {
   config?: Partial<TenisConfig>
+  horario?: unknown
   canchas?: Cancha[]
   libres?: { singles?: Libre[]; dobles?: Libre[] }
 }
@@ -55,6 +58,7 @@ export default function ReservarForm() {
   const [canchaSel, setCanchaSel] = useState<string | null>(null)
   const [titular, setTitular] = useState<Titular>(TITULAR_VACIO)
   const [jugadores, setJugadores] = useState<JugadorForm[]>([jugadorVacio()])
+  const [comentario, setComentario] = useState('')
   const [intentado, setIntentado] = useState(false)
   // Fields left at least once: their errors show inline before any submit.
   const [tocados, setTocados] = useState<ReadonlySet<string>>(() => new Set())
@@ -106,6 +110,8 @@ export default function ReservarForm() {
   useEffect(() => { if (listo) listoRef.current?.focus() }, [listo])
 
   const config = configDesde(disp.data?.config)
+  // Opening hours of the chosen day (undefined while loading or from an older function).
+  const horarioDia = disp.estado === 'ok' ? horarioDesde(disp.data?.horario) : undefined
   // One deduplicated list of start times free in at least one court.
   const horarios = useMemo(() => disp.estado === 'ok'
     ? horariosDisponibles(disp.data?.canchas ?? [], disp.data?.libres, modalidad)
@@ -147,6 +153,7 @@ export default function ReservarForm() {
 
   const erroresTitular = validarTitular(titular)
   const erroresJugadores = validarJugadores(jugadores, titular.dni)
+  const errorComentario = validarComentario(comentario)
   const resumen = resumenPrecios(modalidad, jugadores, config)
   const falta = faltaParaReservar({
     hayHorario: !!horario, hayCancha: !!cancha, modalidad, erroresTitular, erroresJugadores,
@@ -180,6 +187,7 @@ export default function ReservarForm() {
     setIntentado(true)
     setErrorEnvio(null)
     if (falta) { irA(falta.paso); return }
+    if (errorComentario) { document.getElementById('comentario')?.focus(); return }
     setAvisando(true)
   }
 
@@ -201,6 +209,8 @@ export default function ReservarForm() {
           email: titular.email.trim().toLowerCase(),
         },
         jugadores: jugadoresPayload(jugadores),
+        // Optional; an empty comment is not sent.
+        comentario: comentario.trim() || undefined,
       })
     } finally {
       enviandoRef.current = false
@@ -305,6 +315,7 @@ export default function ReservarForm() {
 
         <Paso id="paso-horario" titulo="Horario">
           <p className="font-lora text-sm text-texto-2 mb-4">
+            {horarioDia && <>Este día las canchas abren {textoHorario(horarioDia)}. </>}
             Ves la hora real de inicio: el turno arranca {config.margen_inicio_min} minutos después del horario
             reservado (barrido de cancha).
           </p>
@@ -326,7 +337,11 @@ export default function ReservarForm() {
           )}
           {disp.estado === 'ok' && horarios.length === 0 && (
             <div className="font-lora text-sm flex flex-col gap-3 items-start">
-              <p className="text-tinta/85">No quedan turnos libres para este día. Probá con otro día.</p>
+              <p className="text-tinta/85">
+                {horarioDia === null
+                  ? 'Las canchas están cerradas este día. Probá con otro día.'
+                  : 'No quedan turnos libres para este día. Probá con otro día.'}
+              </p>
               {siguienteDia && (
                 <button type="button" onClick={() => setFecha(siguienteDia)} className={BOTON_SECUNDARIO}>
                   Ver {etiquetaDia(siguienteDia, hoy)}
@@ -431,6 +446,12 @@ export default function ReservarForm() {
               )
             })}
           </div>
+        </Paso>
+
+        <Paso id="paso-comentario" titulo="Comentario">
+          <CampoTexto id="comentario" label="Comentario (opcional)" max={COMENTARIO_MAX} value={comentario}
+            onChange={setComentario} error={errorComentario}
+            ayuda="Lo ve el club. Por ejemplo, si alguien llega más tarde." />
         </Paso>
 
         <Paso id="paso-resumen" titulo="Resumen">

@@ -5,7 +5,15 @@ import { supabaseAdmin } from './supabase-admin.ts'
 import { enviarEmail, emailTemplate } from './email.ts'
 import { enviarPush, esTokenExpo, trocear, type PushItem } from './expoPush.ts'
 import { tutoresPorSocio } from './tutores.ts'
-import { clavePush, configDesdeFila, type EstadoPush, type TenisConfig } from './tenisReglas.ts'
+import {
+  clavePush,
+  configDesdeFila,
+  mailDestino,
+  parsearHorarios,
+  type EstadoPush,
+  type HorarioSemana,
+  type TenisConfig,
+} from './tenisReglas.ts'
 
 export { clavePush, type EstadoPush }
 
@@ -45,6 +53,19 @@ export async function cargarConfig(): Promise<TenisConfig> {
   const { data, error } = await supabaseAdmin.from('tenis_config').select('*').maybeSingle()
   if (error) console.error('tenis: no se pudo leer tenis_config, uso los defaults:', error.message)
   return configDesdeFila(data)
+}
+
+/**
+ * Horario por día de semana (tenis_horarios). Si no se puede leer, lista vacía: cada día usa el
+ * horario de tenis_config (horarioDelDia) y la base vuelve a validar el turno igual.
+ */
+export async function cargarHorarios(): Promise<HorarioSemana[]> {
+  const { data, error } = await supabaseAdmin.from('tenis_horarios').select('dia_semana, hora_desde, hora_hasta, activo')
+  if (error) {
+    console.error('tenis: no se pudo leer tenis_horarios, uso el horario de tenis_config:', error.message)
+    return []
+  }
+  return parsearHorarios(data)
 }
 
 /** Reservas con su cancha y sus jugadores (sin embeds: no depende de cómo se llamen las FKs). */
@@ -112,7 +133,7 @@ export async function cargarInvitados(ids: string[]): Promise<Map<string, Invita
 }
 
 /** socio_id -> profiles que reciben por él: su cuenta y las de sus tutores activos. */
-async function profilesPorSocio(socioIds: string[]): Promise<Map<string, string[]>> {
+export async function profilesPorSocio(socioIds: string[]): Promise<Map<string, string[]>> {
   const mapa = new Map<string, string[]>()
   const agregar = (socioId: string, profileId: string) => {
     const lista = mapa.get(socioId) ?? []
@@ -199,4 +220,67 @@ export async function pushASocios(avisos: AvisoPush[]): Promise<{ entregados: nu
 export async function mailAInvitado(invitado: Invitado | undefined, subject: string, cuerpoHtml: string): Promise<boolean> {
   if (!invitado?.email) return false
   return await enviarEmail({ to: invitado.email, subject, html: emailTemplate(cuerpoHtml) })
+}
+
+const LECTURAS_AUTH_EN_PARALELO = 5
+
+/** Mails reales (sin vacíos ni sintéticos) de esas cuentas, sin repetir. Lee auth.users con la service role. */
+export async function mailsDeProfiles(profileIds: string[]): Promise<string[]> {
+  const unicos = [...new Set(profileIds.filter(Boolean))]
+  const mails = new Set<string>()
+  for (const lote of trocear(unicos, LECTURAS_AUTH_EN_PARALELO)) {
+    const usuarios = await Promise.all(lote.map(async (id) => {
+      const { data, error } = await supabaseAdmin.auth.admin.getUserById(id)
+      if (error) console.error('tenis: error leyendo el mail de una cuenta:', error.message)
+      return data?.user?.email ?? null
+    }))
+    for (const email of usuarios) {
+      const destino = mailDestino(email)
+      if (destino) mails.add(destino)
+    }
+  }
+  return [...mails]
+}
+
+const RESEND_BATCH_API = 'https://api.resend.com/emails/batch'
+const RESEND_BATCH_MAX = 100
+const PAUSA_ENTRE_LOTES_MS = 600
+
+/**
+ * El mismo mail a muchas direcciones, un mensaje por destinatario (nadie ve a los demás), con la
+ * API de lotes de Resend (100 por pedido) para no pasar el límite de pedidos por segundo ni el
+ * tiempo de la función. Mismos secrets que enviarEmail; si faltan, no manda nada.
+ * Devuelve cuántos aceptó Resend.
+ */
+export async function enviarMailsEnLote(destinos: string[], subject: string, cuerpoHtml: string): Promise<{ enviados: number; fallidos: number }> {
+  const resendKey = Deno.env.get('RESEND_API_KEY')
+  const from = Deno.env.get('CLUB_EMAIL_FROM')
+  if (!destinos.length) return { enviados: 0, fallidos: 0 }
+  if (!resendKey || !from) {
+    console.error('tenis: faltan RESEND_API_KEY o CLUB_EMAIL_FROM, no se mandan mails')
+    return { enviados: 0, fallidos: destinos.length }
+  }
+  const html = emailTemplate(cuerpoHtml)
+  let enviados = 0
+  let fallidos = 0
+  const lotes = trocear(destinos, RESEND_BATCH_MAX)
+  for (const [i, lote] of lotes.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, PAUSA_ENTRE_LOTES_MS))
+    try {
+      const res = await fetch(RESEND_BATCH_API, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(lote.map((to) => ({ from, to: [to], subject, html }))),
+      })
+      if (res.ok) enviados += lote.length
+      else {
+        fallidos += lote.length
+        console.error('tenis: Resend (lote) respondió con error:', res.status, await res.text())
+      }
+    } catch (e) {
+      fallidos += lote.length
+      console.error('tenis: error mandando un lote de mails:', e instanceof Error ? e.message : String(e))
+    }
+  }
+  return { enviados, fallidos }
 }
