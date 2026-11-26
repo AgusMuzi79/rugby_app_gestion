@@ -4,6 +4,7 @@ import {
   type Disponibilidad, type JugadorBuscado, type JugadorEntrada, type MiReserva, type Modalidad, type ResultadoReserva,
 } from '@/lib/tenis'
 import { ERROR_CARGA_TENIS, rpcTenis, type ResultadoTenis } from './useTenisRpc'
+import { parsearSemana, type DiaSemana } from '@/lib/tenisGrilla'
 
 // Reservas de tenis del socio (sección Tenis de la Agenda): la grilla del día
 // elegido (`tenis_disponibilidad`, sin nombres de otros) y sus reservas
@@ -129,4 +130,27 @@ export function useMisReservasTenis(activo: boolean) {
   }, [refetch])
 
   return { reservas, loading, error, refetch, cancelar }
+}
+
+// Vista semanal (`tenis_disponibilidad_semana`): por día y media hora, cuántas
+// canchas tienen lugar para un turno de esa modalidad. La usan el socio y el
+// gestor.
+export function useTenisSemana(desde: string, dias: number, modalidad: Modalidad) {
+  const [semana,  setSemana]  = useState<DiaSemana[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const pedido = useRef(0)
+
+  const refetch = useCallback(async () => {
+    const n = ++pedido.current
+    setLoading(true)
+    const r = await rpcTenis('tenis_disponibilidad_semana', { p_desde: desde, p_dias: dias, p_modalidad: modalidad }, ERROR_CARGA_TENIS)
+    if (n !== pedido.current) return
+    if (r.ok) { setSemana(parsearSemana(r.data)); setError(null) } else setError(r.mensaje)
+    setLoading(false)
+  }, [desde, dias, modalidad])
+
+  useEffect(() => { refetch() }, [refetch])
+
+  return { semana, loading, error, refetch }
 }

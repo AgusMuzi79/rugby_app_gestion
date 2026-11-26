@@ -38,6 +38,9 @@ export interface TenisConfig {
   precio_nosocio_single:   number
   precio_nosocio_dobles:   number
   bloquear_morosos:        boolean
+  // Días que se ven en la grilla (hoy + dias_vista − 1); se reserva sólo
+  // hasta anticipacion_dias.
+  dias_vista:              number
 }
 
 export const CONFIG_DEFECTO: TenisConfig = {
@@ -59,6 +62,7 @@ export const CONFIG_DEFECTO: TenisConfig = {
   precio_nosocio_single: 16000,
   precio_nosocio_dobles: 18000,
   bloquear_morosos: true,
+  dias_vista: 7,
 }
 
 export interface Cancha {
@@ -117,6 +121,10 @@ export interface Disponibilidad {
   config:  TenisConfig
   canchas: Cancha[]
   items:   ItemGrilla[]
+  // Horario de ese día (tenis_horarios); null si el servidor no lo manda.
+  horario:    { desde: string; hasta: string } | null
+  // false si el día se ve pero está fuera de la anticipación.
+  reservable: boolean
 }
 
 export interface JugadorBuscado {
@@ -207,7 +215,7 @@ export function parsearConfig(raw: unknown): TenisConfig {
   const numericos = [
     'modulo_min', 'margen_inicio_min', 'singles_min', 'dobles_min', 'max_reservas_dia', 'max_activas',
     'anticipacion_dias', 'cancelacion_horas', 'comprobante_horas_antes', 'hold_min', 'precio_socio_single',
-    'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles',
+    'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles', 'dias_vista',
   ] as const
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago
@@ -280,7 +288,14 @@ export function parsearDisponibilidad(raw: unknown): Disponibilidad {
   const items = Array.isArray(r.items)
     ? r.items.map(parsearItem).filter((i): i is ItemGrilla => i !== null)
     : []
-  return { config: parsearConfig(r.config), canchas, items }
+  const h = esObjeto(r.horario) ? r.horario : null
+  const desde = h ? hhmm(h.desde, '') : ''
+  const hasta = h ? hhmm(h.hasta, '') : ''
+  return {
+    config: parsearConfig(r.config), canchas, items,
+    horario: desde && hasta ? { desde, hasta } : null,
+    reservable: r.reservable !== false,
+  }
 }
 
 function parsearCargos(raw: unknown): CargoJugador[] {

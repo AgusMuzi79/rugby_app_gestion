@@ -4,19 +4,19 @@ import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { accionesTenis, useTenisGrilla, type BloqueEditable } from '@/hooks/useTenisGestor'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
-import { CONFIG_DEFECTO, diasReservables, fechaArgentina, type ItemGrilla, type TenisConfig } from '@/lib/tenis'
+import { CONFIG_DEFECTO, fechaArgentina, type ItemGrilla, type TenisConfig } from '@/lib/tenis'
+import { diasVista, reservasPorCancha } from '@/lib/tenisGrilla'
 import { GrillaCanchas } from './GrillaCanchas'
 import { DetalleItem } from './DetalleItem'
 import { EditorBloque, bloqueDesdeItem, type ModoBloque } from './EditorBloque'
 import { FormReserva } from './FormReserva'
-import { Boton, Leyenda, SelectorDia } from './ui'
+import { Boton } from './ui'
+import { NavegadorDia, SelectorVista, type VistaTenis } from './NavegadorDia'
+import { DisponibilidadSemana } from './DisponibilidadSemana'
 
 // Grilla del gestor: el día elegido con todas las reservas (titular,
 // jugadores, cobro) y los bloques. Tocar una celda libre ofrece una reserva
 // telefónica o un bloqueo; tocar un ítem abre su detalle.
-
-// El gestor mira una semana para adelante (los socios, hasta 2 días).
-const DIAS_GESTOR = 6
 
 export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void }) {
   const [ahoraMs, setAhoraMs] = useState(() => Date.now())
@@ -25,12 +25,14 @@ export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void
   const [detalle, setDetalle] = useState<ItemGrilla | null>(null)
   const [editor, setEditor] = useState<{ modo: ModoBloque; inicial?: BloqueEditable; cancha?: string | null; hora?: string } | null>(null)
   const [reserva, setReserva] = useState<{ cancha: string | null; hora: string | null } | null>(null)
+  const [vista, setVista] = useState<VistaTenis>('dia')
 
   const recargar = () => { setAhoraMs(Date.now()); refetch() }
   useRefreshOnFocus(refetch)
 
-  const dias = useMemo(() => diasReservables(ahoraMs, DIAS_GESTOR), [ahoraMs])
   const config = grilla?.config ?? CONFIG_DEFECTO
+  // Los días que se ven (`dias_vista`, como el socio); el gestor carga en todos.
+  const dias = useMemo(() => diasVista(ahoraMs, config.dias_vista), [ahoraMs, config.dias_vista])
   useEffect(() => { if (grilla) onConfig?.(grilla.config) }, [grilla, onConfig])
 
   function celdaLibre(cancha: string, hora: string) {
@@ -49,23 +51,40 @@ export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void
       contentContainerStyle={s.contenido}
       refreshControl={<RefreshControl refreshing={false} onRefresh={recargar} tintColor={colors.oro} />}
     >
-      <SelectorDia dias={dias} fecha={fecha} onElegir={setFecha} />
+      <SelectorVista vista={vista} onCambiar={setVista} />
       <View style={s.botones}>
         <Boton texto="RESERVA TELEFÓNICA" variante="secundario" onPress={() => setReserva({ cancha: grilla?.canchas[0]?.id ?? null, hora: null })} disabled={!grilla} />
         <Boton texto="+ BLOQUE FIJO" variante="secundario" onPress={() => setEditor({ modo: 'fijo' })} disabled={!grilla} />
         <Boton texto="+ BLOQUEO PUNTUAL" variante="secundario" onPress={() => setEditor({ modo: 'puntual' })} disabled={!grilla} />
       </View>
 
+      {vista === 'semana' ? (
+        <DisponibilidadSemana
+          desde={dias[0]}
+          dias={dias.length}
+          ahoraMs={ahoraMs}
+          onElegirDia={f => { setFecha(f); setVista('dia') }}
+        />
+      ) : (
+      <>
+      <NavegadorDia
+        dias={dias}
+        fecha={fecha}
+        ahoraMs={ahoraMs}
+        reservas={grilla ? reservasPorCancha(grilla.items, grilla.canchas).total : null}
+        canchas={grilla?.canchas.length ?? 0}
+        onCambiar={setFecha}
+      />
       {loading && !grilla ? (
         <ActivityIndicator color={colors.oro} style={s.cargando} />
       ) : error && !grilla ? (
         <ErrorCarga mensaje={error} onReintentar={recargar} />
       ) : grilla ? (
         <>
-          <Leyenda />
           <GrillaCanchas
             fecha={fecha}
             config={config}
+            horario={grilla.horario}
             canchas={grilla.canchas}
             items={grilla.items}
             ahoraMs={ahoraMs}
@@ -76,6 +95,8 @@ export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void
           {error && <Text style={s.error}>{error}</Text>}
         </>
       ) : null}
+      </>
+      )}
 
       {detalle && (
         <DetalleItem

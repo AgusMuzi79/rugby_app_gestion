@@ -245,6 +245,7 @@ export default function TenisCancheroScreen() {
               <GrillaCanchas
                 fecha={hoy}
                 config={config}
+                horario={grilla.horario}
                 canchas={grilla.canchas}
                 items={grilla.items}
                 ahoraMs={ahoraMs}
