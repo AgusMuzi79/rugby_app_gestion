@@ -6,9 +6,13 @@
 // Actions (body.action), todas POST:
 //   disponibilidad        — { fecha:'AAAA-MM-DD' } canchas, turnos ocupados (sin nombres) y turnos
 //                           libres por modalidad (sólo los que no dejan un hueco inválido:
-//                           dejaHuecoValido). Sólo hoy .. hoy + anticipacion_dias.
+//                           dejaHuecoValido). Sólo hoy .. hoy + anticipacion_dias. Respeta el horario
+//                           de ese día de semana (tenis_horarios, migración 20261128000000; sin fila,
+//                           el de tenis_config): devuelve `horario: {desde, hasta}` (null = cerrado) y
+//                           la semana en `config.horarios`.
 //   reservar              — { cancha_id, inicio (ISO), modalidad, titular:{dni,nombre,apellido,email},
-//                           jugadores:[{dni, nombre?, apellido?}] } (singles 1, dobles 3, sin el titular).
+//                           jugadores:[{dni, nombre?, apellido?}], comentario? (hasta 280) } (singles 1,
+//                           dobles 3, sin el titular).
 //                           Un jugador cuyo DNI es de un socio activo entra como socio (precio socio o
 //                           carnet, lo resuelve la base); si no, como invitado y necesita nombre y
 //                           apellido (si faltan: jugador_sin_nombre + dni). Guarda el turno 15 min
@@ -53,7 +57,11 @@ import {
   diaSemanaIso,
   duracionMin,
   dentroDeAnticipacion,
+  configDelDia,
   escapeHtml,
+  fechaLocal,
+  horarioDelDia,
+  normalizarComentario,
   extensionComprobante,
   fechaValida,
   finTurno,
@@ -74,10 +82,11 @@ import {
   tokenConForma,
   validarTurno,
   type ClaveLimite,
+  type HorarioSemana,
   type Modalidad,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig } from '../_shared/tenisNotificar.ts'
+import { cargarConfig, cargarHorarios } from '../_shared/tenisNotificar.ts'
 
 const ESTADOS_ACTIVOS = ['pendiente_confirmacion', 'pendiente_comprobante', 'confirmada', 'jugada']
 
@@ -162,9 +171,12 @@ interface Ocupado { cancha_id: string; inicio: string; fin: string }
 async function handleDisponibilidad(body: Record<string, unknown>): Promise<Response> {
   const fecha = body.fecha
   if (!fechaValida(fecha)) return rechazo('parametros')
-  const cfg = await cargarConfig()
+  const [cfg, horarios] = await Promise.all([cargarConfig(), cargarHorarios()])
   const ahora = new Date()
   if (!dentroDeAnticipacion(fecha, ahora, cfg)) return rechazo('anticipacion')
+  // Apertura y cierre de ese día: los turnos libres y el optimizador se miden contra ellos.
+  const horario = horarioDelDia(fecha, horarios, cfg)
+  const cfgDia = configDelDia(cfg, horario)
 
   const desdeDia = instanteLocal(fecha, '00:00')
   const hastaDia = instanteLocal(sumarDias(fecha, 1), '00:00')
@@ -211,20 +223,22 @@ async function handleDisponibilidad(body: Record<string, unknown>): Promise<Resp
   return json({
     ok: true,
     fecha,
-    config: configPublica(cfg),
+    config: configPublica(cfg, horarios),
+    horario,
     canchas,
     ocupados,
     libres: {
-      singles: turnosLibres(fecha, 'singles', canchas, ocupados, ahora, cfg),
-      dobles: turnosLibres(fecha, 'dobles', canchas, ocupados, ahora, cfg),
+      singles: horario ? turnosLibres(fecha, 'singles', canchas, ocupados, ahora, cfgDia) : [],
+      dobles: horario ? turnosLibres(fecha, 'dobles', canchas, ocupados, ahora, cfgDia) : [],
     },
   })
 }
 
-function configPublica(cfg: TenisConfig) {
+function configPublica(cfg: TenisConfig, horarios: HorarioSemana[]) {
   return {
     hora_desde: cfg.hora_desde,
     hora_hasta: cfg.hora_hasta,
+    horarios,
     modulo_min: cfg.modulo_min,
     margen_inicio_min: cfg.margen_inicio_min,
     singles_min: cfg.singles_min,
@@ -285,9 +299,15 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
   if (typeof canchaId !== 'string' || !UUID_RE.test(canchaId)) return rechazo('parametros', { campo: 'cancha_id' })
   const inicio = new Date(typeof body.inicio === 'string' ? body.inicio : '')
   const modalidad = body.modalidad
+  const comentario = normalizarComentario(body.comentario)
+  if (!comentario.ok) return rechazo('comentario_largo', { campo: 'comentario' })
 
-  const cfg = await cargarConfig()
-  const codigoTurno = validarTurno(inicio, modalidad, new Date(), cfg)
+  const [cfg, horarios] = await Promise.all([cargarConfig(), cargarHorarios()])
+  // El turno se valida contra el horario de su día (la base lo vuelve a validar).
+  const cfgDia = Number.isNaN(inicio.getTime())
+    ? cfg
+    : configDelDia(cfg, horarioDelDia(fechaLocal(inicio), horarios, cfg))
+  const codigoTurno = validarTurno(inicio, modalidad, new Date(), cfgDia)
   if (codigoTurno) return rechazo(codigoTurno)
   const mod = modalidad as Modalidad
 
@@ -323,6 +343,8 @@ async function handleReservar(body: Record<string, unknown>, ip: string | null):
     p_titular: titular,
     p_jugadores: pJugadores,
     p_token_hash: await hashToken(token),
+    // Sólo si hay comentario: sin él, la llamada es la misma que antes de 20261128000000.
+    ...(comentario.comentario ? { p_comentario: comentario.comentario } : {}),
   })
   if (error) {
     // {dni} que no es de un socio ni de un invitado conocido: falta nombre y apellido. La base

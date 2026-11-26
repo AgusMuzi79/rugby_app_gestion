@@ -24,6 +24,8 @@
 // hasta 3 veces). Si la corrida se cae antes de marcar, el aviso vuelve a salir a los 10 minutos.
 // Cada aviso va aislado: si uno falla (lectura, mail o push) queda en el log, se cuenta en
 // `fallidos` y se sigue con el resto. El estado ya cambió en la base y no se reintenta.
+// Un mail que no se manda porque el titular no tiene dirección real (vacía o sintética del padrón,
+// mailDestino) no es un fallo: se cuenta en `emails_omitidos` (F10).
 //
 // Deploy: supabase functions deploy tenis-cron --no-verify-jwt
 // Secrets requeridos: CRON_SECRET.
@@ -36,6 +38,7 @@ import {
   describirTurno,
   escapeHtml,
   formatoPesos,
+  mailDestino,
   parsearAvisosJugadores,
   parsearResumenProcesar,
   textoAvisoJugador,
@@ -121,7 +124,7 @@ Deno.serve(async (req: Request) => {
     if (error) throw new Error(`Error en tenis_procesar: ${error.message}`)
     const resumen = parsearResumenProcesar(data)
 
-    const avisos = { push: 0, emails: 0, push_fallidos: 0, fallidos: 0 }
+    const avisos = { push: 0, emails: 0, emails_omitidos: 0, push_fallidos: 0, fallidos: 0 }
     const fallo = (contexto: string, e: unknown) => {
       avisos.fallidos++
       console.error(`tenis-cron: ${contexto}:`, e instanceof Error ? e.message : String(e))
@@ -131,8 +134,12 @@ Deno.serve(async (req: Request) => {
       const cfg = await cargarConfig().catch(() => TENIS_CONFIG_DEFAULT)
       const pushes: AvisoPush[] = []
       const mail = async (a: AvisoReserva, asunto: string, html: string) => {
-        if (!a.titular.email) return
-        const invitado = { id: a.titular.invitado_id ?? '', email: a.titular.email, nombre: a.titular.nombre, apellido: null }
+        const email = mailDestino(a.titular.email)
+        if (!email) {
+          avisos.emails_omitidos++
+          return
+        }
+        const invitado = { id: a.titular.invitado_id ?? '', email, nombre: a.titular.nombre, apellido: null }
         const cuerpo = `<p style="font-size:16px">Hola ${escapeHtml(a.titular.nombre ?? '')},</p>${html}`
         if (await mailAInvitado(invitado, asunto, cuerpo)) avisos.emails++
         else avisos.fallidos++

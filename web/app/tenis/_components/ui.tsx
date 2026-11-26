@@ -64,6 +64,44 @@ export function Campo(p: {
   )
 }
 
+// Multi-line optional field with a live character count (same look as Campo).
+export function CampoTexto(p: {
+  id: string
+  label: string
+  value: string
+  onChange: (v: string) => void
+  max: number
+  ayuda?: string
+  error?: string
+}) {
+  const errId = `${p.id}-error`
+  const ayudaId = `${p.id}-ayuda`
+  const cuentaId = `${p.id}-cuenta`
+  const describe = [p.ayuda ? ayudaId : null, cuentaId, p.error ? errId : null].filter(Boolean).join(' ')
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={p.id} className="font-lora text-sm font-medium text-tinta">{p.label}</label>
+      <textarea
+        id={p.id}
+        rows={3}
+        maxLength={p.max}
+        value={p.value}
+        onChange={e => p.onChange(e.target.value)}
+        aria-invalid={p.error ? true : undefined}
+        aria-describedby={describe}
+        className={`font-lora text-base text-tinta bg-card border px-3 py-2.5 min-h-24 caret-oro outline-none transition-colors resize-y placeholder:text-texto-2 focus:border-oro ${
+          p.error ? 'border-rojo-texto' : 'border-borde-control hover:border-tinta/60'
+        }`}
+      />
+      <div className="flex justify-between gap-4 font-lora text-sm text-texto-2">
+        {p.ayuda ? <p id={ayudaId}>{p.ayuda}</p> : <span />}
+        <p id={cuentaId} className="shrink-0 tabular-nums">{p.value.length}/{p.max}</p>
+      </div>
+      {p.error && <p id={errId} className="font-lora text-sm text-rojo-texto">{p.error}</p>}
+    </div>
+  )
+}
+
 export function Opcion(p: { activo: boolean; onClick: () => void; children: React.ReactNode; label?: string; className?: string }) {
   return (
     <button

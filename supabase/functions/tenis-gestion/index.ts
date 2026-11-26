@@ -13,6 +13,15 @@
 //                          socios jugadores (y sus tutores), mail a los invitados. Sólo gestor.
 //   ver-comprobante      — { reserva_id } URL firmada de lectura del comprobante, 5 minutos.
 //                          Gestor o canchero.
+//   cancelar-varias      — { reserva_ids: uuid[] (1..100), motivo }. RPC tenis_cancelar_varias
+//                          (migración 20261128000000) y los mismos avisos que bloqueo-puntual para
+//                          cada reserva cancelada. => { canceladas, omitidas:[{reserva_id, codigo,
+//                          motivo}], avisos }. Sólo gestor.
+//   publicar-novedad     — { novedad_id } manda una novedad de la cartelera (tenis_novedades): push a
+//                          la audiencia de tenis_audiencia_novedades() (socios y sus tutores) y mail a
+//                          los que tienen un mail real. Se reclama marcando enviada_at, así que sale
+//                          una sola vez; al final guarda push_enviados y mails_enviados.
+//                          => { enviada_at, destinatarios, push_enviados, mails_enviados }. Sólo gestor.
 //
 // Seguridad: JWT requerido. El rol sale de profiles (nunca del body): gestor = admin, o
 // subcomision con deporte 'tenis'; canchero = rol canchero. Las RPC se llaman con el JWT del
@@ -36,11 +45,28 @@ import {
   horaInicioReal,
   horaLocal,
   fechaLocal,
+  htmlNovedad,
   motivoTenis,
+  parsearCancelarVarias,
+  parsearIdsReserva,
+  parsearSocioIds,
+  textoPushNovedad,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig, cargarInvitados, cargarReservas, mailAInvitado, pushASocios, type AvisoPush } from '../_shared/tenisNotificar.ts'
+import {
+  cargarConfig,
+  cargarInvitados,
+  cargarReservas,
+  enviarMailsEnLote,
+  mailAInvitado,
+  mailsDeProfiles,
+  profilesPorSocio,
+  pushASocios,
+  type AvisoPush,
+} from '../_shared/tenisNotificar.ts'
 
 const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso']
+// Acciones que sólo puede hacer la gestora; el resto, gestora o canchero.
+const SOLO_GESTOR = new Set(['bloqueo-puntual', 'cancelar-varias', 'publicar-novedad'])
 const URL_FIRMADA_SEG = 300
 
 type Permiso = { gestor: boolean; canchero: boolean }
@@ -100,7 +126,7 @@ Deno.serve(async (req: Request) => {
     return jsonError(400, 'Body inválido')
   }
 
-  const necesita = body.action === 'bloqueo-puntual' ? permiso.gestor : permiso.gestor || permiso.canchero
+  const necesita = SOLO_GESTOR.has(String(body.action)) ? permiso.gestor : permiso.gestor || permiso.canchero
   if (!necesita) return jsonError(403, motivoTenis('no_autorizado'), { codigo: 'no_autorizado' })
 
   try {
@@ -108,6 +134,8 @@ Deno.serve(async (req: Request) => {
       case 'resolver-comprobante': return await handleResolver(jwt, body)
       case 'bloqueo-puntual':      return await handleBloqueo(jwt, body)
       case 'ver-comprobante':      return await handleVerComprobante(body)
+      case 'cancelar-varias':      return await handleCancelarVarias(jwt, body)
+      case 'publicar-novedad':     return await handlePublicarNovedad(user.id, body)
       default:                     return jsonError(400, 'Acción desconocida')
     }
   } catch (e) {
@@ -208,14 +236,15 @@ async function handleBloqueo(jwt: string, body: Record<string, unknown>): Promis
 
   let avisos = { push: 0, emails: 0 }
   try {
-    avisos = await avisarCancelacion(canceladas, titulo)
+    avisos = await avisarCancelacion(canceladas, titulo, 'bloqueo')
   } catch (e) {
     console.error('tenis-gestion: avisos del bloqueo:', e instanceof Error ? e.message : String(e))
   }
   return jsonOk({ ok: true, bloque_id: r.bloque_id ?? null, reservas_canceladas: canceladas, avisos })
 }
 
-async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<{ push: number; emails: number }> {
+/** Push a los socios jugadores (y sus tutores) y mail a los invitados de cada reserva cancelada. */
+async function avisarCancelacion(reservaIds: string[], titulo: string, motivoClave: string): Promise<{ push: number; emails: number }> {
   if (!reservaIds.length) return { push: 0, emails: 0 }
   const cfg = await cargarConfig()
   const reservas = await cargarReservas(reservaIds)
@@ -230,7 +259,7 @@ async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<
     const socios = new Set([r.titular_socio_id, ...r.jugadores.map((j) => j.socio_id)].filter((x): x is string => !!x))
     for (const socioId of socios) {
       pushes.push({
-        clave: `${r.id}:bloqueo`,
+        clave: `${r.id}:${motivoClave}`,
         socioId,
         title: 'Tenis: se canceló tu reserva',
         body: `${turno}: ${titulo}. Perdón por el cambio, podés reservar otro horario.`,
@@ -250,6 +279,109 @@ async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<
   }
   const { entregados } = await pushASocios(pushes)
   return { push: entregados, emails }
+}
+
+// ─── cancelar-varias ──────────────────────────────────────────────────────────
+
+async function handleCancelarVarias(jwt: string, body: Record<string, unknown>): Promise<Response> {
+  const ids = parsearIdsReserva(body.reserva_ids)
+  if (!ids) return rechazo('parametros', { campo: 'reserva_ids' })
+  const motivo = typeof body.motivo === 'string' ? body.motivo.trim().slice(0, 300) : ''
+  if (!motivo) return rechazo('motivo_cancelacion')
+
+  const { data, error } = await clienteUsuario(jwt).rpc('tenis_cancelar_varias', { p_ids: ids, p_motivo: motivo })
+  if (error) return errorRpc('tenis_cancelar_varias', error)
+  const { canceladas, omitidas } = parsearCancelarVarias(data)
+
+  // Los avisos no frenan la respuesta: las cancelaciones ya quedaron guardadas.
+  let avisos = { push: 0, emails: 0 }
+  try {
+    avisos = await avisarCancelacion(canceladas, motivo, 'cancelada_gestor')
+  } catch (e) {
+    console.error('tenis-gestion: avisos de cancelar-varias:', e instanceof Error ? e.message : String(e))
+  }
+  return jsonOk({
+    ok: true,
+    canceladas,
+    omitidas: omitidas.map((o) => ({ ...o, motivo: motivoTenis(o.codigo) })),
+    avisos,
+  })
+}
+
+// ─── publicar-novedad ─────────────────────────────────────────────────────────
+
+async function handlePublicarNovedad(userId: string, body: Record<string, unknown>): Promise<Response> {
+  const novedadId = body.novedad_id
+  if (typeof novedadId !== 'string' || !UUID_RE.test(novedadId)) return rechazo('parametros')
+
+  // Reclamo atómico: sólo el primer pedido marca enviada_at (doble toque o dos gestoras a la vez).
+  const enviadaAt = new Date().toISOString()
+  const { data: reclamada, error: errReclamo } = await supabaseAdmin
+    .from('tenis_novedades')
+    .update({ enviada_at: enviadaAt })
+    .eq('id', novedadId)
+    .is('enviada_at', null)
+    .select('id, titulo, texto')
+    .maybeSingle()
+  if (errReclamo) return errorInterno('tenis_novedades (reclamo)', errReclamo)
+  if (!reclamada) {
+    const { data: existe, error: errExiste } = await supabaseAdmin
+      .from('tenis_novedades').select('id').eq('id', novedadId).maybeSingle()
+    if (errExiste) return errorInterno('tenis_novedades', errExiste)
+    return rechazo(existe ? 'novedad_ya_enviada' : 'novedad_inexistente')
+  }
+  const novedad = { titulo: String(reclamada.titulo ?? ''), texto: String(reclamada.texto ?? '') }
+  console.info(`tenis-gestion: publicar-novedad ${novedadId} por ${userId}`)
+
+  // Sin audiencia no salió nada: se libera el reclamo para poder reintentar.
+  const { data: audiencia, error: errAudiencia } = await supabaseAdmin.rpc('tenis_audiencia_novedades')
+  if (errAudiencia) {
+    const { error: errLiberar } = await supabaseAdmin
+      .from('tenis_novedades').update({ enviada_at: null }).eq('id', novedadId).eq('enviada_at', enviadaAt)
+    if (errLiberar) console.error('tenis-gestion: no se liberó el reclamo de la novedad:', errLiberar.message)
+    return errorInterno('tenis_audiencia_novedades', errAudiencia)
+  }
+  const socios = parsearSocioIds(audiencia)
+
+  // Push y mail van aislados: si uno falla, el otro sale igual (la novedad ya quedó enviada).
+  let pushEnviados = 0
+  let mailsEnviados = 0
+  const { title, body: texto } = textoPushNovedad(novedad)
+  try {
+    const { entregados } = await pushASocios(socios.map((socioId) => ({
+      clave: `novedad:${novedadId}`,
+      socioId,
+      title,
+      body: texto,
+      data: { type: 'tenis_novedad', novedad_id: novedadId },
+    })))
+    pushEnviados = entregados
+  } catch (e) {
+    console.error('tenis-gestion: push de la novedad:', e instanceof Error ? e.message : String(e))
+  }
+  try {
+    // Cuentas de los socios y de sus tutores; los mails sintéticos del padrón quedan afuera.
+    const perfiles = await profilesPorSocio(socios)
+    const mails = await mailsDeProfiles([...perfiles.values()].flat())
+    const { enviados } = await enviarMailsEnLote(mails, `${novedad.titulo.trim()} — Tenis UNCAS`, htmlNovedad(novedad))
+    mailsEnviados = enviados
+  } catch (e) {
+    console.error('tenis-gestion: mails de la novedad:', e instanceof Error ? e.message : String(e))
+  }
+
+  const { error: errCuentas } = await supabaseAdmin
+    .from('tenis_novedades')
+    .update({ push_enviados: pushEnviados, mails_enviados: mailsEnviados })
+    .eq('id', novedadId)
+  if (errCuentas) console.error('tenis-gestion: no se guardaron los totales de la novedad:', errCuentas.message)
+
+  return jsonOk({
+    ok: true,
+    enviada_at: enviadaAt,
+    destinatarios: socios.length,
+    push_enviados: pushEnviados,
+    mails_enviados: mailsEnviados,
+  })
 }
 
 // ─── ver-comprobante ──────────────────────────────────────────────────────────

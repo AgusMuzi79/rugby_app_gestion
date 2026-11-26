@@ -116,6 +116,13 @@ export function validarJugadores(jugadores: JugadorForm[], dniTitular: string): 
   })
 }
 
+// Optional booking comment (tenis_reservas.comentario): trimmed, up to 280.
+export const COMENTARIO_MAX = 280
+
+export function validarComentario(valor: string): string | undefined {
+  return valor.trim().length > COMENTARIO_MAX ? `El comentario puede tener hasta ${COMENTARIO_MAX} caracteres.` : undefined
+}
+
 export function sinErrores(e: object | object[]): boolean {
   return Array.isArray(e) ? e.every(x => Object.keys(x).length === 0) : Object.keys(e).length === 0
 }
@@ -201,6 +208,35 @@ export function turnosDesdeLibres(canchas: Cancha[], libres: unknown): { cancha:
     cancha,
     turnos: (porCancha.get(cancha.id) ?? []).sort((a, b) => a.inicio.localeCompare(b.inicio)),
   }))
+}
+
+// ---------- opening hours of the day ----------
+
+// Courts open and close per weekday (tenis_horarios, e.g. Sunday 10 to 17).
+export type HorarioDia = { desde: string; hasta: string }
+
+const HORA_RE = /^\d{2}:\d{2}(:\d{2})?$/
+
+// `disponibilidad.horario`: the hours of the requested day, null when the
+// courts are closed that day, undefined when the function did not send it.
+export function horarioDesde(x: unknown): HorarioDia | null | undefined {
+  if (x === null) return null
+  if (!x || typeof x !== 'object') return undefined
+  const o = x as Record<string, unknown>
+  if (typeof o.desde !== 'string' || typeof o.hasta !== 'string') return undefined
+  if (!HORA_RE.test(o.desde) || !HORA_RE.test(o.hasta)) return undefined
+  return { desde: o.desde.slice(0, 5), hasta: o.hasta.slice(0, 5) }
+}
+
+// "08:30" → "8:30", "17:00" → "17".
+function horaCorta(hora: string): string {
+  const [h, m] = hora.split(':')
+  return m === '00' ? String(Number(h)) : `${Number(h)}:${m}`
+}
+
+// "de 10 a 17 h"
+export function textoHorario(h: HorarioDia): string {
+  return `de ${horaCorta(h.desde)} a ${horaCorta(h.hasta)} h`
 }
 
 // ---------- time-first picker ----------
@@ -368,6 +404,7 @@ const MENSAJES: Record<string, string> = {
   jugador_sin_nombre: 'Uno de los DNI no es de un socio: marcalo como no socio y completá nombre y apellido.',
   comprobante_invalido: 'El comprobante tiene que ser una foto (JPG o PNG) o un PDF de hasta 5 MB.',
   comprobante_no_subido: 'No encontramos el archivo subido. Probá de nuevo.',
+  comentario_largo: 'El comentario puede tener hasta 280 caracteres.',
 }
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
