@@ -413,6 +413,7 @@ const MOTIVOS: Record<string, string> = {
   cantidad_jugadores: 'Revisá los jugadores: singles lleva 1 jugador más y dobles 3.',
   jugadores_duplicados: 'Un jugador está cargado dos veces.',
   jugador_ocupado: 'Uno de los jugadores ya tiene otro turno a esa hora.',
+  turno_seguido: textoTurnoSeguido(null),
   socio_no_encontrado: 'No encontramos un socio con ese DNI.',
   dni_invalido: 'Revisá el DNI.',
   invitado_incompleto: 'Completá nombre y apellido de los invitados.',
@@ -454,7 +455,14 @@ const MOTIVOS: Record<string, string> = {
   novedad_en_curso: 'Esa novedad se está mandando. Si en 15 minutos no terminó, probá de nuevo.',
 }
 
-export function motivoTenis(codigo: string): string {
+// turno_seguido (20261130000000): la base manda el nombre de la persona en el DETAIL.
+function textoTurnoSeguido(nombre: string | null): string {
+  return `${nombre || 'Uno de los jugadores'} ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.`
+}
+
+/** Texto de un código. `detalle` = DETAIL del error (sólo lo usa turno_seguido: el nombre). */
+export function motivoTenis(codigo: string, detalle?: string | null): string {
+  if (codigo === 'turno_seguido') return textoTurnoSeguido(detalle?.trim() || null)
   return MOTIVOS[codigo] ?? 'No se pudo completar la operación. Probá de nuevo.'
 }
 

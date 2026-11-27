@@ -334,6 +334,8 @@ const CODIGOS_CONTRATO = [
   // 20261128000000_tenis_paridad_ondepor + tenis-gestion.
   'fuera_de_vista', 'comentario_largo', 'motivo_cancelacion', 'novedad_invalida', 'novedad_inexistente',
   'novedad_ya_enviada', 'novedad_en_curso', 'reporte_invalido', 'rango_invalido',
+  // 20261130000000_tenis_sin_turnos_seguidos.
+  'turno_seguido',
 ]
 
 caso('cada código de la base y de las funciones tiene mensaje propio', () => {
@@ -351,6 +353,13 @@ caso('mensaje en castellano por código', () => {
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'limite_dia' }, 'x'), 'Ya tenés una reserva ese día.')
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'turno_ocupado' }, 'x'), 'Ese horario ya está ocupado. Elegí otro.')
   assert.match(mensajeErrorTenis({ code: 'P0001', message: 'hueco_invalido' }, 'x'), /media hora libre/)
+  // turno_seguido: el nombre llega en el DETAIL (PostgREST: details) o en detalle (Edge Functions).
+  assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'turno_seguido', details: 'Gómez Ana' }, 'x'),
+    'Gómez Ana ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(mensajeErrorTenis({ codigo: 'turno_seguido', detalle: ' Juan Paz ' }, 'x'),
+    'Juan Paz ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'turno_seguido', details: '' }, 'x'),
+    'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
   // Código desconocido o error técnico: el por defecto, nunca el texto crudo.
   assert.equal(mensajeErrorTenis({ code: 'P0001', message: 'codigo_raro' }, 'Por defecto'), 'Por defecto')
   assert.equal(mensajeErrorTenis({ code: '42501', message: 'permission denied' }, 'Por defecto'), 'No tenés permiso para hacer esto.')

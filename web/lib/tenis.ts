@@ -388,6 +388,7 @@ const MENSAJES: Record<string, string> = {
   cantidad_jugadores: 'Singles lleva 1 jugador además de vos y dobles 3.',
   jugadores_duplicados: 'Hay un DNI repetido en la reserva.',
   jugador_ocupado: 'Uno de los jugadores ya tiene otro turno a esa hora.',
+  turno_seguido: textoTurnoSeguido(null),
   socio_no_encontrado: 'No encontramos un socio activo con ese DNI. Cargalo como no socio.',
   dni_invalido: 'Revisá los DNI: sólo números, 7 u 8 dígitos.',
   invitado_incompleto: 'Completá nombre y apellido de los no socios.',
@@ -411,6 +412,12 @@ const MENSAJES: Record<string, string> = {
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
 
+// turno_seguido (migration 20261130000000): the DB sends the person's name as DETAIL;
+// tenis-invitados may forward it as `detalle`.
+function textoTurnoSeguido(nombre: string | null): string {
+  return `${nombre || 'Uno de los jugadores'} ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.`
+}
+
 export function mensajeTenis(codigo: string | undefined | null): string {
   if (!codigo) return 'Algo salió mal. Probá de nuevo.'
   if (MENSAJES[codigo]) return MENSAJES[codigo]
@@ -421,8 +428,11 @@ export function mensajeTenis(codigo: string | undefined | null): string {
 
 // tenis-invitados answers business errors as 200 { ok:false, codigo, motivo }
 // (motivo = the function's Spanish copy) and real errors as { error }.
-export function mensajeRespuesta(r: { ok?: unknown; codigo?: unknown; motivo?: unknown; error?: unknown }): { codigo?: string; mensaje: string } {
+export function mensajeRespuesta(r: { ok?: unknown; codigo?: unknown; motivo?: unknown; error?: unknown; detalle?: unknown }): { codigo?: string; mensaje: string } {
   const codigo = typeof r.codigo === 'string' ? r.codigo : undefined
+  if (codigo === 'turno_seguido') {
+    return { codigo, mensaje: textoTurnoSeguido(typeof r.detalle === 'string' ? r.detalle.trim() || null : null) }
+  }
   if (codigo && MENSAJES[codigo]) return { codigo, mensaje: MENSAJES[codigo] }
   const texto = typeof r.motivo === 'string' && r.motivo ? r.motivo : typeof r.error === 'string' ? r.error : undefined
   return { codigo, mensaje: texto ? mensajeTenis(texto) : mensajeTenis(codigo) }
