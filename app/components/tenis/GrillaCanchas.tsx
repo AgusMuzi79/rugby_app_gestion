@@ -15,6 +15,7 @@ import { FILA_H, HORA_W, anchoColumna, configDelDia, lineaAhora, nombresBloque, 
 // bloquear, en el gestor). La usan el socio, el gestor y el canchero.
 
 const LINEA_NOMBRE = 11 // alto de una línea de nombre (fontSize 9)
+const ENCABEZADO_H = 44 // court number + count + "reservas"
 
 export function GrillaCanchas({
   fecha, config, horario = null, canchas, items, ahoraMs, conDetalle = false, reservable = true,
@@ -61,26 +62,28 @@ export function GrillaCanchas({
 
   return (
     <View onLayout={anchoFijo === undefined ? e => setAncho(e.nativeEvent.layout.width) : undefined}>
+      {/* Header outside the vertical ScrollView: it stays fixed because only
+          the body scrolls. stickyHeaderIndices lost the row layout on Android. */}
+      <View style={s.filaEncabezado}>
+        <View style={{ width: HORA_W }} />
+        {canchas.map(c => {
+          const n = conteo.porCancha[c.id] ?? 0
+          return (
+            <View key={c.id} style={[s.encabezadoCancha, { width: colW }]} accessible accessibilityRole="header"
+              accessibilityLabel={`Cancha ${c.nombre}, ${n} ${n === 1 ? 'reserva' : 'reservas'}`}>
+              <Text style={s.cancha} numberOfLines={1}>{c.nombre}</Text>
+              <Text style={s.cantidad} numberOfLines={1}>{n}</Text>
+              <Text style={s.cantidad} numberOfLines={1}>{n === 1 ? 'reserva' : 'reservas'}</Text>
+            </View>
+          )
+        })}
+      </View>
+
       <ScrollView
-        style={{ maxHeight: altoMax ?? Math.max(320, ventana.height * 0.7) }}
-        stickyHeaderIndices={[0]}
+        style={{ maxHeight: altoMax !== undefined ? Math.max(0, altoMax - ENCABEZADO_H) : Math.max(320, ventana.height * 0.7) }}
         nestedScrollEnabled
         showsVerticalScrollIndicator={false}
       >
-        <View style={s.filaEncabezado}>
-          <View style={{ width: HORA_W }} />
-          {canchas.map(c => {
-            const n = conteo.porCancha[c.id] ?? 0
-            return (
-              <View key={c.id} style={[s.encabezadoCancha, { width: colW }]} accessible accessibilityRole="header"
-                accessibilityLabel={`Cancha ${c.nombre}, ${n} ${n === 1 ? 'reserva' : 'reservas'}`}>
-                <Text style={s.cancha} numberOfLines={1}>{c.nombre}</Text>
-                <Text style={s.cantidad} numberOfLines={2}>{n} {n === 1 ? 'reserva' : 'reservas'}</Text>
-              </View>
-            )
-          })}
-        </View>
-
         <View style={s.cuerpo}>
           <View style={{ width: HORA_W }}>
             {filas.map(h => <Text key={h} style={[s.hora, { height: filaH }]}>{h}</Text>)}
@@ -157,10 +160,10 @@ export function GrillaCanchas({
 
 const s = StyleSheet.create({
   vacio:            { fontFamily: fonts.cuerpo, fontSize: 15, fontStyle: 'italic', color: colors.muted, paddingVertical: 8 },
-  filaEncabezado:   { flexDirection: 'row', backgroundColor: colors.fondo, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.borde },
+  filaEncabezado:   { flexDirection: 'row', height: ENCABEZADO_H, backgroundColor: colors.fondo, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.borde },
   encabezadoCancha: { alignItems: 'center', paddingHorizontal: 1 },
   cancha:           { fontFamily: fonts.label, fontSize: 13, color: colors.texto },
-  cantidad:         { fontFamily: fonts.cuerpo, fontSize: 9, lineHeight: 10, textAlign: 'center', color: colors.textoSecundario },
+  cantidad:         { fontFamily: fonts.cuerpo, fontSize: 8, lineHeight: 10, textAlign: 'center', color: colors.textoSecundario },
   cuerpo:           { flexDirection: 'row', position: 'relative' },
   hora:             { height: FILA_H, fontFamily: fonts.mono, fontSize: 10, color: colors.muted, paddingTop: 2 },
   columna:          { position: 'relative', borderLeftWidth: 1, borderLeftColor: colors.borde },
