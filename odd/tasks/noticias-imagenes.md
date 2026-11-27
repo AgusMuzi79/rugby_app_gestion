@@ -1,0 +1,69 @@
+# Noticias: varias imágenes, visor a pantalla completa y push sólo para avisos
+
+Locator: `odd/tasks/noticias-imagenes.md` · Engram mirror: `odd/noticias-imagenes/tasks` · Branch: `feat/noticias-imagenes`
+
+## Objective
+
+1. A news item can carry several images (Subcomisión, app and web).
+2. Readers (socio / tutor feed in the app) can tap an image and open it full screen, swiping between images.
+3. Push rule for Subcomisión news: a title-only item is a quick notice and sends a push; an item with a description or at least one image is published to the feed without a push.
+
+## Problem / why
+
+- `noticias.imagen_path` holds one image; the club wants galleries.
+- Images in the feed and the detail sheet are not tappable, so small details are unreadable.
+- Subcomisión wants pushes only for short notices; full news should not ping every member.
+
+## Scope and constraints
+
+- User decision (2026-11-27): the push rule applies **only to Subcomisión** (app `(subcomision)/noticias.tsx` and web `(subcomision)/noticias`). Buffet, Secretaría and Admin keep pushing as today.
+- Multi-image upload only in the Subcomisión forms (assumption: Buffet promos stay single-image; follow-up if wanted). The reader handles any item with 1..N images.
+- Backward compatible: keep `imagen_path` = first image so existing rows and older readers keep working; new column `imagenes text[]`.
+- Max 6 images per news item.
+- No new native dependency (OTA-safe): full-screen viewer built with RN `Modal` + horizontal paging + `expo-image` `contentFit="contain"`.
+- Web has no member feed; staff list thumbnails just open the image in a new tab.
+
+## Tasks
+
+- [x] T1 — Migration `20261129000000_noticias_imagenes.sql` (`imagenes text[] not null default '{}'`, backfill from `imagen_path`, max 6 check) + pure logic in `app/lib/noticiaSubcomision.ts` / `web/lib/noticiaSubcomision.ts` (`imagenes`, `imagen_path` = first, `debeNotificarNoticia`) + `.check.ts` RED→GREEN. Route: delegated (writer trigger: 2+ non-trivial files).
+  - Evidence: RED `cd app && npm run test:noticias`: exit 1, AssertionError deepStrictEqual on the first case (payload without `imagenes`) before the lib change. GREEN `cd app && npm run test:noticias`: 12 casos ok. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts` (new web check): 12 casos ok. `cd app && npx tsc --noEmit`: exit 0 (baseline exit 0). `cd web && npx tsc --noEmit`: exit 0 (baseline exit 0). `web` has no `lint` script (`npm run lint`: missing script, also on baseline). Migration not applied anywhere.
+  - Note: `imagenes` is not in the generated `app/lib/database.types.ts` (outside this feature's edit surface), so the app hooks cast the insert/select with a comment; drop the casts when the types are regenerated. The app and web must not ship before the migration is applied (inserts now send `imagenes`).
+- [x] T2 — App Subcomisión: pick/remove up to 6 images, upload all, insert `imagenes`, invoke push only when `debeNotificarNoticia`, helper text, delete cleanup of all paths, list thumb. Route: delegated.
+  - Evidence (previous commit 389b753): `cd app && npm run test:noticias`: 13 casos ok (new `pathsImagenesNoticia` case, written together with the helper, no separate RED). `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 13 casos ok. `cd app && npx tsc --noEmit`: exit 0. `cd web && npx tsc --noEmit`: exit 0. Runtime on a phone: pending (Agus).
+  - Picker: `allowsMultipleSelection` + `selectionLimit: remaining` + `orderedSelection`, no cropping (unsupported with multi-select); the list is also capped to 6 in code. Uploads go to `{uid}/{timestamp}-{i}.jpg`; a failed upload or insert removes the files already uploaded.
+- [x] T3 — App reader (`(socio)/noticias.tsx`, `useNoticias`): `imagenesUrls`, card shows first image + count badge, detail sheet paging gallery, tap opens full-screen viewer (`app/components/shared/VisorImagenes.tsx`), empty cuerpo not rendered. Route: delegated.
+  - Evidence (previous commit bd01a59): `cd app && npx tsc --noEmit`: exit 0. `cd app && npm run test:noticias`: 13 casos ok (`pathsImagenesNoticia` drives the fallback to `imagen_path`). `npx tsx lib/tokens.check.ts`: 4 casos OK; `npx tsx lib/contraste.check.ts`: 39 casos OK. No runnable RED for UI (no component test runner); runtime on a phone pending (Agus): 0/1/N images, tap opens full screen, swipe, close, Android back, iOS pinch zoom.
+  - The viewer is rendered inside the detail `Modal` so iOS presents it on top. Pinch zoom is iOS only (RN `ScrollView` zoom); Android shows the image fitted. Secretaría (`useNoticias(false)`) keeps `imagenUrl` (= first image).
+- [x] T4 — Web Subcomisión: multi-file input with previews/removal, upload all, insert `imagenes`, conditional push, helper text, delete cleanup, thumbnails open in new tab. Route: delegated.
+  - Evidence (previous commit 2903c58): `cd web && npx tsc --noEmit`: exit 0. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 13 casos ok. `cd web && npm run lint`: no `lint` script and no ESLint config in `web/` (same as baseline). No new Next.js API used (client component, plain `<a>`/`<img>`). Browser check pending (Agus).
+  - Each picked file goes through `errorTamano` (over 10 MB is skipped with a message) and `prepararImagen` on upload; extra files beyond 6 are dropped with a message; object URLs are revoked on removal/close.
+
+## Acceptance criteria
+
+- Title-only Subcomisión news → push sent; with description or any image → no push call, item visible in the feed.
+- Buffet/Secretaría/Admin push unchanged.
+- Feed shows items with 0, 1 or N images; tapping an image opens it full screen; swipe moves between images; close returns.
+- Old rows with only `imagen_path` still show their image.
+
+## Checks
+
+- `cd app && npm run test:noticias` (RED before T1 logic, GREEN after).
+- `cd app && npx tsc --noEmit`; `cd web && npx tsc --noEmit` and `npm run lint` if present.
+- Migration reviewed (not applied to prod without Agus's OK).
+
+## Delivery
+
+Strategy: `ask-on-risk`. Forecast ~450 authored lines.
+
+## Progress / evidence
+
+- 2026-11-27: mapping done (explorer), push scope decided by user (Subcomisión only).
+- 2026-11-27: T1–T4 implemented on `feat/noticias-imagenes` (commits 389b753, bd01a59, 2903c58, T4). Pending: apply migration `20261129000000` (before any OTA or web deploy: app and web now read and write `imagenes`), phone and browser checks.
+- 2026-11-27: rebased on main (60de144). The migration was renamed to `20261129000000` because main already had `20261128000000_tenis_paridad_ondepor.sql`.
+- 2026-11-27: native review (risk medium, consent granted, lens reliability): **approved**, acknowledged (lineage `review-0d8dfbc27413559a`, authority burned). Advisory findings:
+  - R3-web-prepare-throw-orphans (WARNING): **fixed** in a follow-up commit. `prepararImagen` now runs inside try/catch in the web upload loop, so a failure cleans up earlier uploads and unlocks the form.
+  - R3-deploy-order-feed (WARNING): the socio/Secretaría feed selects `imagenes`, so the migration must be applied BEFORE any OTA or web deploy.
+  - R3-picker-no-edit-format (SUGGESTION): the app picker uploads uncropped originals as `.jpg` without resizing. Check memory and upload time with 6 large photos on a phone; add `expo-image-manipulator` resizing if needed (it would need a native build).
+  - R3-orchestration-untested (SUGGESTION): only the pure helpers are covered; the hook/page wiring is checked by hand.
+- 2026-11-27: second native review of the whole branch including the web fix (lineage `review-495e3dd7280de360`): **approved**, acknowledged. New advisory R3-001: `imagenes` wins over `imagen_path`, so a flow that updates only `imagen_path` on an existing row would leave `imagenes` stale. Not reachable today: no flow updates `imagen_path` (Buffet and Subcomisión only insert and delete). If an edit-image flow is added, it must write both columns (`camposImagenesNoticia`).
+- 2026-11-27: `imagenes` added to `app/lib/database.types.ts`; casts removed from `useNoticiasSubcomision.ts` (`cd app && npx tsc --noEmit`: exit 0; `npm run test:noticias`: 13 casos ok).

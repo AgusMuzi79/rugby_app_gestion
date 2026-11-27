@@ -3,19 +3,27 @@ import { Alert } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { buildNoticiaSubcomision } from '@/lib/noticiaSubcomision'
+import {
+  buildNoticiaSubcomision,
+  camposImagenesNoticia,
+  debeNotificarNoticia,
+  pathsImagenesNoticia,
+  MAX_IMAGENES_NOTICIA,
+} from '@/lib/noticiaSubcomision'
 import { resultadoBorrado } from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 
 export interface NoticiaSubco {
-  id:          string
-  titulo:      string
-  cuerpo:      string
-  etiquetas:   string[]
-  created_at:  string
-  imagen_path: string | null
-  imagenUrl:   string | null
+  id:           string
+  titulo:       string
+  cuerpo:       string
+  etiquetas:    string[]
+  created_at:   string
+  imagen_path:  string | null
+  // Storage paths of the images (`imagenes`, or the legacy imagen_path), in order.
+  imagenes:     string[]
+  imagenesUrls: string[]
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -28,10 +36,12 @@ function decodeBase64(base64: string): Uint8Array {
   return bytes
 }
 
-// Subcomisión noticias: same flow as Buffet promos (usePromosBuffet) — optional
-// image uploaded first to the public 'noticias-imagenes' bucket under
-// {uid}/{timestamp}.jpg, then a single insert published immediately to every
-// member, then the 'noticia_publicada' push with the title.
+// Subcomisión noticias: optional images (up to MAX_IMAGENES_NOTICIA) uploaded
+// first, in order, to the public 'noticias-imagenes' bucket under
+// {uid}/{timestamp}-{i}.jpg, then a single insert published immediately to
+// every member. Only a title-only noticia sends the 'noticia_publicada' push
+// (debeNotificarNoticia); with a description or images it is just published
+// in the feed.
 // Payload rules (etiquetas from profiles.deporte, cuerpo '' when title-only)
 // live in lib/noticiaSubcomision.ts.
 export function useNoticiasSubcomision() {
@@ -47,7 +57,7 @@ export function useNoticiasSubcomision() {
     setError(null)
     const { data, error: err } = await supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path')
+      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes')
       .order('created_at', { ascending: false })
       .limit(LIMITE)
 
@@ -57,12 +67,14 @@ export function useNoticiasSubcomision() {
       return
     }
 
-    setNoticias((data ?? []).map(n => ({
-      ...n,
-      imagenUrl: n.imagen_path
-        ? supabase.storage.from(BUCKET).getPublicUrl(n.imagen_path).data.publicUrl
-        : null,
-    })))
+    setNoticias((data ?? []).map(n => {
+      const imagenes = pathsImagenesNoticia(n)
+      return {
+        ...n,
+        imagenes,
+        imagenesUrls: imagenes.map(path => supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl),
+      }
+    }))
     terminar()
   }, [empezar, terminar])
 
@@ -84,63 +96,76 @@ export function useNoticiasSubcomision() {
   const publicar = useCallback(async (
     titulo: string,
     descripcion: string,
-    imagenUri?: string | null,
+    imagenesUris: string[] = [],
   ): Promise<boolean> => {
     const autorId = session?.user.id ?? ''
-    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId })
+    // The local URIs only count here; the payload gets the storage paths below.
+    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId, imagenes: imagenesUris })
     if (!validacion.ok) {
       Alert.alert('Error', validacion.error === 'titulo_vacio'
         ? 'El título es obligatorio.'
-        : 'Tu sesión expiró. Volvé a ingresar.')
+        : validacion.error === 'demasiadas_imagenes'
+          ? `Podés agregar hasta ${MAX_IMAGENES_NOTICIA} imágenes.`
+          : 'Tu sesión expiró. Volvé a ingresar.')
       return false
     }
 
     setPublicando(true)
 
-    let imagenPath: string | null = null
-    if (imagenUri) {
+    // Upload in order; if one fails, remove the ones already uploaded (best
+    // effort) so no orphan files are left.
+    const subidas: string[] = []
+    const limpiarSubidas = async () => {
+      if (subidas.length === 0) return
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove(subidas)
+      if (rmErr) console.warn('noticias: image cleanup failed', rmErr.message)
+    }
+    const inicio = Date.now()
+    for (const [i, uri] of imagenesUris.entries()) {
       try {
-        const base64 = await FileSystem.readAsStringAsync(imagenUri, { encoding: 'base64' })
-        const path   = `${autorId}/${Date.now()}.jpg`
+        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' })
+        const path   = `${autorId}/${inicio}-${i}.jpg`
         const { error: uploadErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, decodeBase64(base64), { contentType: 'image/jpeg' })
-        if (uploadErr) {
-          Alert.alert('Error', 'No se pudo subir la imagen.')
-          setPublicando(false)
-          return false
-        }
-        imagenPath = path
+        if (uploadErr) throw uploadErr
+        subidas.push(path)
       } catch {
-        Alert.alert('Error', 'No se pudo subir la imagen.')
+        await limpiarSubidas()
+        Alert.alert('Error', imagenesUris.length > 1
+          ? `No se pudo subir la imagen ${i + 1} de ${imagenesUris.length}.`
+          : 'No se pudo subir la imagen.')
         setPublicando(false)
         return false
       }
     }
 
+    const fila = { ...validacion.payload, ...camposImagenesNoticia(subidas) }
     const { data, error: insertErr } = await supabase
       .from('noticias')
-      .insert({ ...validacion.payload, imagen_path: imagenPath })
+      .insert(fila)
       .select('id')
       .single()
 
     if (insertErr || !data) {
       Alert.alert('Error', insertErr?.message ?? 'No se pudo publicar la noticia.')
-      if (imagenPath) await supabase.storage.from(BUCKET).remove([imagenPath])
+      await limpiarSubidas()
       setPublicando(false)
       return false
     }
 
-    // The noticia is already published; a push failure is reported but does
-    // not undo it.
-    const { error: pushErr } = await supabase.functions.invoke('notifications', {
-      body: {
-        type: 'noticia_publicada',
-        payload: { titulo: validacion.payload.titulo, noticiaId: data.id, audiencia: 'todos' },
-      },
-    })
-    if (pushErr) {
-      Alert.alert('Noticia publicada', 'La noticia se publicó, pero no se pudo enviar la notificación a los socios.')
+    // Only a title-only noticia is a quick notice with a push. The noticia is
+    // already published; a push failure is reported but does not undo it.
+    if (debeNotificarNoticia(fila)) {
+      const { error: pushErr } = await supabase.functions.invoke('notifications', {
+        body: {
+          type: 'noticia_publicada',
+          payload: { titulo: fila.titulo, noticiaId: data.id, audiencia: 'todos' },
+        },
+      })
+      if (pushErr) {
+        Alert.alert('Noticia publicada', 'La noticia se publicó, pero no se pudo enviar la notificación a los socios.')
+      }
     }
 
     await fetchNoticias()
@@ -157,13 +182,13 @@ export function useNoticiasSubcomision() {
       await fetchNoticias()
       return
     }
-    if (noticia.imagen_path) {
+    if (noticia.imagenes.length > 0) {
       // Orphan image cleanup only — the noticia is already gone.
-      const { error: rmErr } = await supabase.storage.from(BUCKET).remove([noticia.imagen_path])
+      const { error: rmErr } = await supabase.storage.from(BUCKET).remove(noticia.imagenes)
       if (rmErr) console.warn('noticias: image cleanup failed', rmErr.message)
     }
     setNoticias(prev => prev.filter(n => n.id !== noticia.id))
   }, [fetchNoticias])
 
-  return { noticias, deporte, loading, refrescando, error, publicando, publicar, eliminar, refetch: fetchNoticias }
+  return { noticias, deporte, loading, refrescando, error, publicar, publicando, eliminar, refetch: fetchNoticias }
 }

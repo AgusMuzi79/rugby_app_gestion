@@ -5,12 +5,16 @@ import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
 import { useAuthStore } from '@/stores/authStore'
 import { confirmacionPublicar, mensajeResultadoAviso, type Audiencia } from '@/lib/avisoNoticia'
+import { pathsImagenesNoticia } from '@/lib/noticiaSubcomision'
 
 export interface Noticia {
   id:          string
   titulo:      string
   cuerpo:      string
   imagen_path: string | null
+  // Public URLs of `imagenes` (or the legacy imagen_path), in order.
+  imagenesUrls: string[]
+  // First image (imagenesUrls[0]), kept for consumers that show only one.
   imagenUrl:   string | null
   publicada:   boolean
   etiquetas:   string[]
@@ -41,7 +45,7 @@ export function useNoticias(soloPublicadas: boolean) {
     const db = supabase as any
     // La consulta del socio no cambia; Secretaría además trae audiencia y
     // notificada_at para confirmar el aviso push al publicar.
-    const columnas = 'id, titulo, cuerpo, imagen_path, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)'
+    const columnas = 'id, titulo, cuerpo, imagen_path, imagenes, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)'
     let q = db
       .from('noticias')
       .select(soloPublicadas ? columnas : `${columnas}, audiencia, notificada_at`)
@@ -62,12 +66,15 @@ export function useNoticias(soloPublicadas: boolean) {
 
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => {
       const imagenPath = n.imagen_path as string | null
+      const imagenesUrls = pathsImagenesNoticia({ imagenes: n.imagenes as string[] | null, imagen_path: imagenPath })
+        .map(path => supabase.storage.from('noticias-imagenes').getPublicUrl(path).data.publicUrl)
       return {
         id:          n.id as string,
         titulo:      n.titulo as string,
         cuerpo:      n.cuerpo as string,
         imagen_path: imagenPath,
-        imagenUrl:   imagenPath ? supabase.storage.from('noticias-imagenes').getPublicUrl(imagenPath).data.publicUrl : null,
+        imagenesUrls,
+        imagenUrl:   imagenesUrls[0] ?? null,
         publicada:   n.publicada as boolean,
         etiquetas:   (n.etiquetas as string[]) ?? [],
         created_at:  n.created_at as string,

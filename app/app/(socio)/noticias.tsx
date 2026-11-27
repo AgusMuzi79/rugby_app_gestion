@@ -1,6 +1,7 @@
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
-  TouchableOpacity, Modal, ScrollView,
+  TouchableOpacity, Pressable, Modal, ScrollView,
+  type NativeSyntheticEvent, type NativeScrollEvent,
 } from 'react-native'
 import { useState, useMemo, useRef } from 'react'
 // expo-image: caché en memoria y disco, las imágenes de noticias no se vuelven
@@ -10,6 +11,7 @@ import { Image } from 'expo-image'
 import { useScrollToTop } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Header } from '@/components/shared/Header'
+import { VisorImagenes } from '@/components/shared/VisorImagenes'
 import { useNoticias, type Noticia } from '@/hooks/useNoticias'
 import { colors, fonts } from '@/constants/theme'
 
@@ -97,23 +99,34 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
         <DeporteBadge noticia={noticia} />
       </View>
 
-      {noticia.imagenUrl && (
-        <Image source={{ uri: noticia.imagenUrl }} style={s.cardImagen} contentFit="cover" cachePolicy="memory-disk" />
+      {noticia.imagenesUrls[0] && (
+        <View>
+          <Image source={{ uri: noticia.imagenesUrls[0] }} style={s.cardImagen} contentFit="cover" cachePolicy="memory-disk" />
+          {noticia.imagenesUrls.length > 1 && (
+            <View style={s.contadorBadge} accessibilityLabel={`${noticia.imagenesUrls.length} imágenes`}>
+              <Text style={s.contadorTexto}>1/{noticia.imagenesUrls.length}</Text>
+            </View>
+          )}
+        </View>
       )}
 
       <Text style={s.cardTitulo}>{noticia.titulo}</Text>
 
-      <View style={s.divider} />
+      {noticia.cuerpo.trim() !== '' && (
+        <>
+          <View style={s.divider} />
 
-      <Text
-        style={s.cardCuerpo}
-        numberOfLines={5}
-        // Sólo cambia de false a true una vez: no hay setState en cada layout
-        onTextLayout={e => { if (!truncado && e.nativeEvent.lines.length >= 5) setTruncado(true) }}
-      >
-        {noticia.cuerpo}
-      </Text>
-      {truncado && <Text style={s.leerMas}>LEER MÁS →</Text>}
+          <Text
+            style={s.cardCuerpo}
+            numberOfLines={5}
+            // Sólo cambia de false a true una vez: no hay setState en cada layout
+            onTextLayout={e => { if (!truncado && e.nativeEvent.lines.length >= 5) setTruncado(true) }}
+          >
+            {noticia.cuerpo}
+          </Text>
+          {truncado && <Text style={s.leerMas}>LEER MÁS →</Text>}
+        </>
+      )}
 
       <Text style={s.cardAutor}>
         — {noticia.autor}
@@ -122,10 +135,55 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
   )
 }
 
+// ─── Galería del detalle ───────────────────────────────────────────────────────
+
+// Paginado horizontal de todas las imágenes (16:9). Tocar una la abre a
+// pantalla completa en el visor, en esa misma imagen.
+function GaleriaNoticia({ urls, onAbrir }: { urls: string[]; onAbrir: (indice: number) => void }) {
+  const [ancho, setAncho]   = useState(0)
+  const [indice, setIndice] = useState(0)
+
+  const alTerminarScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (ancho > 0) setIndice(Math.round(e.nativeEvent.contentOffset.x / ancho))
+  }
+
+  return (
+    <View style={m.galeria} onLayout={e => setAncho(e.nativeEvent.layout.width)}>
+      {ancho > 0 && (
+        <FlatList
+          data={urls}
+          keyExtractor={(url, i) => `${i}-${url}`}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          getItemLayout={(_, i) => ({ length: ancho, offset: ancho * i, index: i })}
+          onMomentumScrollEnd={alTerminarScroll}
+          renderItem={({ item, index }) => (
+            <Pressable
+              onPress={() => onAbrir(index)}
+              accessibilityRole="imagebutton"
+              accessibilityLabel={`Ver imagen ${index + 1} de ${urls.length} en pantalla completa`}
+            >
+              <Image source={{ uri: item }} style={[m.imagen, { width: ancho }]} contentFit="cover" cachePolicy="memory-disk" />
+            </Pressable>
+          )}
+        />
+      )}
+      {urls.length > 1 && (
+        <View style={s.contadorBadge} pointerEvents="none">
+          <Text style={s.contadorTexto}>{indice + 1}/{urls.length}</Text>
+        </View>
+      )}
+    </View>
+  )
+}
+
 // ─── Modal de detalle ──────────────────────────────────────────────────────────
 
 function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => void }) {
   const insets = useSafeAreaInsets()
+  // Índice de la imagen abierta a pantalla completa (null = visor cerrado).
+  const [visorIndice, setVisorIndice] = useState<number | null>(null)
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={m.overlay}>
@@ -138,12 +196,16 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
           </View>
 
           <ScrollView style={m.scroll} showsVerticalScrollIndicator={false}>
-            {noticia.imagenUrl && (
-              <Image source={{ uri: noticia.imagenUrl }} style={m.imagen} contentFit="cover" cachePolicy="memory-disk" />
+            {noticia.imagenesUrls.length > 0 && (
+              <GaleriaNoticia urls={noticia.imagenesUrls} onAbrir={setVisorIndice} />
             )}
             <Text style={m.titulo}>{noticia.titulo}</Text>
-            <View style={[s.divider, { marginVertical: 12 }]} />
-            <Text style={m.cuerpo}>{noticia.cuerpo}</Text>
+            {noticia.cuerpo.trim() !== '' && (
+              <>
+                <View style={[s.divider, { marginVertical: 12 }]} />
+                <Text style={m.cuerpo}>{noticia.cuerpo}</Text>
+              </>
+            )}
             <Text style={[s.cardAutor, { marginTop: 16 }]}>— {noticia.autor}</Text>
           </ScrollView>
 
@@ -152,6 +214,16 @@ function NoticiaModal({ noticia, onClose }: { noticia: Noticia; onClose: () => v
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Dentro del Modal del detalle para que en iOS se presente encima de él */}
+      {visorIndice !== null && (
+        <VisorImagenes
+          visible
+          urls={noticia.imagenesUrls}
+          indiceInicial={visorIndice}
+          onClose={() => setVisorIndice(null)}
+        />
+      )}
     </Modal>
   )
 }
@@ -300,6 +372,13 @@ const s = StyleSheet.create({
   deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
   cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: colors.borde },
+  // "1/N" sobre la imagen cuando la noticia tiene varias (card y galería).
+  contadorBadge: {
+    position: 'absolute', top: 8, right: 8,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  contadorTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1, color: colors.blanco },
   cardTitulo: { fontFamily: fonts.titulo, fontSize: 23, lineHeight: 28, color: colors.texto },
   divider:    { height: 1, backgroundColor: colors.borde },
   cardCuerpo: { fontFamily: fonts.cuerpo, fontSize: 15, lineHeight: 20, color: colors.texto },
@@ -335,7 +414,8 @@ const m = StyleSheet.create({
     borderTopWidth: 1, borderColor: colors.borde,
   },
   scroll: { marginTop: 4 },
-  imagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 4, backgroundColor: colors.borde, marginBottom: 12 },
+  galeria: { marginBottom: 12, borderRadius: 4, overflow: 'hidden' },
+  imagen: { aspectRatio: 16 / 9, backgroundColor: colors.borde },
   titulo: { fontFamily: fonts.titulo, fontSize: 26, lineHeight: 32, color: colors.texto },
   cuerpo: { fontFamily: fonts.cuerpo, fontSize: 17, lineHeight: 23, color: colors.texto },
   cerrarBtn: {
