@@ -473,6 +473,13 @@ export interface Checkin {
     pendiente_propio: number
     // Titular: los lugares "Socio a designar" de la reserva, que paga él.
     a_designar: ADesignarCheckin[]
+    // motivo_cargo; carnet = beneficio del carnet de tenis hoy; turnos_dia y
+    // turno_n = sus turnos de hoy y cuál es éste, en el orden en que se
+    // reservaron (el primero es el gratis). 0 con un servidor anterior.
+    motivo:     string | null
+    carnet:     boolean
+    turnos_dia: number
+    turno_n:    number
   } | null
   suspendido: boolean
   resultado:  string
@@ -532,6 +539,10 @@ export function parsearCheckin(raw: unknown): Checkin {
         ? (j.pendiente === undefined || j.pendiente === null ? (j.cobrado === true ? 0 : numero(j.cargo)) : numero(j.pendiente))
         : numero(j.pendiente_propio),
       a_designar:            parsearADesignar(j.a_designar),
+      motivo:                texto(j.motivo),
+      carnet:                j.carnet === true,
+      turnos_dia:            Math.max(0, Math.trunc(numero(j.turnos_dia))),
+      turno_n:               Math.max(0, Math.trunc(numero(j.turno_n))),
     } : null,
     suspendido: o.suspendido === true,
     resultado:  texto(o.resultado) ?? 'sin_reserva',

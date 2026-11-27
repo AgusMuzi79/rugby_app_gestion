@@ -22,7 +22,8 @@ import {
   type Cancha, type ItemGrilla,
 } from '@/lib/tenis'
 import {
-  NOMBRE_A_DESIGNAR, aDesignarTrasCobro, canchasLibresExtension, etiquetasSaldo, jugadorTrasCobro, type EtiquetaSaldo,
+  NOMBRE_A_DESIGNAR, aDesignarTrasCobro, canchasLibresExtension, etiquetaCarnetTurno, etiquetasSaldo, jugadorTrasCobro,
+  type EtiquetaSaldo,
 } from '@/lib/tenisReserva'
 
 // Pestaña "Tenis" del Canchero (FEATURES.tenis): consulta por DNI (o por el QR
@@ -139,6 +140,7 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
   }
 
   const saldo = jugador ? etiquetasSaldo(jugador) : []
+  const carnetTurno = jugador ? etiquetaCarnetTurno(jugador) : null
   const aDesignar = jugador?.a_designar ?? []
   const puedeExtender = !!c.reserva && (res === 'ok' || res === 'comprobante_pendiente')
 
@@ -169,6 +171,9 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
             {jugador.cargo > 0 ? (cobrado ? ' · COBRADO' : ' · PENDIENTE') : ''}
             {cobrado && jugador.monto_cobrado !== null && jugador.monto_cobrado !== jugador.cargo ? ` (pagó ${formatMonto(jugador.monto_cobrado)})` : ''}
           </Text>
+        )}
+        {carnetTurno && jugador && (
+          <Text style={[s.saldo, TONO_SALDO[jugador.cargo === 0 ? 'favor' : cobrado ? 'info' : 'debe']]}>{carnetTurno}</Text>
         )}
         {saldo.map(e => (
           <Text key={e.texto} style={[s.saldo, TONO_SALDO[e.tono]]}>{e.texto}</Text>
