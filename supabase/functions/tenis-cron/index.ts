@@ -22,6 +22,10 @@
 // y los de jugadores que ya no están) y marca cada uno con tenis_avisos_jugadores_marcar():
 // entregado, sin_dispositivo (no se reintenta) o error (se reintenta en la corrida siguiente,
 // hasta 3 veces). Si la corrida se cae antes de marcar, el aviso vuelve a salir a los 10 minutos.
+// Por último manda los de la outbox tenis_avisos_gestores (migración 20261201000000):
+// "Cancelación tardía" a la gestora de tenis y a los admins cuando un socio cancela con menos de
+// aviso_cancelacion_horas de anticipación. Mismo reclamo / marcado que los de los jugadores
+// (tenis_avisos_gestores_reclamar / _marcar), pero cada aviso va a un perfil (sin tutores).
 // Cada aviso va aislado: si uno falla (lectura, mail o push) queda en el log, se cuenta en
 // `fallidos` y se sigue con el resto. El estado ya cambió en la base y no se reintenta.
 // Un mail que no se manda porque el titular no tiene dirección real (vacía o sintética del padrón,
@@ -39,9 +43,11 @@ import {
   escapeHtml,
   formatoPesos,
   mailDestino,
+  parsearAvisosGestores,
   parsearAvisosJugadores,
   parsearResumenProcesar,
   textoAvisoJugador,
+  textoCancelacionTardia,
   type AvisoReserva,
   type TenisConfig,
 } from '../_shared/tenisReglas.ts'
@@ -49,9 +55,11 @@ import {
   cargarConfig,
   cargarReservas,
   mailAInvitado,
+  pushAPerfilesDetalle,
   pushASocios,
   pushASociosDetalle,
   type AvisoPush,
+  type AvisoPushPerfil,
   type EstadoPush,
 } from '../_shared/tenisNotificar.ts'
 
@@ -109,6 +117,60 @@ async function avisarJugadoresAgregados(fallo: (contexto: string, e: unknown) =>
   out.avisos_jugadores_error = con_error
   const { error: errMarcar } = await supabaseAdmin.rpc('tenis_avisos_jugadores_marcar', { p_resultados: resultados })
   if (errMarcar) fallo('marcar avisos a jugadores (vuelven a salir a los 10 minutos)', errMarcar.message)
+  return out
+}
+
+interface ResumenAvisosGestores {
+  avisos_gestores: number
+  avisos_gestores_entregados: number
+  avisos_gestores_sin_dispositivo: number
+  avisos_gestores_error: number
+  avisos_gestores_descartados: number
+}
+
+/** "Cancelación tardía": reclama la outbox de la gestión, manda los push y marca cada aviso. */
+async function avisarCancelacionesTardias(fallo: (contexto: string, e: unknown) => void): Promise<ResumenAvisosGestores> {
+  const out: ResumenAvisosGestores = {
+    avisos_gestores: 0,
+    avisos_gestores_entregados: 0,
+    avisos_gestores_sin_dispositivo: 0,
+    avisos_gestores_error: 0,
+    avisos_gestores_descartados: 0,
+  }
+  const { data, error } = await supabaseAdmin.rpc('tenis_avisos_gestores_reclamar')
+  if (error) throw new Error(`Error en tenis_avisos_gestores_reclamar: ${error.message}`)
+  const reclamo = parsearAvisosGestores(data)
+  out.avisos_gestores = reclamo.avisos.length
+  out.avisos_gestores_descartados = reclamo.descartados
+  if (!reclamo.avisos.length) return out
+
+  const ahora = new Date()
+  const pushes: AvisoPushPerfil[] = reclamo.avisos.map((a) => ({
+    clave: a.id,
+    profileId: a.profile_id,
+    ...textoCancelacionTardia(a, ahora),
+    data: { type: 'tenis_cancelacion_tardia', reserva_id: a.reserva_id },
+  }))
+
+  // Si el envío entero falla, todos quedan con error y se reintentan en la corrida siguiente.
+  let envio: { estados: Map<string, EstadoPush> } | { error: string }
+  try {
+    envio = { estados: await pushAPerfilesDetalle(pushes) }
+  } catch (e) {
+    envio = { error: e instanceof Error ? e.message : String(e) }
+    fallo('push de cancelación tardía', e)
+  }
+
+  // clasificarAvisosJugadores arma la clave con (id, socio_id): acá el destinatario es el perfil.
+  const { resultados, entregados, sin_dispositivo, con_error } = clasificarAvisosJugadores(
+    reclamo.avisos.map((a) => ({ id: a.id, socio_id: a.profile_id })),
+    envio,
+  )
+  out.avisos_gestores_entregados = entregados
+  out.avisos_gestores_sin_dispositivo = sin_dispositivo
+  out.avisos_gestores_error = con_error
+  const { error: errMarcar } = await supabaseAdmin.rpc('tenis_avisos_gestores_marcar', { p_resultados: resultados })
+  if (errMarcar) fallo('marcar avisos de cancelación tardía (vuelven a salir a los 10 minutos)', errMarcar.message)
   return out
 }
 
@@ -230,6 +292,13 @@ Deno.serve(async (req: Request) => {
       fallo('avisos a jugadores agregados', e)
     }
 
+    let gestores: ResumenAvisosGestores | null = null
+    try {
+      gestores = await avisarCancelacionesTardias(fallo)
+    } catch (e) {
+      fallo('avisos de cancelación tardía', e)
+    }
+
     const salida = {
       holds_vencidos: resumen.holds_vencidos.length,
       comprobantes_vencidos: resumen.comprobantes_vencidos.length,
@@ -239,10 +308,12 @@ Deno.serve(async (req: Request) => {
       comprobantes_sin_revisar: resumen.comprobantes_sin_revisar.length,
       ...avisos,
       ...jugadores,
+      ...gestores,
     }
     const hayJugadores = !!jugadores && (jugadores.avisos_jugadores > 0 || jugadores.avisos_jugadores_descartados > 0)
+    const hayGestores = !!gestores && (gestores.avisos_gestores > 0 || gestores.avisos_gestores_descartados > 0)
     if (
-      hayAvisos || hayJugadores || avisos.fallidos ||
+      hayAvisos || hayJugadores || hayGestores || avisos.fallidos ||
       resumen.holds_vencidos.length || resumen.jugadas.length || resumen.comprobantes_sin_revisar.length
     ) console.log('tenis-cron:', JSON.stringify(salida))
     return jsonOk(salida)

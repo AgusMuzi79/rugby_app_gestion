@@ -30,6 +30,9 @@ export interface TenisConfig {
   max_activas:             number
   anticipacion_dias:       number
   cancelacion_horas:       number
+  // Avisarle a la gestión si un socio cancela con menos de estas horas de
+  // anticipación (0 = sin aviso).
+  aviso_cancelacion_horas: number
   comprobante_horas_antes: number
   hold_min:                number
   alias_pago:              string
@@ -74,6 +77,7 @@ export const CONFIG_DEFECTO: TenisConfig = {
   max_activas: 2,
   anticipacion_dias: 2,
   cancelacion_horas: 3,
+  aviso_cancelacion_horas: 3,
   comprobante_horas_antes: 3,
   hold_min: 15,
   alias_pago: 'uncas.tenis.macro',
@@ -254,6 +258,7 @@ export function parsearConfig(raw: unknown): TenisConfig {
     'modulo_min', 'margen_inicio_min', 'singles_min', 'dobles_min', 'max_reservas_dia', 'max_activas',
     'anticipacion_dias', 'cancelacion_horas', 'comprobante_horas_antes', 'hold_min', 'precio_socio_single',
     'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles', 'dias_vista',
+    'aviso_cancelacion_horas',
   ] as const
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago

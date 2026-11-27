@@ -15,7 +15,9 @@ import { Aviso, Boton, Titulo, estilosTenis } from './ui'
 
 type CampoNumero = { [K in keyof TenisConfig]: TenisConfig[K] extends number ? K : never }[keyof TenisConfig]
 
-const SECCIONES: { titulo: string; campos: { k: CampoNumero; label: string; pesos?: boolean }[] }[] = [
+type Campo = { k: CampoNumero; label: string; pesos?: boolean; ayuda?: string; max?: number }
+
+const SECCIONES: { titulo: string; campos: Campo[] }[] = [
   {
     titulo: 'PRECIOS POR JUGADOR',
     campos: [
@@ -40,6 +42,13 @@ const SECCIONES: { titulo: string; campos: { k: CampoNumero; label: string; peso
       { k: 'max_activas', label: 'Reservas activas a la vez' },
       { k: 'anticipacion_dias', label: 'Días de anticipación' },
       { k: 'cancelacion_horas', label: 'Cancelar hasta (horas antes)' },
+    ],
+  },
+  {
+    titulo: 'AVISOS',
+    campos: [
+      // Push a la gestión cuando un socio cancela tarde (tenis_avisos_gestores).
+      { k: 'aviso_cancelacion_horas', label: 'Avisarme si cancelan con menos de (horas)', ayuda: '0 = sin aviso', max: 72 },
     ],
   },
   {
@@ -81,7 +90,7 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
     const nuevo: TenisConfig = { ...form }
     for (const sec of SECCIONES) for (const c of sec.campos) {
       const n = Number(valor(c.k))
-      if (!Number.isInteger(n) || n < 0) { setError(`Revisá "${c.label}".`); return }
+      if (!Number.isInteger(n) || n < 0 || (c.max !== undefined && n > c.max)) { setError(`Revisá "${c.label}".`); return }
       nuevo[c.k] = n
     }
     if (!esHoraValida(nuevo.hora_desde) || !esHoraValida(nuevo.hora_hasta) || nuevo.hora_hasta <= nuevo.hora_desde) {
@@ -180,6 +189,7 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
                   accessibilityLabel={c.label}
                 />
                 {c.pesos && <Text style={estilosTenis.mutedCard}>{formatMonto(Number(valor(c.k)) || 0)}</Text>}
+                {c.ayuda && <Text style={estilosTenis.mutedCard}>{c.ayuda}</Text>}
               </View>
             ))}
           </View>
