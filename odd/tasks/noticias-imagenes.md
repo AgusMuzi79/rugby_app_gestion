@@ -77,3 +77,9 @@ User: replace the automatic rule with a checkbox in the Subcomisión create form
   - App: `Pressable` row with `accessibilityRole="checkbox"` + `accessibilityState`, Feather `check-square`/`square` (same glyphs as `ListadoReservas`), `tc.oro`/`tc.muted`, 44 pt min height. Web: native `<input type="checkbox">` inside a `<label>`, `accent-oro`, helper linked with `aria-describedby`; no new Next.js API.
   - Test-first exception: UI wiring only, no component test runner, and the pure helper was removed, so there is no meaningful RED.
   - Evidence: `cd app && npm run test:noticias`: 11 casos ok. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 11 casos ok. `cd app && npx tsc --noEmit`: exit 0. `cd web && npx tsc --noEmit`: exit 0. Phone and browser check pending (Agus): unchecked publishes without push, checked sends it (with and without description/images).
+
+## Change request 2026-11-27 (2): featured news
+
+User: add a checkbox to feature a news item so it stays on top for a while. Assumption: fixed 7 days (`DIAS_DESTACADA = 7`), unchecked by default, Subcomisión forms only (app + web). Featured items still in their window go first in the socio/tutor feed (most recent first among them), with a "DESTACADA" badge; afterwards they fall back to date order. No un-feature/edit flow (Subcomisión has no edit today).
+
+- [ ] T6 — Migration `20261130000000_noticias_destacada.sql` (`destacada_hasta timestamptz null`); pure helpers `destacadaHasta(ahora)` and `ordenarNoticiasFeed(noticias, ahora)` in the app with RED→GREEN checks; "Destacar noticia" checkbox in app + web Subcomisión forms; feed ordering + badge; staff list marker; types updated. Route: delegated (writer trigger: 2+ non-trivial files).
