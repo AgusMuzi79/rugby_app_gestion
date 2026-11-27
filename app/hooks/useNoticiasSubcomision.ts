@@ -10,7 +10,6 @@ import {
   pathsImagenesNoticia,
   MAX_IMAGENES_NOTICIA,
 } from '@/lib/noticiaSubcomision'
-import type { TablesInsert } from '@/lib/database.types'
 import { resultadoBorrado } from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
@@ -25,19 +24,6 @@ export interface NoticiaSubco {
   // Storage paths of the images (`imagenes`, or the legacy imagen_path), in order.
   imagenes:     string[]
   imagenesUrls: string[]
-}
-
-// Row as selected below. `imagenes` (migration 20261128000000) is not in the
-// generated database.types.ts yet, hence the casts where it is read and
-// written; drop them once the types are regenerated.
-interface FilaNoticiaSubco {
-  id:          string
-  titulo:      string
-  cuerpo:      string
-  etiquetas:   string[]
-  created_at:  string
-  imagen_path: string | null
-  imagenes:    string[] | null
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -81,8 +67,7 @@ export function useNoticiasSubcomision() {
       return
     }
 
-    const filas = (data ?? []) as unknown as FilaNoticiaSubco[]
-    setNoticias(filas.map(n => {
+    setNoticias((data ?? []).map(n => {
       const imagenes = pathsImagenesNoticia(n)
       return {
         ...n,
@@ -158,7 +143,7 @@ export function useNoticiasSubcomision() {
     const fila = { ...validacion.payload, ...camposImagenesNoticia(subidas) }
     const { data, error: insertErr } = await supabase
       .from('noticias')
-      .insert(fila as unknown as TablesInsert<'noticias'>)
+      .insert(fila)
       .select('id')
       .single()
 

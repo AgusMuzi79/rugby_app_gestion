@@ -1473,6 +1473,7 @@ export type Database = {
           generada_automaticamente: boolean
           id: string
           imagen_path: string | null
+          imagenes: string[]
           publicada: boolean
           titulo: string
           updated_at: string
@@ -1487,6 +1488,7 @@ export type Database = {
           generada_automaticamente?: boolean
           id?: string
           imagen_path?: string | null
+          imagenes?: string[]
           publicada?: boolean
           titulo: string
           updated_at?: string
@@ -1501,6 +1503,7 @@ export type Database = {
           generada_automaticamente?: boolean
           id?: string
           imagen_path?: string | null
+          imagenes?: string[]
           publicada?: boolean
           titulo?: string
           updated_at?: string
