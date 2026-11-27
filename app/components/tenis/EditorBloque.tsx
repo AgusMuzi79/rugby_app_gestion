@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Modal, ScrollView, View, Text, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
@@ -63,6 +63,8 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
   const [vigHasta, setVigHasta] = useState(inicial?.vigente_hasta ?? '')
   const [dia1,   setDia1]   = useState(fecha)
   const [guardando, setGuardando] = useState(false)
+  // Synchronous guard: a double tap must not create the blocks twice.
+  const enCurso = useRef(false)
   const [error,  setError]  = useState<string | null>(null)
 
   function tocarCancha(id: string | null) {
@@ -74,7 +76,7 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
   const nombreCancha = (id: string | null) => (id === null ? 'TODAS' : canchas.find(c => c.id === id)?.nombre ?? '')
 
   async function guardar() {
-    if (guardando) return
+    if (enCurso.current) return
     if (!titulo.trim()) { setError('Escribí un título (por ejemplo "Academia" o "Lluvia").'); return }
     const rango = validarRangoHorario(desde, hasta)
     if (rango) { setError(rango); return }
@@ -86,11 +88,15 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
     setError(null)
 
     // Una cancha por vez (o una fila de TODAS); cada resultado se informa aparte.
+    enCurso.current = true
     setGuardando(true)
     const resultados: ResultadoBloque[] = []
     let canceladas = 0
+    try {
     for (const canchaId of editando ? [elegidas[0] ?? null] : destinos) {
-      const r = modo === 'fijo'
+      let r: Awaited<ReturnType<typeof accionesTenis.bloqueGuardar>> | Awaited<ReturnType<typeof accionesTenis.bloqueoPuntual>>
+      try {
+      r = modo === 'fijo'
         ? await accionesTenis.bloqueGuardar({
             id: inicial?.id, cancha_id: canchaId, tipo, titulo: titulo.trim(), dia_semana: dia,
             hora_desde: desde, hora_hasta: hasta, vigente_desde: vigDesde, vigente_hasta: fin || null,
@@ -98,10 +104,16 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
         : await accionesTenis.bloqueoPuntual({
             canchaId, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
           })
+      } catch {
+        r = { ok: false, mensaje: 'No se pudo guardar. Revisá la conexión e intentá de nuevo.' }
+      }
       if (r.ok && r.data && 'canceladas' in r.data) canceladas += r.data.canceladas
       resultados.push({ cancha: nombreCancha(canchaId), ok: r.ok, mensaje: r.ok ? undefined : r.mensaje })
     }
-    setGuardando(false)
+    } finally {
+      enCurso.current = false
+      setGuardando(false)
+    }
 
     const resumen = resumenBloques(resultados)
     // Nada guardado: el error queda en el formulario para corregir y reintentar.
