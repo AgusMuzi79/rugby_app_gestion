@@ -133,6 +133,18 @@ export function etiquetasSaldo(j: {
   return out
 }
 
+// Carnet de tenis: el primer turno reservado del día es gratis y los demás se
+// pagan como socio. Línea para que el canchero sepa si cobrar; null sin carnet
+// o con un servidor que no manda los turnos del día.
+export function etiquetaCarnetTurno(j: {
+  carnet: boolean; turnos_dia: number; turno_n: number; cargo: number
+}): string | null {
+  if (!j.carnet || j.turno_n < 1) return null
+  const juega = j.turnos_dia > 1 ? ` (juega ${j.turnos_dia} hoy)` : ''
+  const cobro = j.cargo === 0 ? 'sin cargo' : `paga como socio ${formatMonto(j.cargo)}`
+  return `Carnet Tenis · ${j.turno_n}º turno de hoy${juega} · ${cobro}`
+}
+
 // Después de marcar el cobro en la tarjeta (sin volver a consultar, que
 // registraría otro ingreso): lo cobrado pasa a ser el cargo y lo pendiente
 // baja en lo que se acaba de cobrar (el cargo entero o la diferencia).

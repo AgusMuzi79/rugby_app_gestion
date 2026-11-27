@@ -13,6 +13,7 @@ import {
   elegidoADesignar,
   elegidoInvitado,
   esEntradaADesignar,
+  etiquetaCarnetTurno,
   etiquetasSaldo,
   jugadorTrasCobro,
   normalizarComentario,
@@ -96,6 +97,7 @@ caso('check-in: saldo del jugador con datos nuevos y con un servidor anterior', 
   assert.deepEqual(c.jugador, {
     id: 'j1', cargo: 10000, cobrado: true, monto_cobrado: 9000, diferencia: 1000, cargo_no_show: 18000, cargo_no_show_cobrado: false, pendiente: 19000,
     pendiente_propio: 19000, a_designar: [],
+    motivo: null, carnet: false, turnos_dia: 0, turno_n: 0,
   })
   const viejo = parsearCheckin({ jugador: { jugador_id: 'j2', cargo: 9000, cobrado: false }, resultado: 'ok' })
   assert.equal(viejo.jugador?.pendiente, 9000)
@@ -172,6 +174,33 @@ caso('check-in: cobrar un "a designar" del titular baja su pendiente', () => {
   assert.equal(t.pendiente, 9000)
   assert.deepEqual(t.a_designar, [{ jugador_id: 'a1', cargo: 9000, cobrado: true, pendiente: 0 }])
   assert.equal(aDesignarTrasCobro(j, 'otro'), j)
+})
+
+caso('check-in: carnet y turnos del día (servidor nuevo y anterior)', () => {
+  const c = parsearCheckin({
+    jugador: { jugador_id: 'j1', cargo: 9000, motivo: 'turno_extra', cobrado: false, carnet: true, turnos_dia: 2, turno_n: 2 },
+    resultado: 'ok',
+  })
+  assert.equal(c.jugador?.motivo, 'turno_extra')
+  assert.equal(c.jugador?.carnet, true)
+  assert.equal(c.jugador?.turnos_dia, 2)
+  assert.equal(c.jugador?.turno_n, 2)
+  const raro = parsearCheckin({ jugador: { jugador_id: 'j1', cargo: 0, carnet: 'si', turnos_dia: 'x', turno_n: -1 } })
+  assert.equal(raro.jugador?.carnet, false)
+  assert.equal(raro.jugador?.turnos_dia, 0)
+  assert.equal(raro.jugador?.turno_n, 0)
+})
+
+caso('check-in: línea del carnet según el turno del día', () => {
+  assert.equal(etiquetaCarnetTurno({ carnet: true, turnos_dia: 1, turno_n: 1, cargo: 0 }),
+    'Carnet Tenis · 1º turno de hoy · sin cargo')
+  assert.equal(etiquetaCarnetTurno({ carnet: true, turnos_dia: 2, turno_n: 1, cargo: 0 }),
+    'Carnet Tenis · 1º turno de hoy (juega 2 hoy) · sin cargo')
+  assert.equal(etiquetaCarnetTurno({ carnet: true, turnos_dia: 2, turno_n: 2, cargo: 9000 }),
+    'Carnet Tenis · 2º turno de hoy (juega 2 hoy) · paga como socio $ 9.000')
+  // Sin carnet, o un servidor anterior sin los campos: nada.
+  assert.equal(etiquetaCarnetTurno({ carnet: false, turnos_dia: 2, turno_n: 2, cargo: 9000 }), null)
+  assert.equal(etiquetaCarnetTurno({ carnet: true, turnos_dia: 0, turno_n: 0, cargo: 0 }), null)
 })
 
 console.log(`\n${casos} casos ok`)
