@@ -1,4 +1,4 @@
--- Migration: 20261130000000_noticias_destacada
+-- Migration: 20261204000000_noticias_destacada
 --
 -- Noticias destacadas (Subcomisión, app y web: checkbox "Destacar noticia").
 --
