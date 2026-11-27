@@ -527,6 +527,10 @@ caso('grilla: comentario, no-show y config con horarios por día', () => {
     ],
   })
   assert.equal(c.dias_vista, 10)
+  // Aviso de cancelación tardía: viene de la config; sin el campo (servidor anterior), 3 h.
+  assert.equal(c.aviso_cancelacion_horas, 3)
+  assert.equal(parsearConfig({ aviso_cancelacion_horas: 0 }).aviso_cancelacion_horas, 0)
+  assert.equal(parsearConfig({ aviso_cancelacion_horas: 5 }).aviso_cancelacion_horas, 5)
   assert.deepEqual(c.horarios, [
     { dia_semana: 1, hora_desde: '08:00', hora_hasta: '22:00', activo: true },
     { dia_semana: 7, hora_desde: '10:00', hora_hasta: '17:00', activo: false },

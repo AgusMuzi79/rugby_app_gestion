@@ -682,6 +682,94 @@ export function textoAvisoJugador(
   return a.motivo === 'cambio' ? textoJugadorCambio(a, cfg) : textoJugadorAgregado(a, cfg)
 }
 
+// ─── Aviso a la gestión: "Cancelación tardía" ─────────────────────────────────
+// Outbox tenis_avisos_gestores (migración 20261201000000): un socio canceló su reserva con
+// menos de aviso_cancelacion_horas de anticipación. tenis-cron la reclama con
+// tenis_avisos_gestores_reclamar() y marca cada aviso con tenis_avisos_gestores_marcar().
+
+export interface AvisoGestor {
+  /** id de la fila de la outbox (lo que se marca). */
+  id: string
+  reserva_id: string
+  /** Perfil que recibe el push (gestora de tenis o admin). */
+  profile_id: string
+  /** Titular que canceló. */
+  titular_nombre: string | null
+  cancha: string | null
+  inicio: Date
+  /** Minutos entre la cancelación y el turno (tenis_reservas.cancelacion_anticipacion_min). */
+  anticipacion_min: number | null
+}
+
+export interface ReclamoAvisosGestores {
+  /** Pendientes que se descartaron sin mandar (turno terminado, perfil que ya no gestiona tenis). */
+  descartados: number
+  avisos: AvisoGestor[]
+}
+
+/** Tolerante: una fila sin id, reserva, perfil o inicio válidos se ignora (vuelve a reclamarse a los 10 min). */
+export function parsearAvisosGestores(json: unknown): ReclamoAvisosGestores {
+  const r = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const avisos: AvisoGestor[] = []
+  for (const x of Array.isArray(r.avisos) ? r.avisos : []) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const id = uuidONull(o.id)
+    const reservaId = uuidONull(o.reserva_id)
+    const profileId = uuidONull(o.profile_id)
+    const inicio = typeof o.inicio === 'string' ? new Date(o.inicio) : null
+    if (!id || !reservaId || !profileId || !inicio || Number.isNaN(inicio.getTime())) continue
+    avisos.push({
+      id,
+      reserva_id: reservaId,
+      profile_id: profileId,
+      titular_nombre: textoONull(o.titular_nombre),
+      cancha: textoONull(o.cancha),
+      inicio,
+      anticipacion_min: typeof o.anticipacion_min === 'number' && Number.isFinite(o.anticipacion_min)
+        ? o.anticipacion_min
+        : null,
+    })
+  }
+  const d = Number(r.descartados)
+  return { descartados: Number.isFinite(d) ? d : 0, avisos }
+}
+
+/** 80 → "1 h 20 min", 120 → "2 h", 45 → "45 min". */
+export function formatoAnticipacion(minutos: number): string {
+  const total = Math.max(0, Math.floor(minutos))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  if (!h) return `${m} min`
+  return m ? `${h} h ${m} min` : `${h} h`
+}
+
+/**
+ * "Juan Pérez canceló la cancha 03 de hoy 18:00 (faltaban 1 h 20 min)." Hora de la grilla (sin el
+ * margen de inicio, como la ve la gestora); "hoy" / "mañana" respecto de `ahora` (día local).
+ */
+export function textoCancelacionTardia(
+  a: Pick<AvisoGestor, 'titular_nombre' | 'cancha' | 'inicio' | 'anticipacion_min'>,
+  ahora: Date,
+): { title: string; body: string } {
+  const fecha = fechaLocal(a.inicio)
+  const hoy = fechaLocal(ahora)
+  const hora = horaLocal(a.inicio)
+  let cuando: string
+  if (fecha === hoy) cuando = `de hoy ${hora}`
+  else if (fecha === sumarDias(hoy, 1)) cuando = `de mañana ${hora}`
+  else {
+    const [, mes, dia] = fecha.split('-')
+    cuando = `del ${DIAS[diaSemanaIso(fecha) - 1]} ${dia}/${mes} ${hora}`
+  }
+  const quien = a.titular_nombre?.trim() || 'Un socio'
+  const que = a.cancha ? `la cancha ${a.cancha}` : 'su turno'
+  const falta = a.anticipacion_min === null
+    ? ''
+    : a.anticipacion_min <= 0 ? ' (estaba por empezar)' : ` (faltaban ${formatoAnticipacion(a.anticipacion_min)})`
+  return { title: 'Cancelación tardía', body: `${quien} canceló ${que} ${cuando}${falta}.` }
+}
+
 // ─── Resultado de cada push para marcar la outbox ─────────────────────────────
 
 /** Estado de un aviso push: llegó a algún teléfono, nadie tiene teléfono, o Expo no lo entregó. */
