@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/authStore'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
-  debeNotificarNoticia,
   pathsImagenesNoticia,
   MAX_IMAGENES_NOTICIA,
 } from '@/lib/noticiaSubcomision'
@@ -39,9 +38,9 @@ function decodeBase64(base64: string): Uint8Array {
 // Subcomisión noticias: optional images (up to MAX_IMAGENES_NOTICIA) uploaded
 // first, in order, to the public 'noticias-imagenes' bucket under
 // {uid}/{timestamp}-{i}.jpg, then a single insert published immediately to
-// every member. Only a title-only noticia sends the 'noticia_publicada' push
-// (debeNotificarNoticia); with a description or images it is just published
-// in the feed.
+// every member. The 'noticia_publicada' push is sent only when the caller
+// passes notificar = true (the "Enviar notificación" checkbox, unchecked by
+// default).
 // Payload rules (etiquetas from profiles.deporte, cuerpo '' when title-only)
 // live in lib/noticiaSubcomision.ts.
 export function useNoticiasSubcomision() {
@@ -96,7 +95,8 @@ export function useNoticiasSubcomision() {
   const publicar = useCallback(async (
     titulo: string,
     descripcion: string,
-    imagenesUris: string[] = [],
+    imagenesUris: string[],
+    notificar: boolean,
   ): Promise<boolean> => {
     const autorId = session?.user.id ?? ''
     // The local URIs only count here; the payload gets the storage paths below.
@@ -154,9 +154,9 @@ export function useNoticiasSubcomision() {
       return false
     }
 
-    // Only a title-only noticia is a quick notice with a push. The noticia is
-    // already published; a push failure is reported but does not undo it.
-    if (debeNotificarNoticia(fila)) {
+    // Push only when the author ticked the checkbox. The noticia is already
+    // published; a push failure is reported but does not undo it.
+    if (notificar) {
       const { error: pushErr } = await supabase.functions.invoke('notifications', {
         body: {
           type: 'noticia_publicada',

@@ -13,7 +13,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Pressable,
 } from 'react-native'
+import { Feather } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useNoticiasSubcomision, type NoticiaSubco } from '@/hooks/useNoticiasSubcomision'
@@ -76,7 +78,7 @@ interface ModalNuevaNoticiaProps {
   visible:    boolean
   deporte:    string | null
   onClose:    () => void
-  onPublicar: (titulo: string, descripcion: string, imagenesUris: string[]) => Promise<boolean>
+  onPublicar: (titulo: string, descripcion: string, imagenesUris: string[], notificar: boolean) => Promise<boolean>
   publicando: boolean
 }
 
@@ -86,6 +88,8 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
   const [titulo, setTitulo]           = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [imagenesUris, setImagenesUris] = useState<string[]>([])
+  // Unchecked by default: a push goes to every member, so it must be a choice.
+  const [notificar, setNotificar]       = useState(false)
 
   const puedePublicar = !!titulo.trim() && !publicando
   const restantes     = MAX_IMAGENES_NOTICIA - imagenesUris.length
@@ -115,11 +119,11 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
     setImagenesUris(prev => prev.filter((_, i) => i !== indice))
   }
 
-  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenesUris([]) }
+  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenesUris([]); setNotificar(false) }
 
   const handlePublicar = async () => {
     if (!puedePublicar) return
-    const ok = await onPublicar(titulo, descripcion, imagenesUris)
+    const ok = await onPublicar(titulo, descripcion, imagenesUris, notificar)
     if (ok) { limpiar(); onClose() }
   }
 
@@ -202,11 +206,30 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
             </TouchableOpacity>
           )}
 
+          <Pressable
+            onPress={() => setNotificar(v => !v)}
+            style={s.notificarFila}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: notificar }}
+            accessibilityLabel="Enviar notificación a los socios"
+            accessibilityHint="Les llega un push a todos los socios."
+          >
+            <Feather
+              name={notificar ? 'check-square' : 'square'}
+              size={24}
+              color={notificar ? tc.oro : tc.muted}
+            />
+            <View style={s.flex}>
+              <Text style={[s.notificarTexto, { color: tc.texto }]}>Enviar notificación a los socios</Text>
+              <Text style={[s.notificarAyuda, { color: tc.muted }]}>Les llega un push a todos los socios.</Text>
+            </View>
+          </Pressable>
+
           <Text style={[s.aviso, { color: tc.muted }]}>
             Se publica en el momento para todos los socios
-            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''}. Si sólo completás el
-            título, funciona como un aviso rápido y les llega una notificación. Con descripción o
-            imágenes se publica en Noticias sin notificar.
+            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''}. Sólo les llega una
+            notificación si marcás «Enviar notificación a los socios»; si no, se publica en Noticias
+            sin notificar.
           </Text>
         </ScrollView>
 
@@ -338,6 +361,9 @@ const s = StyleSheet.create({
   input:        { borderWidth: 1.5, borderRadius: 6, paddingHorizontal: 14, paddingVertical: 13, fontFamily: fonts.cuerpo, fontSize: 17, marginBottom: 20 },
   inputMultiline: { height: 130, textAlignVertical: 'top', paddingTop: 12 },
   aviso:        { fontFamily: fonts.cuerpo, fontSize: 13, marginTop: -8, lineHeight: 18 },
+  notificarFila:  { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingVertical: 4, marginBottom: 20 },
+  notificarTexto: { fontFamily: fonts.cuerpo, fontSize: 16 },
+  notificarAyuda: { fontFamily: fonts.cuerpo, fontSize: 13, marginTop: 2 },
   botonImagen:      { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 6, paddingVertical: 18, alignItems: 'center', marginBottom: 20 },
   botonImagenTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, fontWeight: '600' },
   previews:         { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },

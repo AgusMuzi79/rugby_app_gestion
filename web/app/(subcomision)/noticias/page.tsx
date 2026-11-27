@@ -7,17 +7,16 @@ import { errorTamano, prepararImagen } from '@/lib/imagenSubida'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
-  debeNotificarNoticia,
   pathsImagenesNoticia,
   MAX_IMAGENES_NOTICIA,
 } from '@/lib/noticiaSubcomision'
 
 // Subcomisión noticias: optional images (up to MAX_IMAGENES_NOTICIA) uploaded
 // first, in order, to 'noticias-imagenes' under {uid}/{timestamp}-{i}.{ext},
-// then a single insert published immediately to every member. Only a
-// title-only noticia sends the 'noticia_publicada' push (debeNotificarNoticia);
-// with a description or images it is just published in the feed. Payload
-// rules live in lib/noticiaSubcomision.ts.
+// then a single insert published immediately to every member. The
+// 'noticia_publicada' push is sent only when the "Enviar notificación"
+// checkbox is ticked (unticked by default). Payload rules live in
+// lib/noticiaSubcomision.ts.
 
 interface ImagenElegida {
   file:    File
@@ -58,6 +57,7 @@ export default function SubcomisionNoticiasPage() {
   const [titulo, setTitulo]           = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [imagenes, setImagenes]       = useState<ImagenElegida[]>([])
+  const [notificar, setNotificar]     = useState(false)
   const [publicando, setPublicando]   = useState(false)
   const [formError, setFormError]     = useState('')
   const [aviso, setAviso]             = useState('')
@@ -197,7 +197,7 @@ export default function SubcomisionNoticiasPage() {
 
   const closeModal = () => {
     setShowModal(false)
-    setTitulo(''); setDescripcion(''); setFormError('')
+    setTitulo(''); setDescripcion(''); setFormError(''); setNotificar(false)
     quitarTodas()
   }
 
@@ -273,9 +273,9 @@ export default function SubcomisionNoticiasPage() {
       return
     }
 
-    // Only a title-only noticia is a quick notice with a push. The noticia is
-    // already published; a push failure is reported but does not undo it.
-    if (debeNotificarNoticia(fila)) {
+    // Push only when the checkbox is ticked. The noticia is already
+    // published; a push failure is reported but does not undo it.
+    if (notificar) {
       const { error: pushErr } = await supabase.functions.invoke('notifications', {
         body: {
           type: 'noticia_publicada',
@@ -460,13 +460,30 @@ export default function SubcomisionNoticiasPage() {
             </div>
           </div>
 
+          <label htmlFor="noticia-notificar" className="flex items-start gap-3 mt-5 cursor-pointer">
+            <input
+              id="noticia-notificar"
+              type="checkbox"
+              checked={notificar}
+              onChange={e => setNotificar(e.target.checked)}
+              aria-describedby="noticia-notificar-ayuda"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-oro cursor-pointer focus-visible:outline-2 focus-visible:outline-oro focus-visible:outline-offset-2"
+            />
+            <span>
+              <span className="font-lora text-sm text-tinta block">Enviar notificación a los socios</span>
+              <span id="noticia-notificar-ayuda" className="font-lora text-xs text-texto-2 block">
+                Les llega un push a todos los socios.
+              </span>
+            </span>
+          </label>
+
           {formError && <p role="alert" className="font-lora text-rojo-texto text-sm mt-4">{formError}</p>}
 
           <p className="font-lora text-xs text-texto-2 italic mt-4">
             Se publica en el momento para todos los socios
-            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''}. Si sólo completás el
-            título, funciona como un aviso rápido y les llega una notificación. Con descripción o
-            imágenes se publica en Noticias sin notificar.
+            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''}. Sólo les llega una
+            notificación si marcás «Enviar notificación a los socios»; si no, se publica en Noticias
+            sin notificar.
           </p>
 
           <div className="flex gap-3 mt-6">

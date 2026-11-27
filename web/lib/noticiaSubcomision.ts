@@ -4,10 +4,10 @@
 // and web/lib/noticiaSubcomision.check.ts.
 //
 // - Published immediately to every member (audiencia 'todos').
-// - `cuerpo` is NOT NULL in the DB: a title-only noticia stores ''. That is
-//   the "quick notification" case: only then members get a push with the
-//   title (see debeNotificarNoticia). With a description or images the
-//   noticia is just published in the feed, without a push.
+// - `cuerpo` is NOT NULL in the DB: a title-only noticia stores ''.
+// - Whether a push is sent is an explicit choice in the form ("Enviar
+//   notificación a los socios", unchecked by default), not derived from the
+//   payload.
 // - Up to MAX_IMAGENES_NOTICIA images (`imagenes`, storage paths in order).
 //   `imagen_path` keeps the first one for older readers.
 // - `etiquetas` = [deporte] when the subcomisión has a sport, so it shows
@@ -56,12 +56,6 @@ export function camposImagenesNoticia(paths: string[]): CamposImagenesNoticia {
 export function pathsImagenesNoticia(fila: { imagenes?: string[] | null; imagen_path?: string | null }): string[] {
   if (fila.imagenes && fila.imagenes.length > 0) return fila.imagenes
   return fila.imagen_path ? [fila.imagen_path] : []
-}
-
-// Subcomisión push rule: only a title-only noticia (blank cuerpo, no images)
-// is a quick notice that sends a push.
-export function debeNotificarNoticia(noticia: { cuerpo: string; imagenes: string[] }): boolean {
-  return noticia.cuerpo.trim() === '' && noticia.imagenes.length === 0
 }
 
 function esDeporte(value: string | null | undefined): value is DeporteNoticia {

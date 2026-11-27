@@ -7,7 +7,6 @@ import assert from 'node:assert/strict'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
-  debeNotificarNoticia,
   MAX_IMAGENES_NOTICIA,
   pathsImagenesNoticia,
 } from './noticiaSubcomision'
@@ -88,17 +87,6 @@ caso('pathsImagenesNoticia prefers imagenes and falls back to imagen_path', () =
   assert.deepEqual(pathsImagenesNoticia({ imagenes: [], imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
   assert.deepEqual(pathsImagenesNoticia({ imagenes: null, imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
   assert.deepEqual(pathsImagenesNoticia({ imagen_path: null }), [])
-})
-
-caso('push: title only (blank cuerpo, no images) notifies', () => {
-  assert.equal(debeNotificarNoticia({ cuerpo: '', imagenes: [] }), true)
-  assert.equal(debeNotificarNoticia({ cuerpo: '   ', imagenes: [] }), true)
-})
-
-caso('push: a description or any image means no push', () => {
-  assert.equal(debeNotificarNoticia({ cuerpo: 'El sábado a las 21', imagenes: [] }), false)
-  assert.equal(debeNotificarNoticia({ cuerpo: '', imagenes: ['user-1/1.jpg'] }), false)
-  assert.equal(debeNotificarNoticia({ cuerpo: 'Texto', imagenes: ['user-1/1.jpg'] }), false)
 })
 
 caso('empty or blank title is rejected', () => {

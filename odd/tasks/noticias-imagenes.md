@@ -40,7 +40,7 @@ Locator: `odd/tasks/noticias-imagenes.md` · Engram mirror: `odd/noticias-imagen
 
 ## Acceptance criteria
 
-- Title-only Subcomisión news → push sent; with description or any image → no push call, item visible in the feed.
+- ~~Title-only Subcomisión news → push sent; with description or any image → no push call, item visible in the feed.~~ Replaced by T5: Subcomisión news sends a push iff "Enviar notificación a los socios" is checked (unchecked by default).
 - Buffet/Secretaría/Admin push unchanged.
 - Feed shows items with 0, 1 or N images; tapping an image opens it full screen; swipe moves between images; close returns.
 - Old rows with only `imagen_path` still show their image.
@@ -72,4 +72,8 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
 
 User: replace the automatic rule with a checkbox in the Subcomisión create form to choose whether the news item sends a push. Assumption: unchecked by default (avoids accidental pushes to every member). Buffet/Secretaría/Admin unchanged. Branch `feat/noticias-push-opcional`.
 
-- [ ] T5 — "Enviar notificación" checkbox in the app and web Subcomisión forms; push iff checked (independent of description/images); `debeNotificarNoticia` replaced by the explicit flag; helper text and checks updated. Route: delegated (writer trigger: 2+ non-trivial files).
+- [x] T5 — "Enviar notificación" checkbox in the app and web Subcomisión forms; push iff checked (independent of description/images); `debeNotificarNoticia` replaced by the explicit flag; helper text and checks updated. Route: delegated (writer trigger: 2+ non-trivial files).
+  - The title-only push rule from PR #90 (objective 3 and the first acceptance criterion above) is **replaced**: the push now depends only on the checkbox. `debeNotificarNoticia` and its two check cases were removed from `app/lib` and `web/lib` (`rg debeNotificar` over app/web/supabase: no matches). `publicar(titulo, descripcion, imagenesUris, notificar)` in `useNoticiasSubcomision`; the web page keeps a `notificar` state. Both forms start unchecked and reset to unchecked on close/after publishing. Push payload, uploads, cleanup, insert and the push-failure warning are unchanged.
+  - App: `Pressable` row with `accessibilityRole="checkbox"` + `accessibilityState`, Feather `check-square`/`square` (same glyphs as `ListadoReservas`), `tc.oro`/`tc.muted`, 44 pt min height. Web: native `<input type="checkbox">` inside a `<label>`, `accent-oro`, helper linked with `aria-describedby`; no new Next.js API.
+  - Test-first exception: UI wiring only, no component test runner, and the pure helper was removed, so there is no meaningful RED.
+  - Evidence: `cd app && npm run test:noticias`: 11 casos ok. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 11 casos ok. `cd app && npx tsc --noEmit`: exit 0. `cd web && npx tsc --noEmit`: exit 0. Phone and browser check pending (Agus): unchecked publishes without push, checked sends it (with and without description/images).
