@@ -7,6 +7,8 @@ import assert from 'node:assert/strict'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
+  DIAS_DESTACADA,
+  destacadaHasta,
   MAX_IMAGENES_NOTICIA,
   pathsImagenesNoticia,
 } from './noticiaSubcomision'
@@ -33,6 +35,7 @@ caso('title only: cuerpo is empty string, published to everyone', () => {
     publicada:   true,
     imagen_path: null,
     imagenes:    [],
+    destacada_hasta: null,
   })
 })
 
@@ -87,6 +90,19 @@ caso('pathsImagenesNoticia prefers imagenes and falls back to imagen_path', () =
   assert.deepEqual(pathsImagenesNoticia({ imagenes: [], imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
   assert.deepEqual(pathsImagenesNoticia({ imagenes: null, imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
   assert.deepEqual(pathsImagenesNoticia({ imagen_path: null }), [])
+})
+
+caso('destacadaHasta is ahora + DIAS_DESTACADA (7) days, as ISO', () => {
+  assert.equal(DIAS_DESTACADA, 7)
+  assert.equal(destacadaHasta(new Date('2026-11-27T12:00:00.000Z')), '2026-12-04T12:00:00.000Z')
+})
+
+caso('destacar sets destacada_hasta from ahora; otherwise it is null', () => {
+  const ahora = new Date('2026-11-27T12:00:00.000Z')
+  const si = buildNoticiaSubcomision({ titulo: 'X', autorId: AUTOR, destacar: true, ahora })
+  assert.equal(si.ok && si.payload.destacada_hasta, '2026-12-04T12:00:00.000Z')
+  const no = buildNoticiaSubcomision({ titulo: 'X', autorId: AUTOR, destacar: false, ahora })
+  assert.equal(no.ok && no.payload.destacada_hasta, null)
 })
 
 caso('empty or blank title is rejected', () => {

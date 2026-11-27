@@ -12,8 +12,19 @@
 //   `imagen_path` keeps the first one for older readers.
 // - `etiquetas` = [deporte] when the subcomisión has a sport, so it shows
 //   under that sport filter in the member feed; otherwise no etiquetas.
+// - "Destacar noticia" (unchecked by default): `destacada_hasta` = now +
+//   DIAS_DESTACADA days, so the item goes first in the member feed until
+//   then (see app/lib/ordenNoticias.ts); null when not featured.
 
 export const MAX_IMAGENES_NOTICIA = 6
+export const DIAS_DESTACADA = 7
+
+const MS_POR_DIA = 24 * 60 * 60 * 1000
+
+// End of the featured window for an item featured at `ahora` (ISO).
+export function destacadaHasta(ahora: Date): string {
+  return new Date(ahora.getTime() + DIAS_DESTACADA * MS_POR_DIA).toISOString()
+}
 
 export const DEPORTES_NOTICIA = ['rugby', 'hockey', 'tenis'] as const
 export type DeporteNoticia = typeof DEPORTES_NOTICIA[number]
@@ -24,6 +35,9 @@ export interface NoticiaSubcomisionInput {
   deporte?:     string | null
   autorId:      string
   imagenes?:    string[] | null
+  destacar?:    boolean
+  // Clock for `destacada_hasta` (defaults to now; injectable for checks).
+  ahora?:       Date
 }
 
 export interface NoticiaSubcomisionPayload {
@@ -35,6 +49,7 @@ export interface NoticiaSubcomisionPayload {
   publicada:   true
   imagen_path: string | null
   imagenes:    string[]
+  destacada_hasta: string | null
 }
 
 export type NoticiaSubcomisionResult =
@@ -79,6 +94,7 @@ export function buildNoticiaSubcomision(input: NoticiaSubcomisionInput): Noticia
       autor_id:    input.autorId,
       publicada:   true,
       ...camposImagenesNoticia(imagenes),
+      destacada_hasta: input.destacar ? destacadaHasta(input.ahora ?? new Date()) : null,
     },
   }
 }

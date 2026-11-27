@@ -7,6 +7,7 @@ import { errorTamano, prepararImagen } from '@/lib/imagenSubida'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
+  DIAS_DESTACADA,
   pathsImagenesNoticia,
   MAX_IMAGENES_NOTICIA,
 } from '@/lib/noticiaSubcomision'
@@ -15,7 +16,9 @@ import {
 // first, in order, to 'noticias-imagenes' under {uid}/{timestamp}-{i}.{ext},
 // then a single insert published immediately to every member. The
 // 'noticia_publicada' push is sent only when the "Enviar notificación"
-// checkbox is ticked (unticked by default). Payload rules live in
+// checkbox is ticked (unticked by default). "Destacar noticia" (unticked by
+// default) sets destacada_hasta so the item goes first in the member feed of
+// the app for DIAS_DESTACADA days. Payload rules live in
 // lib/noticiaSubcomision.ts.
 
 interface ImagenElegida {
@@ -37,6 +40,8 @@ interface Noticia {
   autor:       string
   publicada:   boolean
   audiencia:   string
+  // destacada_hasta still in the future (at fetch time).
+  destacada:   boolean
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -58,6 +63,7 @@ export default function SubcomisionNoticiasPage() {
   const [descripcion, setDescripcion] = useState('')
   const [imagenes, setImagenes]       = useState<ImagenElegida[]>([])
   const [notificar, setNotificar]     = useState(false)
+  const [destacar, setDestacar]       = useState(false)
   const [publicando, setPublicando]   = useState(false)
   const [formError, setFormError]     = useState('')
   const [aviso, setAviso]             = useState('')
@@ -75,7 +81,7 @@ export default function SubcomisionNoticiasPage() {
     if (!todas && !autorId) { setListError('Sesión expirada.'); setLoading(false); return }
     let query = supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes, autor_id, publicada, audiencia, profiles!noticias_autor_id_fkey(nombre)')
+      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes, destacada_hasta, autor_id, publicada, audiencia, profiles!noticias_autor_id_fkey(nombre)')
       .order('created_at', { ascending: false })
       .limit(LIMITE)
     if (!todas && autorId) query = query.eq('autor_id', autorId)
@@ -89,9 +95,11 @@ export default function SubcomisionNoticiasPage() {
     }
 
     setListError('')
+    const ahora = Date.now()
     setNoticias((data ?? []).map((n: Record<string, unknown>) => {
       const imagenPath = n.imagen_path as string | null
       const paths = pathsImagenesNoticia({ imagenes: n.imagenes as string[] | null, imagen_path: imagenPath })
+      const destacadaHasta = n.destacada_hasta as string | null
       return {
         id:           n.id as string,
         titulo:       n.titulo as string,
@@ -105,6 +113,7 @@ export default function SubcomisionNoticiasPage() {
         autor:        (n.profiles as { nombre?: string } | null)?.nombre ?? '—',
         publicada:    n.publicada !== false,
         audiencia:    (n.audiencia as string | null) ?? 'todos',
+        destacada:    !!destacadaHasta && new Date(destacadaHasta).getTime() > ahora,
       }
     }))
     setLoading(false)
@@ -197,7 +206,7 @@ export default function SubcomisionNoticiasPage() {
 
   const closeModal = () => {
     setShowModal(false)
-    setTitulo(''); setDescripcion(''); setFormError(''); setNotificar(false)
+    setTitulo(''); setDescripcion(''); setFormError(''); setNotificar(false); setDestacar(false)
     quitarTodas()
   }
 
@@ -207,7 +216,7 @@ export default function SubcomisionNoticiasPage() {
     const { data: { user } } = await supabase.auth.getUser()
     // The local files only count here; the payload gets the storage paths below.
     const validacion = buildNoticiaSubcomision({
-      titulo, descripcion, deporte, autorId: user?.id ?? '', imagenes: imagenes.map(img => img.file.name),
+      titulo, descripcion, deporte, autorId: user?.id ?? '', imagenes: imagenes.map(img => img.file.name), destacar,
     })
     if (!validacion.ok) {
       setFormError(validacion.error === 'titulo_vacio'
@@ -363,6 +372,9 @@ export default function SubcomisionNoticiasPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <p className="font-lora text-sm text-tinta leading-snug">{n.titulo}</p>
+                  {n.destacada && (
+                    <span className="font-lora text-[11px] tracking-widest text-papel bg-oro px-1.5 py-0.5">DESTACADA</span>
+                  )}
                   {!n.publicada && (
                     <span className="font-lora text-[11px] tracking-widest text-tinta border border-borde-control px-1.5 py-0.5">BORRADOR</span>
                   )}
@@ -473,6 +485,23 @@ export default function SubcomisionNoticiasPage() {
               <span className="font-lora text-sm text-tinta block">Enviar notificación a los socios</span>
               <span id="noticia-notificar-ayuda" className="font-lora text-xs text-texto-2 block">
                 Les llega un push a todos los socios.
+              </span>
+            </span>
+          </label>
+
+          <label htmlFor="noticia-destacar" className="flex items-start gap-3 mt-4 cursor-pointer">
+            <input
+              id="noticia-destacar"
+              type="checkbox"
+              checked={destacar}
+              onChange={e => setDestacar(e.target.checked)}
+              aria-describedby="noticia-destacar-ayuda"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-oro cursor-pointer focus-visible:outline-2 focus-visible:outline-oro focus-visible:outline-offset-2"
+            />
+            <span>
+              <span className="font-lora text-sm text-tinta block">Destacar noticia</span>
+              <span id="noticia-destacar-ayuda" className="font-lora text-xs text-texto-2 block">
+                Queda primera en Noticias durante {DIAS_DESTACADA} días.
               </span>
             </span>
           </label>

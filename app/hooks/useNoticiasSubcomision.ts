@@ -23,6 +23,7 @@ export interface NoticiaSubco {
   // Storage paths of the images (`imagenes`, or the legacy imagen_path), in order.
   imagenes:     string[]
   imagenesUrls: string[]
+  destacada_hasta: string | null
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -40,7 +41,8 @@ function decodeBase64(base64: string): Uint8Array {
 // {uid}/{timestamp}-{i}.jpg, then a single insert published immediately to
 // every member. The 'noticia_publicada' push is sent only when the caller
 // passes notificar = true (the "Enviar notificación" checkbox, unchecked by
-// default).
+// default). destacar = true ("Destacar noticia") sets destacada_hasta so the
+// item goes first in the member feed for DIAS_DESTACADA days.
 // Payload rules (etiquetas from profiles.deporte, cuerpo '' when title-only)
 // live in lib/noticiaSubcomision.ts.
 export function useNoticiasSubcomision() {
@@ -56,7 +58,7 @@ export function useNoticiasSubcomision() {
     setError(null)
     const { data, error: err } = await supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes')
+      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes, destacada_hasta')
       .order('created_at', { ascending: false })
       .limit(LIMITE)
 
@@ -97,10 +99,11 @@ export function useNoticiasSubcomision() {
     descripcion: string,
     imagenesUris: string[],
     notificar: boolean,
+    destacar: boolean,
   ): Promise<boolean> => {
     const autorId = session?.user.id ?? ''
     // The local URIs only count here; the payload gets the storage paths below.
-    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId, imagenes: imagenesUris })
+    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId, imagenes: imagenesUris, destacar })
     if (!validacion.ok) {
       Alert.alert('Error', validacion.error === 'titulo_vacio'
         ? 'El título es obligatorio.'

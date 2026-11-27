@@ -95,7 +95,14 @@ function NoticiaCard({ noticia, onPress }: { noticia: Noticia; onPress: () => vo
   return (
     <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.8}>
       <View style={s.cardMeta}>
-        <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
+        <View style={s.metaIzquierda}>
+          <Text style={s.metaTiempo}>{tiempoRelativo(noticia.created_at)}</Text>
+          {noticia.destacada && (
+            <View style={s.destacadaBadge}>
+              <Text style={s.destacadaTexto}>DESTACADA</Text>
+            </View>
+          )}
+        </View>
         <DeporteBadge noticia={noticia} />
       </View>
 
@@ -369,6 +376,10 @@ const s = StyleSheet.create({
     borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2,
     borderColor: colors.borde,
   },
+  metaIzquierda: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Noticia destacada por Subcomisión (va primera durante DIAS_DESTACADA días).
+  destacadaBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, backgroundColor: colors.oro },
+  destacadaTexto: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.sobreOro },
   deporteText: { fontFamily: fonts.label, fontSize: 11, letterSpacing: 1.5, color: colors.oroHondo },
 
   cardImagen: { width: '100%', aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: colors.borde },

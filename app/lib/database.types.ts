@@ -1468,6 +1468,7 @@ export type Database = {
           autor_id: string
           created_at: string
           cuerpo: string
+          destacada_hasta: string | null
           division_id: string | null
           etiquetas: string[]
           generada_automaticamente: boolean
@@ -1483,6 +1484,7 @@ export type Database = {
           autor_id: string
           created_at?: string
           cuerpo: string
+          destacada_hasta?: string | null
           division_id?: string | null
           etiquetas?: string[]
           generada_automaticamente?: boolean
@@ -1498,6 +1500,7 @@ export type Database = {
           autor_id?: string
           created_at?: string
           cuerpo?: string
+          destacada_hasta?: string | null
           division_id?: string | null
           etiquetas?: string[]
           generada_automaticamente?: boolean

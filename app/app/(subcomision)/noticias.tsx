@@ -19,7 +19,8 @@ import { Feather } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useNoticiasSubcomision, type NoticiaSubco } from '@/hooks/useNoticiasSubcomision'
-import { MAX_IMAGENES_NOTICIA } from '@/lib/noticiaSubcomision'
+import { DIAS_DESTACADA, MAX_IMAGENES_NOTICIA } from '@/lib/noticiaSubcomision'
+import { estaDestacada } from '@/lib/ordenNoticias'
 import { fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -50,6 +51,9 @@ function FilaNoticia({ noticia, onEliminar }: { noticia: NoticiaSubco; onElimina
         </View>
       )}
       <View style={s.filaInfo}>
+        {estaDestacada(noticia, new Date()) && (
+          <Text style={[s.filaDestacada, { color: tc.oro }]}>DESTACADA</Text>
+        )}
         <Text style={[s.filaTitulo, { color: tc.texto }]} numberOfLines={2}>{noticia.titulo}</Text>
         {noticia.cuerpo ? (
           <Text style={[s.filaCuerpo, { color: tc.muted }]} numberOfLines={2}>{noticia.cuerpo}</Text>
@@ -78,7 +82,7 @@ interface ModalNuevaNoticiaProps {
   visible:    boolean
   deporte:    string | null
   onClose:    () => void
-  onPublicar: (titulo: string, descripcion: string, imagenesUris: string[], notificar: boolean) => Promise<boolean>
+  onPublicar: (titulo: string, descripcion: string, imagenesUris: string[], notificar: boolean, destacar: boolean) => Promise<boolean>
   publicando: boolean
 }
 
@@ -90,6 +94,8 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
   const [imagenesUris, setImagenesUris] = useState<string[]>([])
   // Unchecked by default: a push goes to every member, so it must be a choice.
   const [notificar, setNotificar]       = useState(false)
+  // Unchecked by default: featuring puts it first in Noticias for DIAS_DESTACADA days.
+  const [destacar, setDestacar]         = useState(false)
 
   const puedePublicar = !!titulo.trim() && !publicando
   const restantes     = MAX_IMAGENES_NOTICIA - imagenesUris.length
@@ -119,11 +125,11 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
     setImagenesUris(prev => prev.filter((_, i) => i !== indice))
   }
 
-  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenesUris([]); setNotificar(false) }
+  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenesUris([]); setNotificar(false); setDestacar(false) }
 
   const handlePublicar = async () => {
     if (!puedePublicar) return
-    const ok = await onPublicar(titulo, descripcion, imagenesUris, notificar)
+    const ok = await onPublicar(titulo, descripcion, imagenesUris, notificar, destacar)
     if (ok) { limpiar(); onClose() }
   }
 
@@ -222,6 +228,27 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
             <View style={s.flex}>
               <Text style={[s.notificarTexto, { color: tc.texto }]}>Enviar notificación a los socios</Text>
               <Text style={[s.notificarAyuda, { color: tc.muted }]}>Les llega un push a todos los socios.</Text>
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setDestacar(v => !v)}
+            style={s.notificarFila}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: destacar }}
+            accessibilityLabel="Destacar noticia"
+            accessibilityHint={`Queda primera en Noticias durante ${DIAS_DESTACADA} días.`}
+          >
+            <Feather
+              name={destacar ? 'check-square' : 'square'}
+              size={24}
+              color={destacar ? tc.oro : tc.muted}
+            />
+            <View style={s.flex}>
+              <Text style={[s.notificarTexto, { color: tc.texto }]}>Destacar noticia</Text>
+              <Text style={[s.notificarAyuda, { color: tc.muted }]}>
+                Queda primera en Noticias durante {DIAS_DESTACADA} días.
+              </Text>
             </View>
           </Pressable>
 
@@ -343,6 +370,7 @@ const s = StyleSheet.create({
   filaThumbBadge:      { position: 'absolute', right: -6, bottom: -6, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
   filaThumbBadgeTexto: { fontFamily: fonts.label, fontSize: 12, fontWeight: '700' },
   filaInfo:   { flex: 1 },
+  filaDestacada: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '700', marginBottom: 2 },
   filaTitulo: { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '500' },
   filaCuerpo: { fontFamily: fonts.cuerpo, fontSize: 14, marginTop: 2 },
   filaFecha:  { fontFamily: fonts.label, fontSize: 12, marginTop: 4, letterSpacing: 0.5 },
