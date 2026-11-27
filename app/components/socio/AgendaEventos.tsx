@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import {
-  DIAS_AGENDA, agruparAgenda, etiquetaFecha, horaCorta, lineaEvento, lineaTenis, otrosJugadores,
+  DIAS_AGENDA, accionesTenisAgenda, agruparAgenda, etiquetaFecha, horaCorta, lineaEvento, lineaTenis, otrosJugadores,
   type Agenda, type EventoAgenda,
 } from '@/lib/agenda'
-import { CONFIG_DEFECTO, ESTADOS_RESERVA, puedeCancelar, puedeEditar, type MiReserva } from '@/lib/tenis'
+import { CONFIG_DEFECTO, ESTADOS_RESERVA, type MiReserva } from '@/lib/tenis'
 import { letraEvento } from '@/lib/tipoEvento'
 import { colors, fonts } from '@/constants/theme'
 
@@ -84,12 +84,11 @@ function CardEvento({ ev, agenda }: { ev: EventoAgenda; agenda: Agenda }) {
 }
 
 // Turno de tenis: arranque real (+5 min), cancha, modalidad y con quién juega.
-// El titular ve EDITAR (reserva suya, confirmada, hasta 3 h antes) y CANCELAR.
+// El titular ve EDITAR (reserva suya, confirmada) y CANCELAR dentro del plazo que
+// configura la gestora (lo informa el servidor).
 function CardTenis({ r, tenis }: { r: MiReserva; tenis: TenisAgenda }) {
   const otros = otrosJugadores(r)
-  const horas = CONFIG_DEFECTO.cancelacion_horas
-  const cancelable = r.es_titular && r.puede_cancelar && puedeCancelar(r.inicio, tenis.ahoraMs, horas)
-  const editable = puedeEditar(r, tenis.ahoraMs, horas)
+  const { editar: editable, cancelar: cancelable } = accionesTenisAgenda(r, tenis.ahoraMs)
   return (
     <View style={[s.card, s.cardTenis]}>
       <View style={s.filaTenis}>

@@ -223,3 +223,15 @@ export function otrosJugadores(r: Pick<MiReserva, 'personas' | 'mi_socio_id' | '
 export function lineaTenis(r: Pick<MiReserva, 'inicio' | 'cancha' | 'modalidad'>, margenMin: number): string {
   return `Tenis · ${inicioReal(r.inicio, margenMin)} · Cancha ${r.cancha} · ${r.modalidad === 'dobles' ? 'Dobles' : 'Singles'}`
 }
+
+// EDITAR / CANCELAR de una reserva de tenis en la Agenda. El plazo lo decide el
+// servidor con la config real (`puede_cancelar` en tenis_mis_reservas, hoy
+// puede ser 0 h); acá sólo se exige que no haya empezado, así un dato viejo no
+// ofrece acciones sobre un turno en juego. El servidor vuelve a validar.
+export function accionesTenisAgenda(
+  r: Pick<MiReserva, 'es_titular' | 'puede_cancelar' | 'estado' | 'origen' | 'inicio'>,
+  ahoraMs: number,
+): { editar: boolean; cancelar: boolean } {
+  const cancelar = r.es_titular && r.puede_cancelar && Date.parse(r.inicio) > ahoraMs
+  return { cancelar, editar: cancelar && r.estado === 'confirmada' && r.origen === 'socio' }
+}
