@@ -11,6 +11,7 @@ import {
   lineaTenis,
   otrosJugadores,
   reservasTenisAgenda,
+  accionesTenisAgenda,
   etiquetaFecha,
   horaCorta,
   lineaEvento,
@@ -225,6 +226,20 @@ caso('tenis en la agenda: sólo reservas vivas que no terminaron, por horario', 
 caso('tenis en la agenda: la que está en juego todavía se ve', () => {
   const ahora = Date.parse('2026-10-20T18:30:00-03:00')
   assert.deepEqual(reservasTenisAgenda([tenis({})], ahora).map(r => r.id), ['r'])
+})
+
+caso('tenis en la agenda: EDITAR/CANCELAR siguen el plazo del servidor, no 3 h fijas', () => {
+  // Plazo configurado en 0 h: el servidor marca puede_cancelar aunque falten 30 min.
+  const ahora = Date.parse('2026-10-20T17:30:00-03:00')
+  assert.deepEqual(accionesTenisAgenda(tenis({}), ahora), { editar: true, cancelar: true })
+  // El servidor ya no deja (plazo vencido): no se muestran.
+  assert.deepEqual(accionesTenisAgenda(tenis({ puede_cancelar: false }), AHORA), { editar: false, cancelar: false })
+  // Empezado: nunca, aunque el dato sea viejo.
+  assert.deepEqual(accionesTenisAgenda(tenis({}), Date.parse('2026-10-20T18:00:00-03:00')), { editar: false, cancelar: false })
+  // No titular, telefónica o pendiente: sin EDITAR; CANCELAR sólo el titular.
+  assert.deepEqual(accionesTenisAgenda(tenis({ es_titular: false }), AHORA), { editar: false, cancelar: false })
+  assert.deepEqual(accionesTenisAgenda(tenis({ origen: 'telefonica' }), AHORA), { editar: false, cancelar: true })
+  assert.deepEqual(accionesTenisAgenda(tenis({ estado: 'pendiente_comprobante' }), AHORA), { editar: false, cancelar: true })
 })
 
 caso('agenda mezclada: eventos y tenis por día y hora (sin hora al final)', () => {
