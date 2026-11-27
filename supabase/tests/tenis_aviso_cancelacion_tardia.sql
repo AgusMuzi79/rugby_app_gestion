@@ -359,7 +359,7 @@ select tenis_config_guardar('{"aviso_cancelacion_horas": 3}');
 select pg_temp.como('p1');
 select pg_temp.guardar('gestora', tenis_reservar(pg_temp.ca(5), pg_temp.t('2026-11-21 10:00'), 'singles', pg_temp.j(2)));
 select pg_temp.como('p2');
-select pg_temp.guardar('canchero', tenis_reservar(pg_temp.ca(6), pg_temp.t('2026-11-21 11:00'), 'singles', pg_temp.j(3)));
+select pg_temp.guardar('canchero', tenis_reservar(pg_temp.ca(6), pg_temp.t('2026-11-21 12:00'), 'singles', pg_temp.j(3)));
 select pg_temp.ahora('2026-11-21 09:30');
 select pg_temp.como('gestor');
 select tenis_cancelar(pg_temp.id('gestora'), 'lluvia');
