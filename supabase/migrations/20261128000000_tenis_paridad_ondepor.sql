@@ -36,7 +36,7 @@
 --     Además tenis_cancelar acepta al canchero como staff.
 --
 -- Códigos nuevos: fuera_de_vista, comentario_largo, novedad_invalida, novedad_inexistente,
--- reporte_invalido, rango_invalido. (horarios inválidos → config_invalida.)
+-- reporte_invalido, rango_invalido. Sólo Edge Function: novedad_ya_enviada, novedad_en_curso. (horarios inválidos → config_invalida.)
 --
 -- Deploy: aplicar ANTES de las Edge Functions y la app de esta feature. Las firmas viejas de
 -- tenis_reservar, tenis_reservar_staff, tenis_editar_reserva y tenis_invitado_reservar se
@@ -60,9 +60,14 @@ create trigger tenis_horarios_updated_at
   before update on tenis_horarios
   for each row execute function set_updated_at();
 
-insert into tenis_horarios (dia_semana, hora_desde, hora_hasta) values
-  (1, '08:00', '22:00'), (2, '08:00', '22:00'), (3, '08:00', '22:00'), (4, '08:00', '22:00'),
-  (5, '08:00', '22:00'), (6, '09:00', '22:00'), (7, '10:00', '17:00')
+-- Lunes a viernes heredan el horario que ya tenía tenis_config (hoy 08–22), así el deploy
+-- no cambia las horas de esos días; sábado y domingo quedan como OnDepor (09–22 y 10–17).
+insert into tenis_horarios (dia_semana, hora_desde, hora_hasta)
+select d, coalesce(c.hora_desde, '08:00'::time), coalesce(c.hora_hasta, '22:00'::time)
+  from generate_series(1, 5) d
+  left join tenis_config c on true
+union all
+select * from (values (6, '09:00'::time, '22:00'::time), (7, '10:00'::time, '17:00'::time)) v
 on conflict (dia_semana) do nothing;
 
 alter table tenis_config add column dias_vista int not null default 7 check (dias_vista between 1 and 31);
@@ -111,7 +116,11 @@ create table tenis_novedades (
   updated_at     timestamptz not null default now(),
   enviada_at     timestamptz,
   push_enviados  int         not null default 0 check (push_enviados >= 0),
-  mails_enviados int         not null default 0 check (mails_enviados >= 0)
+  mails_enviados int         not null default 0 check (mails_enviados >= 0),
+  -- Etapas del envío (tenis-gestion publicar-novedad): con el push hecho, un reintento no lo
+  -- repite; envio_terminado_at = salieron también los mails.
+  push_terminado_at  timestamptz,
+  envio_terminado_at timestamptz
 );
 
 create index tenis_novedades_orden_idx on tenis_novedades (destacada desc, created_at desc);
@@ -2427,6 +2436,8 @@ begin
     select jsonb_agg(jsonb_build_object(
              'id', n.id, 'titulo', n.titulo, 'texto', n.texto, 'destacada', n.destacada,
              'created_at', n.created_at, 'updated_at', n.updated_at, 'enviada_at', n.enviada_at,
+             'push_enviados', n.push_enviados, 'mails_enviados', n.mails_enviados,
+             'envio_completo', n.envio_terminado_at is not null,
              'creado_por_nombre', tenis_nombre_perfil(n.creado_por))
            order by n.destacada desc, n.created_at desc, n.id)
     from (select * from tenis_novedades
@@ -2500,7 +2511,43 @@ begin
 end;
 $$;
 
--- service_role (tenis-gestion publicar-novedad): registra el envío.
+-- service_role (tenis-gestion publicar-novedad): reclama el envío. Sale una sola vez: el
+-- primer pedido marca enviada_at; mientras el envío no termina, otro pedido recibe 'en_curso'.
+-- Si quedó sin terminar 15 minutos (la función se cortó a mitad de camino), se puede volver a
+-- reclamar; push_hecho dice si el push ya salió (el reintento sólo manda los mails).
+-- => {estado: reclamada|en_curso|ya_enviada|inexistente, titulo, texto, enviada_at,
+--     push_hecho, push_enviados}.
+create or replace function tenis_novedad_reclamar(p_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_n tenis_novedades%rowtype;
+begin
+  update tenis_novedades
+     set enviada_at = tenis_ahora()
+   where id = p_id
+     and envio_terminado_at is null
+     and (enviada_at is null or enviada_at <= tenis_ahora() - interval '15 minutes')
+  returning * into v_n;
+  if found then
+    return jsonb_build_object('estado', 'reclamada', 'titulo', v_n.titulo, 'texto', v_n.texto,
+                              'enviada_at', v_n.enviada_at, 'push_hecho', v_n.push_terminado_at is not null,
+                              'push_enviados', v_n.push_enviados);
+  end if;
+  select * into v_n from tenis_novedades where id = p_id;
+  if not found then
+    return jsonb_build_object('estado', 'inexistente');
+  end if;
+  return jsonb_build_object('estado', case when v_n.envio_terminado_at is not null then 'ya_enviada' else 'en_curso' end,
+                            'enviada_at', v_n.enviada_at);
+end;
+$$;
+
+-- service_role (tenis-gestion publicar-novedad): registra cada etapa. p_push no nulo = salió el
+-- push; p_mails no nulo = salieron los mails y el envío terminó.
 create or replace function tenis_novedad_marcar_enviada(p_id uuid, p_push int, p_mails int)
 returns jsonb
 language plpgsql
@@ -2511,15 +2558,19 @@ declare
   v_n tenis_novedades%rowtype;
 begin
   update tenis_novedades
-     set enviada_at = tenis_ahora(), push_enviados = greatest(coalesce(p_push, 0), 0),
-         mails_enviados = greatest(coalesce(p_mails, 0), 0)
+     set enviada_at         = coalesce(enviada_at, tenis_ahora()),
+         push_enviados      = case when p_push is null then push_enviados else greatest(p_push, 0) end,
+         push_terminado_at  = case when p_push is null then push_terminado_at else tenis_ahora() end,
+         mails_enviados     = case when p_mails is null then mails_enviados else greatest(p_mails, 0) end,
+         envio_terminado_at = case when p_mails is null then envio_terminado_at else tenis_ahora() end
    where id = p_id
   returning * into v_n;
   if not found then
     perform tenis_error('novedad_inexistente');
   end if;
   return jsonb_build_object('id', v_n.id, 'enviada_at', v_n.enviada_at,
-                            'push_enviados', v_n.push_enviados, 'mails_enviados', v_n.mails_enviados);
+                            'push_enviados', v_n.push_enviados, 'mails_enviados', v_n.mails_enviados,
+                            'envio_completo', v_n.envio_terminado_at is not null);
 end;
 $$;
 
@@ -2818,7 +2869,9 @@ revoke execute on function tenis_invitado_reservar(uuid, timestamptz, text, json
 revoke execute on function tenis_procesar()                                                        from public, anon, authenticated;
 revoke execute on function tenis_audiencia_novedades()                                             from public, anon, authenticated;
 revoke execute on function tenis_novedad_marcar_enviada(uuid, int, int)                            from public, anon, authenticated;
+revoke execute on function tenis_novedad_reclamar(uuid)                                            from public, anon, authenticated;
 grant  execute on function tenis_invitado_reservar(uuid, timestamptz, text, jsonb, jsonb, text, text) to service_role;
 grant  execute on function tenis_procesar()                                                        to service_role;
 grant  execute on function tenis_audiencia_novedades()                                             to service_role;
 grant  execute on function tenis_novedad_marcar_enviada(uuid, int, int)                            to service_role;
+grant  execute on function tenis_novedad_reclamar(uuid)                                            to service_role;

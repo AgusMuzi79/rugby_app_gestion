@@ -451,6 +451,7 @@ const MOTIVOS: Record<string, string> = {
   motivo_cancelacion: 'Escribí el motivo de la cancelación.',
   novedad_inexistente: 'Esa novedad ya no existe.',
   novedad_ya_enviada: 'Esa novedad ya se mandó.',
+  novedad_en_curso: 'Esa novedad se está mandando. Si en 15 minutos no terminó, probá de nuevo.',
 }
 
 export function motivoTenis(codigo: string): string {
@@ -833,6 +834,32 @@ export function parsearCancelarVarias(json: unknown): { canceladas: string[]; om
 }
 
 // ─── Cartelera de novedades (tenis_novedades) ─────────────────────────────────
+
+export interface ReclamoNovedad {
+  estado:        'reclamada' | 'en_curso' | 'ya_enviada' | 'inexistente'
+  titulo:        string
+  texto:         string
+  enviada_at:    string | null
+  // Reintento de un envío cortado: el push ya salió (no se repite).
+  push_hecho:    boolean
+  push_enviados: number
+}
+
+/** tenis_novedad_reclamar(). Un estado desconocido cuenta como en curso (no se manda nada). */
+export function parsearReclamoNovedad(json: unknown): ReclamoNovedad {
+  const o = json && typeof json === 'object' && !Array.isArray(json) ? json as Record<string, unknown> : {}
+  const estados = ['reclamada', 'en_curso', 'ya_enviada', 'inexistente'] as const
+  const estado = estados.find((e) => e === o.estado) ?? 'en_curso'
+  const n = typeof o.push_enviados === 'number' && Number.isFinite(o.push_enviados) ? Math.max(0, o.push_enviados) : 0
+  return {
+    estado,
+    titulo: typeof o.titulo === 'string' ? o.titulo : '',
+    texto: typeof o.texto === 'string' ? o.texto : '',
+    enviada_at: typeof o.enviada_at === 'string' ? o.enviada_at : null,
+    push_hecho: o.push_hecho === true,
+    push_enviados: o.push_hecho === true ? n : 0,
+  }
+}
 
 /** socio ids de tenis_audiencia_novedades(): setof uuid (strings) o filas con socio_id. */
 export function parsearSocioIds(json: unknown): string[] {

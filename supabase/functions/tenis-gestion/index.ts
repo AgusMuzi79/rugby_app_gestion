@@ -19,9 +19,11 @@
 //                          motivo}], avisos }. Sólo gestor.
 //   publicar-novedad     — { novedad_id } manda una novedad de la cartelera (tenis_novedades): push a
 //                          la audiencia de tenis_audiencia_novedades() (socios y sus tutores) y mail a
-//                          los que tienen un mail real. Se reclama marcando enviada_at, así que sale
-//                          una sola vez; al final guarda push_enviados y mails_enviados.
-//                          => { enviada_at, destinatarios, push_enviados, mails_enviados }. Sólo gestor.
+//                          los que tienen un mail real. Se reclama con tenis_novedad_reclamar, así que
+//                          sale una sola vez; cada etapa (push, mails) queda registrada al terminar. Un
+//                          envío cortado se puede reintentar a los 15 minutos sin repetir el push.
+//                          => { enviada_at, destinatarios, push_enviados, mails_enviados, reintento }.
+//                          Sólo gestor.
 //
 // Seguridad: JWT requerido. El rol sale de profiles (nunca del body): gestor = admin, o
 // subcomision con deporte 'tenis'; canchero = rol canchero. Las RPC se llaman con el JWT del
@@ -49,6 +51,7 @@ import {
   motivoTenis,
   parsearCancelarVarias,
   parsearIdsReserva,
+  parsearReclamoNovedad,
   parsearSocioIds,
   textoPushNovedad,
 } from '../_shared/tenisReglas.ts'
@@ -314,51 +317,52 @@ async function handlePublicarNovedad(userId: string, body: Record<string, unknow
   const novedadId = body.novedad_id
   if (typeof novedadId !== 'string' || !UUID_RE.test(novedadId)) return rechazo('parametros')
 
-  // Reclamo atómico: sólo el primer pedido marca enviada_at (doble toque o dos gestoras a la vez).
-  const enviadaAt = new Date().toISOString()
-  const { data: reclamada, error: errReclamo } = await supabaseAdmin
-    .from('tenis_novedades')
-    .update({ enviada_at: enviadaAt })
-    .eq('id', novedadId)
-    .is('enviada_at', null)
-    .select('id, titulo, texto')
-    .maybeSingle()
-  if (errReclamo) return errorInterno('tenis_novedades (reclamo)', errReclamo)
-  if (!reclamada) {
-    const { data: existe, error: errExiste } = await supabaseAdmin
-      .from('tenis_novedades').select('id').eq('id', novedadId).maybeSingle()
-    if (errExiste) return errorInterno('tenis_novedades', errExiste)
-    return rechazo(existe ? 'novedad_ya_enviada' : 'novedad_inexistente')
-  }
-  const novedad = { titulo: String(reclamada.titulo ?? ''), texto: String(reclamada.texto ?? '') }
-  console.info(`tenis-gestion: publicar-novedad ${novedadId} por ${userId}`)
-
-  // Sin audiencia no salió nada: se libera el reclamo para poder reintentar.
+  // La audiencia se lee antes de reclamar: si falla, no queda nada marcado.
   const { data: audiencia, error: errAudiencia } = await supabaseAdmin.rpc('tenis_audiencia_novedades')
-  if (errAudiencia) {
-    const { error: errLiberar } = await supabaseAdmin
-      .from('tenis_novedades').update({ enviada_at: null }).eq('id', novedadId).eq('enviada_at', enviadaAt)
-    if (errLiberar) console.error('tenis-gestion: no se liberó el reclamo de la novedad:', errLiberar.message)
-    return errorInterno('tenis_audiencia_novedades', errAudiencia)
-  }
+  if (errAudiencia) return errorInterno('tenis_audiencia_novedades', errAudiencia)
   const socios = parsearSocioIds(audiencia)
 
-  // Push y mail van aislados: si uno falla, el otro sale igual (la novedad ya quedó enviada).
-  let pushEnviados = 0
-  let mailsEnviados = 0
-  const { title, body: texto } = textoPushNovedad(novedad)
-  try {
-    const { entregados } = await pushASocios(socios.map((socioId) => ({
-      clave: `novedad:${novedadId}`,
-      socioId,
-      title,
-      body: texto,
-      data: { type: 'tenis_novedad', novedad_id: novedadId },
-    })))
-    pushEnviados = entregados
-  } catch (e) {
-    console.error('tenis-gestion: push de la novedad:', e instanceof Error ? e.message : String(e))
+  // Reclamo atómico (tenis_novedad_reclamar): sale una sola vez (doble toque o dos gestoras a la
+  // vez => novedad_en_curso). Si un envío anterior se cortó (límite de tiempo de la función) y
+  // pasaron 15 minutos, se reclama de nuevo: el push que ya salió no se repite; los mails sí se
+  // vuelven a mandar enteros (no se sabe cuáles llegaron).
+  const { data: rec, error: errReclamo } = await supabaseAdmin.rpc('tenis_novedad_reclamar', { p_id: novedadId })
+  if (errReclamo) return errorInterno('tenis_novedad_reclamar', errReclamo)
+  const reclamo = parsearReclamoNovedad(rec)
+  if (reclamo.estado === 'inexistente') return rechazo('novedad_inexistente')
+  if (reclamo.estado === 'ya_enviada') return rechazo('novedad_ya_enviada')
+  if (reclamo.estado !== 'reclamada') return rechazo('novedad_en_curso')
+  const novedad = { titulo: reclamo.titulo, texto: reclamo.texto }
+  console.info(`tenis-gestion: publicar-novedad ${novedadId} por ${userId}${reclamo.push_hecho ? ' (reintento, sin push)' : ''}`)
+
+  // Cada etapa queda registrada apenas termina (tenis_novedad_marcar_enviada). Si push o mail
+  // fallan, el otro sale igual y la etapa queda hecha con lo que se entregó.
+  const marcar = async (push: number | null, mails: number | null) => {
+    const { data, error } = await supabaseAdmin.rpc('tenis_novedad_marcar_enviada', { p_id: novedadId, p_push: push, p_mails: mails })
+    if (error) console.error('tenis-gestion: no se guardó la etapa de la novedad:', error.message)
+    return data
   }
+
+  let pushEnviados = reclamo.push_enviados
+  if (!reclamo.push_hecho) {
+    pushEnviados = 0
+    const { title, body: texto } = textoPushNovedad(novedad)
+    try {
+      const { entregados } = await pushASocios(socios.map((socioId) => ({
+        clave: `novedad:${novedadId}`,
+        socioId,
+        title,
+        body: texto,
+        data: { type: 'tenis_novedad', novedad_id: novedadId },
+      })))
+      pushEnviados = entregados
+    } catch (e) {
+      console.error('tenis-gestion: push de la novedad:', e instanceof Error ? e.message : String(e))
+    }
+    await marcar(pushEnviados, null)
+  }
+
+  let mailsEnviados = 0
   try {
     // Cuentas de los socios y de sus tutores; los mails sintéticos del padrón quedan afuera.
     const perfiles = await profilesPorSocio(socios)
@@ -368,18 +372,10 @@ async function handlePublicarNovedad(userId: string, body: Record<string, unknow
   } catch (e) {
     console.error('tenis-gestion: mails de la novedad:', e instanceof Error ? e.message : String(e))
   }
-
-  // Totales del envío (tenis_novedad_marcar_enviada, service role). El reclamo de arriba ya
-  // impide un segundo envío; si esto falla sólo quedan los contadores en 0.
-  const { data: marcada, error: errCuentas } = await supabaseAdmin.rpc('tenis_novedad_marcar_enviada', {
-    p_id: novedadId,
-    p_push: pushEnviados,
-    p_mails: mailsEnviados,
-  })
-  if (errCuentas) console.error('tenis-gestion: no se guardaron los totales de la novedad:', errCuentas.message)
+  const marcada = await marcar(null, mailsEnviados)
   const enviadaFinal = marcada && typeof marcada === 'object' && typeof (marcada as Record<string, unknown>).enviada_at === 'string'
     ? (marcada as Record<string, unknown>).enviada_at as string
-    : enviadaAt
+    : reclamo.enviada_at
 
   return jsonOk({
     ok: true,
@@ -387,6 +383,7 @@ async function handlePublicarNovedad(userId: string, body: Record<string, unknow
     destinatarios: socios.length,
     push_enviados: pushEnviados,
     mails_enviados: mailsEnviados,
+    reintento: reclamo.push_hecho,
   })
 }
 

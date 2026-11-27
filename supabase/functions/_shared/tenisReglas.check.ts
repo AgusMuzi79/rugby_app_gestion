@@ -55,6 +55,7 @@ import {
   parsearCancelarVarias,
   parsearHorarios,
   parsearIdsReserva,
+  parsearReclamoNovedad,
   parsearSocioIds,
   htmlNovedad,
   textoPushNovedad,
@@ -538,6 +539,12 @@ await caso('audiencia de novedades: acepta uuid sueltos o filas {socio_id}, sin 
   assert.deepEqual(parsearSocioIds([a, { socio_id: b }, { tenis_audiencia_novedades: a }, 'x', null, b]), [a, b])
   assert.deepEqual(parsearSocioIds(a), [a])
   assert.deepEqual(parsearSocioIds(null), [])
+  const rec = parsearReclamoNovedad({ estado: 'reclamada', titulo: 'T', texto: 'X', enviada_at: '2026-11-26T12:00:00Z', push_hecho: true, push_enviados: 7 })
+  assert.deepEqual(rec, { estado: 'reclamada', titulo: 'T', texto: 'X', enviada_at: '2026-11-26T12:00:00Z', push_hecho: true, push_enviados: 7 })
+  assert.equal(parsearReclamoNovedad({ estado: 'reclamada', push_hecho: false, push_enviados: 7 }).push_enviados, 0)
+  assert.equal(parsearReclamoNovedad({ estado: 'raro' }).estado, 'en_curso')
+  assert.equal(parsearReclamoNovedad(null).estado, 'en_curso')
+  assert.equal(parsearReclamoNovedad({ estado: 'ya_enviada' }).push_hecho, false)
 })
 
 await caso('mail: sólo direcciones reales (sin vacíos ni mails sintéticos del padrón)', () => {
@@ -564,7 +571,7 @@ await caso('novedad: push con título "Tenis: …" y el texto recortado; mail es
 
 await caso('códigos nuevos de las Edge Functions tienen texto propio', () => {
   const generico = motivoTenis('codigo_que_no_existe')
-  for (const c of ['comentario_largo', 'motivo_cancelacion', 'novedad_inexistente', 'novedad_ya_enviada']) {
+  for (const c of ['comentario_largo', 'motivo_cancelacion', 'novedad_inexistente', 'novedad_ya_enviada', 'novedad_en_curso']) {
     assert.notEqual(motivoTenis(c), generico, c)
   }
 })

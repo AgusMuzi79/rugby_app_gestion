@@ -154,7 +154,22 @@ insert into socio_servicios values
 \ir ../migrations/20261125000000_tenis_aviso_jugadores.sql
 \ir ../migrations/20261126000000_tenis_editar_reserva.sql
 \ir ../migrations/20261127000000_tenis_detalles_edicion.sql
+-- Un horario general distinto del de siempre, para ver que lunes a viernes lo heredan.
+update tenis_config set hora_desde = '07:30', hora_hasta = '21:00';
 \ir ../migrations/20261128000000_tenis_paridad_ondepor.sql
+
+-- Semilla de tenis_horarios: lunes a viernes = tenis_config; sábado y domingo como OnDepor.
+do $$ begin
+  if (select string_agg(dia_semana || ' ' || to_char(hora_desde, 'HH24:MI') || '-' || to_char(hora_hasta, 'HH24:MI'), ',' order by dia_semana)
+        from tenis_horarios)
+     is distinct from '1 07:30-21:00,2 07:30-21:00,3 07:30-21:00,4 07:30-21:00,5 07:30-21:00,6 09:00-22:00,7 10:00-17:00' then
+    raise exception 'FALLO [semilla de horarios]: %', (select string_agg(dia_semana || ' ' || hora_desde || '-' || hora_hasta, ',' order by dia_semana) from tenis_horarios);
+  end if;
+  raise notice 'ok   - semilla de horarios: lunes a viernes heredan tenis_config, sábado y domingo como OnDepor';
+end $$;
+-- El resto de las pruebas usa el horario de siempre (08–22).
+update tenis_config set hora_desde = '08:00', hora_hasta = '22:00';
+update tenis_horarios set hora_desde = '08:00', hora_hasta = '22:00' where dia_semana between 1 and 5;
 
 -- ─── Utilidades de prueba ─────────────────────────────────────────────────────
 
@@ -744,6 +759,37 @@ select pg_temp.espera(pg_temp.err($$select tenis_novedades_listar()$$), 'no_auto
 select pg_temp.espera((tenis_novedad_marcar_enviada(pg_temp.id('nov'), 12, 3))->>'push_enviados', '12', 'service: marca la novedad enviada');
 select pg_temp.espera((select (enviada_at is not null)::text || '/' || mails_enviados from tenis_novedades where id = pg_temp.id('nov')),
   'true/3', 'novedad enviada: fecha y contadores');
+select pg_temp.espera(tenis_novedad_reclamar(pg_temp.id('nov'))->>'estado', 'ya_enviada', 'reclamar una novedad ya enviada');
+select pg_temp.espera(tenis_novedad_reclamar(gen_random_uuid())->>'estado', 'inexistente', 'reclamar una novedad inexistente');
+select pg_temp.espera(has_function_privilege('authenticated', 'tenis_novedad_reclamar(uuid)', 'execute')::text
+  || '/' || has_function_privilege('service_role', 'tenis_novedad_reclamar(uuid)', 'execute')::text,
+  'false/true', 'reclamar novedad: sólo service_role');
+-- Envío cortado a mitad de camino: el push salió, los mails no.
+select pg_temp.espera(tenis_novedad_reclamar(pg_temp.id('nov2'))->>'push_hecho', 'false', 'primer reclamo: push pendiente');
+select pg_temp.espera(tenis_novedad_reclamar(pg_temp.id('nov2'))->>'estado', 'en_curso', 'segundo pedido mientras se manda: en curso');
+select pg_temp.espera((tenis_novedad_marcar_enviada(pg_temp.id('nov2'), 7, null))->>'envio_completo', 'false', 'etapa push registrada');
+select pg_temp.ahora('2026-11-20 10:14');
+select pg_temp.espera(tenis_novedad_reclamar(pg_temp.id('nov2'))->>'estado', 'en_curso', 'antes de 15 minutos sigue en curso');
+select pg_temp.ahora('2026-11-20 10:16');
+select pg_temp.espera((select r->>'estado' || '/' || (r->>'push_hecho') || '/' || (r->>'push_enviados') from tenis_novedad_reclamar(pg_temp.id('nov2')) r),
+  'reclamada/true/7', 'envío cortado: se vuelve a reclamar sin repetir el push');
+select pg_temp.como('gestor');
+select pg_temp.espera((select (n->>'envio_completo') || '/' || (n->>'push_enviados') from jsonb_array_elements(tenis_novedades_listar()) n
+  where n->>'titulo' = 'Canchas'), 'false/7', 'listar: envío incompleto con sus contadores');
+select pg_temp.como('');
+select pg_temp.espera((select r->>'push_enviados' || '/' || (r->>'mails_enviados') || '/' || (r->>'envio_completo')
+  from tenis_novedad_marcar_enviada(pg_temp.id('nov2'), null, 2) r), '7/2/true', 'etapa mails: conserva el push y termina');
+select pg_temp.espera(tenis_novedad_reclamar(pg_temp.id('nov2'))->>'estado', 'ya_enviada', 'terminada: no se reclama más');
+select pg_temp.ahora('2026-11-20 10:00');
+-- Subcomisión de otro deporte: no es gestora de tenis.
+select pg_temp.como('rugby');
+select pg_temp.espera(pg_temp.err($$select tenis_novedad_guardar('{"titulo": "x", "texto": "y"}')$$), 'no_autorizado', 'subco de rugby no publica');
+select pg_temp.espera(pg_temp.err($$select tenis_horarios_guardar('[{"dia_semana": 7, "activo": false}]')$$), 'no_autorizado',
+  'subco de rugby no cambia horarios');
+select pg_temp.espera(pg_temp.err($$select tenis_reporte('uso_general', '2026-11-01', '2026-11-30')$$), 'no_autorizado',
+  'subco de rugby no ve reportes');
+select pg_temp.espera(pg_temp.err($$select tenis_cancelar_varias(array[gen_random_uuid()], 'x')$$), 'no_autorizado',
+  'subco de rugby no cancela en bloque');
 select pg_temp.como('gestor');
 select pg_temp.espera(tenis_novedad_borrar(pg_temp.id('nov2'))::text, 'true', 'gestor borra una novedad');
 select pg_temp.espera(pg_temp.err($$select tenis_novedad_borrar(pg_temp.id('nov2'))$$), 'novedad_inexistente', 'borrar dos veces');
