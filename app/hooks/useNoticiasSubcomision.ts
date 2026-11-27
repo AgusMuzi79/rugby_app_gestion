@@ -3,7 +3,8 @@ import { Alert } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { buildNoticiaSubcomision } from '@/lib/noticiaSubcomision'
+import { buildNoticiaSubcomision, camposImagenesNoticia } from '@/lib/noticiaSubcomision'
+import type { TablesInsert } from '@/lib/database.types'
 import { resultadoBorrado } from '@/lib/comunicadosAdmin'
 import { useRefreshOnFocus } from './useRefreshOnFocus'
 import { useEstadoCarga } from './useEstadoCarga'
@@ -120,7 +121,9 @@ export function useNoticiasSubcomision() {
 
     const { data, error: insertErr } = await supabase
       .from('noticias')
-      .insert({ ...validacion.payload, imagen_path: imagenPath })
+      // `imagenes` (migration 20261128000000) is not in the generated
+      // database.types.ts yet: drop the cast once the types are regenerated.
+      .insert({ ...validacion.payload, ...camposImagenesNoticia(imagenPath ? [imagenPath] : []) } as unknown as TablesInsert<'noticias'>)
       .select('id')
       .single()
 
