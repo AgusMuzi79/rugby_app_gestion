@@ -413,6 +413,7 @@ const MOTIVOS: Record<string, string> = {
   cantidad_jugadores: 'Revisá los jugadores: singles lleva 1 jugador más y dobles 3.',
   jugadores_duplicados: 'Un jugador está cargado dos veces.',
   jugador_ocupado: 'Uno de los jugadores ya tiene otro turno a esa hora.',
+  turno_seguido: textoTurnoSeguido(null),
   socio_no_encontrado: 'No encontramos un socio con ese DNI.',
   dni_invalido: 'Revisá el DNI.',
   invitado_incompleto: 'Completá nombre y apellido de los invitados.',
@@ -454,7 +455,14 @@ const MOTIVOS: Record<string, string> = {
   novedad_en_curso: 'Esa novedad se está mandando. Si en 15 minutos no terminó, probá de nuevo.',
 }
 
-export function motivoTenis(codigo: string): string {
+// turno_seguido (20261130000000): la base manda el nombre de la persona en el DETAIL.
+function textoTurnoSeguido(nombre: string | null): string {
+  return `${nombre || 'Uno de los jugadores'} ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.`
+}
+
+/** Texto de un código. `detalle` = DETAIL del error (sólo lo usa turno_seguido: el nombre). */
+export function motivoTenis(codigo: string, detalle?: string | null): string {
+  if (codigo === 'turno_seguido') return textoTurnoSeguido(detalle?.trim() || null)
   return MOTIVOS[codigo] ?? 'No se pudo completar la operación. Probá de nuevo.'
 }
 
@@ -682,6 +690,94 @@ export function textoAvisoJugador(
   return a.motivo === 'cambio' ? textoJugadorCambio(a, cfg) : textoJugadorAgregado(a, cfg)
 }
 
+// ─── Aviso a la gestión: "Cancelación tardía" ─────────────────────────────────
+// Outbox tenis_avisos_gestores (migración 20261201000000): un socio canceló su reserva con
+// menos de aviso_cancelacion_horas de anticipación. tenis-cron la reclama con
+// tenis_avisos_gestores_reclamar() y marca cada aviso con tenis_avisos_gestores_marcar().
+
+export interface AvisoGestor {
+  /** id de la fila de la outbox (lo que se marca). */
+  id: string
+  reserva_id: string
+  /** Perfil que recibe el push (gestora de tenis o admin). */
+  profile_id: string
+  /** Titular que canceló. */
+  titular_nombre: string | null
+  cancha: string | null
+  inicio: Date
+  /** Minutos entre la cancelación y el turno (tenis_reservas.cancelacion_anticipacion_min). */
+  anticipacion_min: number | null
+}
+
+export interface ReclamoAvisosGestores {
+  /** Pendientes que se descartaron sin mandar (turno terminado, perfil que ya no gestiona tenis). */
+  descartados: number
+  avisos: AvisoGestor[]
+}
+
+/** Tolerante: una fila sin id, reserva, perfil o inicio válidos se ignora (vuelve a reclamarse a los 10 min). */
+export function parsearAvisosGestores(json: unknown): ReclamoAvisosGestores {
+  const r = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
+  const avisos: AvisoGestor[] = []
+  for (const x of Array.isArray(r.avisos) ? r.avisos : []) {
+    if (!x || typeof x !== 'object') continue
+    const o = x as Record<string, unknown>
+    const id = uuidONull(o.id)
+    const reservaId = uuidONull(o.reserva_id)
+    const profileId = uuidONull(o.profile_id)
+    const inicio = typeof o.inicio === 'string' ? new Date(o.inicio) : null
+    if (!id || !reservaId || !profileId || !inicio || Number.isNaN(inicio.getTime())) continue
+    avisos.push({
+      id,
+      reserva_id: reservaId,
+      profile_id: profileId,
+      titular_nombre: textoONull(o.titular_nombre),
+      cancha: textoONull(o.cancha),
+      inicio,
+      anticipacion_min: typeof o.anticipacion_min === 'number' && Number.isFinite(o.anticipacion_min)
+        ? o.anticipacion_min
+        : null,
+    })
+  }
+  const d = Number(r.descartados)
+  return { descartados: Number.isFinite(d) ? d : 0, avisos }
+}
+
+/** 80 → "1 h 20 min", 120 → "2 h", 45 → "45 min". */
+export function formatoAnticipacion(minutos: number): string {
+  const total = Math.max(0, Math.floor(minutos))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  if (!h) return `${m} min`
+  return m ? `${h} h ${m} min` : `${h} h`
+}
+
+/**
+ * "Juan Pérez canceló la cancha 03 de hoy 18:00 (faltaban 1 h 20 min)." Hora de la grilla (sin el
+ * margen de inicio, como la ve la gestora); "hoy" / "mañana" respecto de `ahora` (día local).
+ */
+export function textoCancelacionTardia(
+  a: Pick<AvisoGestor, 'titular_nombre' | 'cancha' | 'inicio' | 'anticipacion_min'>,
+  ahora: Date,
+): { title: string; body: string } {
+  const fecha = fechaLocal(a.inicio)
+  const hoy = fechaLocal(ahora)
+  const hora = horaLocal(a.inicio)
+  let cuando: string
+  if (fecha === hoy) cuando = `de hoy ${hora}`
+  else if (fecha === sumarDias(hoy, 1)) cuando = `de mañana ${hora}`
+  else {
+    const [, mes, dia] = fecha.split('-')
+    cuando = `del ${DIAS[diaSemanaIso(fecha) - 1]} ${dia}/${mes} ${hora}`
+  }
+  const quien = a.titular_nombre?.trim() || 'Un socio'
+  const que = a.cancha ? `la cancha ${a.cancha}` : 'su turno'
+  const falta = a.anticipacion_min === null
+    ? ''
+    : a.anticipacion_min <= 0 ? ' (estaba por empezar)' : ` (faltaban ${formatoAnticipacion(a.anticipacion_min)})`
+  return { title: 'Cancelación tardía', body: `${quien} canceló ${que} ${cuando}${falta}.` }
+}
+
 // ─── Resultado de cada push para marcar la outbox ─────────────────────────────
 
 /** Estado de un aviso push: llegó a algún teléfono, nadie tiene teléfono, o Expo no lo entregó. */
@@ -796,6 +892,37 @@ export function normalizarComentario(x: unknown): { ok: true; comentario: string
   const t = x.trim()
   if (t.length > COMENTARIO_MAX) return { ok: false }
   return { ok: true, comentario: t || null }
+}
+
+// ─── Bloqueo puntual (tenis-gestion bloqueo-puntual) ──────────────────────────
+
+export const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso'] as const
+
+export interface BloqueoPuntualBody {
+  /** Bloque puntual a editar; null = crear uno nuevo. */
+  id: string | null
+  /** null = todas las canchas. */
+  canchaId: string | null
+  desde: Date
+  hasta: Date
+  tipo: (typeof TIPOS_BLOQUE)[number]
+  titulo: string
+}
+
+/** Body de bloqueo-puntual: { id?, cancha_id?, desde, hasta (ISO), tipo, titulo }. null = inválido. */
+export function parsearBloqueoPuntual(body: Record<string, unknown>): BloqueoPuntualBody | null {
+  const id = body.id ?? null
+  if (id !== null && (typeof id !== 'string' || !UUID_RE.test(id))) return null
+  const canchaId = body.cancha_id ?? null
+  if (canchaId !== null && (typeof canchaId !== 'string' || !UUID_RE.test(canchaId))) return null
+  const desde = new Date(typeof body.desde === 'string' ? body.desde : '')
+  const hasta = new Date(typeof body.hasta === 'string' ? body.hasta : '')
+  if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime()) || hasta <= desde) return null
+  const tipo = TIPOS_BLOQUE.find((t) => t === body.tipo)
+  if (!tipo) return null
+  const titulo = typeof body.titulo === 'string' ? body.titulo.trim().slice(0, 80) : ''
+  if (!titulo) return null
+  return { id, canchaId, desde, hasta, tipo, titulo }
 }
 
 // ─── Cancelar varias (tenis_cancelar_varias) ──────────────────────────────────

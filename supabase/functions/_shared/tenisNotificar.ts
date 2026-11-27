@@ -183,15 +183,43 @@ export interface AvisoPush {
  * token de Expo, 'error' si había teléfono pero Expo no lo entregó.
  */
 export async function pushASociosDetalle(avisos: AvisoPush[]): Promise<Map<string, EstadoPush>> {
-  const estados = new Map<string, EstadoPush>()
-  if (!avisos.length) return estados
+  if (!avisos.length) return new Map()
   const perfiles = await profilesPorSocio([...new Set(avisos.map((a) => a.socioId))])
-  const tokens = await tokensPorProfile([...new Set([...perfiles.values()].flat())])
+  return await pushPorPerfiles(avisos.map((a) => ({ clave: clavePush(a), aviso: a, perfiles: perfiles.get(a.socioId) ?? [] })))
+}
+
+export interface AvisoPushPerfil {
+  /** Identifica el aviso (p. ej. el id de la fila de la outbox); se combina con el perfil. */
+  clave: string
+  profileId: string
+  title: string
+  body: string
+  data?: Record<string, unknown>
+}
+
+/**
+ * Igual que pushASociosDetalle, pero cada aviso va a un perfil (sin tutores). Estados por
+ * clavePush({ clave, socioId: profileId }).
+ */
+export async function pushAPerfilesDetalle(avisos: AvisoPushPerfil[]): Promise<Map<string, EstadoPush>> {
+  return await pushPorPerfiles(avisos.map((a) => ({
+    clave: clavePush({ clave: a.clave, socioId: a.profileId }),
+    aviso: a,
+    perfiles: [a.profileId],
+  })))
+}
+
+/** Manda cada aviso a los teléfonos de sus perfiles y devuelve el estado por clave. */
+async function pushPorPerfiles(
+  envios: { clave: string; aviso: { title: string; body: string; data?: Record<string, unknown> }; perfiles: string[] }[],
+): Promise<Map<string, EstadoPush>> {
+  const estados = new Map<string, EstadoPush>()
+  if (!envios.length) return estados
+  const tokens = await tokensPorProfile([...new Set(envios.flatMap((e) => e.perfiles))])
   const items: PushItem[] = []
-  for (const a of avisos) {
-    const clave = clavePush(a)
+  for (const { clave, aviso: a, perfiles } of envios) {
     if (!estados.has(clave)) estados.set(clave, 'sin_dispositivo')
-    for (const profileId of perfiles.get(a.socioId) ?? []) {
+    for (const profileId of perfiles) {
       for (const to of tokens.get(profileId) ?? []) {
         if (!esTokenExpo(to)) continue
         estados.set(clave, 'error')

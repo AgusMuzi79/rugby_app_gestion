@@ -8,9 +8,11 @@
 //   resolver-comprobante — { reserva_id, aprobado: boolean, motivo? } (motivo obligatorio al rechazar).
 //                          RPC tenis_comprobante_resolver y mail al invitado con el resultado.
 //                          Gestor o canchero (la RPC decide quién puede).
-//   bloqueo-puntual      — { cancha_id: uuid|null (null = todas), desde, hasta (ISO), tipo, titulo }.
-//                          RPC tenis_bloqueo_puntual (cancela las reservas que pisa) y avisa: push a los
-//                          socios jugadores (y sus tutores), mail a los invitados. Sólo gestor.
+//   bloqueo-puntual      — { id?, cancha_id: uuid|null (null = todas), desde, hasta (ISO), tipo, titulo }.
+//                          Sin id: RPC tenis_bloqueo_puntual (crea el bloque). Con id: RPC
+//                          tenis_bloqueo_puntual_editar (migración 20261203000000, edita ese bloque
+//                          puntual). Las dos cancelan las reservas que pisa el bloque y avisan: push a
+//                          los socios jugadores (y sus tutores), mail a los invitados. Sólo gestor.
 //   ver-comprobante      — { reserva_id } URL firmada de lectura del comprobante, 5 minutos.
 //                          Gestor o canchero.
 //   cancelar-varias      — { reserva_ids: uuid[] (1..100), motivo }. RPC tenis_cancelar_varias
@@ -49,6 +51,7 @@ import {
   fechaLocal,
   htmlNovedad,
   motivoTenis,
+  parsearBloqueoPuntual,
   parsearCancelarVarias,
   parsearIdsReserva,
   parsearReclamoNovedad,
@@ -67,7 +70,6 @@ import {
   type AvisoPush,
 } from '../_shared/tenisNotificar.ts'
 
-const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso']
 // Acciones que sólo puede hacer la gestora; el resto, gestora o canchero.
 const SOLO_GESTOR = new Set(['bloqueo-puntual', 'cancelar-varias', 'publicar-novedad'])
 const URL_FIRMADA_SEG = 300
@@ -215,23 +217,22 @@ async function handleResolver(jwt: string, body: Record<string, unknown>): Promi
 // ─── bloqueo-puntual ──────────────────────────────────────────────────────────
 
 async function handleBloqueo(jwt: string, body: Record<string, unknown>): Promise<Response> {
-  const canchaId = body.cancha_id ?? null
-  if (canchaId !== null && (typeof canchaId !== 'string' || !UUID_RE.test(canchaId))) return rechazo('parametros')
-  const desde = new Date(typeof body.desde === 'string' ? body.desde : '')
-  const hasta = new Date(typeof body.hasta === 'string' ? body.hasta : '')
-  if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime()) || hasta <= desde) return rechazo('parametros')
-  if (typeof body.tipo !== 'string' || !TIPOS_BLOQUE.includes(body.tipo)) return rechazo('parametros')
-  const titulo = typeof body.titulo === 'string' ? body.titulo.trim().slice(0, 80) : ''
-  if (!titulo) return rechazo('parametros')
+  const b = parsearBloqueoPuntual(body)
+  if (!b) return rechazo('parametros')
+  const { titulo } = b
 
-  const { data, error } = await clienteUsuario(jwt).rpc('tenis_bloqueo_puntual', {
-    p_cancha_id: canchaId,
-    p_desde: desde.toISOString(),
-    p_hasta: hasta.toISOString(),
-    p_tipo: body.tipo,
+  // Con id se edita ese bloque puntual; en los dos casos la RPC cancela, en la misma
+  // transacción, las reservas que pisa el bloque.
+  const rpc = b.id ? 'tenis_bloqueo_puntual_editar' : 'tenis_bloqueo_puntual'
+  const { data, error } = await clienteUsuario(jwt).rpc(rpc, {
+    ...(b.id ? { p_id: b.id } : {}),
+    p_cancha_id: b.canchaId,
+    p_desde: b.desde.toISOString(),
+    p_hasta: b.hasta.toISOString(),
+    p_tipo: b.tipo,
     p_titulo: titulo,
   })
-  if (error) return errorRpc('tenis_bloqueo_puntual', error)
+  if (error) return errorRpc(rpc, error)
   const r = (data ?? {}) as { bloque_id?: string; reservas_canceladas?: unknown }
   const canceladas = Array.isArray(r.reservas_canceladas)
     ? r.reservas_canceladas.filter((x): x is string => typeof x === 'string' && UUID_RE.test(x))

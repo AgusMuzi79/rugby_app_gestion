@@ -17,7 +17,7 @@ import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 // Detalle de un ítem de la grilla para el gestor y el canchero. Reserva:
 // jugadores con su cargo, cobro y check-in; corregir jugadores y extensión.
 // Gestor: cancelar la reserva (con motivo), ver su historial y cobrar el cargo
-// del no-show. Bloque (sólo gestor): editar el fijo o borrarlo.
+// del no-show. Bloque (sólo gestor): editarlo (fijo o puntual) o borrarlo.
 
 const COMPROBANTE: Record<string, string> = {
   pendiente: 'Comprobante pendiente de revisar',
@@ -214,8 +214,8 @@ export function DetalleItem({ item, canchaNombre, config, esGestor, onCerrar, on
 
           {bloque && esGestor && (
             <>
-              {item.recurrente && onEditarBloque && (
-                <Boton texto="EDITAR BLOQUE FIJO" variante="secundario" onPress={() => onEditarBloque(item)} />
+              {item.bloque_id && onEditarBloque && (
+                <Boton texto="EDITAR BLOQUE" variante="secundario" onPress={() => onEditarBloque(item)} />
               )}
               {item.bloque_id && <Boton texto="BORRAR BLOQUE" variante="peligro" cargando={ocupado === 'borrar'} onPress={borrarBloque} />}
             </>

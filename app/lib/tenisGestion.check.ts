@@ -6,6 +6,8 @@ import assert from 'node:assert/strict'
 import {
   armarCsv,
   avisoExportacion,
+  bloqueDesdeItem,
+  modoBloqueItem,
   canchasDestino,
   estadoNovedad,
   columnasReporte,
@@ -250,6 +252,37 @@ caso('bloques en varias canchas', () => {
   const nada = resumenBloques([{ cancha: '01', ok: false }])
   assert.equal(nada?.ninguno, true)
   assert.match(nada?.texto ?? '', /Cancha 01: no se pudo guardar/)
+})
+
+caso('editar bloque desde la grilla: fijo y puntual', () => {
+  const base = {
+    cancha_id: 'c2', inicio: '2026-11-21T18:00:00.000Z', fin: '2026-11-21T19:30:00.000Z',
+    titulo: 'Torneo', mio: false, bloque_id: 'b1',
+  }
+  // Fijo: día de la semana y vigencia, sin fecha.
+  const fijo = { ...base, tipo: 'clase', recurrente: true, dia_semana: 1, vigente_desde: '2026-11-01', vigente_hasta: null }
+  assert.equal(modoBloqueItem(fijo), 'fijo')
+  assert.deepEqual(bloqueDesdeItem(fijo, '2026-11-23'), {
+    id: 'b1', cancha_id: 'c2', tipo: 'clase', titulo: 'Torneo', dia_semana: 1, fecha: null,
+    hora_desde: '15:00', hora_hasta: '16:30', vigente_desde: '2026-11-01', vigente_hasta: null,
+  })
+  // Puntual: la fecha sale del inicio del bloque (hora argentina), no del día que se mira.
+  const puntual = { ...base, tipo: 'torneo', recurrente: false, dia_semana: null, vigente_desde: null, vigente_hasta: null }
+  assert.equal(modoBloqueItem(puntual), 'puntual')
+  const p = bloqueDesdeItem(puntual, '2026-11-25')
+  assert.equal(p.id, 'b1')
+  assert.equal(p.fecha, '2026-11-21')
+  assert.equal(p.tipo, 'torneo')
+  assert.equal(p.cancha_id, 'c2')
+  assert.equal(p.hora_desde, '15:00')
+  assert.equal(p.hora_hasta, '16:30')
+  // Bloque de todas las canchas: se edita entero (cancha null).
+  assert.equal(bloqueDesdeItem({ ...puntual, bloque_todas: true }, '2026-11-21').cancha_id, null)
+  // Tipo desconocido: cae en el de cada modo.
+  assert.equal(bloqueDesdeItem({ ...puntual, tipo: 'raro' }, '2026-11-21').tipo, 'no_disponible')
+  assert.equal(bloqueDesdeItem({ ...fijo, tipo: 'raro' }, '2026-11-21').tipo, 'clase')
+  // Sin título: vacío para que la gestora lo complete.
+  assert.equal(bloqueDesdeItem({ ...puntual, titulo: null }, '2026-11-21').titulo, '')
 })
 
 console.log(`tenisGestion.check.ts: ${casos} casos OK`)

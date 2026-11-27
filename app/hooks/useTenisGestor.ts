@@ -9,6 +9,7 @@ import {
 } from '@/lib/tenis'
 
 export type { AjusteCobro, Checkin, ComprobantePendiente, Infraccion, Suspension } from '@/lib/tenis'
+import type { BloqueEditable } from '@/lib/tenisGestion'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
 // Gestión de canchas de tenis (pestaña Canchas de Subcomisión) y lo que
@@ -77,17 +78,7 @@ async function sinDatos(p: Promise<ResultadoTenis<unknown>>): Promise<ResultadoT
   return r.ok ? ok(null) : r
 }
 
-export interface BloqueEditable {
-  id?:           string
-  cancha_id:     string | null
-  tipo:          TipoBloque
-  titulo:        string
-  dia_semana:    number        // ISO 1 = lunes … 7 = domingo
-  hora_desde:    string        // HH:MM
-  hora_hasta:    string
-  vigente_desde: string        // YYYY-MM-DD
-  vigente_hasta: string | null
-}
+export type { BloqueEditable } from '@/lib/tenisGestion'
 
 export const accionesTenis = {
   reservarStaff: async (a: {
@@ -110,14 +101,16 @@ export const accionesTenis = {
   bloqueBorrar: (id: string) =>
     sinDatos(rpcTenis('tenis_bloque_borrar', { p_id: id }, 'No se pudo borrar el bloque. Probá de nuevo.')),
 
-  // Bloqueo puntual (lluvia, mantenimiento): cancela las reservas que pisa y
-  // les avisa (push / mail), por eso va por la Edge Function.
+  // Bloqueo puntual (lluvia, mantenimiento, torneo): crea uno o, con `id`, edita
+  // ese bloque puntual. Cancela las reservas que pisa y les avisa (push / mail),
+  // por eso va por la Edge Function.
   bloqueoPuntual: async (a: {
-    canchaId: string | null; desde: string; hasta: string; tipo: TipoBloque; titulo: string
+    id?: string; canchaId: string | null; desde: string; hasta: string; tipo: TipoBloque; titulo: string
   }): Promise<ResultadoTenis<{ canceladas: number }>> => {
     const r = await gestionTenis({
-      action: 'bloqueo-puntual', cancha_id: a.canchaId, desde: a.desde, hasta: a.hasta, tipo: a.tipo, titulo: a.titulo,
-    }, 'No se pudo bloquear. Probá de nuevo.')
+      action: 'bloqueo-puntual', ...(a.id ? { id: a.id } : {}),
+      cancha_id: a.canchaId, desde: a.desde, hasta: a.hasta, tipo: a.tipo, titulo: a.titulo,
+    }, a.id ? 'No se pudo guardar el bloque. Probá de nuevo.' : 'No se pudo bloquear. Probá de nuevo.')
     if (!r.ok) return r
     const canceladas = Array.isArray(r.data.reservas_canceladas) ? r.data.reservas_canceladas.length : 0
     return ok({ canceladas })

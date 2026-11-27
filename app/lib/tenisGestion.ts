@@ -3,7 +3,10 @@
 // horarios por día. Lógica pura, sin React; verificada en tenisGestion.check.ts.
 // Los RPC son de la migración 20261128000000: se parsean de forma tolerante.
 
-import { esFechaValida, esHoraValida, etiquetaDiaCorta, fechaArgentina, horaArgentina, minutosDeHora, type HorarioDia } from './tenis'
+import {
+  TIPOS_BLOQUE, diaSemanaIso, esFechaValida, esHoraValida, etiquetaDiaCorta, fechaArgentina, horaArgentina, minutosDeHora,
+  type HorarioDia, type ItemGrilla, type TipoBloque,
+} from './tenis'
 
 // ─── Parseo ───────────────────────────────────────────────────────────────────
 
@@ -462,6 +465,49 @@ export function avisoExportacion(exportadas: number, total: number, cosa: string
 }
 
 // ─── Bloques en varias canchas ────────────────────────────────────────────────
+
+// ─── Bloques del gestor ───────────────────────────────────────────────────────
+
+// Fijo: todas las semanas (dia_semana + vigencia). Puntual: un rato de un día (fecha).
+export type ModoBloque = 'fijo' | 'puntual'
+
+export interface BloqueEditable {
+  id?:           string
+  cancha_id:     string | null
+  tipo:          TipoBloque
+  titulo:        string
+  dia_semana:    number        // ISO 1 = lunes … 7 = domingo
+  hora_desde:    string        // HH:MM
+  hora_hasta:    string
+  vigente_desde: string        // YYYY-MM-DD
+  vigente_hasta: string | null
+  // Sólo el puntual: el día del bloque (YYYY-MM-DD).
+  fecha?:        string | null
+}
+
+export function modoBloqueItem(item: Pick<ItemGrilla, 'recurrente'>): ModoBloque {
+  return item.recurrente ? 'fijo' : 'puntual'
+}
+
+// Valores iniciales para editar un bloque (fijo o puntual) tocado en la grilla.
+export function bloqueDesdeItem(item: ItemGrilla, fecha: string): BloqueEditable {
+  const modo = modoBloqueItem(item)
+  return {
+    id:            item.bloque_id ?? undefined,
+    // La grilla repite un bloque de todas las canchas en cada una: se edita el bloque entero.
+    cancha_id:     item.bloque_todas ? null : item.cancha_id,
+    tipo:          (TIPOS_BLOQUE as readonly string[]).includes(item.tipo)
+                     ? item.tipo as TipoBloque
+                     : modo === 'fijo' ? 'clase' : 'no_disponible',
+    titulo:        item.titulo ?? '',
+    dia_semana:    item.dia_semana ?? diaSemanaIso(fecha),
+    fecha:         modo === 'puntual' ? fechaArgentina(item.inicio) : null,
+    hora_desde:    horaArgentina(item.inicio),
+    hora_hasta:    horaArgentina(item.fin),
+    vigente_desde: item.vigente_desde ?? fecha,
+    vigente_hasta: item.vigente_hasta ?? null,
+  }
+}
 
 // Canchas donde se crea un bloque: [null] (= todas, una sola fila) si no se
 // eligió ninguna o se eligieron todas; si no, una por cancha, en el orden de la grilla.

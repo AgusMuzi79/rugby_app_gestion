@@ -30,6 +30,9 @@ export interface TenisConfig {
   max_activas:             number
   anticipacion_dias:       number
   cancelacion_horas:       number
+  // Avisarle a la gestión si un socio cancela con menos de estas horas de
+  // anticipación (0 = sin aviso).
+  aviso_cancelacion_horas: number
   comprobante_horas_antes: number
   hold_min:                number
   alias_pago:              string
@@ -74,6 +77,7 @@ export const CONFIG_DEFECTO: TenisConfig = {
   max_activas: 2,
   anticipacion_dias: 2,
   cancelacion_horas: 3,
+  aviso_cancelacion_horas: 3,
   comprobante_horas_antes: 3,
   hold_min: 15,
   alias_pago: 'uncas.tenis.macro',
@@ -254,6 +258,7 @@ export function parsearConfig(raw: unknown): TenisConfig {
     'modulo_min', 'margen_inicio_min', 'singles_min', 'dobles_min', 'max_reservas_dia', 'max_activas',
     'anticipacion_dias', 'cancelacion_horas', 'comprobante_horas_antes', 'hold_min', 'precio_socio_single',
     'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles', 'dias_vista',
+    'aviso_cancelacion_horas',
   ] as const
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago
@@ -473,6 +478,13 @@ export interface Checkin {
     pendiente_propio: number
     // Titular: los lugares "Socio a designar" de la reserva, que paga él.
     a_designar: ADesignarCheckin[]
+    // motivo_cargo; carnet = beneficio del carnet de tenis hoy; turnos_dia y
+    // turno_n = sus turnos de hoy y cuál es éste, en el orden en que se
+    // reservaron (el primero es el gratis). 0 con un servidor anterior.
+    motivo:     string | null
+    carnet:     boolean
+    turnos_dia: number
+    turno_n:    number
   } | null
   suspendido: boolean
   resultado:  string
@@ -532,6 +544,10 @@ export function parsearCheckin(raw: unknown): Checkin {
         ? (j.pendiente === undefined || j.pendiente === null ? (j.cobrado === true ? 0 : numero(j.cargo)) : numero(j.pendiente))
         : numero(j.pendiente_propio),
       a_designar:            parsearADesignar(j.a_designar),
+      motivo:                texto(j.motivo),
+      carnet:                j.carnet === true,
+      turnos_dia:            Math.max(0, Math.trunc(numero(j.turnos_dia))),
+      turno_n:               Math.max(0, Math.trunc(numero(j.turno_n))),
     } : null,
     suspendido: o.suspendido === true,
     resultado:  texto(o.resultado) ?? 'sin_reserva',
@@ -1039,6 +1055,7 @@ const MENSAJES: Record<string, string> = {
   cantidad_jugadores:      'Faltan o sobran jugadores para esa modalidad.',
   jugadores_duplicados:    'Un jugador está cargado dos veces.',
   jugador_ocupado:         'Uno de los jugadores ya tiene otro turno a esa hora.',
+  turno_seguido:           textoTurnoSeguido(null),
   socio_no_encontrado:     'No encontramos a nadie con ese DNI. Si no es socio, cargalo como invitado.',
   dni_invalido:            'Revisá el DNI.',
   invitado_incompleto:     'Completá nombre y apellido del invitado.',
@@ -1089,10 +1106,20 @@ const MENSAJES: Record<string, string> = {
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
 
+// turno_seguido (20261130000000): la base manda el nombre de la persona en el DETAIL.
+function textoTurnoSeguido(nombre: string | null): string {
+  return `${nombre || 'Uno de los jugadores'} ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.`
+}
+
 export function mensajeErrorTenis(err: unknown, porDefecto: string): string {
   if (!err) return porDefecto
   if (esErrorDeRed(err)) return SIN_CONEXION
   const codigo = codigoErrorTenis(err)
+  if (codigo === 'turno_seguido' && esObjeto(err)) {
+    // PostgREST lo trae en `details`; una Edge Function, en `detalle`.
+    const det = typeof err.details === 'string' ? err.details : typeof err.detalle === 'string' ? err.detalle : ''
+    return textoTurnoSeguido(det.trim() || null)
+  }
   if (codigo) return MENSAJES[codigo] ?? porDefecto
   return mensajeError(err, porDefecto)
 }

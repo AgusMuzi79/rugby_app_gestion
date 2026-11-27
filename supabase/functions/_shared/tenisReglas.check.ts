@@ -52,6 +52,7 @@ import {
   horarioDelDia,
   mailDestino,
   normalizarComentario,
+  parsearBloqueoPuntual,
   parsearCancelarVarias,
   parsearHorarios,
   parsearIdsReserva,
@@ -60,6 +61,10 @@ import {
   htmlNovedad,
   textoPushNovedad,
   COMENTARIO_MAX,
+  formatoAnticipacion,
+  parsearAvisosGestores,
+  textoCancelacionTardia,
+  TIPOS_BLOQUE,
 } from './tenisReglas.ts'
 
 let casos = 0
@@ -294,6 +299,10 @@ await caso('código estable de los errores de las RPC (raise P0001 con el códig
   assert.equal(codigoDeError({ code: '42501', message: 'permission denied' }), null)
   assert.equal(codigoDeError(null), null)
   assert.equal(motivoTenis('codigo_que_no_existe'), 'No se pudo completar la operación. Probá de nuevo.')
+  // turno_seguido con el nombre del DETAIL; sin nombre, genérico.
+  assert.equal(motivoTenis('turno_seguido', 'Gómez Ana'), 'Gómez Ana ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(motivoTenis('turno_seguido', '  '), 'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(motivoTenis('turno_seguido'), 'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
 })
 
 // Los códigos de la migración (header de 20261112000000_reservas_tenis.sql) y los que agregan
@@ -309,6 +318,8 @@ const CODIGOS_DB = [
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
   'hueco_invalido',
+  // 20261130000000_tenis_sin_turnos_seguidos.
+  'turno_seguido',
 ]
 const CODIGOS_FUNCIONES = ['limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido']
 
@@ -517,6 +528,32 @@ await caso('cancelar varias: ids de reserva válidos, sin repetir, de 1 a 100', 
   assert.equal(parsearIdsReserva(Array.from({ length: 101 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)), null)
 })
 
+await caso('bloqueo puntual: body nuevo o edición (id), cancha opcional, horario, tipo y título', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  const cancha = '22222222-2222-4222-8222-222222222222'
+  const base = { cancha_id: cancha, desde: '2026-11-21T15:00:00-03:00', hasta: '2026-11-21T16:00:00-03:00', tipo: 'torneo', titulo: '  Torneo  ' }
+  const nuevo = parsearBloqueoPuntual(base)
+  assert.equal(nuevo?.id, null)
+  assert.equal(nuevo?.canchaId, cancha)
+  assert.equal(nuevo?.desde.toISOString(), '2026-11-21T18:00:00.000Z')
+  assert.equal(nuevo?.hasta.toISOString(), '2026-11-21T19:00:00.000Z')
+  assert.equal(nuevo?.tipo, 'torneo')
+  assert.equal(nuevo?.titulo, 'Torneo')
+  assert.equal(parsearBloqueoPuntual({ ...base, id })?.id, id)
+  assert.equal(parsearBloqueoPuntual({ ...base, id: null })?.id, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, cancha_id: null })?.canchaId, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, cancha_id: undefined })?.canchaId, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, titulo: 'x'.repeat(100) })?.titulo.length, 80)
+  for (const malo of [
+    { ...base, id: 'x' }, { ...base, id: 5 }, { ...base, cancha_id: 'x' }, { ...base, desde: 'nada' },
+    { ...base, hasta: base.desde }, { ...base, tipo: 'raro' }, { ...base, tipo: 3 }, { ...base, titulo: '   ' },
+    { ...base, titulo: undefined },
+  ]) {
+    assert.equal(parsearBloqueoPuntual(malo), null, JSON.stringify(malo))
+  }
+  for (const tipo of TIPOS_BLOQUE) assert.equal(parsearBloqueoPuntual({ ...base, tipo })?.tipo, tipo)
+})
+
 await caso('cancelar varias: lee canceladas (avisos o ids) y omitidas de tenis_cancelar_varias', () => {
   const a = '11111111-1111-4111-8111-111111111111'
   const b = '22222222-2222-4222-8222-222222222222'
@@ -574,6 +611,63 @@ await caso('códigos nuevos de las Edge Functions tienen texto propio', () => {
   for (const c of ['comentario_largo', 'motivo_cancelacion', 'novedad_inexistente', 'novedad_ya_enviada', 'novedad_en_curso']) {
     assert.notEqual(motivoTenis(c), generico, c)
   }
+})
+
+await caso('cancelación tardía: anticipación en horas y minutos', () => {
+  assert.equal(formatoAnticipacion(80), '1 h 20 min')
+  assert.equal(formatoAnticipacion(120), '2 h')
+  assert.equal(formatoAnticipacion(45), '45 min')
+  assert.equal(formatoAnticipacion(1), '1 min')
+  assert.equal(formatoAnticipacion(179), '2 h 59 min')
+})
+
+await caso('cancelación tardía: texto del push (hoy, mañana, otro día)', () => {
+  const base = { titular_nombre: 'Juan Pérez', cancha: '03', inicio: ar('2026-11-27T18:00'), anticipacion_min: 80 }
+  const hoy = textoCancelacionTardia(base, ar('2026-11-27T16:45'))
+  assert.equal(hoy.title, 'Cancelación tardía')
+  assert.equal(hoy.body, 'Juan Pérez canceló la cancha 03 de hoy 18:00 (faltaban 1 h 20 min).')
+  // Turno a las 00:30 del día siguiente, cancelado a las 23:50.
+  const manana = textoCancelacionTardia({ ...base, inicio: ar('2026-11-28T00:30'), anticipacion_min: 40 }, ar('2026-11-27T23:52'))
+  assert.equal(manana.body, 'Juan Pérez canceló la cancha 03 de mañana 00:30 (faltaban 40 min).')
+  const otro = textoCancelacionTardia({ ...base, inicio: ar('2026-11-30T18:00') }, ar('2026-11-27T16:45'))
+  assert.equal(otro.body, 'Juan Pérez canceló la cancha 03 del lunes 30/11 18:00 (faltaban 1 h 20 min).')
+  // 22:30 de Argentina ya es el día siguiente en UTC: sigue siendo "hoy".
+  const noche = textoCancelacionTardia({ ...base, inicio: ar('2026-11-27T22:30'), anticipacion_min: 120 }, ar('2026-11-27T20:30'))
+  assert.equal(noche.body, 'Juan Pérez canceló la cancha 03 de hoy 22:30 (faltaban 2 h).')
+})
+
+await caso('cancelación tardía: sin nombre, sin cancha, sin anticipación o ya por empezar', () => {
+  const ahora = ar('2026-11-27T16:45')
+  const inicio = ar('2026-11-27T18:00')
+  assert.equal(textoCancelacionTardia({ titular_nombre: '  ', cancha: null, inicio, anticipacion_min: null }, ahora).body,
+    'Un socio canceló su turno de hoy 18:00.')
+  assert.equal(textoCancelacionTardia({ titular_nombre: 'Ana', cancha: '01', inicio, anticipacion_min: 0 }, ahora).body,
+    'Ana canceló la cancha 01 de hoy 18:00 (estaba por empezar).')
+})
+
+await caso('cancelación tardía: parsear el reclamo de la outbox', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  const reserva = '22222222-2222-4222-8222-222222222222'
+  const perfil = '33333333-3333-4333-8333-333333333333'
+  const r = parsearAvisosGestores({
+    descartados: 2,
+    avisos: [
+      { id, reserva_id: reserva, profile_id: perfil, titular_nombre: 'Pérez Juan', cancha: '01',
+        inicio: '2026-11-20T14:00:00+00:00', anticipacion_min: 60 },
+      { id, reserva_id: reserva, profile_id: 'no-uuid', inicio: '2026-11-20T14:00:00+00:00' },
+      { id, reserva_id: reserva, profile_id: perfil, inicio: 'x' },
+      { id, reserva_id: reserva, profile_id: perfil, inicio: '2026-11-20T14:00:00+00:00', anticipacion_min: 'x' },
+      'basura',
+    ],
+  })
+  assert.equal(r.descartados, 2)
+  assert.equal(r.avisos.length, 2)
+  assert.deepEqual(r.avisos[0], {
+    id, reserva_id: reserva, profile_id: perfil, titular_nombre: 'Pérez Juan', cancha: '01',
+    inicio: new Date('2026-11-20T14:00:00+00:00'), anticipacion_min: 60,
+  })
+  assert.equal(r.avisos[1].anticipacion_min, null)
+  assert.deepEqual(parsearAvisosGestores(null), { descartados: 0, avisos: [] })
 })
 
 console.log(`\n${casos} casos ok`)

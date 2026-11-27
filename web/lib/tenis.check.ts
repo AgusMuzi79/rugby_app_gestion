@@ -256,7 +256,15 @@ const CODIGOS_WEB = [
   'plazo_invitado', 'estado_invalido', 'token_invalido', 'hold_vencido', 'reserva_cancelada',
   'comprobante_vencido', 'path_invalido', 'hueco_invalido',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido', 'comentario_largo',
+  'turno_seguido',
 ]
+
+caso('back-to-back turn: the name in detalle when the function sends it, generic otherwise', () => {
+  assert.equal(mensajeRespuesta({ ok: false, codigo: 'turno_seguido', detalle: 'Gui Dni' }).mensaje,
+    'Gui Dni ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(mensajeRespuesta({ ok: false, codigo: 'turno_seguido', motivo: 'x' }).mensaje,
+    'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+})
 
 caso('comment: optional, up to 280 characters after trimming', () => {
   assert.equal(COMENTARIO_MAX, 280)
