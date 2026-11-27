@@ -25,7 +25,7 @@ Locator: `odd/tasks/noticias-imagenes.md` · Engram mirror: `odd/noticias-imagen
 
 ## Tasks
 
-- [x] T1 — Migration `20261128000000_noticias_imagenes.sql` (`imagenes text[] not null default '{}'`, backfill from `imagen_path`, max 6 check) + pure logic in `app/lib/noticiaSubcomision.ts` / `web/lib/noticiaSubcomision.ts` (`imagenes`, `imagen_path` = first, `debeNotificarNoticia`) + `.check.ts` RED→GREEN. Route: delegated (writer trigger: 2+ non-trivial files).
+- [x] T1 — Migration `20261129000000_noticias_imagenes.sql` (`imagenes text[] not null default '{}'`, backfill from `imagen_path`, max 6 check) + pure logic in `app/lib/noticiaSubcomision.ts` / `web/lib/noticiaSubcomision.ts` (`imagenes`, `imagen_path` = first, `debeNotificarNoticia`) + `.check.ts` RED→GREEN. Route: delegated (writer trigger: 2+ non-trivial files).
   - Evidence: RED `cd app && npm run test:noticias`: exit 1, AssertionError deepStrictEqual on the first case (payload without `imagenes`) before the lib change. GREEN `cd app && npm run test:noticias`: 12 casos ok. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts` (new web check): 12 casos ok. `cd app && npx tsc --noEmit`: exit 0 (baseline exit 0). `cd web && npx tsc --noEmit`: exit 0 (baseline exit 0). `web` has no `lint` script (`npm run lint`: missing script, also on baseline). Migration not applied anywhere.
   - Note: `imagenes` is not in the generated `app/lib/database.types.ts` (outside this feature's edit surface), so the app hooks cast the insert/select with a comment; drop the casts when the types are regenerated. The app and web must not ship before the migration is applied (inserts now send `imagenes`).
 - [x] T2 — App Subcomisión: pick/remove up to 6 images, upload all, insert `imagenes`, invoke push only when `debeNotificarNoticia`, helper text, delete cleanup of all paths, list thumb. Route: delegated.
@@ -58,4 +58,4 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
 ## Progress / evidence
 
 - 2026-11-27: mapping done (explorer), push scope decided by user (Subcomisión only).
-- 2026-11-27: T1–T4 implemented on `feat/noticias-imagenes` (commits 389b753, bd01a59, 2903c58, T4). Pending: apply migration `20261128000000` (before any OTA or web deploy: app and web now read and write `imagenes`), add `imagenes` to `app/lib/database.types.ts` and drop the casts in `useNoticiasSubcomision.ts`, phone and browser checks.
+- 2026-11-27: T1–T4 implemented on `feat/noticias-imagenes` (commits 389b753, bd01a59, 2903c58, T4). Pending: apply migration `20261129000000` (before any OTA or web deploy: app and web now read and write `imagenes`), add `imagenes` to `app/lib/database.types.ts` and drop the casts in `useNoticiasSubcomision.ts`, phone and browser checks.

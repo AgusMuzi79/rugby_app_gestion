@@ -1,4 +1,4 @@
--- Migration: 20261128000000_noticias_imagenes
+-- Migration: 20261129000000_noticias_imagenes
 --
 -- Noticias con varias imágenes (Subcomisión, app y web).
 --
