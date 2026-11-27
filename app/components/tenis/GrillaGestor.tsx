@@ -8,7 +8,7 @@ import { CONFIG_DEFECTO, fechaArgentina, type ItemGrilla, type TenisConfig } fro
 import { diasVista, reservasPorCancha } from '@/lib/tenisGrilla'
 import { GrillaCanchas } from './GrillaCanchas'
 import { DetalleItem } from './DetalleItem'
-import { EditorBloque, bloqueDesdeItem, type ModoBloque } from './EditorBloque'
+import { EditorBloque, bloqueDesdeItem, modoBloqueItem, type ModoBloque } from './EditorBloque'
 import { FormReserva } from './FormReserva'
 import { Boton } from './ui'
 import { NavegadorDia, SelectorVista, type VistaTenis } from './NavegadorDia'
@@ -62,7 +62,7 @@ export function GrillaGestor({ onConfig }: { onConfig?: (c: TenisConfig) => void
           esGestor
           onCerrar={() => setDetalle(null)}
           onCambio={refetch}
-          onEditarBloque={it => { setDetalle(null); setEditor({ modo: 'fijo', inicial: bloqueDesdeItem(it, fecha) }) }}
+          onEditarBloque={it => { setDetalle(null); setEditor({ modo: modoBloqueItem(it), inicial: bloqueDesdeItem(it, fecha) }) }}
         />
       )}
       {editor && grilla && (

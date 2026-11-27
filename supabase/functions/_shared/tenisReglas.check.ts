@@ -52,6 +52,7 @@ import {
   horarioDelDia,
   mailDestino,
   normalizarComentario,
+  parsearBloqueoPuntual,
   parsearCancelarVarias,
   parsearHorarios,
   parsearIdsReserva,
@@ -63,6 +64,7 @@ import {
   formatoAnticipacion,
   parsearAvisosGestores,
   textoCancelacionTardia,
+  TIPOS_BLOQUE,
 } from './tenisReglas.ts'
 
 let casos = 0
@@ -524,6 +526,32 @@ await caso('cancelar varias: ids de reserva válidos, sin repetir, de 1 a 100', 
   assert.equal(parsearIdsReserva([a, 'x']), null)
   assert.equal(parsearIdsReserva('a'), null)
   assert.equal(parsearIdsReserva(Array.from({ length: 101 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)), null)
+})
+
+await caso('bloqueo puntual: body nuevo o edición (id), cancha opcional, horario, tipo y título', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  const cancha = '22222222-2222-4222-8222-222222222222'
+  const base = { cancha_id: cancha, desde: '2026-11-21T15:00:00-03:00', hasta: '2026-11-21T16:00:00-03:00', tipo: 'torneo', titulo: '  Torneo  ' }
+  const nuevo = parsearBloqueoPuntual(base)
+  assert.equal(nuevo?.id, null)
+  assert.equal(nuevo?.canchaId, cancha)
+  assert.equal(nuevo?.desde.toISOString(), '2026-11-21T18:00:00.000Z')
+  assert.equal(nuevo?.hasta.toISOString(), '2026-11-21T19:00:00.000Z')
+  assert.equal(nuevo?.tipo, 'torneo')
+  assert.equal(nuevo?.titulo, 'Torneo')
+  assert.equal(parsearBloqueoPuntual({ ...base, id })?.id, id)
+  assert.equal(parsearBloqueoPuntual({ ...base, id: null })?.id, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, cancha_id: null })?.canchaId, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, cancha_id: undefined })?.canchaId, null)
+  assert.equal(parsearBloqueoPuntual({ ...base, titulo: 'x'.repeat(100) })?.titulo.length, 80)
+  for (const malo of [
+    { ...base, id: 'x' }, { ...base, id: 5 }, { ...base, cancha_id: 'x' }, { ...base, desde: 'nada' },
+    { ...base, hasta: base.desde }, { ...base, tipo: 'raro' }, { ...base, tipo: 3 }, { ...base, titulo: '   ' },
+    { ...base, titulo: undefined },
+  ]) {
+    assert.equal(parsearBloqueoPuntual(malo), null, JSON.stringify(malo))
+  }
+  for (const tipo of TIPOS_BLOQUE) assert.equal(parsearBloqueoPuntual({ ...base, tipo })?.tipo, tipo)
 })
 
 await caso('cancelar varias: lee canceladas (avisos o ids) y omitidas de tenis_cancelar_varias', () => {
