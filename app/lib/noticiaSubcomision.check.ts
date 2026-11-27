@@ -8,6 +8,7 @@ import {
   camposImagenesNoticia,
   debeNotificarNoticia,
   MAX_IMAGENES_NOTICIA,
+  pathsImagenesNoticia,
 } from './noticiaSubcomision'
 
 let casos = 0
@@ -79,6 +80,13 @@ caso('up to MAX_IMAGENES_NOTICIA (6) images are accepted, more are rejected', ()
 caso('camposImagenesNoticia mirrors the paths into imagenes + imagen_path', () => {
   assert.deepEqual(camposImagenesNoticia([]), { imagenes: [], imagen_path: null })
   assert.deepEqual(camposImagenesNoticia(['a.jpg', 'b.jpg']), { imagenes: ['a.jpg', 'b.jpg'], imagen_path: 'a.jpg' })
+})
+
+caso('pathsImagenesNoticia prefers imagenes and falls back to imagen_path', () => {
+  assert.deepEqual(pathsImagenesNoticia({ imagenes: ['a.jpg', 'b.jpg'], imagen_path: 'a.jpg' }), ['a.jpg', 'b.jpg'])
+  assert.deepEqual(pathsImagenesNoticia({ imagenes: [], imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
+  assert.deepEqual(pathsImagenesNoticia({ imagenes: null, imagen_path: 'viejo.jpg' }), ['viejo.jpg'])
+  assert.deepEqual(pathsImagenesNoticia({ imagen_path: null }), [])
 })
 
 caso('push: title only (blank cuerpo, no images) notifies', () => {

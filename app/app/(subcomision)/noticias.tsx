@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as ImagePicker from 'expo-image-picker'
 import { useNoticiasSubcomision, type NoticiaSubco } from '@/hooks/useNoticiasSubcomision'
+import { MAX_IMAGENES_NOTICIA } from '@/lib/noticiaSubcomision'
 import { fonts } from '@/constants/theme'
 import { AvatarPerfil } from '@/components/shared/Header'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -33,8 +34,18 @@ function FilaNoticia({ noticia, onEliminar }: { noticia: NoticiaSubco; onElimina
   const { colors: tc } = useTheme()
   return (
     <View style={s.fila}>
-      {noticia.imagenUrl && (
-        <Image source={{ uri: noticia.imagenUrl }} style={[s.filaThumb, { backgroundColor: tc.grisClaro }]} />
+      {noticia.imagenesUrls[0] && (
+        <View>
+          <Image source={{ uri: noticia.imagenesUrls[0] }} style={[s.filaThumb, { backgroundColor: tc.grisClaro }]} />
+          {noticia.imagenesUrls.length > 1 && (
+            <View
+              style={[s.filaThumbBadge, { backgroundColor: tc.oro }]}
+              accessibilityLabel={`${noticia.imagenesUrls.length} imágenes`}
+            >
+              <Text style={[s.filaThumbBadgeTexto, { color: tc.sobreOro }]}>{noticia.imagenesUrls.length}</Text>
+            </View>
+          )}
+        </View>
       )}
       <View style={s.filaInfo}>
         <Text style={[s.filaTitulo, { color: tc.texto }]} numberOfLines={2}>{noticia.titulo}</Text>
@@ -65,7 +76,7 @@ interface ModalNuevaNoticiaProps {
   visible:    boolean
   deporte:    string | null
   onClose:    () => void
-  onPublicar: (titulo: string, descripcion: string, imagenUri?: string | null) => Promise<boolean>
+  onPublicar: (titulo: string, descripcion: string, imagenesUris: string[]) => Promise<boolean>
   publicando: boolean
 }
 
@@ -74,11 +85,15 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
   const insets = useSafeAreaInsets()
   const [titulo, setTitulo]           = useState('')
   const [descripcion, setDescripcion] = useState('')
-  const [imagenUri, setImagenUri]     = useState<string | null>(null)
+  const [imagenesUris, setImagenesUris] = useState<string[]>([])
 
   const puedePublicar = !!titulo.trim() && !publicando
+  const restantes     = MAX_IMAGENES_NOTICIA - imagenesUris.length
 
-  const elegirImagen = async () => {
+  // Multiple selection does not support cropping (allowsEditing), so the
+  // images go as picked, compressed.
+  const elegirImagenes = async () => {
+    if (restantes <= 0) return
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permiso requerido', 'Necesitás permitir acceso a la galería.')
@@ -86,19 +101,25 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
-      allowsEditing: true,
-      aspect: [4, 3] as [number, number],
+      allowsMultipleSelection: true,
+      selectionLimit: restantes,
+      orderedSelection: true,
       quality: 0.8,
     })
-    if (result.canceled || !result.assets[0]) return
-    setImagenUri(result.assets[0].uri)
+    if (result.canceled || result.assets.length === 0) return
+    // selectionLimit is not enforced on every platform: cap it here too.
+    setImagenesUris(prev => [...prev, ...result.assets.map(a => a.uri)].slice(0, MAX_IMAGENES_NOTICIA))
   }
 
-  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenUri(null) }
+  const quitarImagen = (indice: number) => {
+    setImagenesUris(prev => prev.filter((_, i) => i !== indice))
+  }
+
+  const limpiar = () => { setTitulo(''); setDescripcion(''); setImagenesUris([]) }
 
   const handlePublicar = async () => {
     if (!puedePublicar) return
-    const ok = await onPublicar(titulo, descripcion, imagenUri)
+    const ok = await onPublicar(titulo, descripcion, imagenesUris)
     if (ok) { limpiar(); onClose() }
   }
 
@@ -147,24 +168,45 @@ function ModalNuevaNoticia({ visible, deporte, onClose, onPublicar, publicando }
             numberOfLines={5}
           />
 
-          <Text style={[s.inputLabel, { color: tc.oro }]}>IMAGEN (OPCIONAL)</Text>
-          {imagenUri ? (
-            <View style={s.previewWrap}>
-              <Image source={{ uri: imagenUri }} style={[s.preview, { backgroundColor: tc.grisClaro }]} />
-              <TouchableOpacity onPress={() => setImagenUri(null)} activeOpacity={0.7} style={s.previewQuitar}>
-                <Text style={[s.previewQuitarTexto, { color: tc.rojoUrgente }]}>QUITAR</Text>
-              </TouchableOpacity>
+          <Text style={[s.inputLabel, { color: tc.oro }]}>
+            IMÁGENES (OPCIONAL, HASTA {MAX_IMAGENES_NOTICIA})
+          </Text>
+          {imagenesUris.length > 0 && (
+            <View style={s.previews}>
+              {imagenesUris.map((uri, i) => (
+                <View key={`${uri}-${i}`} style={s.previewItem}>
+                  <Image source={{ uri }} style={[s.preview, { backgroundColor: tc.grisClaro }]} />
+                  <TouchableOpacity
+                    onPress={() => quitarImagen(i)}
+                    activeOpacity={0.7}
+                    style={s.previewQuitar}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Quitar imagen ${i + 1}`}
+                  >
+                    <Text style={[s.previewQuitarTexto, { color: tc.rojoTexto }]}>QUITAR</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
             </View>
-          ) : (
-            <TouchableOpacity onPress={elegirImagen} activeOpacity={0.8} style={[s.botonImagen, { borderColor: tc.grisClaro }]}>
-              <Text style={[s.botonImagenTexto, { color: tc.oro }]}>+ AGREGAR IMAGEN</Text>
+          )}
+          {restantes > 0 && (
+            <TouchableOpacity
+              onPress={elegirImagenes}
+              activeOpacity={0.8}
+              style={[s.botonImagen, { borderColor: tc.grisClaro }]}
+              accessibilityRole="button"
+            >
+              <Text style={[s.botonImagenTexto, { color: tc.oro }]}>
+                {imagenesUris.length === 0 ? '+ AGREGAR IMÁGENES' : `+ AGREGAR MÁS (QUEDAN ${restantes})`}
+              </Text>
             </TouchableOpacity>
           )}
 
           <Text style={[s.aviso, { color: tc.muted }]}>
             Se publica en el momento para todos los socios
-            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''} y les llega una
-            notificación con el título. Si sólo completás el título, funciona como un aviso rápido.
+            {deporte ? ` (aparece en la sección ${deporte.toUpperCase()})` : ''}. Si sólo completás el
+            título, funciona como un aviso rápido y les llega una notificación. Con descripción o
+            imágenes se publica en Noticias sin notificar.
           </Text>
         </ScrollView>
 
@@ -275,6 +317,8 @@ const s = StyleSheet.create({
 
   fila:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, gap: 12 },
   filaThumb:  { width: 48, height: 48, borderRadius: 4 },
+  filaThumbBadge:      { position: 'absolute', right: -6, bottom: -6, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' },
+  filaThumbBadgeTexto: { fontFamily: fonts.label, fontSize: 12, fontWeight: '700' },
   filaInfo:   { flex: 1 },
   filaTitulo: { fontFamily: fonts.cuerpo, fontSize: 17, fontWeight: '500' },
   filaCuerpo: { fontFamily: fonts.cuerpo, fontSize: 14, marginTop: 2 },
@@ -296,9 +340,10 @@ const s = StyleSheet.create({
   aviso:        { fontFamily: fonts.cuerpo, fontSize: 13, marginTop: -8, lineHeight: 18 },
   botonImagen:      { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 6, paddingVertical: 18, alignItems: 'center', marginBottom: 20 },
   botonImagenTexto: { fontFamily: fonts.label, fontSize: 13, letterSpacing: 1.5, fontWeight: '600' },
-  previewWrap:      { marginBottom: 20 },
-  preview:          { width: '100%', aspectRatio: 4 / 3, borderRadius: 6 },
-  previewQuitar:    { alignSelf: 'flex-start', marginTop: 4, minHeight: 44, justifyContent: 'center' },
+  previews:         { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
+  previewItem:      { width: '30%' },
+  preview:          { width: '100%', aspectRatio: 1, borderRadius: 6 },
+  previewQuitar:    { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
   previewQuitarTexto: { fontFamily: fonts.label, fontSize: 12, letterSpacing: 1.5, fontWeight: '600' },
   botonPublicar:      { paddingVertical: 16, borderRadius: 4, alignItems: 'center' },
   botonOff:           { opacity: 0.5 },

@@ -51,6 +51,13 @@ export function camposImagenesNoticia(paths: string[]): CamposImagenesNoticia {
   return { imagenes: [...paths], imagen_path: paths[0] ?? null }
 }
 
+// Storage paths of a stored noticia: `imagenes`, or the legacy single
+// `imagen_path` for rows written before the column existed.
+export function pathsImagenesNoticia(fila: { imagenes?: string[] | null; imagen_path?: string | null }): string[] {
+  if (fila.imagenes && fila.imagenes.length > 0) return fila.imagenes
+  return fila.imagen_path ? [fila.imagen_path] : []
+}
+
 // Subcomisión push rule: only a title-only noticia (blank cuerpo, no images)
 // is a quick notice that sends a push.
 export function debeNotificarNoticia(noticia: { cuerpo: string; imagenes: string[] }): boolean {
