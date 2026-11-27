@@ -2,12 +2,14 @@ import { useRef, useState } from 'react'
 import { Modal, ScrollView, View, Text, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
-import { accionesTenis, type BloqueEditable } from '@/hooks/useTenisGestor'
+import { accionesTenis } from '@/hooks/useTenisGestor'
 import {
-  TIPOS_BLOQUE, diaSemanaIso, esFechaValida, estiloItem, horaArgentina, isoArgentina, validarRangoHorario,
-  type Cancha, type ItemGrilla, type TipoBloque,
+  TIPOS_BLOQUE, diaSemanaIso, esFechaValida, estiloItem, isoArgentina, validarRangoHorario,
+  type Cancha, type TipoBloque,
 } from '@/lib/tenis'
-import { canchasDestino, resumenBloques, type ResultadoBloque } from '@/lib/tenisGestion'
+import {
+  canchasDestino, resumenBloques, type BloqueEditable, type ModoBloque, type ResultadoBloque,
+} from '@/lib/tenisGestion'
 import { Aviso, BarraModal, Boton, Chip, estilosTenis } from './ui'
 
 // Bloques del gestor. Fijo: todas las semanas un día y horario, con fecha de
@@ -15,27 +17,13 @@ import { Aviso, BarraModal, Boton, Chip, estilosTenis } from './ui'
 // mantenimiento); cancela las reservas que pisa y les avisa. Uno nuevo se
 // puede cargar en varias canchas a la vez: TODAS (o elegirlas todas) es un solo
 // bloque de todas las canchas; si no, se crea uno igual en cada cancha elegida.
-// Editar un bloque existente sigue siendo de una cancha (o de todas).
+// Editar un bloque existente (fijo o puntual) sigue siendo de una cancha (o de
+// todas); editar un puntual también cancela las reservas que pase a pisar.
 
 const DIAS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
 
-export type ModoBloque = 'fijo' | 'puntual'
-
-// Valores iniciales para editar un bloque fijo tocado en la grilla.
-export function bloqueDesdeItem(item: ItemGrilla, fecha: string): BloqueEditable {
-  return {
-    id:            item.bloque_id ?? undefined,
-    // La grilla repite un bloque de todas las canchas en cada una: se edita el bloque entero.
-    cancha_id:     item.bloque_todas ? null : item.cancha_id,
-    tipo:          (TIPOS_BLOQUE as readonly string[]).includes(item.tipo) ? item.tipo as TipoBloque : 'clase',
-    titulo:        item.titulo ?? '',
-    dia_semana:    item.dia_semana ?? diaSemanaIso(fecha),
-    hora_desde:    horaArgentina(item.inicio),
-    hora_hasta:    horaArgentina(item.fin),
-    vigente_desde: item.vigente_desde ?? fecha,
-    vigente_hasta: item.vigente_hasta ?? null,
-  }
-}
+export type { ModoBloque }
+export { bloqueDesdeItem, modoBloqueItem } from '@/lib/tenisGestion'
 
 export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = null, horaInicial, onCerrar, onGuardado }: {
   modo:       ModoBloque
@@ -61,7 +49,7 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
   const [hasta,  setHasta]  = useState(inicial?.hora_hasta ?? '')
   const [vigDesde, setVigDesde] = useState(inicial?.vigente_desde ?? fecha)
   const [vigHasta, setVigHasta] = useState(inicial?.vigente_hasta ?? '')
-  const [dia1,   setDia1]   = useState(fecha)
+  const [dia1,   setDia1]   = useState(inicial?.fecha ?? fecha)
   const [guardando, setGuardando] = useState(false)
   // Synchronous guard: a double tap must not create the blocks twice.
   const enCurso = useRef(false)
@@ -102,7 +90,7 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
             hora_desde: desde, hora_hasta: hasta, vigente_desde: vigDesde, vigente_hasta: fin || null,
           })
         : await accionesTenis.bloqueoPuntual({
-            canchaId, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
+            id: inicial?.id, canchaId, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
           })
       } catch {
         r = { ok: false, mensaje: 'No se pudo guardar. Revisá la conexión e intentá de nuevo.' }
@@ -122,7 +110,7 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
       ? `Se cancelaron ${canceladas} ${canceladas === 1 ? 'reserva' : 'reservas'} y se avisó a los jugadores.`
       : null
     if (resumen) Alert.alert(resumen.titulo, [resumen.texto, avisoCanceladas].filter(Boolean).join('\n\n'))
-    else if (avisoCanceladas) Alert.alert('Bloqueo guardado', avisoCanceladas)
+    else if (avisoCanceladas) Alert.alert(editando ? 'Bloque guardado' : 'Bloqueo guardado', avisoCanceladas)
     onGuardado()
   }
 
@@ -142,7 +130,9 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
       <SafeAreaView style={estilosTenis.sheet}>
         <BarraModal
-          titulo={modo === 'fijo' ? (inicial?.id ? 'EDITAR BLOQUE FIJO' : 'NUEVO BLOQUE FIJO') : 'BLOQUEO PUNTUAL'}
+          titulo={modo === 'fijo'
+            ? (editando ? 'EDITAR BLOQUE FIJO' : 'NUEVO BLOQUE FIJO')
+            : (editando ? 'EDITAR BLOQUE' : 'BLOQUEO PUNTUAL')}
           onCerrar={onCerrar}
         />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -195,7 +185,9 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
             )}
 
             {modo === 'puntual' && (
-              <Aviso>Las reservas que pisa este bloqueo se cancelan y se avisa a los jugadores.</Aviso>
+              <Aviso>{editando
+                ? 'Si el bloque pasa a pisar reservas, se cancelan y se avisa a los jugadores.'
+                : 'Las reservas que pisa este bloqueo se cancelan y se avisa a los jugadores.'}</Aviso>
             )}
             {error && <Aviso tipo="error">{error}</Aviso>}
             <Boton texto="GUARDAR" onPress={guardar} cargando={guardando} />

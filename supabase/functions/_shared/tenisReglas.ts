@@ -798,6 +798,37 @@ export function normalizarComentario(x: unknown): { ok: true; comentario: string
   return { ok: true, comentario: t || null }
 }
 
+// ─── Bloqueo puntual (tenis-gestion bloqueo-puntual) ──────────────────────────
+
+export const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso'] as const
+
+export interface BloqueoPuntualBody {
+  /** Bloque puntual a editar; null = crear uno nuevo. */
+  id: string | null
+  /** null = todas las canchas. */
+  canchaId: string | null
+  desde: Date
+  hasta: Date
+  tipo: (typeof TIPOS_BLOQUE)[number]
+  titulo: string
+}
+
+/** Body de bloqueo-puntual: { id?, cancha_id?, desde, hasta (ISO), tipo, titulo }. null = inválido. */
+export function parsearBloqueoPuntual(body: Record<string, unknown>): BloqueoPuntualBody | null {
+  const id = body.id ?? null
+  if (id !== null && (typeof id !== 'string' || !UUID_RE.test(id))) return null
+  const canchaId = body.cancha_id ?? null
+  if (canchaId !== null && (typeof canchaId !== 'string' || !UUID_RE.test(canchaId))) return null
+  const desde = new Date(typeof body.desde === 'string' ? body.desde : '')
+  const hasta = new Date(typeof body.hasta === 'string' ? body.hasta : '')
+  if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime()) || hasta <= desde) return null
+  const tipo = TIPOS_BLOQUE.find((t) => t === body.tipo)
+  if (!tipo) return null
+  const titulo = typeof body.titulo === 'string' ? body.titulo.trim().slice(0, 80) : ''
+  if (!titulo) return null
+  return { id, canchaId, desde, hasta, tipo, titulo }
+}
+
 // ─── Cancelar varias (tenis_cancelar_varias) ──────────────────────────────────
 
 export const CANCELAR_VARIAS_MAX = 100
