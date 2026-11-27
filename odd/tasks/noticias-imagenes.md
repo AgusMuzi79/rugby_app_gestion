@@ -67,3 +67,9 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
   - R3-orchestration-untested (SUGGESTION): only the pure helpers are covered; the hook/page wiring is checked by hand.
 - 2026-11-27: second native review of the whole branch including the web fix (lineage `review-495e3dd7280de360`): **approved**, acknowledged. New advisory R3-001: `imagenes` wins over `imagen_path`, so a flow that updates only `imagen_path` on an existing row would leave `imagenes` stale. Not reachable today: no flow updates `imagen_path` (Buffet and Subcomisión only insert and delete). If an edit-image flow is added, it must write both columns (`camposImagenesNoticia`).
 - 2026-11-27: `imagenes` added to `app/lib/database.types.ts`; casts removed from `useNoticiasSubcomision.ts` (`cd app && npx tsc --noEmit`: exit 0; `npm run test:noticias`: 13 casos ok).
+
+## Change request 2026-11-27 (after PR #90 shipped)
+
+User: replace the automatic rule with a checkbox in the Subcomisión create form to choose whether the news item sends a push. Assumption: unchecked by default (avoids accidental pushes to every member). Buffet/Secretaría/Admin unchanged. Branch `feat/noticias-push-opcional`.
+
+- [ ] T5 — "Enviar notificación" checkbox in the app and web Subcomisión forms; push iff checked (independent of description/images); `debeNotificarNoticia` replaced by the explicit flag; helper text and checks updated. Route: delegated (writer trigger: 2+ non-trivial files).
