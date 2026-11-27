@@ -5,6 +5,9 @@
 import assert from 'node:assert/strict'
 import {
   armarCsv,
+  avisoExportacion,
+  canchasDestino,
+  estadoNovedad,
   columnasReporte,
   etiquetaAnticipacion,
   etiquetaColumna,
@@ -17,6 +20,7 @@ import {
   parsearHorarios,
   parsearListado,
   parsearNovedades,
+  resumenBloques,
   parsearReporte,
   rangoPorDefecto,
   sumarDias,
@@ -214,6 +218,38 @@ caso('validar horarios', () => {
   assert.match(validarHorarios(mal) ?? '', /domingo/i)
   const cerrado = base.map(x => x.dia_semana === 7 ? { ...x, hora_hasta: 'xx', activo: false } : x)
   assert.equal(validarHorarios(cerrado), null)
+})
+
+caso('estado de una novedad (envío cortado se reintenta a los 15 min)', () => {
+  const t = Date.parse('2026-11-26T12:00:00Z')
+  assert.equal(estadoNovedad({ enviada_at: null, envio_completo: false }, t), 'sin_enviar')
+  assert.equal(estadoNovedad({ enviada_at: '2026-11-26T12:00:00Z', envio_completo: true }, t), 'enviada')
+  assert.equal(estadoNovedad({ enviada_at: '2026-11-26T11:50:00Z', envio_completo: false }, t), 'enviando')
+  assert.equal(estadoNovedad({ enviada_at: '2026-11-26T11:45:00Z', envio_completo: false }, t), 'incompleta')
+  assert.equal(parsearNovedades([{ id: 'a', enviada_at: '2026-11-26T12:00:00Z' }])[0].envio_completo, true)
+  assert.equal(parsearNovedades([{ id: 'a', enviada_at: '2026-11-26T12:00:00Z', envio_completo: false }])[0].envio_completo, false)
+  assert.equal(parsearNovedades([{ id: 'a', enviada_at: null }])[0].envio_completo, false)
+})
+
+caso('aviso de exportación truncada', () => {
+  assert.equal(avisoExportacion(120, 120, 'reservas'), null)
+  assert.equal(avisoExportacion(0, 0, 'reservas'), null)
+  assert.match(avisoExportacion(2000, 2345, 'reservas') ?? '', /primeras 2000 de 2345 reservas/)
+})
+
+caso('bloques en varias canchas', () => {
+  const canchas = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }]
+  assert.deepEqual(canchasDestino([], canchas), [null])
+  assert.deepEqual(canchasDestino(['c3', 'c1'], canchas), ['c1', 'c3'])
+  assert.deepEqual(canchasDestino(['c1', 'c2', 'c3'], canchas), [null])
+  assert.deepEqual(canchasDestino(['zz'], canchas), [null])
+  assert.equal(resumenBloques([{ cancha: '01', ok: true }, { cancha: '02', ok: true }]), null)
+  const parte = resumenBloques([{ cancha: '01', ok: true }, { cancha: '02', ok: false, mensaje: 'Se superpone.' }])
+  assert.equal(parte?.ninguno, false)
+  assert.match(parte?.texto ?? '', /la cancha 01[\s\S]*Cancha 02: Se superpone\./)
+  const nada = resumenBloques([{ cancha: '01', ok: false }])
+  assert.equal(nada?.ninguno, true)
+  assert.match(nada?.texto ?? '', /Cancha 01: no se pudo guardar/)
 })
 
 console.log(`tenisGestion.check.ts: ${casos} casos OK`)

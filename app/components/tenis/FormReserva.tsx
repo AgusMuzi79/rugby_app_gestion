@@ -141,7 +141,7 @@ export function FormReserva({
     if (!claveCot || !args) return
     let vigente = true
     const t = setTimeout(async () => {
-      const r = await cotizarTenis(args)
+      const r = await cotizarTenis(args).catch(() => ({ ok: false as const, mensaje: 'No se pudo calcular el precio.' }))
       if (vigente) setCotizacion({ clave: claveCot, data: r.ok ? r.data : null, error: r.ok ? null : r.mensaje })
     }, 500)
     return () => { vigente = false; clearTimeout(t) }

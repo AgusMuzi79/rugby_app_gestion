@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal, ScrollView, Text, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
+import { Modal, ScrollView, View, Text, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
 import { accionesTenis, type BloqueEditable } from '@/hooks/useTenisGestor'
@@ -7,11 +7,15 @@ import {
   TIPOS_BLOQUE, diaSemanaIso, esFechaValida, estiloItem, horaArgentina, isoArgentina, validarRangoHorario,
   type Cancha, type ItemGrilla, type TipoBloque,
 } from '@/lib/tenis'
+import { canchasDestino, resumenBloques, type ResultadoBloque } from '@/lib/tenisGestion'
 import { Aviso, BarraModal, Boton, Chip, estilosTenis } from './ui'
 
 // Bloques del gestor. Fijo: todas las semanas un día y horario, con fecha de
 // fin opcional (academia, profes). Puntual: un rato de un día (lluvia,
-// mantenimiento); cancela las reservas que pisa y les avisa.
+// mantenimiento); cancela las reservas que pisa y les avisa. Uno nuevo se
+// puede cargar en varias canchas a la vez: TODAS (o elegirlas todas) es un solo
+// bloque de todas las canchas; si no, se crea uno igual en cada cancha elegida.
+// Editar un bloque existente sigue siendo de una cancha (o de todas).
 
 const DIAS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM']
 
@@ -46,7 +50,12 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
 }) {
   const [tipo,   setTipo]   = useState<TipoBloque>(inicial?.tipo ?? (modo === 'puntual' ? 'no_disponible' : 'clase'))
   const [titulo, setTitulo] = useState(inicial?.titulo ?? '')
-  const [cancha, setCancha] = useState<string | null>(inicial ? inicial.cancha_id : canchaInicial)
+  // Canchas elegidas; vacío = TODAS. Editando, una sola (o TODAS).
+  const editando = !!inicial?.id
+  const [elegidas, setElegidas] = useState<string[]>(() => {
+    const c = inicial ? inicial.cancha_id : canchaInicial
+    return c ? [c] : []
+  })
   const [dia,    setDia]    = useState(inicial?.dia_semana ?? diaSemanaIso(fecha))
   const [desde,  setDesde]  = useState(inicial?.hora_desde ?? horaInicial ?? '')
   const [hasta,  setHasta]  = useState(inicial?.hora_hasta ?? '')
@@ -56,37 +65,52 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
   const [guardando, setGuardando] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
 
+  function tocarCancha(id: string | null) {
+    if (id === null || editando) { setElegidas(id ? [id] : []); return }
+    setElegidas(e => (e.includes(id) ? e.filter(x => x !== id) : [...e, id]))
+  }
+
+  const destinos = canchasDestino(elegidas, canchas)
+  const nombreCancha = (id: string | null) => (id === null ? 'TODAS' : canchas.find(c => c.id === id)?.nombre ?? '')
+
   async function guardar() {
+    if (guardando) return
     if (!titulo.trim()) { setError('Escribí un título (por ejemplo "Academia" o "Lluvia").'); return }
     const rango = validarRangoHorario(desde, hasta)
     if (rango) { setError(rango); return }
-    setError(null)
-
+    const fin = vigHasta.trim()
     if (modo === 'fijo') {
       if (!esFechaValida(vigDesde)) { setError('Revisá la fecha "desde" (AAAA-MM-DD).'); return }
-      const fin = vigHasta.trim()
       if (fin && (!esFechaValida(fin) || fin < vigDesde)) { setError('Revisá la fecha de fin (AAAA-MM-DD, posterior a la de inicio).'); return }
-      setGuardando(true)
-      const r = await accionesTenis.bloqueGuardar({
-        id: inicial?.id, cancha_id: cancha, tipo, titulo: titulo.trim(), dia_semana: dia,
-        hora_desde: desde, hora_hasta: hasta, vigente_desde: vigDesde, vigente_hasta: fin || null,
-      })
-      setGuardando(false)
-      if (!r.ok) { setError(r.mensaje); return }
-      onGuardado()
-      return
-    }
+    } else if (!esFechaValida(dia1)) { setError('Revisá la fecha (AAAA-MM-DD).'); return }
+    setError(null)
 
-    if (!esFechaValida(dia1)) { setError('Revisá la fecha (AAAA-MM-DD).'); return }
+    // Una cancha por vez (o una fila de TODAS); cada resultado se informa aparte.
     setGuardando(true)
-    const r = await accionesTenis.bloqueoPuntual({
-      canchaId: cancha, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
-    })
-    setGuardando(false)
-    if (!r.ok) { setError(r.mensaje); return }
-    if (r.data.canceladas > 0) {
-      Alert.alert('Bloqueo guardado', `Se cancelaron ${r.data.canceladas} ${r.data.canceladas === 1 ? 'reserva' : 'reservas'} y se avisó a los jugadores.`)
+    const resultados: ResultadoBloque[] = []
+    let canceladas = 0
+    for (const canchaId of editando ? [elegidas[0] ?? null] : destinos) {
+      const r = modo === 'fijo'
+        ? await accionesTenis.bloqueGuardar({
+            id: inicial?.id, cancha_id: canchaId, tipo, titulo: titulo.trim(), dia_semana: dia,
+            hora_desde: desde, hora_hasta: hasta, vigente_desde: vigDesde, vigente_hasta: fin || null,
+          })
+        : await accionesTenis.bloqueoPuntual({
+            canchaId, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
+          })
+      if (r.ok && r.data && 'canceladas' in r.data) canceladas += r.data.canceladas
+      resultados.push({ cancha: nombreCancha(canchaId), ok: r.ok, mensaje: r.ok ? undefined : r.mensaje })
     }
+    setGuardando(false)
+
+    const resumen = resumenBloques(resultados)
+    // Nada guardado: el error queda en el formulario para corregir y reintentar.
+    if (resumen?.ninguno) { setError(resultados.length === 1 ? resultados[0].mensaje ?? resumen.texto : resumen.texto); return }
+    const avisoCanceladas = canceladas > 0
+      ? `Se cancelaron ${canceladas} ${canceladas === 1 ? 'reserva' : 'reservas'} y se avisó a los jugadores.`
+      : null
+    if (resumen) Alert.alert(resumen.titulo, [resumen.texto, avisoCanceladas].filter(Boolean).join('\n\n'))
+    else if (avisoCanceladas) Alert.alert('Bloqueo guardado', avisoCanceladas)
     onGuardado()
   }
 
@@ -121,11 +145,14 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
             <Text style={estilosTenis.label}>TÍTULO</Text>
             {input(titulo, setTitulo, modo === 'fijo' ? 'Academia, Profe Juan…' : 'Lluvia, mantenimiento…', 'Título del bloque')}
 
-            <Text style={estilosTenis.label}>CANCHA</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilosTenis.filaScroll}>
-              <Chip texto="TODAS" activo={cancha === null} onPress={() => setCancha(null)} />
-              {canchas.map(c => <Chip key={c.id} texto={c.nombre} activo={c.id === cancha} onPress={() => setCancha(c.id)} />)}
-            </ScrollView>
+            <Text style={estilosTenis.label}>{editando ? 'CANCHA' : 'CANCHAS (PODÉS ELEGIR VARIAS)'}</Text>
+            <View style={estilosTenis.fila}>
+              <Chip texto="TODAS" activo={elegidas.length === 0} onPress={() => tocarCancha(null)} />
+              {canchas.map(c => <Chip key={c.id} texto={c.nombre} activo={elegidas.includes(c.id)} onPress={() => tocarCancha(c.id)} />)}
+            </View>
+            {!editando && destinos.length > 1 && (
+              <Text style={estilosTenis.mutedCard}>Se crea un bloque en cada una: {destinos.map(nombreCancha).join(', ')}.</Text>
+            )}
 
             {modo === 'fijo' ? (
               <>

@@ -1075,6 +1075,16 @@ const MENSAJES: Record<string, string> = {
   jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',
   comprobante_invalido:    'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
   comprobante_no_subido:   'Todavía no hay comprobante subido.',
+  // Paridad OnDepor (migración 20261128000000 y tenis-gestion).
+  fuera_de_vista:          'Ese día todavía no se puede ver.',
+  comentario_largo:        'El comentario puede tener hasta 280 caracteres.',
+  motivo_cancelacion:      'Escribí el motivo de la cancelación.',
+  novedad_invalida:        'Completá el título y el texto de la novedad.',
+  novedad_inexistente:     'Esa novedad ya no existe.',
+  novedad_ya_enviada:      'Esa novedad ya se mandó.',
+  novedad_en_curso:        'Esa novedad se está mandando. Si en 15 minutos no terminó, probá de nuevo.',
+  reporte_invalido:        'Elegí un reporte de la lista.',
+  rango_invalido:          'Revisá el rango de fechas.',
 }
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)

@@ -378,6 +378,8 @@ export interface NovedadTenis {
   enviada_at:     string | null
   push_enviados:  number
   mails_enviados: number
+  // false: el envío empezó y no terminó (la función se cortó); se puede reintentar.
+  envio_completo: boolean
 }
 
 export function parsearNovedades(raw: unknown): NovedadTenis[] {
@@ -395,6 +397,8 @@ export function parsearNovedades(raw: unknown): NovedadTenis[] {
       enviada_at:     texto(n.enviada_at),
       push_enviados:  numero(n.push_enviados),
       mails_enviados: numero(n.mails_enviados),
+      // Servidor sin el campo: lo enviado se da por completo.
+      envio_completo: n.envio_completo === undefined ? !!texto(n.enviada_at) : n.envio_completo === true,
     })
   }
   return out
@@ -432,4 +436,54 @@ export function validarHorarios(h: HorarioDia[]): string | null {
     }
   }
   return null
+}
+
+// Cuánto espera tenis-gestion antes de dejar reintentar un envío sin terminar.
+export const REINTENTO_NOVEDAD_MIN = 15
+
+export type EstadoNovedad = 'sin_enviar' | 'enviada' | 'enviando' | 'incompleta'
+
+export function estadoNovedad(n: Pick<NovedadTenis, 'enviada_at' | 'envio_completo'>, ahoraMs: number): EstadoNovedad {
+  if (!n.enviada_at) return 'sin_enviar'
+  if (n.envio_completo) return 'enviada'
+  const desde = Date.parse(n.enviada_at)
+  return Number.isFinite(desde) && ahoraMs - desde < REINTENTO_NOVEDAD_MIN * 60_000 ? 'enviando' : 'incompleta'
+}
+
+// ─── Exportar ─────────────────────────────────────────────────────────────────
+
+// Tope de filas de una exportación (cada RPC devuelve hasta 500 por pedido).
+export const TOPE_EXPORTAR = 2000
+
+// Aviso cuando la exportación no trae todo lo que hay con esos filtros.
+export function avisoExportacion(exportadas: number, total: number, cosa: string): string | null {
+  if (total <= exportadas) return null
+  return `Se exportaron las primeras ${exportadas} de ${total} ${cosa}. Achicá el rango de fechas para exportar el resto.`
+}
+
+// ─── Bloques en varias canchas ────────────────────────────────────────────────
+
+// Canchas donde se crea un bloque: [null] (= todas, una sola fila) si no se
+// eligió ninguna o se eligieron todas; si no, una por cancha, en el orden de la grilla.
+export function canchasDestino(elegidas: readonly string[], canchas: readonly { id: string }[]): (string | null)[] {
+  const set = new Set(elegidas)
+  const enOrden = canchas.filter(c => set.has(c.id)).map(c => c.id)
+  if (enOrden.length === 0 || enOrden.length === canchas.length) return [null]
+  return enOrden
+}
+
+export interface ResultadoBloque { cancha: string; ok: boolean; mensaje?: string }
+
+// Resumen de crear un bloque en varias canchas: null si salió todo bien.
+export function resumenBloques(r: readonly ResultadoBloque[]): { titulo: string; texto: string; ninguno: boolean } | null {
+  const fallas = r.filter(x => !x.ok)
+  if (fallas.length === 0) return null
+  const hechas = r.filter(x => x.ok).map(x => x.cancha)
+  const detalle = fallas.map(x => `Cancha ${x.cancha}: ${x.mensaje ?? 'no se pudo guardar'}`).join('\n')
+  if (hechas.length === 0) return { titulo: 'No se guardó el bloque', texto: detalle, ninguno: true }
+  return {
+    titulo: 'Bloque guardado en parte',
+    texto: `Se guardó en ${hechas.length === 1 ? 'la cancha' : 'las canchas'} ${hechas.join(', ')}.\nNo se pudo en:\n${detalle}`,
+    ninguno: false,
+  }
 }

@@ -104,7 +104,9 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
     const rh = r.ok && horarios ? await accionesGestion.horariosGuardar(horarios) : null
     setGuardando(false)
     if (!r.ok) { setError(r.mensaje); return }
-    if (rh && !rh.ok) { setError(rh.mensaje); onGuardado(); return }
+    // Las reglas ya quedaron; los horarios no. No se recarga (perdería lo editado):
+    // GUARDAR de nuevo vuelve a mandar las dos cosas.
+    if (rh && !rh.ok) { setError(`Se guardaron las reglas pero no los horarios por día. ${rh.mensaje}`); return }
     setOk(true)
     onGuardado()
   }

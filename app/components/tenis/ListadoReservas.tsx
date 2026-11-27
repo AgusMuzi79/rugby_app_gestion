@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, TextInput, Modal, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather } from '@expo/vector-icons'
@@ -9,7 +9,7 @@ import {
   type FiltrosReservas,
 } from '@/hooks/useTenisGestion'
 import { ESTADOS_RESERVA } from '@/lib/tenis'
-import { ORIGENES, csvReservas, lineaReserva, paginas, rangoPorDefecto, validarRango } from '@/lib/tenisGestion'
+import { ORIGENES, avisoExportacion, csvReservas, lineaReserva, paginas, rangoPorDefecto, validarRango } from '@/lib/tenisGestion'
 import { HistorialReserva } from './HistorialReserva'
 import { Aviso, BarraModal, Boton, Chip, estilosTenis } from './ui'
 
@@ -77,9 +77,14 @@ export function MotivoCancelacion({ titulo, detalle, obligatorio, onConfirmar, o
     if (obligatorio && !motivo.trim()) { setError('Escribí el motivo: les llega a los jugadores.'); return }
     setOcupado(true)
     setError(null)
-    const e = await onConfirmar(motivo.trim())
-    setOcupado(false)
-    if (e) setError(e)
+    try {
+      const e = await onConfirmar(motivo.trim())
+      if (e) setError(e)
+    } catch {
+      setError('No se pudo cancelar. Probá de nuevo.')
+    } finally {
+      setOcupado(false)
+    }
   }
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onCerrar}>
@@ -126,6 +131,11 @@ export function ListadoReservas() {
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const canchas = useCanchasTenis()
   const { datos, loading, error, refetch } = useReservasListado(filtros, pagina)
+  // Si al cancelar se achica el total, no quedarse en una página que ya no existe.
+  useEffect(() => {
+    const n = paginas(datos.total, LIMITE_PAGINA)
+    if (!loading && pagina > 0 && pagina >= n) setPagina(Math.max(0, n - 1))
+  }, [datos.total, loading, pagina])
 
   function filtrar(cambio: Partial<FiltrosReservas>) {
     setFiltros(f => ({ ...f, ...cambio }))
@@ -144,12 +154,19 @@ export function ListadoReservas() {
   async function exportar() {
     setExportando(true)
     setErrorAccion(null)
-    const r = await reservasParaExportar(filtros)
-    if (r.ok) {
-      const c = await compartirCsv(`reservas-tenis_${filtros.desde}_${filtros.hasta}`, csvReservas(r.data))
-      if (!c.ok) setErrorAccion(c.mensaje)
-    } else setErrorAccion(r.mensaje)
-    setExportando(false)
+    setAviso(null)
+    try {
+      const r = await reservasParaExportar(filtros)
+      if (r.ok) {
+        const c = await compartirCsv(`reservas-tenis_${filtros.desde}_${filtros.hasta}`, csvReservas(r.data.items))
+        if (!c.ok) setErrorAccion(c.mensaje)
+        else setAviso(avisoExportacion(r.data.items.length, r.data.total, 'reservas'))
+      } else setErrorAccion(r.mensaje)
+    } catch {
+      setErrorAccion('No se pudo exportar. Probá de nuevo.')
+    } finally {
+      setExportando(false)
+    }
   }
 
   async function confirmarCancelacion(ids: string[], motivo: string): Promise<string | null> {

@@ -7,8 +7,8 @@ import { calorTenis } from '../constants/theme'
 import { CONTRASTE_TEXTO_AA, contraste } from './contraste'
 import { CONFIG_DEFECTO, parsearDisponibilidad, type ItemGrilla } from './tenis'
 import {
-  COL_MIN_W, HORA_W, anchoColumna, configDelDia, diasVista, esDiaReservable, fechaLarga, lineaAhora,
-  nivelCalor, nombresBloque, paginar, parsearSemana, reservasPorCancha, sumarDias, textoDisponibles,
+  BARRA_PANTALLA_COMPLETA_H, COL_MIN_W, FILA_H, FILA_H_COMPACTA, HORA_W, anchoColumna, configDelDia, diasVista, esDiaReservable, fechaLarga, lineaAhora,
+  layoutPantallaCompleta, nivelCalor, nombresBloque, paginar, parsearSemana, reservasPorCancha, sumarDias, textoDisponibles,
 } from './tenisGrilla'
 
 let fallas = 0
@@ -89,6 +89,24 @@ caso('colores de calor con texto AA', () => {
 caso('paginar de a 3', () => {
   assert.deepEqual(paginar([1, 2, 3, 4, 5, 6, 7], 3), [[1, 2, 3], [4, 5, 6], [7]])
   assert.deepEqual(paginar([], 3), [])
+  // Un tamaño inválido pagina de a 1 (no páginas vacías).
+  assert.deepEqual(paginar([1, 2], 0), [[1], [2]])
+  assert.deepEqual(paginar([1, 2], -4), [[1], [2]])
+  assert.deepEqual(paginar([1, 2, 3], 2.7), [[1, 2], [3]])
+})
+
+caso('pantalla completa acostada: medidas intercambiadas y márgenes girados', () => {
+  // iPhone 14 en vertical: 390 × 844, notch arriba (47) y barra de inicio abajo (34).
+  const l = layoutPantallaCompleta({ width: 390, height: 844 }, { top: 47, right: 0, bottom: 34, left: 0 })
+  assert.deepEqual(l.vista, { width: 844, height: 390, top: 227, left: -227 })
+  assert.deepEqual(l.relleno, { top: 0, right: 34, bottom: 0, left: 47 })
+  assert.equal(l.ancho, 844 - 47 - 34)
+  assert.equal(l.alto, 390 - BARRA_PANTALLA_COMPLETA_H)
+  // Las 8 canchas entran a lo ancho con columnas mucho más anchas que en vertical.
+  assert.ok(anchoColumna(l.ancho, 8) >= 2 * anchoColumna(390 - 40, 8))
+  // Y se ven más horas que en vertical (70 % de 844 con filas de FILA_H).
+  assert.ok(l.alto / FILA_H_COMPACTA > (844 * 0.7) / FILA_H)
+  assert.equal(layoutPantallaCompleta({ width: 0, height: 0 }, { top: 10, right: 0, bottom: 10, left: 0 }).ancho, 0)
 })
 
 caso('nombres del bloque: todos los jugadores en mayúsculas; bloques con su título', () => {

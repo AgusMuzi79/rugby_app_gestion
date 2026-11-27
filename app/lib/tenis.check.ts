@@ -331,6 +331,9 @@ const CODIGOS_CONTRATO = [
   // 20261127000000_tenis_detalles_edicion.
   'reintentar',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
+  // 20261128000000_tenis_paridad_ondepor + tenis-gestion.
+  'fuera_de_vista', 'comentario_largo', 'motivo_cancelacion', 'novedad_invalida', 'novedad_inexistente',
+  'novedad_ya_enviada', 'novedad_en_curso', 'reporte_invalido', 'rango_invalido',
 ]
 
 caso('cada código de la base y de las funciones tiene mensaje propio', () => {

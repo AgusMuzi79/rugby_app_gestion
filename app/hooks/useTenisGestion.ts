@@ -3,7 +3,7 @@ import { Platform, Share } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import { fechaArgentina, parsearDisponibilidad, type Cancha, type TenisConfig } from '@/lib/tenis'
 import {
-  parsearCanceladas, parsearHistorial, parsearListado, parsearNovedades, parsearReporte,
+  TOPE_EXPORTAR, parsearCanceladas, parsearHistorial, parsearListado, parsearNovedades, parsearReporte,
   type CanceladoPor, type FilaReporte, type HistorialReserva, type HorarioDia, type NovedadTenis,
   type ReservaCancelada, type ReservaListada, type TipoReporte,
 } from '@/lib/tenisGestion'
@@ -71,17 +71,31 @@ export function useReservasListado(f: FiltrosReservas, pagina: number) {
   return useCarga<{ total: number; items: ReservaListada[] }>({ total: 0, items: [] }, cargar)
 }
 
-// Todas las páginas (para exportar), hasta `tope` filas.
-export async function reservasParaExportar(f: FiltrosReservas, tope = 2000): Promise<ResultadoTenis<ReservaListada[]>> {
-  const out: ReservaListada[] = []
-  for (let offset = 0; offset < tope; offset += 500) {
-    const r = await rpcTenis('tenis_reservas_listar', argsReservas(f, 500, offset), 'No se pudo exportar. Probá de nuevo.')
+// Exportación: todas las páginas (los RPC devuelven hasta 500 por pedido),
+// hasta TOPE_EXPORTAR filas. `total` = cuántas hay con esos filtros, para
+// avisar si no entraron todas (avisoExportacion).
+const POR_PEDIDO = 500
+
+async function exportarPaginas<T>(
+  pedir: (limit: number, offset: number) => Promise<ResultadoTenis<{ total: number; items: T[] }>>,
+): Promise<ResultadoTenis<{ items: T[]; total: number }>> {
+  const items: T[] = []
+  let total = 0
+  for (let offset = 0; offset < TOPE_EXPORTAR; offset += POR_PEDIDO) {
+    const r = await pedir(Math.min(POR_PEDIDO, TOPE_EXPORTAR - offset), offset)
     if (!r.ok) return r
-    const p = parsearListado(r.data)
-    out.push(...p.items)
-    if (p.items.length < 500 || out.length >= p.total) break
+    total = Math.max(r.data.total, items.length + r.data.items.length)
+    items.push(...r.data.items)
+    if (r.data.items.length < POR_PEDIDO || items.length >= r.data.total) break
   }
-  return ok(out)
+  return ok({ items, total })
+}
+
+export function reservasParaExportar(f: FiltrosReservas) {
+  return exportarPaginas(async (limit, offset) => {
+    const r = await rpcTenis('tenis_reservas_listar', argsReservas(f, limit, offset), 'No se pudo exportar. Probá de nuevo.')
+    return r.ok ? ok(parsearListado(r.data)) : r
+  })
 }
 
 // ─── Historial de una reserva ─────────────────────────────────────────────────
@@ -121,9 +135,11 @@ export function useCanceladas(f: FiltrosCanceladas, pagina: number) {
   return useCarga<{ total: number; items: ReservaCancelada[] }>({ total: 0, items: [] }, cargar)
 }
 
-export async function canceladasParaExportar(f: FiltrosCanceladas): Promise<ResultadoTenis<ReservaCancelada[]>> {
-  const r = await rpcTenis('tenis_canceladas_listar', argsCanceladas(f, 2000, 0), 'No se pudo exportar. Probá de nuevo.')
-  return r.ok ? ok(parsearCanceladas(r.data).items) : r
+export function canceladasParaExportar(f: FiltrosCanceladas) {
+  return exportarPaginas(async (limit, offset) => {
+    const r = await rpcTenis('tenis_canceladas_listar', argsCanceladas(f, limit, offset), 'No se pudo exportar. Probá de nuevo.')
+    return r.ok ? ok(parsearCanceladas(r.data)) : r
+  })
 }
 
 // ─── Reportes ─────────────────────────────────────────────────────────────────

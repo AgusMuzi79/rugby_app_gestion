@@ -17,6 +17,35 @@ type ConfigFilas = Pick<TenisConfig, 'hora_desde' | 'hora_hasta' | 'modulo_min'>
 export const HORA_W    = 44 // columna de la hora
 export const FILA_H    = 72 // alto de cada media hora (entran los nombres)
 export const COL_MIN_W = 30 // por debajo de esto no se lee nada
+// Pantalla completa acostada: filas más bajas para ver más horas (las
+// columnas son anchas y los nombres entran en una línea).
+export const FILA_H_COMPACTA = 30
+export const BARRA_PANTALLA_COMPLETA_H = 44 // barra de arriba (día, flechas, ✕)
+
+type Medidas = { width: number; height: number }
+type Margenes = { top: number; right: number; bottom: number; left: number }
+
+// Grilla "acostada" sin módulos nativos (la app está fija en vertical): una
+// vista con ancho y alto intercambiados, centrada y girada 90° (horario). El
+// borde izquierdo de la vista queda arriba de la pantalla y el de arriba, a la
+// derecha; los márgenes seguros se reparten igual. `ancho`/`alto` = lo que
+// queda para la grilla (alto ya sin la barra de arriba).
+export function layoutPantallaCompleta(ventana: Medidas, seguro: Margenes, barraH: number = BARRA_PANTALLA_COMPLETA_H): {
+  vista:   { width: number; height: number; top: number; left: number }
+  relleno: Margenes
+  ancho:   number
+  alto:    number
+} {
+  const width = ventana.height
+  const height = ventana.width
+  const relleno = { top: seguro.right, right: seguro.bottom, bottom: seguro.left, left: seguro.top }
+  return {
+    vista:   { width, height, top: (ventana.height - height) / 2, left: (ventana.width - width) / 2 },
+    relleno,
+    ancho:   Math.max(0, width - relleno.left - relleno.right),
+    alto:    Math.max(0, height - relleno.top - relleno.bottom - barraH),
+  }
+}
 
 // Ancho de cada cancha para que todas entren en `ancho` (sin scroll lateral).
 export function anchoColumna(ancho: number, canchas: number, horaW: number = HORA_W): number {
@@ -73,8 +102,9 @@ export function fechaLarga(fecha: string): string {
 }
 
 export function paginar<T>(lista: T[], porPagina: number): T[][] {
+  const n = Math.max(1, Math.floor(porPagina) || 1)
   const r: T[][] = []
-  for (let i = 0; i < lista.length; i += Math.max(1, porPagina)) r.push(lista.slice(i, i + porPagina))
+  for (let i = 0; i < lista.length; i += n) r.push(lista.slice(i, i + n))
   return r
 }
 

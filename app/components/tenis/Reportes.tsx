@@ -29,7 +29,7 @@ export function Reportes() {
   const metrica = metricaReporte(tipo, filas)
   const maximo = metrica ? Math.max(1, ...filas.map(f => (typeof f[metrica] === 'number' ? f[metrica] as number : 0))) : 1
   // Porcentajes contra 100; el resto contra el máximo de la tabla.
-  const tope = metrica === 'porcentaje' || metrica === 'uso' ? Math.max(100, maximo) : maximo
+  const tope = metrica === 'porcentaje' || metrica === 'uso' || metrica === 'cumplimiento' ? Math.max(100, maximo) : maximo
   const etiqueta = columnas.find(c => c !== metrica) ?? null
 
   async function exportar() {
@@ -46,7 +46,7 @@ export function Reportes() {
       </View>
       <RangoFechas desde={rango.desde} hasta={rango.hasta} onCambio={setRango} />
       <View style={s.acciones}>
-        <Chip texto="EXPORTAR" activo={false} disabled={filas.length === 0} onPress={exportar} />
+        <Chip texto="EXPORTAR" activo={false} disabled={loading || filas.length === 0} onPress={exportar} />
       </View>
       {errorAccion && <Aviso tipo="error">{errorAccion}</Aviso>}
       {error && <ErrorCarga mensaje={error} onReintentar={refetch} />}
@@ -61,7 +61,7 @@ export function Reportes() {
               <View key={i} style={s.barraFila} accessible accessibilityLabel={`${valorCelda(f[etiqueta], etiqueta)}: ${valorCelda(v, metrica)}`}>
                 <Text style={s.barraEtiqueta} numberOfLines={1}>{valorCelda(f[etiqueta], etiqueta)}</Text>
                 <View style={s.barraTrack}>
-                  <View style={[s.barra, { width: `${Math.min(100, (v / tope) * 100)}%` }]} />
+                  <View style={[s.barra, { width: `${Math.max(0, Math.min(100, (v / tope) * 100))}%` }]} />
                 </View>
                 <Text style={s.barraValor}>{valorCelda(v, metrica)}</Text>
               </View>

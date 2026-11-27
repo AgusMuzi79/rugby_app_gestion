@@ -7,6 +7,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera'
 import { parsearQR } from '@/lib/qrCarnet'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { GrillaCanchas } from '@/components/tenis/GrillaCanchas'
+import { GrillaPantallaCompleta } from '@/components/tenis/GrillaPantallaCompleta'
 import { DetalleItem } from '@/components/tenis/DetalleItem'
 import { Aviso, BarraModal, Boton, Chip, Leyenda, Titulo, estilosTenis } from '@/components/tenis/ui'
 import { ComprobantesPendientes } from '@/components/tenis/ComprobantesPendientes'
@@ -116,6 +117,7 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
   // Cobra el turno entero o, si ya estaba cobrado con diferencia, la salda.
   async function cobrar() {
     if (!jugador?.id) return
+    setError(null)
     setCobrando(true)
     const r = await accionesTenis.cobroMarcar(jugador.id, true)
     setCobrando(false)
@@ -127,6 +129,7 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
   // Titular: cobra un lugar "Socio a designar" de su reserva (lo paga él).
   const [cobrandoAd, setCobrandoAd] = useState<string | null>(null)
   async function cobrarADesignar(id: string) {
+    setError(null)
     setCobrandoAd(id)
     const r = await accionesTenis.cobroMarcar(id, true)
     setCobrandoAd(null)
@@ -136,6 +139,7 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
   }
 
   const saldo = jugador ? etiquetasSaldo(jugador) : []
+  const aDesignar = jugador?.a_designar ?? []
   const puedeExtender = !!c.reserva && (res === 'ok' || res === 'comprobante_pendiente')
 
   return (
@@ -175,10 +179,10 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
         {jugador && jugador.cargo > 0 && !cobrado && !!jugador.id && (
           <Boton texto="MARCAR COBRADO" onPress={cobrar} cargando={cobrando} />
         )}
-        {jugador?.a_designar.map((a, i) => (
+        {aDesignar.map((a, i) => (
           <View key={a.jugador_id} style={s.aDesignar}>
             <Text style={estilosTenis.textoCard}>
-              {NOMBRE_A_DESIGNAR}{jugador.a_designar.length > 1 ? ` ${i + 1}` : ''} · {montoCargo(a.cargo)}
+              {NOMBRE_A_DESIGNAR}{aDesignar.length > 1 ? ` ${i + 1}` : ''} · {montoCargo(a.cargo)}
               {a.cargo > 0 ? (a.pendiente > 0 ? ' · PENDIENTE' : ' · COBRADO') : ''}
             </Text>
             {a.pendiente > 0 && (
@@ -220,18 +224,21 @@ function ExtensionCancha({ reserva, canchas, items, onCerrar, onHecho }: {
   const [minutos, setMinutos] = useState(30)
   const [canchaId, setCanchaId] = useState<string | null>(reserva.cancha_id)
   const [enviando, setEnviando] = useState(false)
+  // Doble toque: el estado no alcanza a frenar el segundo antes del re-render.
+  const enviandoRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const hasta = new Date(Date.parse(reserva.fin) + minutos * 60_000).toISOString()
   const libres = useMemo(() => canchasLibresExtension(items, canchas, reserva.fin, hasta), [items, canchas, reserva.fin, hasta])
   const elegida = libres.find(c => c.id === canchaId) ?? null
 
   async function confirmar() {
-    if (!elegida || enviando) return
+    if (!elegida || enviandoRef.current) return
+    enviandoRef.current = true
     setEnviando(true)
     setError(null)
     const r = await accionesTenis.extension(elegida.id, hasta, reserva.id)
     setEnviando(false)
-    if (!r.ok) { setError(r.mensaje); return }
+    if (!r.ok) { enviandoRef.current = false; setError(r.mensaje); return }
     onHecho()
   }
 
@@ -305,6 +312,7 @@ export default function TenisCancheroScreen() {
   const [escaneando, setEscaneando] = useState(false)
   const [extendiendo, setExtendiendo] = useState<ReservaCheckin | null>(null)
   const [revisando, setRevisando] = useState(false)
+  const [pantallaCompleta, setPantallaCompleta] = useState(false)
 
   async function consultar(q: { dni: string } | { numeroSocio: string }) {
     setConsultando(true)
@@ -338,6 +346,17 @@ export default function TenisCancheroScreen() {
   }
 
   const config = grilla?.config ?? CONFIG_DEFECTO
+
+  const detalleModal = detalle && grilla ? (
+    <DetalleItem
+      item={detalle}
+      canchaNombre={detalle.cancha_id ? grilla.canchas.find(c => c.id === detalle.cancha_id)?.nombre ?? '' : 'TODAS'}
+      config={config}
+      esGestor={false}
+      onCerrar={() => setDetalle(null)}
+      onCambio={refetch}
+    />
+  ) : null
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -385,6 +404,7 @@ export default function TenisCancheroScreen() {
           ) : grilla ? (
             <>
               <Leyenda />
+              <Boton texto="PANTALLA COMPLETA" variante="secundario" onPress={() => setPantallaCompleta(true)} />
               <GrillaCanchas
                 fecha={hoy}
                 config={config}
@@ -421,16 +441,23 @@ export default function TenisCancheroScreen() {
         </Modal>
       )}
 
-      {detalle && grilla && (
-        <DetalleItem
-          item={detalle}
-          canchaNombre={detalle.cancha_id ? grilla.canchas.find(c => c.id === detalle.cancha_id)?.nombre ?? '' : 'TODAS'}
+      {pantallaCompleta && grilla ? (
+        <GrillaPantallaCompleta
+          fecha={hoy}
+          dias={[hoy]}
+          onCerrar={() => setPantallaCompleta(false)}
+          reservas={null}
           config={config}
-          esGestor={false}
-          onCerrar={() => setDetalle(null)}
-          onCambio={refetch}
-        />
-      )}
+          horario={grilla.horario}
+          canchas={grilla.canchas}
+          items={grilla.items}
+          ahoraMs={ahoraMs}
+          conDetalle
+          onPressItem={setDetalle}
+        >
+          {detalleModal}
+        </GrillaPantallaCompleta>
+      ) : detalleModal}
     </SafeAreaView>
   )
 }

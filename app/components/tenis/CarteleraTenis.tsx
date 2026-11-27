@@ -5,7 +5,7 @@ import { colors, fonts } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { accionesGestion, useNovedadesGestion } from '@/hooks/useTenisGestion'
 import { etiquetaDiaCorta, fechaArgentina, horaArgentina } from '@/lib/tenis'
-import type { NovedadTenis } from '@/lib/tenisGestion'
+import { estadoNovedad, type NovedadTenis } from '@/lib/tenisGestion'
 import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 
 // Cartelera de tenis (`tenis_novedades`), como la de OnDepor: la gestora
@@ -32,12 +32,14 @@ export function CarteleraTenis() {
     const titulo = editando.titulo.trim()
     const texto = editando.texto.trim()
     if (!titulo || !texto) { setErrorForm('Completá el título y el texto.'); return }
+    const actual = editando
     setGuardando(true)
     setErrorForm(null)
     const r = await accionesGestion.novedadGuardar({ ...editando, titulo, texto })
     setGuardando(false)
     if (!r.ok) { setErrorForm(r.mensaje); return }
-    setEditando(null)
+    // Si mientras guardaba cerró y abrió otro borrador, no se lo pisa.
+    setEditando(e => (e === actual ? null : e))
     setAviso('Novedad guardada. Todavía no se mandó: tocá PUBLICAR para avisar a los jugadores.')
     refetch()
   }
@@ -58,10 +60,15 @@ export function CarteleraTenis() {
     ])
   }
 
+  // Una novedad sale una sola vez (tenis-gestion). Un envío que se cortó se
+  // reintenta: el push que ya salió no se repite, los mails sí.
   function publicar(n: NovedadTenis) {
+    const reintento = !!n.enviada_at
     Alert.alert(
-      n.enviada_at ? 'Volver a publicar' : 'Publicar novedad',
-      `${n.enviada_at ? 'Ya se mandó una vez. ' : ''}Les llega por push y mail a los jugadores de tenis. ¿Confirmás?`,
+      reintento ? 'Reintentar envío' : 'Publicar novedad',
+      reintento
+        ? 'El envío anterior no terminó. Se vuelven a mandar los mails; el push que ya salió no se repite. ¿Confirmás?'
+        : 'Les llega por push y mail a los jugadores de tenis. ¿Confirmás?',
       [
         { text: 'No', style: 'cancel' },
         {
@@ -92,22 +99,30 @@ export function CarteleraTenis() {
       {loading && lista.length === 0 && <ActivityIndicator color={colors.oro} style={s.cargando} />}
       {!loading && !error && lista.length === 0 && <Text style={estilosTenis.vacio}>Todavía no hay novedades en la cartelera.</Text>}
 
-      {lista.map(n => (
+      {lista.map(n => {
+        const estado = estadoNovedad(n, Date.now())
+        return (
         <View key={n.id} style={[estilosTenis.card, s.card, n.destacada && s.destacada]}>
           {n.destacada && <Text style={s.etiqueta}>DESTACADA</Text>}
           <Text style={s.titulo}>{n.titulo}</Text>
           <Text style={estilosTenis.textoCard}>{n.texto}</Text>
           <Text style={estilosTenis.mutedCard}>
-            {n.enviada_at
+            {estado === 'enviada'
               ? `Enviada el ${momento(n.enviada_at)} · ${n.push_enviados} push · ${n.mails_enviados} mails`
-              : `Sin enviar${n.created_at ? ` · creada el ${momento(n.created_at)}` : ''}`}
+              : estado === 'enviando'
+                ? `Mandándose desde el ${momento(n.enviada_at)}. Recargá en unos minutos.`
+                : estado === 'incompleta'
+                  ? `El envío del ${momento(n.enviada_at)} no terminó (${n.push_enviados} push). Podés reintentarlo.`
+                  : `Sin enviar${n.created_at ? ` · creada el ${momento(n.created_at)}` : ''}`}
           </Text>
-          <Boton
-            texto={n.enviada_at ? 'VOLVER A PUBLICAR' : 'PUBLICAR'}
-            variante={n.enviada_at ? 'secundario' : 'primario'}
-            cargando={ocupado === `publicar-${n.id}`}
-            onPress={() => publicar(n)}
-          />
+          {(estado === 'sin_enviar' || estado === 'incompleta') && (
+            <Boton
+              texto={estado === 'incompleta' ? 'REINTENTAR ENVÍO' : 'PUBLICAR'}
+              variante={estado === 'incompleta' ? 'secundario' : 'primario'}
+              cargando={ocupado === `publicar-${n.id}`}
+              onPress={() => publicar(n)}
+            />
+          )}
           <View style={s.acciones}>
             <View style={s.flex}>
               <Boton texto="EDITAR" variante="secundario" onPress={() => {
@@ -120,7 +135,8 @@ export function CarteleraTenis() {
             </View>
           </View>
         </View>
-      ))}
+        )
+      })}
 
       <Modal visible={editando !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditando(null)}>
         <SafeAreaView style={estilosTenis.sheet}>

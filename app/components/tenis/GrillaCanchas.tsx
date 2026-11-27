@@ -18,7 +18,7 @@ const LINEA_NOMBRE = 11 // alto de una línea de nombre (fontSize 9)
 
 export function GrillaCanchas({
   fecha, config, horario = null, canchas, items, ahoraMs, conDetalle = false, reservable = true,
-  onPressItem, onPressLibre,
+  onPressItem, onPressLibre, ancho: anchoFijo, altoMax, filaH = FILA_H,
 }: {
   fecha:    string
   config:   TenisConfig
@@ -34,6 +34,11 @@ export function GrillaCanchas({
   reservable?:   boolean
   onPressItem?:  (item: ItemGrilla) => void
   onPressLibre?: (canchaId: string, hora: string) => void
+  // Pantalla completa (GrillaPantallaCompleta): ancho y alto ya calculados
+  // (sin medir) y filas más bajas.
+  ancho?:   number
+  altoMax?: number
+  filaH?:   number
 }) {
   const ventana = useWindowDimensions()
   const [ancho, setAncho] = useState<number | null>(null)
@@ -50,14 +55,14 @@ export function GrillaCanchas({
   }
 
   // Hasta medir el contenedor, el ancho de la pantalla menos el margen típico.
-  const colW = anchoColumna(ancho ?? ventana.width - 40, canchas.length)
-  const linea = lineaAhora(fecha, ahoraMs, cfg, FILA_H)
+  const colW = anchoColumna(anchoFijo ?? ancho ?? ventana.width - 40, canchas.length)
+  const linea = lineaAhora(fecha, ahoraMs, cfg, filaH)
   const tocaLibre = reservable && !!onPressLibre
 
   return (
-    <View onLayout={e => setAncho(e.nativeEvent.layout.width)}>
+    <View onLayout={anchoFijo === undefined ? e => setAncho(e.nativeEvent.layout.width) : undefined}>
       <ScrollView
-        style={{ maxHeight: Math.max(320, ventana.height * 0.7) }}
+        style={{ maxHeight: altoMax ?? Math.max(320, ventana.height * 0.7) }}
         stickyHeaderIndices={[0]}
         nestedScrollEnabled
         showsVerticalScrollIndicator={false}
@@ -78,35 +83,35 @@ export function GrillaCanchas({
 
         <View style={s.cuerpo}>
           <View style={{ width: HORA_W }}>
-            {filas.map(h => <Text key={h} style={s.hora}>{h}</Text>)}
+            {filas.map(h => <Text key={h} style={[s.hora, { height: filaH }]}>{h}</Text>)}
           </View>
           {canchas.map(c => {
             const bloques = porCancha[c.id] ?? []
             const ocupadas = new Set<number>()
             for (const b of bloques) for (let i = b.fila; i < b.fila + b.filas; i++) ocupadas.add(i)
             return (
-              <View key={c.id} style={[s.columna, { width: colW, height: filas.length * FILA_H }]}>
+              <View key={c.id} style={[s.columna, { width: colW, height: filas.length * filaH }]}>
                 {filas.map((h, i) => {
                   const pasada = Date.parse(isoArgentina(fecha, h)) <= ahoraMs
                   const libre = !ocupadas.has(i) && !pasada && tocaLibre
                   return libre ? (
                     <TouchableOpacity
                       key={h}
-                      style={[s.celda, s.celdaLibre]}
+                      style={[s.celda, { height: filaH }, s.celdaLibre]}
                       onPress={() => onPressLibre?.(c.id, h)}
                       activeOpacity={0.6}
                       accessibilityRole="button"
                       accessibilityLabel={`Cancha ${c.nombre}, ${h}, libre`}
                     />
                   ) : (
-                    <View key={h} style={[s.celda, pasada && s.celdaPasada]} />
+                    <View key={h} style={[s.celda, { height: filaH }, pasada && s.celdaPasada]} />
                   )
                 })}
                 {bloques.map((b, i) => {
                   const est = estiloItem(b)
                   const nombres = nombresBloque(b)
                   const hora = esBloque(b) ? null : inicioReal(b.inicio, cfg.margen_inicio_min)
-                  const alto = b.filas * FILA_H - 2
+                  const alto = b.filas * filaH - 2
                   const conHora = conDetalle && !!hora
                   const lineas = Math.max(1, Math.floor((alto - 6) / LINEA_NOMBRE) - (conHora ? 1 : 0))
                   const contenido = (
@@ -119,7 +124,7 @@ export function GrillaCanchas({
                   )
                   const estilo = [
                     s.bloque,
-                    { top: b.fila * FILA_H + 1, height: alto, backgroundColor: est.fondo },
+                    { top: b.fila * filaH + 1, height: alto, backgroundColor: est.fondo },
                     b.mio && s.bloqueMio,
                   ]
                   const label = `Cancha ${c.nombre}, ${est.etiqueta}${hora ? `, arranca ${hora}` : ''}${b.recurrente ? ', fijo' : ''}, ${nombres.join(', ')}`

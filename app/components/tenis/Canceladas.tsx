@@ -3,7 +3,7 @@ import { View, Text, TextInput, ScrollView, ActivityIndicator, RefreshControl, S
 import { colors } from '@/constants/theme'
 import { ErrorCarga } from '@/components/shared/ErrorCarga'
 import { canceladasParaExportar, compartirCsv, useCanceladas, type FiltrosCanceladas } from '@/hooks/useTenisGestion'
-import { CANCELADO_POR, csvCanceladas, etiquetaAnticipacion, lineaReserva, rangoPorDefecto, type CanceladoPor } from '@/lib/tenisGestion'
+import { CANCELADO_POR, avisoExportacion, csvCanceladas, etiquetaAnticipacion, lineaReserva, rangoPorDefecto, type CanceladoPor } from '@/lib/tenisGestion'
 import { HistorialReserva } from './HistorialReserva'
 import { Paginador, RangoFechas } from './ListadoReservas'
 import { Aviso, Chip, estilosTenis } from './ui'
@@ -22,6 +22,7 @@ export function Canceladas() {
   const [historial, setHistorial] = useState<string | null>(null)
   const [exportando, setExportando] = useState(false)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  const [avisoExport, setAvisoExport] = useState<string | null>(null)
   const { datos, loading, error, refetch } = useCanceladas(filtros, pagina)
 
   function filtrar(cambio: Partial<FiltrosCanceladas>) {
@@ -32,12 +33,19 @@ export function Canceladas() {
   async function exportar() {
     setExportando(true)
     setErrorAccion(null)
-    const r = await canceladasParaExportar(filtros)
-    if (r.ok) {
-      const c = await compartirCsv(`canceladas-tenis_${filtros.desde}_${filtros.hasta}`, csvCanceladas(r.data))
-      if (!c.ok) setErrorAccion(c.mensaje)
-    } else setErrorAccion(r.mensaje)
-    setExportando(false)
+    setAvisoExport(null)
+    try {
+      const r = await canceladasParaExportar(filtros)
+      if (r.ok) {
+        const c = await compartirCsv(`canceladas-tenis_${filtros.desde}_${filtros.hasta}`, csvCanceladas(r.data.items))
+        if (!c.ok) setErrorAccion(c.mensaje)
+        else setAvisoExport(avisoExportacion(r.data.items.length, r.data.total, 'cancelaciones'))
+      } else setErrorAccion(r.mensaje)
+    } catch {
+      setErrorAccion('No se pudo exportar. Probá de nuevo.')
+    } finally {
+      setExportando(false)
+    }
   }
 
   return (
@@ -78,6 +86,7 @@ export function Canceladas() {
         <Chip texto={exportando ? 'EXPORTANDO…' : 'EXPORTAR'} activo={false} disabled={exportando} onPress={exportar} />
       </View>
 
+      {avisoExport && <Aviso>{avisoExport}</Aviso>}
       {errorAccion && <Aviso tipo="error">{errorAccion}</Aviso>}
       {error && <ErrorCarga mensaje={error} onReintentar={refetch} />}
       {loading && datos.items.length === 0 && <ActivityIndicator color={colors.oro} style={s.cargando} />}

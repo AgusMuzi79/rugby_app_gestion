@@ -56,6 +56,8 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
   // Grilla: se miran más días de los que se reservan (los demás, sólo ver).
   const [vista, setVista] = useState<VistaTenis>('dia')
   const diasVer = useMemo(() => diasVista(ahoraMs, config.dias_vista), [ahoraMs, config.dias_vista])
+  // Pasó la medianoche o se achicó la vista: volver a un día que se pueda navegar.
+  useEffect(() => { if (!diasVer.includes(fecha)) setFecha(diasVer[0]) }, [diasVer, fecha])
   const reservable = (disp?.reservable ?? true) && esDiaReservable(fecha, ahoraMs, config.anticipacion_dias)
 
   function pedirCancelacion(r: MiReserva) {
