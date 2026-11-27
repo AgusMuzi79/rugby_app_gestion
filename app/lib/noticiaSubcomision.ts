@@ -3,16 +3,27 @@
 // The web panel keeps an identical copy in web/lib/noticiaSubcomision.ts.
 //
 // - Published immediately to every member (audiencia 'todos').
-// - `cuerpo` is NOT NULL in the DB: a title-only noticia stores ''. That is
-//   the "quick notification" case: only then members get a push with the
-//   title (see debeNotificarNoticia). With a description or images the
-//   noticia is just published in the feed, without a push.
+// - `cuerpo` is NOT NULL in the DB: a title-only noticia stores ''.
+// - Whether a push is sent is an explicit choice in the form ("Enviar
+//   notificación a los socios", unchecked by default), not derived from the
+//   payload.
 // - Up to MAX_IMAGENES_NOTICIA images (`imagenes`, storage paths in order).
 //   `imagen_path` keeps the first one for older readers.
 // - `etiquetas` = [deporte] when the subcomisión has a sport, so it shows
 //   under that sport filter in the member feed; otherwise no etiquetas.
+// - "Destacar noticia" (unchecked by default): `destacada_hasta` = now +
+//   DIAS_DESTACADA days, so the item goes first in the member feed until
+//   then (see app/lib/ordenNoticias.ts); null when not featured.
 
 export const MAX_IMAGENES_NOTICIA = 6
+export const DIAS_DESTACADA = 7
+
+const MS_POR_DIA = 24 * 60 * 60 * 1000
+
+// End of the featured window for an item featured at `ahora` (ISO).
+export function destacadaHasta(ahora: Date): string {
+  return new Date(ahora.getTime() + DIAS_DESTACADA * MS_POR_DIA).toISOString()
+}
 
 export const DEPORTES_NOTICIA = ['rugby', 'hockey', 'tenis'] as const
 export type DeporteNoticia = typeof DEPORTES_NOTICIA[number]
@@ -23,6 +34,9 @@ export interface NoticiaSubcomisionInput {
   deporte?:     string | null
   autorId:      string
   imagenes?:    string[] | null
+  destacar?:    boolean
+  // Clock for `destacada_hasta` (defaults to now; injectable for checks).
+  ahora?:       Date
 }
 
 export interface NoticiaSubcomisionPayload {
@@ -34,6 +48,7 @@ export interface NoticiaSubcomisionPayload {
   publicada:   true
   imagen_path: string | null
   imagenes:    string[]
+  destacada_hasta: string | null
 }
 
 export type NoticiaSubcomisionResult =
@@ -57,12 +72,6 @@ export function pathsImagenesNoticia(fila: { imagenes?: string[] | null; imagen_
   return fila.imagen_path ? [fila.imagen_path] : []
 }
 
-// Subcomisión push rule: only a title-only noticia (blank cuerpo, no images)
-// is a quick notice that sends a push.
-export function debeNotificarNoticia(noticia: { cuerpo: string; imagenes: string[] }): boolean {
-  return noticia.cuerpo.trim() === '' && noticia.imagenes.length === 0
-}
-
 function esDeporte(value: string | null | undefined): value is DeporteNoticia {
   return (DEPORTES_NOTICIA as readonly string[]).includes(value ?? '')
 }
@@ -84,6 +93,7 @@ export function buildNoticiaSubcomision(input: NoticiaSubcomisionInput): Noticia
       autor_id:    input.autorId,
       publicada:   true,
       ...camposImagenesNoticia(imagenes),
+      destacada_hasta: input.destacar ? destacadaHasta(input.ahora ?? new Date()) : null,
     },
   }
 }

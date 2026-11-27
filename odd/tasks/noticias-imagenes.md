@@ -40,7 +40,7 @@ Locator: `odd/tasks/noticias-imagenes.md` · Engram mirror: `odd/noticias-imagen
 
 ## Acceptance criteria
 
-- Title-only Subcomisión news → push sent; with description or any image → no push call, item visible in the feed.
+- ~~Title-only Subcomisión news → push sent; with description or any image → no push call, item visible in the feed.~~ Replaced by T5: Subcomisión news sends a push iff "Enviar notificación a los socios" is checked (unchecked by default).
 - Buffet/Secretaría/Admin push unchanged.
 - Feed shows items with 0, 1 or N images; tapping an image opens it full screen; swipe moves between images; close returns.
 - Old rows with only `imagen_path` still show their image.
@@ -67,3 +67,24 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
   - R3-orchestration-untested (SUGGESTION): only the pure helpers are covered; the hook/page wiring is checked by hand.
 - 2026-11-27: second native review of the whole branch including the web fix (lineage `review-495e3dd7280de360`): **approved**, acknowledged. New advisory R3-001: `imagenes` wins over `imagen_path`, so a flow that updates only `imagen_path` on an existing row would leave `imagenes` stale. Not reachable today: no flow updates `imagen_path` (Buffet and Subcomisión only insert and delete). If an edit-image flow is added, it must write both columns (`camposImagenesNoticia`).
 - 2026-11-27: `imagenes` added to `app/lib/database.types.ts`; casts removed from `useNoticiasSubcomision.ts` (`cd app && npx tsc --noEmit`: exit 0; `npm run test:noticias`: 13 casos ok).
+
+## Change request 2026-11-27 (after PR #90 shipped)
+
+User: replace the automatic rule with a checkbox in the Subcomisión create form to choose whether the news item sends a push. Assumption: unchecked by default (avoids accidental pushes to every member). Buffet/Secretaría/Admin unchanged. Branch `feat/noticias-push-opcional`.
+
+- [x] T5 — "Enviar notificación" checkbox in the app and web Subcomisión forms; push iff checked (independent of description/images); `debeNotificarNoticia` replaced by the explicit flag; helper text and checks updated. Route: delegated (writer trigger: 2+ non-trivial files).
+  - The title-only push rule from PR #90 (objective 3 and the first acceptance criterion above) is **replaced**: the push now depends only on the checkbox. `debeNotificarNoticia` and its two check cases were removed from `app/lib` and `web/lib` (`rg debeNotificar` over app/web/supabase: no matches). `publicar(titulo, descripcion, imagenesUris, notificar)` in `useNoticiasSubcomision`; the web page keeps a `notificar` state. Both forms start unchecked and reset to unchecked on close/after publishing. Push payload, uploads, cleanup, insert and the push-failure warning are unchanged.
+  - App: `Pressable` row with `accessibilityRole="checkbox"` + `accessibilityState`, Feather `check-square`/`square` (same glyphs as `ListadoReservas`), `tc.oro`/`tc.muted`, 44 pt min height. Web: native `<input type="checkbox">` inside a `<label>`, `accent-oro`, helper linked with `aria-describedby`; no new Next.js API.
+  - Test-first exception: UI wiring only, no component test runner, and the pure helper was removed, so there is no meaningful RED.
+  - Evidence: `cd app && npm run test:noticias`: 11 casos ok. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 11 casos ok. `cd app && npx tsc --noEmit`: exit 0. `cd web && npx tsc --noEmit`: exit 0. Phone and browser check pending (Agus): unchecked publishes without push, checked sends it (with and without description/images).
+
+## Change request 2026-11-27 (2): featured news
+
+User: add a checkbox to feature a news item so it stays on top for a while. Assumption: fixed 7 days (`DIAS_DESTACADA = 7`), unchecked by default, Subcomisión forms only (app + web). Featured items still in their window go first in the socio/tutor feed (most recent first among them), with a "DESTACADA" badge; afterwards they fall back to date order. No un-feature/edit flow (Subcomisión has no edit today).
+
+- [x] T6 — Migration `20261204000000_noticias_destacada.sql` (`destacada_hasta timestamptz null`); pure helpers `destacadaHasta(ahora)` and `ordenarNoticiasFeed(noticias, ahora)` in the app with RED→GREEN checks; "Destacar noticia" checkbox in app + web Subcomisión forms; feed ordering + badge; staff list marker; types updated. Route: delegated (writer trigger: 2+ non-trivial files).
+
+  - Evidence: RED `cd app && npm run test:noticias`: exit 1, AssertionError deepStrictEqual on the first case (payload without `destacada_hasta`), and `lib/ordenNoticias.check.ts` failed with `Cannot find module './ordenNoticias'` (checks written before the code). GREEN `cd app && npm run test:noticias`: 13 casos ok + 6 casos ok (`test:noticias` now chains `lib/ordenNoticias.check.ts`). `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 13 casos ok. `cd app && npx tsc --noEmit`: exit 0. `cd web && npx tsc --noEmit`: exit 0. Migration not applied anywhere. Phone and browser check pending (Agus).
+  - `buildNoticiaSubcomision` takes `destacar` (and an injectable `ahora`) and returns `destacada_hasta` (ISO = now + `DIAS_DESTACADA` days, or null); mirrored in `web/lib`. `app/lib/ordenNoticias.ts`: `estaDestacada` (strictly after now) and `ordenarNoticiasFeed` (featured first, then created_at desc, stable, non-mutating). Only the member feed (`useNoticias(true)`) is reordered; Secretaría (`useNoticias(false)`) keeps created_at desc. Badge "DESTACADA" in the socio card (`oro` / `sobreOro`) and markers in the app and web Subcomisión lists. No index: the feed reads every published noticia and orders in the client.
+  - **Deploy order**: apply `20261204000000_noticias_destacada.sql` BEFORE any OTA or web deploy: the socio feed, the Subcomisión lists and the inserts now select/write `destacada_hasta`, and would fail without the column.
+- 2026-11-27: native review of T5+T6 (lineage `review-750721d871fb5913`): approved, acknowledged. R3-001 (WARNING, client clock / unbounded `destacada_hasta`) fixed in the same migration with the `noticias_proteger_destacada_hasta` trigger: for client roles an insert asking to feature becomes `now() + 7 days` only for subcomisión/admin (null otherwise), and updates keep the old value. Checked in a disposable postgres:15 container (stub `get_rol`): subcomisión asking for 2099 got 7 days, buffet got null, a client update was ignored, service_role sets it freely. R3-002 (SUGGESTION): the flag wiring has no automated test; it is checked by hand.

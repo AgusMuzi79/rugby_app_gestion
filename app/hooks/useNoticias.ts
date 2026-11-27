@@ -6,6 +6,7 @@ import { useEstadoCarga } from './useEstadoCarga'
 import { useAuthStore } from '@/stores/authStore'
 import { confirmacionPublicar, mensajeResultadoAviso, type Audiencia } from '@/lib/avisoNoticia'
 import { pathsImagenesNoticia } from '@/lib/noticiaSubcomision'
+import { estaDestacada, ordenarNoticiasFeed } from '@/lib/ordenNoticias'
 
 export interface Noticia {
   id:          string
@@ -20,6 +21,10 @@ export interface Noticia {
   etiquetas:   string[]
   created_at:  string
   autor:       string
+  destacada_hasta: string | null
+  // Featured by Subcomisión and still in its window (at fetch time). In the
+  // member feed these go first (lib/ordenNoticias.ts).
+  destacada:   boolean
   // Sólo en la lista de Secretaría (useNoticias(false)); en la del socio quedan
   // en 'todos' / null porque no se piden.
   audiencia:     Audiencia
@@ -45,7 +50,7 @@ export function useNoticias(soloPublicadas: boolean) {
     const db = supabase as any
     // La consulta del socio no cambia; Secretaría además trae audiencia y
     // notificada_at para confirmar el aviso push al publicar.
-    const columnas = 'id, titulo, cuerpo, imagen_path, imagenes, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)'
+    const columnas = 'id, titulo, cuerpo, imagen_path, imagenes, destacada_hasta, publicada, etiquetas, created_at, profiles!noticias_autor_id_fkey(nombre)'
     let q = db
       .from('noticias')
       .select(soloPublicadas ? columnas : `${columnas}, audiencia, notificada_at`)
@@ -64,8 +69,10 @@ export function useNoticias(soloPublicadas: boolean) {
     }
     setError(null)
 
+    const ahora = new Date()
     const normalized: Noticia[] = (data ?? []).map((n: Record<string, unknown>) => {
       const imagenPath = n.imagen_path as string | null
+      const destacadaHasta = (n.destacada_hasta as string | null | undefined) ?? null
       const imagenesUrls = pathsImagenesNoticia({ imagenes: n.imagenes as string[] | null, imagen_path: imagenPath })
         .map(path => supabase.storage.from('noticias-imagenes').getPublicUrl(path).data.publicUrl)
       return {
@@ -79,12 +86,15 @@ export function useNoticias(soloPublicadas: boolean) {
         etiquetas:   (n.etiquetas as string[]) ?? [],
         created_at:  n.created_at as string,
         autor:       (n.profiles as { nombre: string } | null)?.nombre ?? '—',
+        destacada_hasta: destacadaHasta,
+        destacada:   estaDestacada({ destacada_hasta: destacadaHasta }, ahora),
         audiencia:     (n.audiencia as Audiencia | undefined) ?? 'todos',
         notificada_at: (n.notificada_at as string | null | undefined) ?? null,
       }
     })
 
-    setNoticias(normalized)
+    // Member feed: featured first. Secretaría keeps plain created_at desc.
+    setNoticias(soloPublicadas ? ordenarNoticiasFeed(normalized, ahora) : normalized)
     terminar()
   }, [soloPublicadas, empezar, terminar])
 

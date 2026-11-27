@@ -6,7 +6,6 @@ import { useAuthStore } from '@/stores/authStore'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
-  debeNotificarNoticia,
   pathsImagenesNoticia,
   MAX_IMAGENES_NOTICIA,
 } from '@/lib/noticiaSubcomision'
@@ -24,6 +23,7 @@ export interface NoticiaSubco {
   // Storage paths of the images (`imagenes`, or the legacy imagen_path), in order.
   imagenes:     string[]
   imagenesUrls: string[]
+  destacada_hasta: string | null
 }
 
 const BUCKET = 'noticias-imagenes'
@@ -39,9 +39,10 @@ function decodeBase64(base64: string): Uint8Array {
 // Subcomisión noticias: optional images (up to MAX_IMAGENES_NOTICIA) uploaded
 // first, in order, to the public 'noticias-imagenes' bucket under
 // {uid}/{timestamp}-{i}.jpg, then a single insert published immediately to
-// every member. Only a title-only noticia sends the 'noticia_publicada' push
-// (debeNotificarNoticia); with a description or images it is just published
-// in the feed.
+// every member. The 'noticia_publicada' push is sent only when the caller
+// passes notificar = true (the "Enviar notificación" checkbox, unchecked by
+// default). destacar = true ("Destacar noticia") sets destacada_hasta so the
+// item goes first in the member feed for DIAS_DESTACADA days.
 // Payload rules (etiquetas from profiles.deporte, cuerpo '' when title-only)
 // live in lib/noticiaSubcomision.ts.
 export function useNoticiasSubcomision() {
@@ -57,7 +58,7 @@ export function useNoticiasSubcomision() {
     setError(null)
     const { data, error: err } = await supabase
       .from('noticias')
-      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes')
+      .select('id, titulo, cuerpo, etiquetas, created_at, imagen_path, imagenes, destacada_hasta')
       .order('created_at', { ascending: false })
       .limit(LIMITE)
 
@@ -96,11 +97,13 @@ export function useNoticiasSubcomision() {
   const publicar = useCallback(async (
     titulo: string,
     descripcion: string,
-    imagenesUris: string[] = [],
+    imagenesUris: string[],
+    notificar: boolean,
+    destacar: boolean,
   ): Promise<boolean> => {
     const autorId = session?.user.id ?? ''
     // The local URIs only count here; the payload gets the storage paths below.
-    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId, imagenes: imagenesUris })
+    const validacion = buildNoticiaSubcomision({ titulo, descripcion, deporte, autorId, imagenes: imagenesUris, destacar })
     if (!validacion.ok) {
       Alert.alert('Error', validacion.error === 'titulo_vacio'
         ? 'El título es obligatorio.'
@@ -154,9 +157,9 @@ export function useNoticiasSubcomision() {
       return false
     }
 
-    // Only a title-only noticia is a quick notice with a push. The noticia is
-    // already published; a push failure is reported but does not undo it.
-    if (debeNotificarNoticia(fila)) {
+    // Push only when the author ticked the checkbox. The noticia is already
+    // published; a push failure is reported but does not undo it.
+    if (notificar) {
       const { error: pushErr } = await supabase.functions.invoke('notifications', {
         body: {
           type: 'noticia_publicada',

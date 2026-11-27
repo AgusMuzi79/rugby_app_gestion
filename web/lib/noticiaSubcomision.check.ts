@@ -7,7 +7,8 @@ import assert from 'node:assert/strict'
 import {
   buildNoticiaSubcomision,
   camposImagenesNoticia,
-  debeNotificarNoticia,
+  DIAS_DESTACADA,
+  destacadaHasta,
   MAX_IMAGENES_NOTICIA,
   pathsImagenesNoticia,
 } from './noticiaSubcomision'
@@ -34,6 +35,7 @@ caso('title only: cuerpo is empty string, published to everyone', () => {
     publicada:   true,
     imagen_path: null,
     imagenes:    [],
+    destacada_hasta: null,
   })
 })
 
@@ -90,15 +92,17 @@ caso('pathsImagenesNoticia prefers imagenes and falls back to imagen_path', () =
   assert.deepEqual(pathsImagenesNoticia({ imagen_path: null }), [])
 })
 
-caso('push: title only (blank cuerpo, no images) notifies', () => {
-  assert.equal(debeNotificarNoticia({ cuerpo: '', imagenes: [] }), true)
-  assert.equal(debeNotificarNoticia({ cuerpo: '   ', imagenes: [] }), true)
+caso('destacadaHasta is ahora + DIAS_DESTACADA (7) days, as ISO', () => {
+  assert.equal(DIAS_DESTACADA, 7)
+  assert.equal(destacadaHasta(new Date('2026-11-27T12:00:00.000Z')), '2026-12-04T12:00:00.000Z')
 })
 
-caso('push: a description or any image means no push', () => {
-  assert.equal(debeNotificarNoticia({ cuerpo: 'El sábado a las 21', imagenes: [] }), false)
-  assert.equal(debeNotificarNoticia({ cuerpo: '', imagenes: ['user-1/1.jpg'] }), false)
-  assert.equal(debeNotificarNoticia({ cuerpo: 'Texto', imagenes: ['user-1/1.jpg'] }), false)
+caso('destacar sets destacada_hasta from ahora; otherwise it is null', () => {
+  const ahora = new Date('2026-11-27T12:00:00.000Z')
+  const si = buildNoticiaSubcomision({ titulo: 'X', autorId: AUTOR, destacar: true, ahora })
+  assert.equal(si.ok && si.payload.destacada_hasta, '2026-12-04T12:00:00.000Z')
+  const no = buildNoticiaSubcomision({ titulo: 'X', autorId: AUTOR, destacar: false, ahora })
+  assert.equal(no.ok && no.payload.destacada_hasta, null)
 })
 
 caso('empty or blank title is rejected', () => {
