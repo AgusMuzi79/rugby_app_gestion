@@ -59,3 +59,9 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
 
 - 2026-11-27: mapping done (explorer), push scope decided by user (Subcomisión only).
 - 2026-11-27: T1–T4 implemented on `feat/noticias-imagenes` (commits 389b753, bd01a59, 2903c58, T4). Pending: apply migration `20261129000000` (before any OTA or web deploy: app and web now read and write `imagenes`), add `imagenes` to `app/lib/database.types.ts` and drop the casts in `useNoticiasSubcomision.ts`, phone and browser checks.
+- 2026-11-27: rebased on main (60de144). The migration was renamed to `20261129000000` because main already had `20261128000000_tenis_paridad_ondepor.sql`.
+- 2026-11-27: native review (risk medium, consent granted, lens reliability): **approved**, acknowledged (lineage `review-0d8dfbc27413559a`, authority burned). Advisory findings:
+  - R3-web-prepare-throw-orphans (WARNING): **fixed** in a follow-up commit. `prepararImagen` now runs inside try/catch in the web upload loop, so a failure cleans up earlier uploads and unlocks the form.
+  - R3-deploy-order-feed (WARNING): the socio/Secretaría feed selects `imagenes`, so the migration must be applied BEFORE any OTA or web deploy.
+  - R3-picker-no-edit-format (SUGGESTION): the app picker uploads uncropped originals as `.jpg` without resizing. Check memory and upload time with 6 large photos on a phone; add `expo-image-manipulator` resizing if needed (it would need a native build).
+  - R3-orchestration-untested (SUGGESTION): only the pure helpers are covered; the hook/page wiring is checked by hand.

@@ -231,13 +231,24 @@ export default function SubcomisionNoticiasPage() {
     }
     const inicio = Date.now()
     for (const [i, img] of imagenes.entries()) {
-      const subir = await prepararImagen(img.file)
-      const ext  = subir.name.split('.').pop() ?? 'jpg'
-      const path = `${autorId}/${inicio}-${i}.${ext}`
-      const { error: uploadErr } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, subir, { contentType: subir.type })
-      if (uploadErr) {
+      // prepararImagen can throw (e.g. a file the browser cannot decode); treat
+      // it like a failed upload so earlier files are cleaned up and the form
+      // does not stay stuck in "publicando".
+      let path = ''
+      let fallo = false
+      try {
+        const subir = await prepararImagen(img.file)
+        const ext  = subir.name.split('.').pop() ?? 'jpg'
+        path = `${autorId}/${inicio}-${i}.${ext}`
+        const { error: uploadErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, subir, { contentType: subir.type })
+        fallo = !!uploadErr
+      } catch (err) {
+        console.warn('noticias: image preparation failed', err)
+        fallo = true
+      }
+      if (fallo) {
         await limpiarSubidas()
         setFormError(imagenes.length > 1
           ? `No se pudo subir la imagen ${i + 1} de ${imagenes.length}.`
