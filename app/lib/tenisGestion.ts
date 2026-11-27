@@ -1,4 +1,4 @@
-// Gestión de tenis "como OnDepor" (odd/tasks/tenis-paridad-ondepor.md, contrato
+// Gestión de tenis (odd/tasks/tenis-paridad.md, contrato
 // 8–13): listado de reservas, historial, canceladas, reportes, cartelera y
 // horarios por día. Lógica pura, sin React; verificada en tenisGestion.check.ts.
 // Los RPC son de la migración 20261128000000: se parsean de forma tolerante.

@@ -7,7 +7,7 @@ import { ESTADOS_RESERVA, etiquetaDiaCorta, fechaArgentina, horaArgentina } from
 import { ACCIONES_HISTORIAL, TIPOS_RESERVA, horaSnapshot, nombreCancha } from '@/lib/tenisGestion'
 import { BarraModal, estilosTenis } from './ui'
 
-// Historial de una reserva (`tenis_reserva_historial`), como el de OnDepor:
+// Historial de una reserva (`tenis_reserva_historial`):
 // tipo, quién la creó y cuándo, y cada versión con fecha, horario, jugadores,
 // cancha, estado y quién la cambió. Se abre desde el listado y la grilla.
 

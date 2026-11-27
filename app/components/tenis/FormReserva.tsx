@@ -27,7 +27,7 @@ import { Aviso, BarraModal, Boton, Chip, SelectorDia, Titulo, estilosTenis } fro
 // tanto) y su propio turno cuenta como libre. Sin aviso de sanciones (ya lo
 // aceptó al reservar). Si la grilla del día nuevo no carga, `errorItems` se
 // muestra en el formulario con REINTENTAR (`onReintentarItems`).
-// Como en OnDepor: un jugador puede ser "Socio a designar" (se elige después,
+// Un jugador puede ser "Socio a designar" (se elige después,
 // editando la reserva), el invitado puede ir sin DNI y el socio deja un
 // comentario opcional y ve el precio (`tenis_cotizar`) antes de confirmar. La
 // telefónica también lleva comentario y, con un titular socio, cotiza a su nombre.

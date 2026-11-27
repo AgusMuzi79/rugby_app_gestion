@@ -11,7 +11,7 @@ import { Aviso, Boton, Titulo, estilosTenis } from './ui'
 // Reglas y precios de tenis (`tenis_config_guardar`). Los cambios valen para
 // las reservas nuevas; las ya hechas conservan su precio. Arriba, el horario de
 // cada día (`tenis_horarios_guardar`) y los días que se ven en el calendario
-// (`dias_vista`), como en OnDepor.
+// (`dias_vista`).
 
 type CampoNumero = { [K in keyof TenisConfig]: TenisConfig[K] extends number ? K : never }[keyof TenisConfig]
 

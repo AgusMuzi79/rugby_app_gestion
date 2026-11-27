@@ -805,7 +805,7 @@ export function estiloItem(item: Pick<ItemGrilla, 'tipo'>): EstiloItem {
   return ESTILOS[item.tipo] ?? ESTILOS.no_disponible
 }
 
-// Leyenda de la grilla, en el orden de OnDepor.
+// Leyenda de la grilla, en el orden que el club ya conoce.
 export const LEYENDA_TENIS: EstiloItem[] = [
   ESTILOS.reserva_web, ESTILOS.reserva_telefonica, ESTILOS.torneo, ESTILOS.clase,
   ESTILOS.entrenamiento, ESTILOS.no_disponible, ESTILOS.en_suspenso,
@@ -1075,7 +1075,7 @@ const MENSAJES: Record<string, string> = {
   jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',
   comprobante_invalido:    'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
   comprobante_no_subido:   'Todavía no hay comprobante subido.',
-  // Paridad OnDepor (migración 20261128000000 y tenis-gestion).
+  // Paridad del módulo de tenis (migración 20261128000000 y tenis-gestion).
   fuera_de_vista:          'Ese día todavía no se puede ver.',
   comentario_largo:        'El comentario puede tener hasta 280 caracteres.',
   motivo_cancelacion:      'Escribí el motivo de la cancelación.',

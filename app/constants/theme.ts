@@ -33,7 +33,7 @@ export const colors = {
   estadoPendiente: '#E67E22', // badge PENDIENTE, banner de foto faltante
 }
 
-// Grilla de canchas de tenis (reservas-tenis): la misma paleta de OnDepor que
+// Grilla de canchas de tenis (reservas-tenis): la misma paleta del sistema anterior que
 // el club ya conoce, un fondo por tipo de reserva o bloque y el texto que se
 // lee encima con contraste AA (blanco sólo sobre el azul oscuro; el resto lleva
 // texto oscuro). Ratios en lib/tenis.check.ts.
@@ -47,7 +47,7 @@ export const tenis = {
   enSuspenso:    { fondo: '#ACD2E7', texto: '#15110A' },
 } as const
 
-// Vista semanal de disponibilidad de tenis (como OnDepor): verde con muchas
+// Vista semanal de disponibilidad de tenis: verde con muchas
 // canchas libres, ámbar a mitad, naranja con pocas y bordó cuando está
 // completo. Texto con contraste AA (lib/tenisGrilla.check.ts).
 export const calorTenis = {

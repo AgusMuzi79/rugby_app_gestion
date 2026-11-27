@@ -1,10 +1,10 @@
 # Feature: reservas-tenis
 
 ## Objective
-Replace OnDepor for tennis court bookings: members book from the app, non-members book from a public web page (email confirmation + payment receipt), the tennis subcomisión manages everything from her phone, and the canchero checks players in by DNI.
+Replace the previous booking system for tennis court bookings: members book from the app, non-members book from a public web page (email confirmation + payment receipt), the tennis subcomisión manages everything from her phone, and the canchero checks players in by DNI.
 
 ## Problem
-Today the club uses OnDepor (club id 604). Players are registered with free text, so names are wrong, the "SOCIO A DESIGNAR" placeholder is used for paid second turns, guests are not validated, no-shows are hard to sanction, and the manager approves every new member by asking Secretaría by hand. The club publishes notices on Instagram to fix behaviour that the system should enforce.
+Before this module the club used a third-party booking system. Players are registered with free text, so names are wrong, the "SOCIO A DESIGNAR" placeholder is used for paid second turns, guests are not validated, no-shows are hard to sanction, and the manager approves every new member by asking Secretaría by hand. The club publishes notices on Instagram to fix behaviour that the system should enforce.
 
 ## Why
 The app already knows who is a member, who is up to date (NUVIX traffic light) and who has the "Carnet Tenis" service. Using that data removes the manual whitelist, computes prices automatically and lets the canchero validate every player against a real booking.
@@ -24,7 +24,7 @@ The app already knows who is a member, who is up to date (NUVIX traffic light) a
 - Guests (non-members) book on a public web page: DNI, name, surname, email → slot held 15 min → confirm through a one-time email link (otherwise discarded) → upload the transfer receipt (alias `uncas.tenis.macro`) until 3 h before the turn (otherwise auto-cancelled) → manager or canchero approves/rejects it in the app (rejection emails the guest with the reason).
 - Manager (rol `subcomision` with `profiles.deporte = 'tenis'`, or `admin`) works ONLY from the mobile app (no admin web panel): daily grid per court, recurring blocks with an end date (academy, coaches), one-off blocks (rain, maintenance) that cancel affected bookings and notify them, phone bookings, pending receipts, infractions and suspensions, rules and prices.
 - Canchero (rol `canchero`): types the DNI (or scans the QR) to check a player in; sees whether the person has a booking now, payment status and suspension; fixes players of a booking before they enter; marks a charge as collected; records an extension when players stay on a free court after their turn.
-- Grid colors per booking type, same palette as OnDepor: Reserva Web `#10577D`, Reserva Telefónica `#4094C4`, Torneo `#F06B3A`, Clase/Escuelita `#499A6B`, Entrenamiento `#F5D580` (academy), No disponible `#BABFC2`, En suspenso `#ACD2E7`; guest bookings use the Web color with a "Invitado" label. Recurring blocks show a ↻ icon. Text color must keep AA contrast on each background (dark text on yellow/grey/light blue).
+- Grid colors per booking type, same palette as the previous system: Reserva Web `#10577D`, Reserva Telefónica `#4094C4`, Torneo `#F06B3A`, Clase/Escuelita `#499A6B`, Entrenamiento `#F5D580` (academy), No disponible `#BABFC2`, En suspenso `#ACD2E7`; guest bookings use the Web color with a "Invitado" label. Recurring blocks show a ↻ icon. Text color must keep AA contrast on each background (dark text on yellow/grey/light blue).
 
 ## Out of scope
 Rincón del Hincha / salón, tournaments, Viumi / online payment, admin web panel, booking reminder push, reports (phase 2).
@@ -150,7 +150,7 @@ Source of truth: the migration (RPC names, args, shapes) and `tenis-invitados` (
 - A guest booking that is not confirmed by email within 15 min disappears; a confirmed one without an uploaded receipt by 3 h before the turn is cancelled.
 - The canchero checks a person in by DNI and sees booking/payment/suspension; without a booking the result is `sin_reserva`.
 - A no-show charges all players to the titular and logs an infraction; the first one is a warning; a suspended person cannot book or be added.
-- The manager does everything from the app; the grid uses the OnDepor palette with readable text.
+- The manager does everything from the app; the grid keeps the previous system's palette with readable text.
 - With `FEATURES.tenis = false` nothing new is visible in app or web.
 
 ## Checks

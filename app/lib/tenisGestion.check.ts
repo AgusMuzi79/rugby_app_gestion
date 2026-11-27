@@ -104,7 +104,7 @@ caso('nombre de cancha con dos dígitos', () => {
   assert.equal(nombreCancha('Central'), 'Cancha Central')
 })
 
-caso('línea de reserva estilo OnDepor', () => {
+caso('línea de reserva del listado', () => {
   const r = parsearListado({
     total: 1,
     items: [{

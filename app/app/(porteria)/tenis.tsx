@@ -212,7 +212,7 @@ function TarjetaCheckin({ c, onCobrado, onExtender }: {
 }
 
 // Extensión: siguen jugando después del turno, en la misma cancha o en
-// cualquier otra libre para esa media hora / hora (como en OnDepor). Las
+// cualquier otra libre para esa media hora / hora. Las
 // canchas libres salen de la grilla de hoy; el servidor lo vuelve a validar.
 function ExtensionCancha({ reserva, canchas, items, onCerrar, onHecho }: {
   reserva:  ReservaCheckin

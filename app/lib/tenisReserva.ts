@@ -6,7 +6,7 @@ import {
 } from './tenis'
 
 // Lógica pura del formulario de reserva del socio y de la tarjeta del canchero
-// (paridad con OnDepor): comentario, "Socio a designar", invitado sólo con
+// (paridad del módulo de tenis): comentario, "Socio a designar", invitado sólo con
 // nombre y apellido, cotización antes de confirmar, saldo del check-in,
 // canchas libres para una extensión y novedades de tenis. Verificado en
 // tenisReserva.check.ts.

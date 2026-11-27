@@ -8,7 +8,7 @@ import { HistorialReserva } from './HistorialReserva'
 import { Paginador, RangoFechas } from './ListadoReservas'
 import { Aviso, Chip, estilosTenis } from './ui'
 
-// Reservas canceladas (`tenis_canceladas_listar`), como en OnDepor: motivo,
+// Reservas canceladas (`tenis_canceladas_listar`): motivo,
 // quién canceló y con cuánta anticipación ("3 h antes", "Después del inicio").
 // Por defecto, los últimos 30 días.
 
