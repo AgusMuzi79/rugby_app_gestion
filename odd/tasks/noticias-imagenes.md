@@ -34,7 +34,9 @@ Locator: `odd/tasks/noticias-imagenes.md` · Engram mirror: `odd/noticias-imagen
 - [x] T3 — App reader (`(socio)/noticias.tsx`, `useNoticias`): `imagenesUrls`, card shows first image + count badge, detail sheet paging gallery, tap opens full-screen viewer (`app/components/shared/VisorImagenes.tsx`), empty cuerpo not rendered. Route: delegated.
   - Evidence (previous commit bd01a59): `cd app && npx tsc --noEmit`: exit 0. `cd app && npm run test:noticias`: 13 casos ok (`pathsImagenesNoticia` drives the fallback to `imagen_path`). `npx tsx lib/tokens.check.ts`: 4 casos OK; `npx tsx lib/contraste.check.ts`: 39 casos OK. No runnable RED for UI (no component test runner); runtime on a phone pending (Agus): 0/1/N images, tap opens full screen, swipe, close, Android back, iOS pinch zoom.
   - The viewer is rendered inside the detail `Modal` so iOS presents it on top. Pinch zoom is iOS only (RN `ScrollView` zoom); Android shows the image fitted. Secretaría (`useNoticias(false)`) keeps `imagenUrl` (= first image).
-- [ ] T4 — Web Subcomisión: multi-file input with previews/removal, upload all, insert `imagenes`, conditional push, helper text, delete cleanup, thumbnails open in new tab. Route: delegated.
+- [x] T4 — Web Subcomisión: multi-file input with previews/removal, upload all, insert `imagenes`, conditional push, helper text, delete cleanup, thumbnails open in new tab. Route: delegated.
+  - Evidence (previous commit 2903c58): `cd web && npx tsc --noEmit`: exit 0. `cd web && npx --yes tsx@4.20.6 lib/noticiaSubcomision.check.ts`: 13 casos ok. `cd web && npm run lint`: no `lint` script and no ESLint config in `web/` (same as baseline). No new Next.js API used (client component, plain `<a>`/`<img>`). Browser check pending (Agus).
+  - Each picked file goes through `errorTamano` (over 10 MB is skipped with a message) and `prepararImagen` on upload; extra files beyond 6 are dropped with a message; object URLs are revoked on removal/close.
 
 ## Acceptance criteria
 
@@ -56,3 +58,4 @@ Strategy: `ask-on-risk`. Forecast ~450 authored lines.
 ## Progress / evidence
 
 - 2026-11-27: mapping done (explorer), push scope decided by user (Subcomisión only).
+- 2026-11-27: T1–T4 implemented on `feat/noticias-imagenes` (commits 389b753, bd01a59, 2903c58, T4). Pending: apply migration `20261128000000` (before any OTA or web deploy: app and web now read and write `imagenes`), add `imagenes` to `app/lib/database.types.ts` and drop the casts in `useNoticiasSubcomision.ts`, phone and browser checks.
