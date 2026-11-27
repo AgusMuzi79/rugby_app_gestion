@@ -331,6 +331,9 @@ const CODIGOS_CONTRATO = [
   // 20261127000000_tenis_detalles_edicion.
   'reintentar',
   'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
+  // 20261128000000_tenis_paridad_ondepor + tenis-gestion.
+  'fuera_de_vista', 'comentario_largo', 'motivo_cancelacion', 'novedad_invalida', 'novedad_inexistente',
+  'novedad_ya_enviada', 'novedad_en_curso', 'reporte_invalido', 'rango_invalido',
 ]
 
 caso('cada código de la base y de las funciones tiene mensaje propio', () => {
@@ -490,6 +493,61 @@ caso('corregir jugadores: socio por socio_id, invitado que sigue por dni (nunca 
   assert.deepEqual(otros, [{ socio_id: S1 }])
   const titularInv = (r.jugadores ?? []).filter(j => j.es_titular).map(entradaJugadorExistente)
   assert.deepEqual(titularInv, [{ dni: '30111777' }])
+})
+
+caso('corregir jugadores: "a designar" e invitado sin DNI se conservan', () => {
+  const r = parsearItem({
+    ...resumenStaff,
+    jugadores: [
+      { jugador_id: 'j1', socio_id: S1, nombre: 'Pérez Juan', es_titular: true },
+      { jugador_id: 'j2', socio_id: null, invitado_id: null, a_designar: true, nombre: 'Socio a designar' },
+      { jugador_id: 'j3', socio_id: null, invitado_id: I1, dni: null, nombre: 'Ana Paz' },
+    ],
+  })!
+  const otros = (r.jugadores ?? []).filter(j => !j.es_titular).map(entradaJugadorExistente)
+  assert.deepEqual(otros, [{ a_designar: true }, { invitado_id: I1 }])
+  assert.equal(r.jugadores?.[1].a_designar, true)
+})
+
+caso('grilla: comentario, no-show y config con horarios por día', () => {
+  const r = parsearItem({
+    ...resumenStaff, comentario: 'Traen pelotas',
+    jugadores: [{ jugador_id: 'j1', socio_id: S1, nombre: 'Pérez Juan', cargo_no_show: 9000, cargo_no_show_cobrado: true, monto_cobrado: 9000 }],
+  })!
+  assert.equal(r.comentario, 'Traen pelotas')
+  assert.equal(r.jugadores?.[0].cargo_no_show, 9000)
+  assert.equal(r.jugadores?.[0].cargo_no_show_cobrado, true)
+  assert.equal(r.jugadores?.[0].monto_cobrado, 9000)
+  const c = parsearConfig({
+    dias_vista: 10,
+    horarios: [
+      { dia_semana: 7, hora_desde: '10:00', hora_hasta: '17:00', activo: false },
+      { dia_semana: 1, hora_desde: '08:00:00', hora_hasta: '22:00:00', activo: true },
+      { dia_semana: 9, hora_desde: '08:00', hora_hasta: '22:00' }, { dia_semana: 2, hora_desde: '22:00', hora_hasta: '08:00' }, 'x',
+    ],
+  })
+  assert.equal(c.dias_vista, 10)
+  assert.deepEqual(c.horarios, [
+    { dia_semana: 1, hora_desde: '08:00', hora_hasta: '22:00', activo: true },
+    { dia_semana: 7, hora_desde: '10:00', hora_hasta: '17:00', activo: false },
+  ])
+  assert.deepEqual(parsearConfig({}).horarios, [])
+})
+
+caso('check-in del titular: "a designar" con su pendiente', () => {
+  const c = parsearCheckin({
+    persona: { tipo: 'socio', nombre: 'Pérez Juan' }, reserva: resumenStaff, resultado: 'ok', suspendido: false,
+    jugador: {
+      jugador_id: 'j1', cargo: 9000, cobrado: false, pendiente: 18000, pendiente_propio: 9000,
+      a_designar: [{ jugador_id: 'j2', cargo: 9000, cobrado: false, pendiente: 9000 }, { cargo: 1 }],
+    },
+  })
+  assert.equal(c.jugador?.pendiente, 18000)
+  assert.equal(c.jugador?.pendiente_propio, 9000)
+  assert.deepEqual(c.jugador?.a_designar, [{ jugador_id: 'j2', cargo: 9000, cobrado: false, pendiente: 9000 }])
+  const viejo = parsearCheckin({ jugador: { jugador_id: 'j1', cargo: 9000, cobrado: false } })
+  assert.equal(viejo.jugador?.pendiente_propio, 9000)
+  assert.deepEqual(viejo.jugador?.a_designar, [])
 })
 
 caso('disponibilidad: config, canchas válidas e ítems; basura da vacío', () => {

@@ -10,6 +10,7 @@ import {
   mensajeTenis, mensajeRespuesta, pantallaConfirmar, jugadoresPayload, CODIGOS_TENIS, CONFIG_DEFAULT,
   configDesde, resultadoInvitados, mensajeFalloInvitados,
   horariosDisponibles, franjaDeHora, horariosPorFranja, etiquetaDia, diaCorto, duracionTexto, faltaParaReservar,
+  COMENTARIO_MAX, validarComentario, horarioDesde, textoHorario,
   type JugadorForm,
 } from './tenis'
 
@@ -254,8 +255,27 @@ const CODIGOS_WEB = [
   'invitado_incompleto', 'email_invalido', 'titular_suspendido', 'jugador_no_habilitado', 'titular_es_socio',
   'plazo_invitado', 'estado_invalido', 'token_invalido', 'hold_vencido', 'reserva_cancelada',
   'comprobante_vencido', 'path_invalido', 'hueco_invalido',
-  'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido',
+  'limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido', 'comentario_largo',
 ]
+
+caso('comment: optional, up to 280 characters after trimming', () => {
+  assert.equal(COMENTARIO_MAX, 280)
+  assert.equal(validarComentario(''), undefined)
+  assert.equal(validarComentario('   '), undefined)
+  assert.equal(validarComentario('  ' + 'a'.repeat(280) + '  '), undefined)
+  assert.match(validarComentario('a'.repeat(281)) ?? '', /280/)
+})
+
+caso('opening hours of the day: read from `disponibilidad.horario`; null = closed, missing = unknown', () => {
+  assert.deepEqual(horarioDesde({ desde: '10:00:00', hasta: '17:00' }), { desde: '10:00', hasta: '17:00' })
+  assert.equal(horarioDesde(null), null)
+  assert.equal(horarioDesde({ desde: '10:00', hasta: '17:00', abierto: false }), null)
+  assert.deepEqual(horarioDesde({ desde: '10:00', hasta: '17:00', abierto: true }), { desde: '10:00', hasta: '17:00' })
+  assert.equal(horarioDesde(undefined), undefined)
+  assert.equal(horarioDesde({ desde: 'x', hasta: '17:00' }), undefined)
+  assert.equal(textoHorario({ desde: '10:00', hasta: '17:00' }), 'de 10 a 17 h')
+  assert.equal(textoHorario({ desde: '08:30', hasta: '22:00' }), 'de 8:30 a 22 h')
+})
 
 caso('error codes: every code the function can return has its own Spanish copy', () => {
   const generico = mensajeTenis('codigo_que_no_existe')

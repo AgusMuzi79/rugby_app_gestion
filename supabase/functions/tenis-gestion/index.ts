@@ -13,6 +13,17 @@
 //                          socios jugadores (y sus tutores), mail a los invitados. Sólo gestor.
 //   ver-comprobante      — { reserva_id } URL firmada de lectura del comprobante, 5 minutos.
 //                          Gestor o canchero.
+//   cancelar-varias      — { reserva_ids: uuid[] (1..100), motivo }. RPC tenis_cancelar_varias
+//                          (migración 20261128000000) y los mismos avisos que bloqueo-puntual para
+//                          cada reserva cancelada. => { canceladas, omitidas:[{reserva_id, codigo,
+//                          motivo}], avisos }. Sólo gestor.
+//   publicar-novedad     — { novedad_id } manda una novedad de la cartelera (tenis_novedades): push a
+//                          la audiencia de tenis_audiencia_novedades() (socios y sus tutores) y mail a
+//                          los que tienen un mail real. Se reclama con tenis_novedad_reclamar, así que
+//                          sale una sola vez; cada etapa (push, mails) queda registrada al terminar. Un
+//                          envío cortado se puede reintentar a los 15 minutos sin repetir el push.
+//                          => { enviada_at, destinatarios, push_enviados, mails_enviados, reintento }.
+//                          Sólo gestor.
 //
 // Seguridad: JWT requerido. El rol sale de profiles (nunca del body): gestor = admin, o
 // subcomision con deporte 'tenis'; canchero = rol canchero. Las RPC se llaman con el JWT del
@@ -36,11 +47,29 @@ import {
   horaInicioReal,
   horaLocal,
   fechaLocal,
+  htmlNovedad,
   motivoTenis,
+  parsearCancelarVarias,
+  parsearIdsReserva,
+  parsearReclamoNovedad,
+  parsearSocioIds,
+  textoPushNovedad,
 } from '../_shared/tenisReglas.ts'
-import { cargarConfig, cargarInvitados, cargarReservas, mailAInvitado, pushASocios, type AvisoPush } from '../_shared/tenisNotificar.ts'
+import {
+  cargarConfig,
+  cargarInvitados,
+  cargarReservas,
+  enviarMailsEnLote,
+  mailAInvitado,
+  mailsDeProfiles,
+  profilesPorSocio,
+  pushASocios,
+  type AvisoPush,
+} from '../_shared/tenisNotificar.ts'
 
 const TIPOS_BLOQUE = ['clase', 'entrenamiento', 'torneo', 'no_disponible', 'en_suspenso']
+// Acciones que sólo puede hacer la gestora; el resto, gestora o canchero.
+const SOLO_GESTOR = new Set(['bloqueo-puntual', 'cancelar-varias', 'publicar-novedad'])
 const URL_FIRMADA_SEG = 300
 
 type Permiso = { gestor: boolean; canchero: boolean }
@@ -100,7 +129,7 @@ Deno.serve(async (req: Request) => {
     return jsonError(400, 'Body inválido')
   }
 
-  const necesita = body.action === 'bloqueo-puntual' ? permiso.gestor : permiso.gestor || permiso.canchero
+  const necesita = SOLO_GESTOR.has(String(body.action)) ? permiso.gestor : permiso.gestor || permiso.canchero
   if (!necesita) return jsonError(403, motivoTenis('no_autorizado'), { codigo: 'no_autorizado' })
 
   try {
@@ -108,6 +137,8 @@ Deno.serve(async (req: Request) => {
       case 'resolver-comprobante': return await handleResolver(jwt, body)
       case 'bloqueo-puntual':      return await handleBloqueo(jwt, body)
       case 'ver-comprobante':      return await handleVerComprobante(body)
+      case 'cancelar-varias':      return await handleCancelarVarias(jwt, body)
+      case 'publicar-novedad':     return await handlePublicarNovedad(user.id, body)
       default:                     return jsonError(400, 'Acción desconocida')
     }
   } catch (e) {
@@ -208,14 +239,15 @@ async function handleBloqueo(jwt: string, body: Record<string, unknown>): Promis
 
   let avisos = { push: 0, emails: 0 }
   try {
-    avisos = await avisarCancelacion(canceladas, titulo)
+    avisos = await avisarCancelacion(canceladas, titulo, 'bloqueo')
   } catch (e) {
     console.error('tenis-gestion: avisos del bloqueo:', e instanceof Error ? e.message : String(e))
   }
   return jsonOk({ ok: true, bloque_id: r.bloque_id ?? null, reservas_canceladas: canceladas, avisos })
 }
 
-async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<{ push: number; emails: number }> {
+/** Push a los socios jugadores (y sus tutores) y mail a los invitados de cada reserva cancelada. */
+async function avisarCancelacion(reservaIds: string[], titulo: string, motivoClave: string): Promise<{ push: number; emails: number }> {
   if (!reservaIds.length) return { push: 0, emails: 0 }
   const cfg = await cargarConfig()
   const reservas = await cargarReservas(reservaIds)
@@ -230,7 +262,7 @@ async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<
     const socios = new Set([r.titular_socio_id, ...r.jugadores.map((j) => j.socio_id)].filter((x): x is string => !!x))
     for (const socioId of socios) {
       pushes.push({
-        clave: `${r.id}:bloqueo`,
+        clave: `${r.id}:${motivoClave}`,
         socioId,
         title: 'Tenis: se canceló tu reserva',
         body: `${turno}: ${titulo}. Perdón por el cambio, podés reservar otro horario.`,
@@ -250,6 +282,109 @@ async function avisarCancelacion(reservaIds: string[], titulo: string): Promise<
   }
   const { entregados } = await pushASocios(pushes)
   return { push: entregados, emails }
+}
+
+// ─── cancelar-varias ──────────────────────────────────────────────────────────
+
+async function handleCancelarVarias(jwt: string, body: Record<string, unknown>): Promise<Response> {
+  const ids = parsearIdsReserva(body.reserva_ids)
+  if (!ids) return rechazo('parametros', { campo: 'reserva_ids' })
+  const motivo = typeof body.motivo === 'string' ? body.motivo.trim().slice(0, 300) : ''
+  if (!motivo) return rechazo('motivo_cancelacion')
+
+  const { data, error } = await clienteUsuario(jwt).rpc('tenis_cancelar_varias', { p_ids: ids, p_motivo: motivo })
+  if (error) return errorRpc('tenis_cancelar_varias', error)
+  const { canceladas, omitidas } = parsearCancelarVarias(data)
+
+  // Los avisos no frenan la respuesta: las cancelaciones ya quedaron guardadas.
+  let avisos = { push: 0, emails: 0 }
+  try {
+    avisos = await avisarCancelacion(canceladas, motivo, 'cancelada_gestor')
+  } catch (e) {
+    console.error('tenis-gestion: avisos de cancelar-varias:', e instanceof Error ? e.message : String(e))
+  }
+  return jsonOk({
+    ok: true,
+    canceladas,
+    omitidas: omitidas.map((o) => ({ ...o, motivo: motivoTenis(o.codigo) })),
+    avisos,
+  })
+}
+
+// ─── publicar-novedad ─────────────────────────────────────────────────────────
+
+async function handlePublicarNovedad(userId: string, body: Record<string, unknown>): Promise<Response> {
+  const novedadId = body.novedad_id
+  if (typeof novedadId !== 'string' || !UUID_RE.test(novedadId)) return rechazo('parametros')
+
+  // La audiencia se lee antes de reclamar: si falla, no queda nada marcado.
+  const { data: audiencia, error: errAudiencia } = await supabaseAdmin.rpc('tenis_audiencia_novedades')
+  if (errAudiencia) return errorInterno('tenis_audiencia_novedades', errAudiencia)
+  const socios = parsearSocioIds(audiencia)
+
+  // Reclamo atómico (tenis_novedad_reclamar): sale una sola vez (doble toque o dos gestoras a la
+  // vez => novedad_en_curso). Si un envío anterior se cortó (límite de tiempo de la función) y
+  // pasaron 15 minutos, se reclama de nuevo: el push que ya salió no se repite; los mails sí se
+  // vuelven a mandar enteros (no se sabe cuáles llegaron).
+  const { data: rec, error: errReclamo } = await supabaseAdmin.rpc('tenis_novedad_reclamar', { p_id: novedadId })
+  if (errReclamo) return errorInterno('tenis_novedad_reclamar', errReclamo)
+  const reclamo = parsearReclamoNovedad(rec)
+  if (reclamo.estado === 'inexistente') return rechazo('novedad_inexistente')
+  if (reclamo.estado === 'ya_enviada') return rechazo('novedad_ya_enviada')
+  if (reclamo.estado !== 'reclamada') return rechazo('novedad_en_curso')
+  const novedad = { titulo: reclamo.titulo, texto: reclamo.texto }
+  console.info(`tenis-gestion: publicar-novedad ${novedadId} por ${userId}${reclamo.push_hecho ? ' (reintento, sin push)' : ''}`)
+
+  // Cada etapa queda registrada apenas termina (tenis_novedad_marcar_enviada). Si push o mail
+  // fallan, el otro sale igual y la etapa queda hecha con lo que se entregó.
+  const marcar = async (push: number | null, mails: number | null) => {
+    const { data, error } = await supabaseAdmin.rpc('tenis_novedad_marcar_enviada', { p_id: novedadId, p_push: push, p_mails: mails })
+    if (error) console.error('tenis-gestion: no se guardó la etapa de la novedad:', error.message)
+    return data
+  }
+
+  let pushEnviados = reclamo.push_enviados
+  if (!reclamo.push_hecho) {
+    pushEnviados = 0
+    const { title, body: texto } = textoPushNovedad(novedad)
+    try {
+      const { entregados } = await pushASocios(socios.map((socioId) => ({
+        clave: `novedad:${novedadId}`,
+        socioId,
+        title,
+        body: texto,
+        data: { type: 'tenis_novedad', novedad_id: novedadId },
+      })))
+      pushEnviados = entregados
+    } catch (e) {
+      console.error('tenis-gestion: push de la novedad:', e instanceof Error ? e.message : String(e))
+    }
+    await marcar(pushEnviados, null)
+  }
+
+  let mailsEnviados = 0
+  try {
+    // Cuentas de los socios y de sus tutores; los mails sintéticos del padrón quedan afuera.
+    const perfiles = await profilesPorSocio(socios)
+    const mails = await mailsDeProfiles([...perfiles.values()].flat())
+    const { enviados } = await enviarMailsEnLote(mails, `${novedad.titulo.trim()} — Tenis UNCAS`, htmlNovedad(novedad))
+    mailsEnviados = enviados
+  } catch (e) {
+    console.error('tenis-gestion: mails de la novedad:', e instanceof Error ? e.message : String(e))
+  }
+  const marcada = await marcar(null, mailsEnviados)
+  const enviadaFinal = marcada && typeof marcada === 'object' && typeof (marcada as Record<string, unknown>).enviada_at === 'string'
+    ? (marcada as Record<string, unknown>).enviada_at as string
+    : reclamo.enviada_at
+
+  return jsonOk({
+    ok: true,
+    enviada_at: enviadaFinal,
+    destinatarios: socios.length,
+    push_enviados: pushEnviados,
+    mails_enviados: mailsEnviados,
+    reintento: reclamo.push_hecho,
+  })
 }
 
 // ─── ver-comprobante ──────────────────────────────────────────────────────────

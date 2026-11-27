@@ -10,10 +10,15 @@ import {
 import { formatMonto } from '@/lib/formatoMonto'
 import { GrillaCanchas } from './GrillaCanchas'
 import { FormReserva, type EdicionReserva } from './FormReserva'
-import { Boton, Leyenda, SelectorDia, Titulo, estilosTenis } from './ui'
+import { Boton, Titulo, estilosTenis } from './ui'
+import { NavegadorDia, SelectorVista, type VistaTenis } from './NavegadorDia'
+import { DisponibilidadSemana } from './DisponibilidadSemana'
+import { diasVista, esDiaReservable, reservasPorCancha } from '@/lib/tenisGrilla'
+import { NovedadesTenis } from './NovedadesTenis'
 
-// Sección "Tenis" de la Agenda del socio (FEATURES.tenis): día (hoy + 2), la
-// grilla por cancha, el formulario de reserva y "Mis reservas" con editar y
+// Sección "Tenis" de la Agenda del socio (FEATURES.tenis): la grilla del día
+// (se ven `dias_vista` días y se reserva hasta `anticipacion_dias`), la vista
+// semanal de disponibilidad, el formulario de reserva y "Mis reservas" con editar y
 // cancelar (titular, hasta 3 h antes). Las reglas (límites, precios, suspensión) las aplica el
 // servidor; acá se muestran sus mensajes.
 
@@ -48,6 +53,12 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
 
   const config = base?.config ?? CONFIG_DEFECTO
   const dias = useMemo(() => diasReservables(ahoraMs, config.anticipacion_dias), [ahoraMs, config.anticipacion_dias])
+  // Grilla: se miran más días de los que se reservan (los demás, sólo ver).
+  const [vista, setVista] = useState<VistaTenis>('dia')
+  const diasVer = useMemo(() => diasVista(ahoraMs, config.dias_vista), [ahoraMs, config.dias_vista])
+  // Pasó la medianoche o se achicó la vista: volver a un día que se pueda navegar.
+  useEffect(() => { if (!diasVer.includes(fecha)) setFecha(diasVer[0]) }, [diasVer, fecha])
+  const reservable = (disp?.reservable ?? true) && esDiaReservable(fecha, ahoraMs, config.anticipacion_dias)
 
   function pedirCancelacion(r: MiReserva) {
     Alert.alert(
@@ -73,7 +84,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
     setForm({
       cancha: r.cancha_id,
       hora: horaArgentina(r.inicio),
-      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r) },
+      edicion: { reservaId: r.id, modalidad: r.modalidad, jugadores: jugadoresParaEditar(r), comentario: r.comentario ?? null },
     })
   }
 
@@ -92,27 +103,54 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
   return (
     <View style={s.root}>
       <Titulo>TENIS</Titulo>
+      <NovedadesTenis />
       <Text style={s.subtitulo}>Tocá un horario libre para reservar. Hasta {config.anticipacion_dias} días antes.</Text>
-      <SelectorDia dias={dias} fecha={fecha} onElegir={setFecha} />
+      <SelectorVista vista={vista} onCambiar={setVista} />
 
+      {vista === 'semana' ? (
+        <DisponibilidadSemana
+          desde={diasVer[0]}
+          dias={diasVer.length}
+          ahoraMs={ahoraMs}
+          onElegirDia={f => { setFecha(f); setVista('dia') }}
+        />
+      ) : (
+      <>
+      <NavegadorDia
+        dias={diasVer}
+        fecha={fecha}
+        ahoraMs={ahoraMs}
+        reservas={disp ? reservasPorCancha(disp.items, disp.canchas).total : null}
+        canchas={base?.canchas.length ?? 0}
+        cerrado={disp?.horario?.abierto === false}
+        onCambiar={setFecha}
+      />
       {loading && !disp ? (
         <ActivityIndicator color={colors.oro} style={s.cargando} />
       ) : error && !disp ? (
         <ErrorCarga mensaje={error} onReintentar={refetch} />
       ) : disp ? (
         <>
-          <Leyenda />
+          {!reservable && disp.horario?.abierto !== false && (
+            <Text style={s.soloVer}>Este día se puede mirar pero todavía no reservar. Se puede reservar hasta {config.anticipacion_dias} días antes.</Text>
+          )}
           <GrillaCanchas
             fecha={fecha}
             config={config}
+            horario={disp.horario}
             canchas={disp.canchas}
             items={disp.items}
             ahoraMs={ahoraMs}
+            reservable={reservable}
             onPressLibre={(cancha, hora) => setForm({ cancha, hora })}
           />
-          <Boton texto="RESERVAR CANCHA" variante="secundario" onPress={() => setForm({ cancha: disp.canchas[0]?.id ?? null, hora: null })} />
+          {reservable && disp.horario?.abierto !== false && (
+            <Boton texto="RESERVAR CANCHA" variante="secundario" onPress={() => setForm({ cancha: disp.canchas[0]?.id ?? null, hora: null })} />
+          )}
         </>
       ) : null}
+      </>
+      )}
 
       <Text style={estilosTenis.label}>MIS RESERVAS</Text>
       {error && disp && <ErrorCarga mensaje={error} onReintentar={refetch} />}
@@ -182,6 +220,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
 const s = StyleSheet.create({
   root:          { marginTop: 8 },
   subtitulo:     { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.textoSecundario },
+  soloVer:       { fontFamily: fonts.cuerpo, fontSize: 14, color: colors.textoSecundario, marginBottom: 6 },
   cargando:      { marginVertical: 24 },
   reserva:       { marginBottom: 10 },
   reservaTitulo: { fontFamily: fonts.label, fontSize: 15, letterSpacing: 1, color: colors.oro },

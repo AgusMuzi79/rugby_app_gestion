@@ -38,6 +38,29 @@ export interface TenisConfig {
   precio_nosocio_single:   number
   precio_nosocio_dobles:   number
   bloquear_morosos:        boolean
+  // Días que se ven en la grilla (hoy + dias_vista − 1); se reserva sólo
+  // hasta anticipacion_dias.
+  dias_vista:              number
+  // Horario de cada día de la semana (tenis_horarios). [] = el servidor no lo
+  // mandó: cada día usa hora_desde/hora_hasta.
+  horarios:                HorarioDia[]
+}
+
+// Una fila de tenis_horarios (ISO 1 = lunes … 7 = domingo); activo = false:
+// ese día no se abre.
+export interface HorarioDia {
+  dia_semana: number
+  hora_desde: string // HH:MM
+  hora_hasta: string
+  activo:     boolean
+}
+
+// Horario de una fecha (payload `horario`). abierto = false: las canchas no
+// abren ese día.
+export interface HorarioFecha {
+  desde:   string
+  hasta:   string
+  abierto: boolean
 }
 
 export const CONFIG_DEFECTO: TenisConfig = {
@@ -59,6 +82,8 @@ export const CONFIG_DEFECTO: TenisConfig = {
   precio_nosocio_single: 16000,
   precio_nosocio_dobles: 18000,
   bloquear_morosos: true,
+  dias_vista: 7,
+  horarios: [],
 }
 
 export interface Cancha {
@@ -77,6 +102,11 @@ export interface JugadorGrilla {
   // editó la reserva después de cobrar, cargo − cobrado (> 0 falta, < 0 devolver).
   monto_cobrado: number | null
   diferencia:    number
+  // Cargo extra por no presentarse (0 = no hay) y si ya se cobró.
+  cargo_no_show:         number
+  cargo_no_show_cobrado: boolean
+  // "Socio a designar": lugar guardado sin socio ni invitado.
+  a_designar:   boolean
   check_in_at:  string | null
   socio_id:     string | null
   invitado_id:  string | null
@@ -103,6 +133,7 @@ export interface ItemGrilla {
   bloque_id?:   string | null
   estado?:      string | null
   modalidad?:   Modalidad | null
+  comentario?:  string | null
   comprobante_estado?: string | null
   jugadores?:   JugadorGrilla[]
   // Bloques fijos (gestor), para editarlos desde la grilla.
@@ -117,6 +148,10 @@ export interface Disponibilidad {
   config:  TenisConfig
   canchas: Cancha[]
   items:   ItemGrilla[]
+  // Horario de ese día (tenis_horarios); null si el servidor no lo manda.
+  horario:    HorarioFecha | null
+  // false si el día se ve pero está fuera de la anticipación.
+  reservable: boolean
 }
 
 export interface JugadorBuscado {
@@ -135,8 +170,17 @@ export interface InvitadoEntrada {
 // socio del padrón, socio o invitado ya cargado por DNI, o invitado nuevo.
 // { invitado_id } sólo en tenis_editar_reserva, para un invitado que ya juega
 // en esa reserva (el socio no ve su DNI).
+// { a_designar: true }: lugar reservado para un socio que se elige después
+// (se cobra precio socio). { invitado: { nombre, apellido } }: invitado del
+// socio o del staff sin DNI (una fila nueva por reserva).
 export type JugadorEntrada =
   | { socio_id: string } | { dni: string } | { invitado: InvitadoEntrada } | { invitado_id: string }
+  | { a_designar: true } | { invitado: InvitadoSinDni }
+
+export interface InvitadoSinDni {
+  nombre:   string
+  apellido: string
+}
 
 export interface CargoJugador {
   nombre: string
@@ -158,6 +202,7 @@ export interface PersonaReserva {
   invitado_id: string | null
   nombre:      string
   es_titular:  boolean
+  a_designar?: boolean
 }
 
 export interface MiReserva {
@@ -179,6 +224,7 @@ export interface MiReserva {
   mi_motivo:        string | null
   cancelable_hasta: string | null
   puede_cancelar:   boolean
+  comentario?:      string | null
 }
 
 // ─── Parseo tolerante de las respuestas jsonb ─────────────────────────────────
@@ -207,12 +253,30 @@ export function parsearConfig(raw: unknown): TenisConfig {
   const numericos = [
     'modulo_min', 'margen_inicio_min', 'singles_min', 'dobles_min', 'max_reservas_dia', 'max_activas',
     'anticipacion_dias', 'cancelacion_horas', 'comprobante_horas_antes', 'hold_min', 'precio_socio_single',
-    'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles',
+    'precio_socio_dobles', 'precio_nosocio_single', 'precio_nosocio_dobles', 'dias_vista',
   ] as const
   for (const k of numericos) c[k] = numero(raw[k], c[k])
   if (typeof raw.alias_pago === 'string') c.alias_pago = raw.alias_pago
   if (typeof raw.bloquear_morosos === 'boolean') c.bloquear_morosos = raw.bloquear_morosos
+  c.horarios = parsearHorariosConfig(raw.horarios)
   return c
+}
+
+// config.horarios: sólo las filas válidas (día 1–7, HH:MM, cierre después de
+// la apertura), una por día.
+function parsearHorariosConfig(raw: unknown): HorarioDia[] {
+  if (!Array.isArray(raw)) return []
+  const out: HorarioDia[] = []
+  for (const f of raw) {
+    if (!esObjeto(f)) continue
+    const dia = numero(f.dia_semana, NaN)
+    const desde = hhmm(f.hora_desde, '')
+    const hasta = hhmm(f.hora_hasta, '')
+    if (!Number.isInteger(dia) || dia < 1 || dia > 7 || !desde || !hasta || hasta <= desde) continue
+    if (out.some(x => x.dia_semana === dia)) continue
+    out.push({ dia_semana: dia, hora_desde: desde, hora_hasta: hasta, activo: f.activo !== false })
+  }
+  return out.sort((a, b) => a.dia_semana - b.dia_semana)
 }
 
 function parsearJugadorGrilla(raw: unknown): JugadorGrilla | null {
@@ -226,6 +290,9 @@ function parsearJugadorGrilla(raw: unknown): JugadorGrilla | null {
     cobrado:      raw.cobrado === true,
     monto_cobrado: raw.monto_cobrado === null || raw.monto_cobrado === undefined ? null : numero(raw.monto_cobrado),
     diferencia:    numero(raw.diferencia),
+    cargo_no_show:         numero(raw.cargo_no_show),
+    cargo_no_show_cobrado: raw.cargo_no_show_cobrado === true,
+    a_designar:   raw.a_designar === true,
     check_in_at:  texto(raw.check_in_at),
     socio_id:     texto(raw.socio_id),
     invitado_id:  texto(raw.invitado_id),
@@ -235,11 +302,17 @@ function parsearJugadorGrilla(raw: unknown): JugadorGrilla | null {
 }
 
 // Un jugador que ya está en la reserva, como entrada de
-// tenis_jugadores_corregir: socio por socio_id, invitado por DNI (la base no
-// acepta invitado_id). null si no hay con qué identificarlo.
-export function entradaJugadorExistente(j: Pick<JugadorGrilla, 'socio_id' | 'dni'>): JugadorEntrada | null {
+// tenis_jugadores_corregir: socio por socio_id, invitado por DNI o, si lo
+// cargaron sin DNI (sólo nombre), por invitado_id (la base lo acepta si ya
+// juega en esa reserva); "Socio a designar" sigue como { a_designar: true }.
+// null si no hay con qué identificarlo.
+export function entradaJugadorExistente(
+  j: Pick<JugadorGrilla, 'socio_id' | 'dni'> & Partial<Pick<JugadorGrilla, 'invitado_id' | 'a_designar'>>,
+): JugadorEntrada | null {
   if (j.socio_id) return { socio_id: j.socio_id }
   if (j.dni) return { dni: j.dni }
+  if (j.invitado_id) return { invitado_id: j.invitado_id }
+  if (j.a_designar) return { a_designar: true }
   return null
 }
 
@@ -261,6 +334,7 @@ export function parsearItem(raw: unknown): ItemGrilla | null {
     bloque_id:  texto(raw.bloque_id),
     estado:     texto(raw.estado),
     modalidad,
+    comentario: texto(raw.comentario),
     comprobante_estado: texto(raw.comprobante_estado),
     dia_semana:    typeof raw.dia_semana === 'number' ? raw.dia_semana : null,
     vigente_desde: texto(raw.vigente_desde),
@@ -280,7 +354,14 @@ export function parsearDisponibilidad(raw: unknown): Disponibilidad {
   const items = Array.isArray(r.items)
     ? r.items.map(parsearItem).filter((i): i is ItemGrilla => i !== null)
     : []
-  return { config: parsearConfig(r.config), canchas, items }
+  const h = esObjeto(r.horario) ? r.horario : null
+  const desde = h ? hhmm(h.desde, '') : ''
+  const hasta = h ? hhmm(h.hasta, '') : ''
+  return {
+    config: parsearConfig(r.config), canchas, items,
+    horario: h && desde && hasta ? { desde, hasta, abierto: h.abierto !== false } : null,
+    reservable: r.reservable !== false,
+  }
 }
 
 function parsearCargos(raw: unknown): CargoJugador[] {
@@ -299,6 +380,7 @@ function parsearPersonas(raw: unknown): PersonaReserva[] {
     invitado_id: texto(j.invitado_id),
     nombre:      texto(j.nombre) ?? '—',
     es_titular:  j.es_titular === true,
+    ...(j.a_designar === true ? { a_designar: true } : {}),
   }))
 }
 
@@ -334,6 +416,7 @@ export function parsearMisReservas(raw: unknown): MiReserva[] {
       mi_motivo:        texto(r.mi_motivo),
       cancelable_hasta: texto(r.cancelable_hasta),
       puede_cancelar:   r.puede_cancelar === true,
+      comentario:       texto(r.comentario),
     } satisfies MiReserva]
   })
 }
@@ -379,9 +462,42 @@ export function parsearComprobantes(raw: unknown): ComprobantePendiente[] {
 export interface Checkin {
   persona:    { tipo: 'socio' | 'invitado'; nombre: string; semaforo: string | null } | null
   reserva:    { id: string; cancha_id: string | null; cancha: string; inicio: string; fin: string; modalidad: Modalidad } | null
-  jugador:    { id: string | null; cargo: number; cobrado: boolean } | null
+  // Saldo (contrato 14): lo cobrado, cargo − cobrado (> 0 falta, < 0 a favor),
+  // el cargo por no-show y lo que falta cobrar en total.
+  jugador:    {
+    id: string | null; cargo: number; cobrado: boolean
+    monto_cobrado: number | null; diferencia: number
+    cargo_no_show: number; cargo_no_show_cobrado: boolean; pendiente: number
+    // Lo que falta de su propio turno + no-show (pendiente lo suma a los
+    // "Socio a designar" si es el titular).
+    pendiente_propio: number
+    // Titular: los lugares "Socio a designar" de la reserva, que paga él.
+    a_designar: ADesignarCheckin[]
+  } | null
   suspendido: boolean
   resultado:  string
+}
+
+export interface ADesignarCheckin {
+  jugador_id: string
+  cargo:      number
+  cobrado:    boolean
+  pendiente:  number
+}
+
+function parsearADesignar(raw: unknown): ADesignarCheckin[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(esObjeto).flatMap(a => {
+    const id = texto(a.jugador_id)
+    if (!id) return []
+    const cobrado = a.cobrado === true
+    return [{
+      jugador_id: id,
+      cargo:      numero(a.cargo),
+      cobrado,
+      pendiente:  a.pendiente === undefined || a.pendiente === null ? (cobrado ? 0 : numero(a.cargo)) : numero(a.pendiente),
+    }]
+  })
 }
 
 export function parsearCheckin(raw: unknown): Checkin {
@@ -400,7 +516,23 @@ export function parsearCheckin(raw: unknown): Checkin {
       fin:       texto(r.fin) ?? '',
       modalidad: r.modalidad === 'dobles' ? 'dobles' : 'singles',
     } : null,
-    jugador:    j ? { id: texto(j.jugador_id), cargo: numero(j.cargo), cobrado: j.cobrado === true } : null,
+    jugador:    j ? {
+      id:                    texto(j.jugador_id),
+      cargo:                 numero(j.cargo),
+      cobrado:               j.cobrado === true,
+      monto_cobrado:         j.monto_cobrado === undefined || j.monto_cobrado === null ? null : numero(j.monto_cobrado),
+      diferencia:            numero(j.diferencia),
+      cargo_no_show:         numero(j.cargo_no_show),
+      cargo_no_show_cobrado: j.cargo_no_show_cobrado === true,
+      // Servidor anterior sin `pendiente`: lo que falta del turno.
+      pendiente:             j.pendiente === undefined || j.pendiente === null
+        ? (j.cobrado === true ? 0 : numero(j.cargo))
+        : numero(j.pendiente),
+      pendiente_propio:      j.pendiente_propio === undefined || j.pendiente_propio === null
+        ? (j.pendiente === undefined || j.pendiente === null ? (j.cobrado === true ? 0 : numero(j.cargo)) : numero(j.pendiente))
+        : numero(j.pendiente_propio),
+      a_designar:            parsearADesignar(j.a_designar),
+    } : null,
     suspendido: o.suspendido === true,
     resultado:  texto(o.resultado) ?? 'sin_reserva',
   }
@@ -718,10 +850,11 @@ export interface JugadorPrecargado {
 }
 
 export function jugadoresParaEditar(r: Pick<MiReserva, 'personas'>): JugadorPrecargado[] {
-  return r.personas.flatMap((p): JugadorPrecargado[] => {
+  return r.personas.flatMap((p, i): JugadorPrecargado[] => {
     if (p.es_titular) return []
     if (p.socio_id) return [{ clave: p.socio_id, nombre: p.nombre, entrada: { socio_id: p.socio_id } }]
     if (p.invitado_id) return [{ clave: `inv:${p.invitado_id}`, nombre: p.nombre, entrada: { invitado_id: p.invitado_id } }]
+    if (p.a_designar) return [{ clave: `designar:${i}`, nombre: 'Socio a designar', entrada: { a_designar: true } }]
     return []
   })
 }
@@ -942,6 +1075,16 @@ const MENSAJES: Record<string, string> = {
   jugador_sin_nombre:      'Ese DNI no es de un socio: completá nombre y apellido.',
   comprobante_invalido:    'El comprobante tiene que ser JPG, PNG o PDF de hasta 5 MB.',
   comprobante_no_subido:   'Todavía no hay comprobante subido.',
+  // Paridad OnDepor (migración 20261128000000 y tenis-gestion).
+  fuera_de_vista:          'Ese día todavía no se puede ver.',
+  comentario_largo:        'El comentario puede tener hasta 280 caracteres.',
+  motivo_cancelacion:      'Escribí el motivo de la cancelación.',
+  novedad_invalida:        'Completá el título y el texto de la novedad.',
+  novedad_inexistente:     'Esa novedad ya no existe.',
+  novedad_ya_enviada:      'Esa novedad ya se mandó.',
+  novedad_en_curso:        'Esa novedad se está mandando. Si en 15 minutos no terminó, probá de nuevo.',
+  reporte_invalido:        'Elegí un reporte de la lista.',
+  rango_invalido:          'Revisá el rango de fechas.',
 }
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)

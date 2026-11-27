@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
 import { accionesTenis, type JugadorCorregido } from '@/hooks/useTenisGestor'
 import { entradaJugadorExistente, jugadoresRequeridos, type ItemGrilla } from '@/lib/tenis'
+import { esEntradaADesignar } from '@/lib/tenisReserva'
 import { BuscadorJugador } from './BuscadorJugador'
 import { FilaJugador } from './FormReserva'
 import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
@@ -15,11 +16,13 @@ import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 interface Fila { clave: string; nombre: string; entrada: JugadorCorregido }
 
 function filasIniciales(item: ItemGrilla): Fila[] {
-  // Los que siguen: socio por socio_id, invitado por DNI (la base no acepta invitado_id).
-  return (item.jugadores ?? []).filter(j => !j.es_titular).flatMap((j): Fila[] => {
+  // Los que siguen: socio por socio_id, invitado por DNI o, si se cargó sólo con
+  // nombre, por invitado_id; los "Socio a designar" quedan como lugar guardado.
+  return (item.jugadores ?? []).filter(j => !j.es_titular).flatMap((j, i): Fila[] => {
     const entrada = entradaJugadorExistente(j)
     if (!entrada) return []
-    return [{ clave: j.socio_id ?? `dni:${j.dni}`, nombre: j.nombre, entrada }]
+    const clave = j.socio_id ?? (j.dni ? `dni:${j.dni}` : j.invitado_id ? `inv:${j.invitado_id}` : `designar:${i}`)
+    return [{ clave, nombre: j.nombre, entrada }]
   })
 }
 
@@ -57,7 +60,12 @@ export function CorregirJugadores({ item, onCerrar, onGuardado }: {
             {titular && <Text style={estilosTenis.textoCard}>Titular: {titular.nombre}</Text>}
             <Text style={estilosTenis.label}>JUGADORES ({filas.length}/{requeridos})</Text>
             {filas.map(f => (
-              <FilaJugador key={f.clave} nombre={f.nombre} onQuitar={() => setFilas(fs => fs.filter(x => x.clave !== f.clave))} />
+              <FilaJugador
+                key={f.clave}
+                nombre={f.nombre}
+                aDesignar={esEntradaADesignar(f.entrada)}
+                onQuitar={() => setFilas(fs => fs.filter(x => x.clave !== f.clave))}
+              />
             ))}
             {filas.length < requeridos && (
               <BuscadorJugador

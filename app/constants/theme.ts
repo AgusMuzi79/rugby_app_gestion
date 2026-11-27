@@ -47,6 +47,16 @@ export const tenis = {
   enSuspenso:    { fondo: '#ACD2E7', texto: '#15110A' },
 } as const
 
+// Vista semanal de disponibilidad de tenis (como OnDepor): verde con muchas
+// canchas libres, ámbar a mitad, naranja con pocas y bordó cuando está
+// completo. Texto con contraste AA (lib/tenisGrilla.check.ts).
+export const calorTenis = {
+  alto:     { fondo: '#1F7A3D', texto: '#FFFFFF' },
+  medio:    { fondo: '#E3B341', texto: '#15110A' },
+  bajo:     { fondo: '#E8742F', texto: '#15110A' },
+  completo: { fondo: '#7A1F1F', texto: '#FFFFFF' },
+} as const
+
 export const fonts = {
   titulo: 'Barlow_900Black',
   cuerpo: 'Barlow_400Regular',

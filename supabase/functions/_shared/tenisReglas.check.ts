@@ -48,6 +48,18 @@ import {
   validarTurno,
   venceComprobante,
   venceHold,
+  configDelDia,
+  horarioDelDia,
+  mailDestino,
+  normalizarComentario,
+  parsearCancelarVarias,
+  parsearHorarios,
+  parsearIdsReserva,
+  parsearReclamoNovedad,
+  parsearSocioIds,
+  htmlNovedad,
+  textoPushNovedad,
+  COMENTARIO_MAX,
 } from './tenisReglas.ts'
 
 let casos = 0
@@ -429,6 +441,139 @@ await caso('resultado de cada aviso a jugadores para marcar (entregado, sin tel�
     ['a1:error:expo 503', 'a2:error:expo 503', 'a3:error:expo 503', 'a4:error:expo 503'])
   assert.deepEqual([caido.entregados, caido.sin_dispositivo, caido.con_error], [0, 0, 4])
   assert.deepEqual(clasificarAvisosJugadores([], { estados: new Map() }).resultados, [])
+})
+
+// ─── Paridad OnDepor (20261128000000): horarios por día, comentario, cancelar varias, novedades ──
+
+await caso('horarios por día: parsea filas de tenis_horarios (time de Postgres) y descarta lo inválido', () => {
+  const filas = parsearHorarios([
+    { dia_semana: 7, hora_desde: '10:00:00', hora_hasta: '17:00:00', activo: true },
+    { dia_semana: 6, hora_desde: '09:00', hora_hasta: '22:00', activo: true },
+    { dia_semana: 3, hora_desde: '08:00', hora_hasta: '22:00', activo: false },
+    { dia_semana: 8, hora_desde: '08:00', hora_hasta: '22:00' },
+    { dia_semana: 2, hora_desde: '23:00', hora_hasta: '08:00' },
+    { dia_semana: 1, hora_desde: 'x', hora_hasta: '22:00' },
+    null,
+  ])
+  assert.deepEqual(filas, [
+    { dia_semana: 7, hora_desde: '10:00', hora_hasta: '17:00', activo: true },
+    { dia_semana: 6, hora_desde: '09:00', hora_hasta: '22:00', activo: true },
+    { dia_semana: 3, hora_desde: '08:00', hora_hasta: '22:00', activo: false },
+  ])
+  assert.deepEqual(parsearHorarios(null), [])
+  // activo ausente = abierto (default de la tabla).
+  assert.equal(parsearHorarios([{ dia_semana: 1, hora_desde: '08:00', hora_hasta: '22:00' }])[0].activo, true)
+})
+
+await caso('horarios por día: el día usa su fila; sin fila, el horario de tenis_config; inactivo = cerrado', () => {
+  const filas = parsearHorarios([
+    { dia_semana: 7, hora_desde: '10:00:00', hora_hasta: '17:00:00', activo: true },
+    { dia_semana: 3, hora_desde: '08:00', hora_hasta: '22:00', activo: false },
+  ])
+  // 2026-11-29 es domingo, 2026-11-25 miércoles, 2026-11-26 jueves.
+  assert.deepEqual(horarioDelDia('2026-11-29', filas, CFG), { desde: '10:00', hasta: '17:00' })
+  assert.equal(horarioDelDia('2026-11-25', filas, CFG), null)
+  assert.deepEqual(horarioDelDia('2026-11-26', filas, CFG), { desde: '08:00', hasta: '22:00' })
+  assert.deepEqual(horarioDelDia('2026-11-26', [], { ...CFG, hora_desde: '07:00:00', hora_hasta: '23:00' }), { desde: '07:00', hasta: '23:00' })
+})
+
+await caso('horarios por día: configDelDia ajusta apertura y cierre, y las reglas de turno lo respetan', () => {
+  const domingo = configDelDia(CFG, { desde: '10:00', hasta: '17:00' })
+  assert.equal(domingo.hora_desde, '10:00')
+  assert.equal(domingo.hora_hasta, '17:00')
+  assert.equal(CFG.hora_desde, '08:00') // no muta la config base
+  const ahora = ar('2026-11-28T12:00')
+  assert.equal(validarTurno(ar('2026-11-29T09:30'), 'singles', ahora, domingo), 'fuera_de_horario')
+  assert.equal(validarTurno(ar('2026-11-29T10:00'), 'singles', ahora, domingo), null)
+  assert.equal(validarTurno(ar('2026-11-29T16:00'), 'singles', ahora, domingo), null)
+  assert.equal(validarTurno(ar('2026-11-29T16:00'), 'dobles', ahora, domingo), 'fuera_de_horario')
+  // El optimizador mide contra el cierre del día: 15:30 singles deja 30 min hasta las 17.
+  assert.equal(dejaHuecoValido(ar('2026-11-29T15:30'), 'singles', [], ahora, domingo), false)
+  assert.equal(dejaHuecoValido(ar('2026-11-29T15:00'), 'singles', [], ahora, domingo), true)
+  // Día cerrado: ningún turno entra.
+  const cerrado = configDelDia(CFG, null)
+  assert.equal(validarTurno(ar('2026-11-29T10:00'), 'singles', ahora, cerrado), 'fuera_de_horario')
+  assert.equal(validarTurno(ar('2026-11-29T00:00'), 'singles', ahora, cerrado), 'fuera_de_horario')
+})
+
+await caso('comentario: recortado, vacío = null, hasta 280 caracteres', () => {
+  assert.equal(COMENTARIO_MAX, 280)
+  assert.deepEqual(normalizarComentario(undefined), { ok: true, comentario: null })
+  assert.deepEqual(normalizarComentario(null), { ok: true, comentario: null })
+  assert.deepEqual(normalizarComentario('   '), { ok: true, comentario: null })
+  assert.deepEqual(normalizarComentario('  traemos pelotas  '), { ok: true, comentario: 'traemos pelotas' })
+  assert.deepEqual(normalizarComentario('a'.repeat(280)), { ok: true, comentario: 'a'.repeat(280) })
+  assert.deepEqual(normalizarComentario('a'.repeat(281)), { ok: false })
+  assert.deepEqual(normalizarComentario(42), { ok: false })
+})
+
+await caso('cancelar varias: ids de reserva válidos, sin repetir, de 1 a 100', () => {
+  const a = '11111111-1111-4111-8111-111111111111'
+  const b = '22222222-2222-4222-8222-222222222222'
+  assert.deepEqual(parsearIdsReserva([a, b, a]), [a, b])
+  assert.equal(parsearIdsReserva([]), null)
+  assert.equal(parsearIdsReserva([a, 'x']), null)
+  assert.equal(parsearIdsReserva('a'), null)
+  assert.equal(parsearIdsReserva(Array.from({ length: 101 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)), null)
+})
+
+await caso('cancelar varias: lee canceladas (avisos o ids) y omitidas de tenis_cancelar_varias', () => {
+  const a = '11111111-1111-4111-8111-111111111111'
+  const b = '22222222-2222-4222-8222-222222222222'
+  const c = '33333333-3333-4333-8333-333333333333'
+  const r = parsearCancelarVarias({
+    canceladas: [{ reserva_id: a, cancha_nombre: '01', titular: {} }, b, { nada: 1 }, a],
+    omitidas: [{ reserva_id: c, codigo: 'reserva_finalizada' }, { reserva_id: 'x', codigo: 'y' }, { reserva_id: a }],
+  })
+  assert.deepEqual(r.canceladas, [a, b])
+  assert.deepEqual(r.omitidas, [
+    { reserva_id: c, codigo: 'reserva_finalizada' },
+    { reserva_id: a, codigo: 'estado_invalido' },
+  ])
+  assert.deepEqual(parsearCancelarVarias(null), { canceladas: [], omitidas: [] })
+})
+
+await caso('audiencia de novedades: acepta uuid sueltos o filas {socio_id}, sin repetir', () => {
+  const a = '11111111-1111-4111-8111-111111111111'
+  const b = '22222222-2222-4222-8222-222222222222'
+  assert.deepEqual(parsearSocioIds([a, { socio_id: b }, { tenis_audiencia_novedades: a }, 'x', null, b]), [a, b])
+  assert.deepEqual(parsearSocioIds(a), [a])
+  assert.deepEqual(parsearSocioIds(null), [])
+  const rec = parsearReclamoNovedad({ estado: 'reclamada', titulo: 'T', texto: 'X', enviada_at: '2026-11-26T12:00:00Z', push_hecho: true, push_enviados: 7 })
+  assert.deepEqual(rec, { estado: 'reclamada', titulo: 'T', texto: 'X', enviada_at: '2026-11-26T12:00:00Z', push_hecho: true, push_enviados: 7 })
+  assert.equal(parsearReclamoNovedad({ estado: 'reclamada', push_hecho: false, push_enviados: 7 }).push_enviados, 0)
+  assert.equal(parsearReclamoNovedad({ estado: 'raro' }).estado, 'en_curso')
+  assert.equal(parsearReclamoNovedad(null).estado, 'en_curso')
+  assert.equal(parsearReclamoNovedad({ estado: 'ya_enviada' }).push_hecho, false)
+})
+
+await caso('mail: sólo direcciones reales (sin vacíos ni mails sintéticos del padrón)', () => {
+  assert.equal(mailDestino(' Ana@Mail.com '), 'ana@mail.com')
+  assert.equal(mailDestino('socio-123@uncas.local'), null)
+  assert.equal(mailDestino('SOCIO-123@UNCAS.LOCAL'), null)
+  assert.equal(mailDestino(''), null)
+  assert.equal(mailDestino(null), null)
+  assert.equal(mailDestino('sin-arroba'), null)
+})
+
+await caso('novedad: push con título "Tenis: …" y el texto recortado; mail escapado con saltos de línea', () => {
+  const corta = textoPushNovedad({ titulo: 'Torneo de verano', texto: 'Inscripción abierta' })
+  assert.deepEqual(corta, { title: 'Tenis: Torneo de verano', body: 'Inscripción abierta' })
+  const larga = textoPushNovedad({ titulo: 'X', texto: 'palabra '.repeat(60) })
+  assert.ok(larga.body.length <= 178, String(larga.body.length))
+  assert.ok(larga.body.endsWith('…'))
+  assert.equal(textoPushNovedad({ titulo: 'X', texto: '  ' }).body, 'Hay una novedad en la cartelera de tenis.')
+  const html = htmlNovedad({ titulo: 'Cierre <b>', texto: 'Línea 1\nLínea & 2' })
+  assert.match(html, /Cierre &lt;b&gt;/)
+  assert.match(html, /Línea 1<br>Línea &amp; 2/)
+  assert.doesNotMatch(html, /<b>/)
+})
+
+await caso('códigos nuevos de las Edge Functions tienen texto propio', () => {
+  const generico = motivoTenis('codigo_que_no_existe')
+  for (const c of ['comentario_largo', 'motivo_cancelacion', 'novedad_inexistente', 'novedad_ya_enviada', 'novedad_en_curso']) {
+    assert.notEqual(motivoTenis(c), generico, c)
+  }
 })
 
 console.log(`\n${casos} casos ok`)
