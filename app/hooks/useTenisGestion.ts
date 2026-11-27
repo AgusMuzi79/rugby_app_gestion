@@ -176,9 +176,10 @@ export function useCanchasTenis() {
 // ─── Acciones ─────────────────────────────────────────────────────────────────
 
 export const accionesGestion = {
-  // Gestor o canchero: cancelar una reserva (motivo opcional).
+  // Gestor o canchero: cancelar una reserva (motivo opcional) y avisar a los
+  // jugadores (Edge Function). El socio que cancela la suya sigue con el RPC.
   cancelar: (reservaId: string, motivo: string | null) =>
-    sinDatos(rpcTenis('tenis_cancelar', { p_reserva_id: reservaId, p_motivo: motivo }, 'No se pudo cancelar la reserva. Probá de nuevo.')),
+    sinDatos(gestionTenis({ action: 'cancelar', reserva_id: reservaId, motivo }, 'No se pudo cancelar la reserva. Probá de nuevo.')),
 
   // Cancela varias y avisa a los jugadores (Edge Function).
   cancelarVarias: async (ids: string[], motivo: string): Promise<ResultadoTenis<{ canceladas: number; omitidas: number }>> => {

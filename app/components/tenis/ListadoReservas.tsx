@@ -173,7 +173,7 @@ export function ListadoReservas() {
     if (ids.length === 1) {
       const r = await accionesGestion.cancelar(ids[0], motivo || null)
       if (!r.ok) return r.mensaje
-      setAviso('Reserva cancelada.')
+      setAviso('Reserva cancelada. Les avisamos a los jugadores.')
     } else {
       const r = await accionesGestion.cancelarVarias(ids, motivo)
       if (!r.ok) return r.mensaje

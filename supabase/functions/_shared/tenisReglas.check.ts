@@ -54,6 +54,9 @@ import {
   normalizarComentario,
   parsearBloqueoPuntual,
   parsearCancelarVarias,
+  parsearCancelarUna,
+  textoPushCancelacion,
+  htmlMailCancelacion,
   parsearHorarios,
   parsearIdsReserva,
   parsearReclamoNovedad,
@@ -668,6 +671,32 @@ await caso('cancelación tardía: parsear el reclamo de la outbox', () => {
   })
   assert.equal(r.avisos[1].anticipacion_min, null)
   assert.deepEqual(parsearAvisosGestores(null), { descartados: 0, avisos: [] })
+})
+
+await caso('cancelar una (staff): el id sale del tenis_aviso que devuelve tenis_cancelar', () => {
+  const a = '11111111-1111-4111-8111-111111111111'
+  assert.equal(parsearCancelarUna({ reserva_id: a, cancha_nombre: '01', titular: {} }), a)
+  assert.equal(parsearCancelarUna(a), a)
+  assert.equal(parsearCancelarUna({ reserva_id: 'x' }), null)
+  assert.equal(parsearCancelarUna(null), null)
+})
+
+await caso('aviso de cancelación: con motivo lo incluye, sin motivo queda el turno solo', () => {
+  const turno = 'Sáb 29/11 18:05 · cancha 01'
+  assert.deepEqual(textoPushCancelacion(turno, 'Lluvia'), {
+    title: 'Tenis: se canceló tu reserva',
+    body: 'Sáb 29/11 18:05 · cancha 01: Lluvia. Perdón por el cambio, podés reservar otro horario.',
+  })
+  // Sin doble punto si el motivo ya termina en punto.
+  assert.equal(textoPushCancelacion(turno, ' Lluvia. ').body, 'Sáb 29/11 18:05 · cancha 01: Lluvia. Perdón por el cambio, podés reservar otro horario.')
+  assert.equal(textoPushCancelacion(turno, null).body, 'Sáb 29/11 18:05 · cancha 01. Perdón por el cambio, podés reservar otro horario.')
+  assert.equal(textoPushCancelacion(turno, '  ').body, 'Sáb 29/11 18:05 · cancha 01. Perdón por el cambio, podés reservar otro horario.')
+
+  const html = htmlMailCancelacion('Ana <b>', turno, 'Lluvia & viento')
+  assert.match(html, /Hola Ana &lt;b&gt;,/)
+  assert.match(html, /cancelar tu reserva del <strong>Sáb 29\/11 18:05 · cancha 01<\/strong>: Lluvia &amp; viento\.<\/p>/)
+  assert.match(html, /la administración del club te devuelve el importe/)
+  assert.match(htmlMailCancelacion('Ana', turno, null), /cancha 01<\/strong>\.<\/p>/)
 })
 
 console.log(`\n${casos} casos ok`)

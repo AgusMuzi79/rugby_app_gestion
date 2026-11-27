@@ -15,6 +15,9 @@
 //                          los socios jugadores (y sus tutores), mail a los invitados. Sólo gestor.
 //   ver-comprobante      — { reserva_id } URL firmada de lectura del comprobante, 5 minutos.
 //                          Gestor o canchero.
+//   cancelar             — { reserva_id, motivo? }. RPC tenis_cancelar con el JWT del usuario (la base
+//                          vuelve a decidir con es_canchero(), que incluye a la gestora) y los mismos avisos que cancelar-varias para esa
+//                          reserva, con el motivo si lo hay. => { reserva_id, avisos }. Gestor o canchero.
 //   cancelar-varias      — { reserva_ids: uuid[] (1..100), motivo }. RPC tenis_cancelar_varias
 //                          (migración 20261128000000) y los mismos avisos que bloqueo-puntual para
 //                          cada reserva cancelada. => { canceladas, omitidas:[{reserva_id, codigo,
@@ -52,10 +55,13 @@ import {
   htmlNovedad,
   motivoTenis,
   parsearBloqueoPuntual,
+  parsearCancelarUna,
   parsearCancelarVarias,
   parsearIdsReserva,
   parsearReclamoNovedad,
   parsearSocioIds,
+  htmlMailCancelacion,
+  textoPushCancelacion,
   textoPushNovedad,
 } from '../_shared/tenisReglas.ts'
 import {
@@ -139,6 +145,7 @@ Deno.serve(async (req: Request) => {
       case 'resolver-comprobante': return await handleResolver(jwt, body)
       case 'bloqueo-puntual':      return await handleBloqueo(jwt, body)
       case 'ver-comprobante':      return await handleVerComprobante(body)
+      case 'cancelar':             return await handleCancelar(jwt, body)
       case 'cancelar-varias':      return await handleCancelarVarias(jwt, body)
       case 'publicar-novedad':     return await handlePublicarNovedad(user.id, body)
       default:                     return jsonError(400, 'Acción desconocida')
@@ -248,7 +255,7 @@ async function handleBloqueo(jwt: string, body: Record<string, unknown>): Promis
 }
 
 /** Push a los socios jugadores (y sus tutores) y mail a los invitados de cada reserva cancelada. */
-async function avisarCancelacion(reservaIds: string[], titulo: string, motivoClave: string): Promise<{ push: number; emails: number }> {
+async function avisarCancelacion(reservaIds: string[], motivo: string | null, motivoClave: string): Promise<{ push: number; emails: number }> {
   if (!reservaIds.length) return { push: 0, emails: 0 }
   const cfg = await cargarConfig()
   const reservas = await cargarReservas(reservaIds)
@@ -265,24 +272,40 @@ async function avisarCancelacion(reservaIds: string[], titulo: string, motivoCla
       pushes.push({
         clave: `${r.id}:${motivoClave}`,
         socioId,
-        title: 'Tenis: se canceló tu reserva',
-        body: `${turno}: ${titulo}. Perdón por el cambio, podés reservar otro horario.`,
+        ...textoPushCancelacion(turno, motivo),
         data: { type: 'tenis_reserva_cancelada', reserva_id: r.id },
       })
     }
     const conMail = new Set([r.titular_invitado_id, ...r.jugadores.map((j) => j.invitado_id)].filter((x): x is string => !!x))
     for (const invitadoId of conMail) {
       const invitado = invitados.get(invitadoId)
-      const ok = await mailAInvitado(invitado, 'Se canceló tu reserva de tenis — UNCAS', `
-        <p style="font-size:16px">Hola ${escapeHtml(invitado?.nombre ?? '')},</p>
-        <p style="font-size:16px">Tuvimos que cancelar tu reserva del <strong>${escapeHtml(turno)}</strong>: ${escapeHtml(titulo)}.</p>
-        <p style="font-size:16px">Si ya pagaste, la administración del club te devuelve el importe. Podés reservar otro horario en uncasapp.com/tenis/reservar.</p>
-      `)
+      const ok = await mailAInvitado(invitado, 'Se canceló tu reserva de tenis — UNCAS', htmlMailCancelacion(invitado?.nombre ?? '', turno, motivo))
       if (ok) emails++
     }
   }
   const { entregados } = await pushASocios(pushes)
   return { push: entregados, emails }
+}
+
+// ─── cancelar (una, staff) ────────────────────────────────────────────────────
+
+async function handleCancelar(jwt: string, body: Record<string, unknown>): Promise<Response> {
+  const reservaId = body.reserva_id
+  if (typeof reservaId !== 'string' || !UUID_RE.test(reservaId)) return rechazo('parametros', { campo: 'reserva_id' })
+  const motivo = typeof body.motivo === 'string' ? body.motivo.trim().slice(0, 300) : ''
+
+  const { data, error } = await clienteUsuario(jwt).rpc('tenis_cancelar', { p_reserva_id: reservaId, p_motivo: motivo || null })
+  if (error) return errorRpc('tenis_cancelar', error)
+  const cancelada = parsearCancelarUna(data) ?? reservaId
+
+  // El aviso no frena la respuesta: la cancelación ya quedó guardada. Mismo aviso que cancelar-varias.
+  let avisos = { push: 0, emails: 0 }
+  try {
+    avisos = await avisarCancelacion([cancelada], motivo || null, 'cancelada_gestor')
+  } catch (e) {
+    console.error('tenis-gestion: avisos de cancelar:', e instanceof Error ? e.message : String(e))
+  }
+  return jsonOk({ ok: true, reserva_id: cancelada, avisos })
 }
 
 // ─── cancelar-varias ──────────────────────────────────────────────────────────

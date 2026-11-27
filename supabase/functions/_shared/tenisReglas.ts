@@ -960,6 +960,37 @@ export function parsearCancelarVarias(json: unknown): { canceladas: string[]; om
   return { canceladas: [...canceladas], omitidas }
 }
 
+/** Respuesta de tenis_cancelar (un tenis_aviso, o un uuid suelto): el id de la reserva cancelada. */
+export function parsearCancelarUna(json: unknown): string | null {
+  if (typeof json === 'string') return uuidONull(json)
+  return json && typeof json === 'object' ? uuidONull((json as Record<string, unknown>).reserva_id) : null
+}
+
+// ─── Aviso de reserva cancelada por el club (bloqueo, cancelar una o varias) ──
+// Mismo texto en los tres caminos de tenis-gestion; el motivo es opcional (cancelar una).
+
+function motivoAviso(motivo: string | null): string | null {
+  const m = (motivo ?? '').trim().replace(/[.\s]+$/, '')
+  return m || null
+}
+
+export function textoPushCancelacion(turno: string, motivo: string | null): { title: string; body: string } {
+  const m = motivoAviso(motivo)
+  return {
+    title: 'Tenis: se canceló tu reserva',
+    body: `${turno}${m ? `: ${m}` : ''}. Perdón por el cambio, podés reservar otro horario.`,
+  }
+}
+
+export function htmlMailCancelacion(nombre: string, turno: string, motivo: string | null): string {
+  const m = motivoAviso(motivo)
+  return `
+        <p style="font-size:16px">Hola ${escapeHtml(nombre)},</p>
+        <p style="font-size:16px">Tuvimos que cancelar tu reserva del <strong>${escapeHtml(turno)}</strong>${m ? `: ${escapeHtml(m)}` : ''}.</p>
+        <p style="font-size:16px">Si ya pagaste, la administración del club te devuelve el importe. Podés reservar otro horario en uncasapp.com/tenis/reservar.</p>
+      `
+}
+
 // ─── Cartelera de novedades (tenis_novedades) ─────────────────────────────────
 
 export interface ReclamoNovedad {
