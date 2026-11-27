@@ -13,8 +13,8 @@ import { ORIGENES, avisoExportacion, csvReservas, lineaReserva, paginas, rangoPo
 import { HistorialReserva } from './HistorialReserva'
 import { Aviso, BarraModal, Boton, Chip, estilosTenis } from './ui'
 
-// Listado de reservas de la gestora (`tenis_reservas_listar`), como el de
-// OnDepor: búsqueda por nombre / DNI / nº de socio, rango de fechas (hoy a +7),
+// Listado de reservas de la gestora (`tenis_reservas_listar`):
+// búsqueda por nombre / DNI / nº de socio, rango de fechas (hoy a +7),
 // cancha, origen y estado, paginado; historial y cancelar por fila; selección
 // múltiple para cancelar varias (avisa a los jugadores) y exportar a CSV.
 

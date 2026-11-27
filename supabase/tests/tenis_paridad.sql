@@ -1,4 +1,4 @@
--- Pruebas de la migración 20261128000000_tenis_paridad_ondepor (tenis como OnDepor):
+-- Pruebas de la migración 20261128000000_tenis_paridad_ondepor (paridad del módulo de tenis):
 -- horarios por día, ventana de 7 días, nombres en la grilla, comentario, "Socio a designar",
 -- invitados sin DNI, disponibilidad semanal, historial, canceladas, listado, cancelación
 -- masiva, reportes, cartelera, check-in con pendientes y cotización.
@@ -7,7 +7,7 @@
 --   docker run --rm -d --name tenis-pg -e POSTGRES_PASSWORD=x postgres:17
 --   docker exec tenis-pg pg_isready -U postgres   (repetir hasta "accepting connections")
 --   docker cp supabase tenis-pg:/work
---   docker exec tenis-pg psql -U postgres -v ON_ERROR_STOP=1 -f /work/tests/tenis_paridad_ondepor.sql
+--   docker exec tenis-pg psql -U postgres -v ON_ERROR_STOP=1 -f /work/tests/tenis_paridad.sql
 --   docker rm -f tenis-pg
 --
 -- Mismos stubs y utilidades que tenis_detalles_edicion.sql (copiados: cada archivo corre solo,
@@ -158,14 +158,14 @@ insert into socio_servicios values
 update tenis_config set hora_desde = '07:30', hora_hasta = '21:00';
 \ir ../migrations/20261128000000_tenis_paridad_ondepor.sql
 
--- Semilla de tenis_horarios: lunes a viernes = tenis_config; sábado y domingo como OnDepor.
+-- Semilla de tenis_horarios: lunes a viernes = tenis_config; sábado y domingo con horario propio.
 do $$ begin
   if (select string_agg(dia_semana || ' ' || to_char(hora_desde, 'HH24:MI') || '-' || to_char(hora_hasta, 'HH24:MI'), ',' order by dia_semana)
         from tenis_horarios)
      is distinct from '1 07:30-21:00,2 07:30-21:00,3 07:30-21:00,4 07:30-21:00,5 07:30-21:00,6 09:00-22:00,7 10:00-17:00' then
     raise exception 'FALLO [semilla de horarios]: %', (select string_agg(dia_semana || ' ' || hora_desde || '-' || hora_hasta, ',' order by dia_semana) from tenis_horarios);
   end if;
-  raise notice 'ok   - semilla de horarios: lunes a viernes heredan tenis_config, sábado y domingo como OnDepor';
+  raise notice 'ok   - semilla de horarios: lunes a viernes heredan tenis_config, sábado y domingo con horario propio';
 end $$;
 -- El resto de las pruebas usa el horario de siempre (08–22).
 update tenis_config set hora_desde = '08:00', hora_hasta = '22:00';

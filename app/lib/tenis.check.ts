@@ -65,7 +65,7 @@ const item = (p: Partial<ItemGrilla>): ItemGrilla => ({
 
 // ─── Tokens de color ──────────────────────────────────────────────────────────
 
-caso('los 7 colores de OnDepor están como tokens', () => {
+caso('los 7 colores de la grilla están como tokens', () => {
   assert.equal(tenis.web.fondo, '#10577D')
   assert.equal(tenis.telefonica.fondo, '#4094C4')
   assert.equal(tenis.torneo.fondo, '#F06B3A')

@@ -9,7 +9,7 @@ import {
 import { RangoFechas } from './ListadoReservas'
 import { Aviso, Chip, estilosTenis } from './ui'
 
-// Los 7 reportes de OnDepor (`tenis_reporte`): uso por mes / día / hora,
+// Los 7 reportes de tenis (`tenis_reporte`): uso por mes / día / hora,
 // general, por tipo de reserva y rankings de reservas y de cancelaciones. Una
 // tabla simple con barra en la columna principal, y exportar a CSV.
 

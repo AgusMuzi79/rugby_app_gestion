@@ -443,7 +443,7 @@ await caso('resultado de cada aviso a jugadores para marcar (entregado, sin tel�
   assert.deepEqual(clasificarAvisosJugadores([], { estados: new Map() }).resultados, [])
 })
 
-// ─── Paridad OnDepor (20261128000000): horarios por día, comentario, cancelar varias, novedades ──
+// ─── Paridad del módulo de tenis (20261128000000): horarios por día, comentario, cancelar varias, novedades ──
 
 await caso('horarios por día: parsea filas de tenis_horarios (time de Postgres) y descarta lo inválido', () => {
   const filas = parsearHorarios([

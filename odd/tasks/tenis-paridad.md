@@ -1,12 +1,12 @@
-# Feature: tenis-paridad-ondepor
+# Feature: tenis-paridad
 
 ## Objective
-Bring the tennis bookings module to feature and visual parity with OnDepor (the system the club uses today), as decided by Agus on 2026-11-26 ("arrancá con todo como OnDepor y después vemos qué tenemos que acomodar").
+Bring the tennis bookings module to feature and visual parity with the booking system the club used before, as decided by Agus on 2026-11-26 (start with everything the way that system works and adjust afterwards).
 
 ## Problem
-The first version (`odd/tasks/reservas-tenis.md`) covered the booking rules but not how OnDepor looks and works day to day: the phone grid needs sideways scrolling and hides names, members only see 3 days, there is no weekly availability view, no bookings list/history/cancellations/reports for the manager, no tennis news board, and several planned items are missing (audit 2026-11-26).
+The first version (`odd/tasks/reservas-tenis.md`) covered the booking rules but not how the previous system looks and works day to day: the phone grid needs sideways scrolling and hides names, members only see 3 days, there is no weekly availability view, no bookings list/history/cancellations/reports for the manager, no tennis news board, and several planned items are missing (audit 2026-11-26).
 
-## Evidence (read-only review of OnDepor club 604, 2026-11-26)
+## Evidence (read-only review of the previous booking system, 2026-11-26)
 - Player calendar shows 7 days (14 full screen) while booking stays 2 days ahead; bookings outside the window are not shown as bookable.
 - Players see every player's name in the grid ("APELLIDO, NOMBRE (CT nnnn)").
 - Mobile daily grid: all 8 courts as narrow columns with a left hour column, no horizontal scroll, sticky header (court + "N reservas"), tall rows, rounded blocks in type colors listing all players, top bar with prev/next day, "Hoy", date, "jueves · 23 reservas · 8 espacios en vista", legend.
@@ -15,7 +15,7 @@ The first version (`odd/tasks/reservas-tenis.md`) covered the booking rules but 
 - Booking comment field; members can book with "Socio a designar" and fill names later; guests in member bookings are typed by name and surname only.
 - Admin: bookings list with search, date range, filters and Excel export; per-booking change log (created by/at, every version with players/court/state and who changed it); edit modal; bulk select/cancel; cancellations list with reason, cancelled by and how early; 7 reports (monthly/daily/hourly usage, general, by booking type, ranking of bookings per player with cancellations and % cumplimiento, ranking of cancellations) with export; news board (cartelera) sent by email + push to tennis players.
 
-## Scope (all decided "como OnDepor")
+## Scope (all decided to match the previous system)
 1. Grid & calendar redesign (member, manager, canchero), day navigator, 7-day view window, weekly availability view, names visible in the grid.
 2. Rules: opening hours per weekday, booking comment, "Socio a designar" players, member guests by name+surname only (no DNI), price quote before confirming.
 3. Manager: bookings list + filters + export (CSV/text share, no new native modules), per-booking history, cancellations list, cancel from the grid, bulk cancel, collect no-show charge, tennis news board (push + email), opening hours and view window in Reglas.
@@ -83,7 +83,7 @@ Route evidence: 5 parallel writers in separate worktrees with disjoint file owne
 - Members can add a comment, book with "Socio a designar", add guests by name only, and see the price before confirming.
 
 ## Progress
-- 2026-11-26: analysis of OnDepor (features + mobile UI) and audit of the current code; document created on branch `feat/tenis-paridad-ondepor` from `origin/main` (`58508b4`).
+- 2026-11-26: analysis of the previous booking system (features + mobile UI) and audit of the current code; document created on the feature branch from `origin/main` (`58508b4`).
 - 2026-11-26: P1 `6de95b3` (migration + 165 SQL tests), P2 `10b078e` (functions + guest web + F10), P3 `d3852c5` (grid redesign), P4 `61299e9` (manager screens), P5 `49bf3d6` (member/canchero flows) merged into this branch (`98d17be`); integration `6df2508` + `572e19f` (parsers, phone-booking comment/quote, keep placeholders on correction, canchero a-designar collection, novedad totals via RPC).
 - Checks after integration: app tsc clean; 58 `app/lib/*.check.ts` ok; `tenisReglas.check` 36; `web/lib/tenis.check` 27; web tsc clean; strict tsc of the 3 functions clean; SQL tests 176/40/49/76/165 ok. The four older SQL files run with the full chain only differ by design (weekday hours, visible names) or by a pre-existing 1127 behaviour.
 - Deviations from the contract: staff see any date (window applies to members); names shown as stored in the padrón ("Pérez Juan"), not "APELLIDO, NOMBRE"; canchero can cancel single bookings, bulk cancel is gestor-only; news mail in Resend batches of 100.

@@ -1,4 +1,4 @@
-// Cuentas de la grilla de tenis al estilo OnDepor (odd/tasks/tenis-paridad-ondepor.md,
+// Cuentas de la grilla de tenis (odd/tasks/tenis-paridad.md,
 // P3): ancho de columna para que entren todas las canchas sin scroll lateral,
 // horario del día, línea de la hora actual, ventana de días, nivel de calor de
 // la vista semanal y textos de los bloques. Lógica pura, sin React; verificada

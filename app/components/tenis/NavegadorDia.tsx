@@ -5,7 +5,7 @@ import { colors, fonts } from '@/constants/theme'
 import { LEYENDA_TENIS, fechaArgentina } from '@/lib/tenis'
 import { fechaLarga } from '@/lib/tenisGrilla'
 
-// Barra de arriba de la grilla (como OnDepor): día anterior / siguiente, "Hoy",
+// Barra de arriba de la grilla: día anterior / siguiente, "Hoy",
 // la fecha larga, "N reservas · 8 canchas" y los colores (se despliegan).
 // `dias` = los días que se pueden mirar, en orden. `cerrado`: ese día las
 // canchas no abren (tenis_horarios).

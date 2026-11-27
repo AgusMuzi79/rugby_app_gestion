@@ -9,7 +9,7 @@ import {
 } from '@/lib/tenisGestion'
 import { ERROR_CARGA_TENIS, gestionTenis, rpcTenis, type ResultadoTenis } from './useTenisRpc'
 
-// Pantallas de la gestora de tenis "como OnDepor" (odd/tasks/tenis-paridad-ondepor.md,
+// Pantallas de la gestora de tenis (odd/tasks/tenis-paridad.md,
 // contrato 8–13): listado, historial, canceladas, reportes, cartelera, horarios
 // por día y cobro del no-show. Los RPC chequean el rol en la base.
 

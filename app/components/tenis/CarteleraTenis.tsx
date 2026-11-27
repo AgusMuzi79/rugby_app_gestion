@@ -8,7 +8,7 @@ import { etiquetaDiaCorta, fechaArgentina, horaArgentina } from '@/lib/tenis'
 import { estadoNovedad, type NovedadTenis } from '@/lib/tenisGestion'
 import { Aviso, BarraModal, Boton, estilosTenis } from './ui'
 
-// Cartelera de tenis (`tenis_novedades`), como la de OnDepor: la gestora
+// Cartelera de tenis (`tenis_novedades`): la gestora
 // escribe novedades (torneos, cortes, avisos) y las publica por push y mail a
 // los jugadores de tenis (Edge Function `tenis-gestion` › publicar-novedad).
 

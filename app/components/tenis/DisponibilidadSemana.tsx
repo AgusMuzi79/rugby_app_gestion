@@ -7,7 +7,7 @@ import { etiquetaDiaCorta, isoArgentina, minutosDeHora, horaDeMinutos, type Moda
 import { HORA_W, lineaAhora, nivelCalor, paginar, textoDisponibles, type DiaSemana } from '@/lib/tenisGrilla'
 import { Chip } from './ui'
 
-// Vista "Semana" (como "Disponib." de OnDepor): tres días por pantalla, se
+// Vista "Semana": tres días por pantalla, se
 // pasa de a tres deslizando; cada media hora dice cuántas canchas tienen lugar
 // para un turno de esa modalidad, con colores de calor (verde muchas, ámbar,
 // naranja pocas, bordó completo). Tocar una celda abre ese día en la grilla.

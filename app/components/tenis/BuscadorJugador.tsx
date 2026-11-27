@@ -10,7 +10,7 @@ import { Aviso, Boton, Chip, estilosTenis } from './ui'
 // Elegir un jugador: un socio del padrón (búsqueda por nombre o Nº de socio,
 // nunca texto libre) o un invitado no socio con DNI, nombre y apellido. Con
 // `dniOpcional` (reservas del socio y del staff) el invitado puede ir sólo con
-// nombre y apellido, como en OnDepor; corregir jugadores sigue pidiendo DNI.
+// nombre y apellido; corregir jugadores sigue pidiendo DNI.
 
 export interface JugadorElegido {
   clave:   string // socio_id, 'dni:<dni>', 'nom:<nombre apellido>' o 'designar:<n>', para no repetir jugadores

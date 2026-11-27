@@ -7,7 +7,7 @@ import {
 } from '@/lib/tenis'
 import { FILA_H, HORA_W, anchoColumna, configDelDia, lineaAhora, nombresBloque, reservasPorCancha } from '@/lib/tenisGrilla'
 
-// Grilla del día como la de OnDepor en el teléfono: todas las canchas entran a
+// Grilla del día en el teléfono: todas las canchas entran a
 // lo ancho (sin scroll lateral), encabezado fijo con la cancha y cuántas
 // reservas tiene, filas altas de 30 minutos y bloques redondeados con el color
 // de su tipo y los nombres de todos los jugadores (↻ = bloque fijo). Hoy, una
