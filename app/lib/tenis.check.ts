@@ -45,7 +45,7 @@ import {
   itemsSinReserva,
   resumenPrecio,
   validarInvitado,
-  validarRangoHorario,
+  validarRangoHorario, normalizarHora,
   verTabAgenda,
   type ItemGrilla,
 } from './tenis'
@@ -283,6 +283,19 @@ caso('bloques: día ISO, fechas y rangos horarios', () => {
   assert.equal(validarRangoHorario('18:00', '20:30'), null)
   assert.equal(validarRangoHorario('20:00', '18:00'), 'La hora de fin tiene que ser posterior a la de inicio.')
   assert.equal(validarRangoHorario('8:00', '10:00'), 'Usá horas con formato HH:MM (por ejemplo 18:30).')
+})
+
+caso('hora escrita sin el cero adelante se normaliza a HH:MM', () => {
+  assert.equal(normalizarHora('9:00'), '09:00')
+  assert.equal(normalizarHora('9'), '09:00')
+  assert.equal(normalizarHora(' 9.30 '), '09:30')
+  assert.equal(normalizarHora('930'), '09:30')
+  assert.equal(normalizarHora('1830'), '18:30')
+  assert.equal(normalizarHora('18:30'), '18:30')
+  assert.equal(normalizarHora('24:00'), null)
+  assert.equal(normalizarHora('9:75'), null)
+  assert.equal(normalizarHora('nueve'), null)
+  assert.equal(normalizarHora(''), null)
 })
 
 caso('invitado: DNI, nombre y apellido obligatorios', () => {

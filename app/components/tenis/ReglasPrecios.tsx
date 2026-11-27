@@ -4,7 +4,7 @@ import { colors } from '@/constants/theme'
 import { accionesTenis } from '@/hooks/useTenisGestor'
 import { accionesGestion } from '@/hooks/useTenisGestion'
 import { DIAS_SEMANA, parsearHorarios, validarHorarios, type HorarioDia } from '@/lib/tenisGestion'
-import { esHoraValida, type TenisConfig } from '@/lib/tenis'
+import { esHoraValida, normalizarHora, type TenisConfig } from '@/lib/tenis'
 import { formatMonto } from '@/lib/formatoMonto'
 import { Aviso, Boton, Titulo, estilosTenis } from './ui'
 
@@ -93,13 +93,23 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
       if (!Number.isInteger(n) || n < 0 || (c.max !== undefined && n > c.max)) { setError(`Revisá "${c.label}".`); return }
       nuevo[c.k] = n
     }
+    // "9:00" or "9" are accepted and saved as "09:00".
+    nuevo.hora_desde = normalizarHora(nuevo.hora_desde) ?? nuevo.hora_desde
+    nuevo.hora_hasta = normalizarHora(nuevo.hora_hasta) ?? nuevo.hora_hasta
+    const horariosN = horarios && horarios.map(h => ({
+      ...h,
+      hora_desde: normalizarHora(h.hora_desde) ?? h.hora_desde,
+      hora_hasta: normalizarHora(h.hora_hasta) ?? h.hora_hasta,
+    }))
+    setForm(f => ({ ...f, hora_desde: nuevo.hora_desde, hora_hasta: nuevo.hora_hasta }))
+    if (horariosN) setHorarios(horariosN)
     if (!esHoraValida(nuevo.hora_desde) || !esHoraValida(nuevo.hora_hasta) || nuevo.hora_hasta <= nuevo.hora_desde) {
       setError('Revisá el horario de las canchas (HH:MM).'); return
     }
     if (!nuevo.alias_pago.trim()) { setError('Completá el alias para transferencias.'); return }
     const vista = Number(diasVista)
-    if (horarios) {
-      const e = validarHorarios(horarios)
+    if (horariosN) {
+      const e = validarHorarios(horariosN)
       if (e) { setError(e); return }
       if (!Number.isInteger(vista) || vista < 1 || vista > 14) { setError('Los días visibles en el calendario van de 1 a 14.'); return }
       if (vista < nuevo.anticipacion_dias + 1) { setError('Los días visibles tienen que incluir los días de anticipación para reservar.'); return }
@@ -109,8 +119,8 @@ export function ReglasPrecios({ config, onGuardado }: { config: TenisConfig; onG
     setGuardando(true)
     const c = { ...nuevo, alias_pago: nuevo.alias_pago.trim() }
     // Sin horarios cargados (servidor anterior o falló la lectura) se guarda como antes.
-    const r = horarios ? await accionesGestion.configGuardar(c, vista) : await accionesTenis.configGuardar(c)
-    const rh = r.ok && horarios ? await accionesGestion.horariosGuardar(horarios) : null
+    const r = horariosN ? await accionesGestion.configGuardar(c, vista) : await accionesTenis.configGuardar(c)
+    const rh = r.ok && horariosN ? await accionesGestion.horariosGuardar(horariosN) : null
     setGuardando(false)
     if (!r.ok) { setError(r.mensaje); return }
     // Las reglas ya quedaron; los horarios no. No se recarga (perdería lo editado):

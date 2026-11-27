@@ -923,6 +923,15 @@ export function esHoraValida(hora: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(hora)
 }
 
+// Hora tal como la escribe la gestora ("9", "9:00", "9.30", "930") en HH:MM,
+// o null si no es una hora válida.
+export function normalizarHora(texto: string): string | null {
+  const m = texto.trim().match(/^(\d{1,2})(?:[:.h]?(\d{2}))?$/)
+  if (!m) return null
+  const hora = `${m[1].padStart(2, '0')}:${m[2] ?? '00'}`
+  return esHoraValida(hora) ? hora : null
+}
+
 // Error del rango de un bloque, o null si está bien.
 export function validarRangoHorario(desde: string, hasta: string): string | null {
   if (!esHoraValida(desde) || !esHoraValida(hasta)) return 'Usá horas con formato HH:MM (por ejemplo 18:30).'

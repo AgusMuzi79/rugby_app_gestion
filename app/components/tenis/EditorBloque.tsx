@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors } from '@/constants/theme'
 import { accionesTenis } from '@/hooks/useTenisGestor'
 import {
-  TIPOS_BLOQUE, diaSemanaIso, esFechaValida, estiloItem, isoArgentina, validarRangoHorario,
+  TIPOS_BLOQUE, diaSemanaIso, esFechaValida, estiloItem, isoArgentina, normalizarHora, validarRangoHorario,
   type Cancha, type TipoBloque,
 } from '@/lib/tenis'
 import {
@@ -66,12 +66,18 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
   async function guardar() {
     if (enCurso.current) return
     if (!titulo.trim()) { setError('Escribí un título (por ejemplo "Academia" o "Lluvia").'); return }
-    const rango = validarRangoHorario(desde, hasta)
+    // "9:00" or "9" are accepted and saved as "09:00".
+    const desdeN = normalizarHora(desde) ?? desde.trim()
+    const hastaN = normalizarHora(hasta) ?? hasta.trim()
+    if (desdeN !== desde) setDesde(desdeN)
+    if (hastaN !== hasta) setHasta(hastaN)
+    const rango = validarRangoHorario(desdeN, hastaN)
     if (rango) { setError(rango); return }
     const fin = vigHasta.trim()
     if (modo === 'fijo') {
       if (!esFechaValida(vigDesde)) { setError('Revisá la fecha "desde" (AAAA-MM-DD).'); return }
-      if (fin && (!esFechaValida(fin) || fin < vigDesde)) { setError('Revisá la fecha de fin (AAAA-MM-DD, posterior a la de inicio).'); return }
+      if (fin && !esFechaValida(fin)) { setError('Revisá la fecha de fin (AAAA-MM-DD).'); return }
+      if (fin && fin < vigDesde) { setError(`La fecha de fin (${fin}) es anterior a la de inicio (${vigDesde}). Revisá el año.`); return }
     } else if (!esFechaValida(dia1)) { setError('Revisá la fecha (AAAA-MM-DD).'); return }
     setError(null)
 
@@ -87,10 +93,10 @@ export function EditorBloque({ modo, fecha, canchas, inicial, canchaInicial = nu
       r = modo === 'fijo'
         ? await accionesTenis.bloqueGuardar({
             id: inicial?.id, cancha_id: canchaId, tipo, titulo: titulo.trim(), dia_semana: dia,
-            hora_desde: desde, hora_hasta: hasta, vigente_desde: vigDesde, vigente_hasta: fin || null,
+            hora_desde: desdeN, hora_hasta: hastaN, vigente_desde: vigDesde, vigente_hasta: fin || null,
           })
         : await accionesTenis.bloqueoPuntual({
-            id: inicial?.id, canchaId, desde: isoArgentina(dia1, desde), hasta: isoArgentina(dia1, hasta), tipo, titulo: titulo.trim(),
+            id: inicial?.id, canchaId, desde: isoArgentina(dia1, desdeN), hasta: isoArgentina(dia1, hastaN), tipo, titulo: titulo.trim(),
           })
       } catch {
         r = { ok: false, mensaje: 'No se pudo guardar. Revisá la conexión e intentá de nuevo.' }
