@@ -15,6 +15,7 @@ import { NavegadorDia, SelectorVista, type VistaTenis } from './NavegadorDia'
 import { DisponibilidadSemana } from './DisponibilidadSemana'
 import { diasVista, esDiaReservable, reservasPorCancha } from '@/lib/tenisGrilla'
 import { NovedadesTenis } from './NovedadesTenis'
+import { GrillaPantallaCompleta } from './GrillaPantallaCompleta'
 
 // Sección "Tenis" de la Agenda del socio (FEATURES.tenis): la grilla del día
 // (se ven `dias_vista` días y se reserva hasta `anticipacion_dias`), la vista
@@ -55,6 +56,8 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
   const dias = useMemo(() => diasReservables(ahoraMs, config.anticipacion_dias), [ahoraMs, config.anticipacion_dias])
   // Grilla: se miran más días de los que se reservan (los demás, sólo ver).
   const [vista, setVista] = useState<VistaTenis>('dia')
+  // Grid turned sideways in a full-screen modal (same as the manager's).
+  const [pantallaCompleta, setPantallaCompleta] = useState(false)
   const diasVer = useMemo(() => diasVista(ahoraMs, config.dias_vista), [ahoraMs, config.dias_vista])
   // Pasó la medianoche o se achicó la vista: volver a un día que se pueda navegar.
   useEffect(() => { if (!diasVer.includes(fecha)) setFecha(diasVer[0]) }, [diasVer, fecha])
@@ -125,6 +128,7 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
         cerrado={disp?.horario?.abierto === false}
         onCambiar={setFecha}
       />
+      <Boton texto="PANTALLA COMPLETA" variante="secundario" onPress={() => setPantallaCompleta(true)} disabled={!disp} />
       {loading && !disp ? (
         <ActivityIndicator color={colors.oro} style={s.cargando} />
       ) : error && !disp ? (
@@ -150,6 +154,23 @@ export const TenisSocio = forwardRef<TenisSocioRef, { editarInicial?: string | n
         </>
       ) : null}
       </>
+      )}
+
+      {pantallaCompleta && disp && (
+        <GrillaPantallaCompleta
+          fecha={fecha}
+          dias={diasVer}
+          onCambiar={setFecha}
+          onCerrar={() => setPantallaCompleta(false)}
+          cargando={loading}
+          reservas={reservasPorCancha(disp.items, disp.canchas).total}
+          config={config}
+          horario={disp.horario}
+          canchas={disp.canchas}
+          items={disp.items}
+          ahoraMs={ahoraMs}
+          onPressLibre={reservable ? (cancha, hora) => { setPantallaCompleta(false); setForm({ cancha, hora }) } : undefined}
+        />
       )}
 
       <Text style={estilosTenis.label}>MIS RESERVAS</Text>
