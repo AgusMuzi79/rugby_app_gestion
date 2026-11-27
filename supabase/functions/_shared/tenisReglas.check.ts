@@ -294,6 +294,10 @@ await caso('código estable de los errores de las RPC (raise P0001 con el códig
   assert.equal(codigoDeError({ code: '42501', message: 'permission denied' }), null)
   assert.equal(codigoDeError(null), null)
   assert.equal(motivoTenis('codigo_que_no_existe'), 'No se pudo completar la operación. Probá de nuevo.')
+  // turno_seguido con el nombre del DETAIL; sin nombre, genérico.
+  assert.equal(motivoTenis('turno_seguido', 'Gómez Ana'), 'Gómez Ana ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(motivoTenis('turno_seguido', '  '), 'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
+  assert.equal(motivoTenis('turno_seguido'), 'Uno de los jugadores ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.')
 })
 
 // Los códigos de la migración (header de 20261112000000_reservas_tenis.sql) y los que agregan
@@ -309,6 +313,8 @@ const CODIGOS_DB = [
   'bloque_invalido', 'bloque_inexistente', 'config_invalida', 'dias_invalidos', 'persona_requerida',
   'jugador_inexistente', 'infraccion_inexistente', 'suspension_inexistente', 'extension_invalida',
   'hueco_invalido',
+  // 20261130000000_tenis_sin_turnos_seguidos.
+  'turno_seguido',
 ]
 const CODIGOS_FUNCIONES = ['limitado', 'jugador_sin_nombre', 'comprobante_invalido', 'comprobante_no_subido']
 

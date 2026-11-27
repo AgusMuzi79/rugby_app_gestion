@@ -1039,6 +1039,7 @@ const MENSAJES: Record<string, string> = {
   cantidad_jugadores:      'Faltan o sobran jugadores para esa modalidad.',
   jugadores_duplicados:    'Un jugador está cargado dos veces.',
   jugador_ocupado:         'Uno de los jugadores ya tiene otro turno a esa hora.',
+  turno_seguido:           textoTurnoSeguido(null),
   socio_no_encontrado:     'No encontramos a nadie con ese DNI. Si no es socio, cargalo como invitado.',
   dni_invalido:            'Revisá el DNI.',
   invitado_incompleto:     'Completá nombre y apellido del invitado.',
@@ -1089,10 +1090,20 @@ const MENSAJES: Record<string, string> = {
 
 export const CODIGOS_TENIS: readonly string[] = Object.keys(MENSAJES)
 
+// turno_seguido (20261130000000): la base manda el nombre de la persona en el DETAIL.
+function textoTurnoSeguido(nombre: string | null): string {
+  return `${nombre || 'Uno de los jugadores'} ya juega en un turno pegado a este. No se pueden jugar dos turnos seguidos.`
+}
+
 export function mensajeErrorTenis(err: unknown, porDefecto: string): string {
   if (!err) return porDefecto
   if (esErrorDeRed(err)) return SIN_CONEXION
   const codigo = codigoErrorTenis(err)
+  if (codigo === 'turno_seguido' && esObjeto(err)) {
+    // PostgREST lo trae en `details`; una Edge Function, en `detalle`.
+    const det = typeof err.details === 'string' ? err.details : typeof err.detalle === 'string' ? err.detalle : ''
+    return textoTurnoSeguido(det.trim() || null)
+  }
   if (codigo) return MENSAJES[codigo] ?? porDefecto
   return mensajeError(err, porDefecto)
 }
